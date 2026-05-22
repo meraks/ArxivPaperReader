@@ -10,9 +10,10 @@
 ## 📁 目录结构
 
 ```
-YYYY/
-└── MM/
-    └── YYYY-MM-DD-paper-slug.md
+Papers/
+└── YYYY/
+    └── MM/
+        └── YYYY-MM-DD-paper-slug.md
 ```
 
 ## 🤖 自动化
