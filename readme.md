@@ -74,6 +74,14 @@
 
 - 新增论文关键词检索功能
 
+## 📚 论文索引
+
+| 日期 | 论文标题 | 作者 | 链接 |
+|------|---------|------|------|
+| 2026-05-22 | MOSS: Self-Evolution through Source-Level Rewriting in Autonomous Agent Systems | Qianshu Cai et al. | [arXiv](https://arxiv.org/abs/2605.22794) \| [精读](Papers/2026/05/2026-05-22-moss-self-evolution-source-level-rewriting.md) |
+
+---
+
 ## 支持一下
 
 如果本项目对你有帮助，欢迎 **Star**、**Fork** 支持！持续更新LLM前沿学术动态，助力科研与学习。
