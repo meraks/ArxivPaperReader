@@ -78,7 +78,8 @@
 
 | 日期 | 论文标题 | 作者 | 链接 |
 |------|---------|------|------|
-|| 2026-05-24 | Gated DeltaNet-2: Decoupling Erase and Write in Linear Attention | Ali Hatamizadeh et al. | [arXiv](https://arxiv.org/abs/2605.22791) \| [精读](Papers/2026/05/2026-05-24-gated-deltanet-2-linear-attention.md) |
+| 2026-05-25 | Advancing Mathematics Research with AI-Driven Formal Proof Search | George Tsoukalos et al. (Google DeepMind) | [arXiv](https://arxiv.org/abs/2605.22763) \| [精读](Papers/2026/05/2026-05-25-advancing-mathematics-research-ai-formal-proof-search.md) |
+| 2026-05-24 | Gated DeltaNet-2: Decoupling Erase and Write in Linear Attention | Ali Hatamizadeh et al. | [arXiv](https://arxiv.org/abs/2605.22791) \| [精读](Papers/2026/05/2026-05-24-gated-deltanet-2-linear-attention.md) |
 | 2026-05-23 | Vector Policy Optimization: Training for Diversity Improves Test-Time Search | Ryan Bahlous-Boldi et al. | [arXiv](https://arxiv.org/abs/2605.22817) \| [精读](Papers/2026/05/2026-05-23-vector-policy-optimization.md) |
 || 2026-05-22 | MOSS: Self-Evolution through Source-Level Rewriting in Autonomous Agent Systems | Qianshu Cai et al. | [arXiv](https://arxiv.org/abs/2605.22794) \| [精读](Papers/2026/05/2026-05-22-moss-self-evolution-source-level-rewriting.md) |
 
