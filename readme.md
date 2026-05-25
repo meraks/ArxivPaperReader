@@ -42,15 +42,15 @@
 
 - 论文英文标题 \+ 中文翻译
 
-- 作者信息 \&amp; 所属机构
+- 作者信息 \& 所属机构
 
-- 发布时间 \&amp;amp; Arxiv 编号
+- 发布时间 \& Arxiv 编号
 
-- 原文链接 \&amp; PDF下载链接
+- 原文链接 \& PDF下载链接
 
 - LLM 精炼核心摘要（去除冗余学术套话）
 
-- 核心创新点 \&amp; 研究价值总结
+- 核心创新点 \& 研究价值总结
 
 - 研究方向分类标签
 
@@ -70,6 +70,26 @@
 
 - 新增领域细分分类（LLM推理、微调、Agent、对齐、轻量化等）
 
+- 支持每周/每月领域研究趋势总结报告
+
+- 新增论文关键词检索功能
+
+## 📚 论文索引（每日精读）
+
+| 日期 | 论文标题 | 作者 | 链接 |
+|------|---------|------|------|
+| 2026-05-25 | Advancing Mathematics Research with AI-Driven Formal Proof Search | George Tsoukalos et al. (Google DeepMind) | [arXiv](https://arxiv.org/abs/2605.22763) \| [精读](Papers/2026/05/2026-05-25-advancing-mathematics-research-ai-formal-proof-search.md) |
+| 2026-05-24 | Gated DeltaNet-2: Decoupling Erase and Write in Linear Attention | Ali Hatamizadeh et al. | [arXiv](https://arxiv.org/abs/2605.22791) \| [精读](Papers/2026/05/2026-05-24-gated-deltanet-2-linear-attention.md) |
+| 2026-05-23 | Vector Policy Optimization: Training for Diversity Improves Test-Time Search | Ryan Bahlous-Boldi et al. | [arXiv](https://arxiv.org/abs/2605.22817) \| [精读](Papers/2026/05/2026-05-23-vector-policy-optimization.md) |
+| 2026-05-22 | MOSS: Self-Evolution through Source-Level Rewriting in Autonomous Agent Systems | Qianshu Cai et al. | [arXiv](https://arxiv.org/abs/2605.22794) \| [精读](Papers/2026/05/2026-05-22-moss-self-evolution-source-level-rewriting.md) |
+
+## 📖 深度阅读（Deep Readings）
+
+> 交互式深度论文精读，包含完整的论文阅读报告 + 代码逐行解析，由 Claude Code 生成 + Review 循环优化。
+
+| 日期 | 论文标题 | 作者 | 链接 |
+|------|---------|------|------|
+| 2023-12-01 | Mamba: Linear-Time Sequence Modeling with Selective State Spaces | Albert Gu, Tri Dao | [arXiv](https://arxiv.org/abs/2312.00752) \| [深度阅读](DeepReadings/2023-12-01-mamba-linear-time-sequence-modeling-selective-state-spaces.md) |
 
 ---
 
