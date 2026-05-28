@@ -2130,5 +2130,3 @@ DeepSeek-V4 是 **效率导向** 的架构创新，通过 CSA+HCA 混合注意�
 4. FlashAttention, Dao et al., 2022
 
 ---
-
-*本文精读报告由 Claude Code 生成 + Hermes 审校，生成日期：2026-05-29*
