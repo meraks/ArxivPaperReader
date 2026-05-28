@@ -327,6 +327,3 @@ TRACER 是多智能体 LLM 推理领域一项**高质量且实用**的工作。�
 7. Schulman, J. et al. "Proximal Policy Optimization Algorithms." arXiv:1707.06347, 2017.
 8. Shao, Z. et al. "DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models." arXiv:2402.03300, 2024.
 
----
-
-*本文精读报告由 AI 辅助生成，生成日期：2026-05-28*

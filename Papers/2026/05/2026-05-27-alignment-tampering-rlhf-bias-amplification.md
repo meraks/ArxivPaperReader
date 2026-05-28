@@ -320,6 +320,3 @@ RLHF 的核心在于配对比较（pairwise comparison）——只问"哪个更�
 
 7. Bai, Y. et al. "Constitutional AI: Harmlessness from AI Feedback." arXiv 2022.
 
----
-
-*本文精读报告由 AI 辅助生成，生成日期：2026-05-27*

@@ -318,6 +318,3 @@ MOSS 代表了智能体自我进化研究的一个重要方向——从文本层
 5. Darwin Gödel Machine — Zhang et al., 2025. Self-referential agent improvement through code evolution.
 6. AlphaEvolve — Novikov et al., 2025. Google DeepMind's evolutionary code optimization.
 
----
-
-*本文精读报告由 AI 辅助生成，生成日期：2026-05-22*

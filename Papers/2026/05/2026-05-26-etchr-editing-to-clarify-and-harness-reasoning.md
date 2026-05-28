@@ -364,6 +364,3 @@ ETCHR 提出了一个**概念清晰、工程实用**的视觉推理增强框架�
 6. Team, InternLM (2025). InternLM-XComposer: A Vision-Language Large Model for Advanced Text-image Comprehension and Composition. *arXiv:2309.15112*.
 7. Achiam, J., et al. (2023). GPT-4 Technical Report. *arXiv:2303.08774*.
 
----
-
-*本文精读报告由 AI 辅助生成，生成日期：2026-05-26*
