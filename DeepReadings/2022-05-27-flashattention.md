@@ -204,7 +204,7 @@ HBM 访问: 读 P(N²), 读 V(Nd), 写 O(Nd)
 
 **反向传播的困境**：
 反向传播仍需 S 和 P 的梯度计算：
-$$dS = P \odot (dO \cdot V^T - \mathbf{1} \cdot (dO \cdot O^T))$$
+$$dS = P \\odot (dP - \\mathbf{1} \\cdot \\text{rowsum}(dP \\odot P))$$\n\n其中 $dP = dO \\cdot V^T$，$\\text{rowsum}$ 对每行求和。
 
 这要求存储 S 或 P（$O(N²)$ 空间）。
 
@@ -359,7 +359,7 @@ $$o_i^{\text{new}} = \frac{e^{m_i - m_i^{\text{new}}} \cdot l_i \cdot o_i + \sum
 4. 更新人数：$n_{\text{new}} = n + 1$
 
 **最终平均分**：
-$$\text{average} = \frac{s_{\text{new}}}{n_{\text{new}}} + m_{\text{new}}$$
+**最终加权平均分**（去掉数值稳定偏移 $m_{\\text{new}}$）：\n$$\\text{average} = \\frac{s_{\\text{new}}}{n_{\\text{new}}}$$
 
 **对应到 Online Softmax**：
 - $m$：当前最大值（相当于最高分）
@@ -916,7 +916,7 @@ return dQ, dK, dV
 **关键特点**：
 1. 所有 $S_{ij}$ 和 $P_{ij}$ 在 SRAM 中重新计算
 2. 梯度 $dQ, dK, dV$ 在 HBM 中累积（原子加法）
-3. 总计算量：$4N²d$（前向，QK^T 与 PV 各 $2N²d$） + $4N²d$（反向，含重算） = $8N²d$ FLOPs
+3. 总计算量：前向 $4N^2d$（QK^T 与 PV 各 $2N^2d$），反向约 $10N^2d$（重算 $S_{ij}$ + $dV=P^T·dO$ + $dP=dO·V^T$ + $dQ=dS·K$ + $dK=dS^T·Q$ 各 $2N^2d$ + Softmax 反向等额外开销），总计约 $14N^2d$ FLOPs
 4. HBM 访问：$\Theta(N²d²/M)$（远小于标准的 $\Theta(N²)$）
 
 ---
@@ -2057,11 +2057,7 @@ for k in range(B_r):
     # Algorithm 1 第 17 行：l_new ← l_i + sum(exp(S_ij - m_new))
     l_new = l_i[k] + sum(exp(S_ij[k, :] - m_new), axis=0)
     
-    # Algorithm 1 第 18-20 行：更新输出
-    # O_i ← (l_i @ O_i + exp(S_ij - m_new) @ V_j) / l_new
-    P_ij = exp(S_ij[k, :, None] - m_new[None, :])  # (B_c, H)
-    contrib = tensorcore_matmul(P_ij, V_block)       # (H, D)
-    O_i[k] += contrib / l_new[:, None]
+    # Algorithm 1 第 18-20 行：更新输出\n    # 正确公式：O_i_new = (l_i_old * exp(m_i - m_new) * O_i + exp(S_ij - m_new) @ V_j) / l_new\n    # 先以未归一化形式累加，循环外统一除以 l_i（最终值）\n    P_ij = exp(S_ij[k, :, None] - m_new[None, :])  # (B_c, H)\n    contrib = tensorcore_matmul(P_ij, V_block)       # (H, D)\n    O_i[k] = O_i[k] * l_i[k] + contrib               # 未归一化累加\n    O_i[k] /= l_new                                  # 一次性归一化
     
     # Algorithm 1 第 21-23 行：保存新统计量
     m_i[k] = m_new
