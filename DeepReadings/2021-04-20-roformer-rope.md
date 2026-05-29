@@ -2787,7 +2787,7 @@ RoFormer 的实验验证了 RoPE 的理论优势：
 
 不同模型对 RoPE 的使用展现了其灵活性：
 - **RoFormer**：标准配置（base=10000），通用任务
-- **LLaMA**：大 base 值（1000000），长序列优化
+- **LLaMA-1/2**：standard base（10000），通用长序列；**CodeLLaMA**：大 base（100000），极长上下文
 - **GPT-NeoX**：可定制配置（partial_rotary_factor），实验友好
 - **PaLM**：MQA + RoPE，内存优化
 
