@@ -1047,15 +1047,15 @@ class RewardModel(nn.Module):
     基于预训练语言模型的奖励模型
     使用 Bradley-Terry 模型训练
     """
-    def __init__(self, base_model_name="gpt-3-6B"):
+    def __init__(self, base_model_name="EleutherAI/gpt-j-6b"):  # 修正：gpt-3-6B 在 HuggingFace 上不可用
         super().__init__()
         
-        # 加载预训练 backbone（去掉 LM head）
+        # 加载预训练 backbone（AutoModel 本身不含 LM head，无需额外去除）
         self.backbone = AutoModel.from_pretrained(base_model_name)
         config = AutoConfig.from_pretrained(base_model_name)
         d_model = config.hidden_size
         
-        # Reward head：线性层输出标量
+        # Reward head：两层 MLP（Linear -> ReLU -> Dropout -> Linear），最终输出标量
         self.reward_head = nn.Sequential(
             nn.Linear(d_model, d_model),
             nn.ReLU(),
@@ -1096,7 +1096,7 @@ class RewardModel(nn.Module):
             return_dict=True
         )
         
-        # 使用最后一层的 hidden states
+        # 取每条序列中最后一个非 padding token 的 hidden state（非 GPT LM head 的行为）
         last_hidden_states = outputs.last_hidden_state  # (batch, seq_len, d_model)
         
         # 获取每个序列的最后一个有效 token（非 padding）
@@ -1232,7 +1232,7 @@ def train_reward_model(model, train_dataloader, val_dataloader, epochs=1):
 # 使用示例
 if __name__ == "__main__":
     # 初始化模型（6B，论文发现 175B 不稳定）
-    model = RewardModel("gpt-3-6B")
+    model = RewardModel("EleutherAI/gpt-j-6b")
     
     # 假设有数据
     # train_dataloader = ...
@@ -1288,7 +1288,7 @@ class PPOTrainerWrapper:
         self.ref_model.to(self.device)
         
         # 3. 加载 Reward Model（固定不动）
-        self.reward_model = RewardModel("gpt-3-6B")
+        self.reward_model = RewardModel("EleutherAI/gpt-j-6b")  # 修正：gpt-3-6B 不可用
         self.reward_model.load_state_dict(torch.load(reward_model_path))
         self.reward_model.eval()
         for param in self.reward_model.parameters():
@@ -1351,11 +1351,10 @@ class PPOTrainerWrapper:
         
         rewards = torch.tensor(rewards, device=self.device)
         
-        # Reward normalization
-        if len(self.reward_stats) < 1000:
-            self.reward_stats.extend(rewards.cpu().tolist())
-            self.reward_mean = np.mean(self.reward_stats)
-            self.reward_std = np.std(self.reward_stats) + 1e-8
+        # Reward normalization：持续更新 running statistics
+        self.reward_stats.extend(rewards.cpu().tolist())
+        self.reward_mean = np.mean(self.reward_stats)
+        self.reward_std = np.std(self.reward_stats) + 1e-8
         
         rewards = (rewards - self.reward_mean) / self.reward_std
         
@@ -1371,14 +1370,11 @@ class PPOTrainerWrapper:
         Returns:
             stats: 训练统计信息
         """
-        # 1. 编码 prompts
-        query_tensors = self.tokenizer(
-            prompts,
-            return_tensors="pt",
-            padding=True,
-            truncation=True,
-            max_length=256
-        ).input_ids.to(self.device)
+        # 1. 编码 prompts（PPO Trainer 的 generate 需要 list of 1D tensors）
+        query_tensors = [
+            self.tokenizer(p, return_tensors="pt", truncation=True, max_length=256).input_ids.squeeze(0).to(self.device)
+            for p in prompts
+        ]
         
         # 2. 生成响应
         generation_kwargs = {
@@ -1428,9 +1424,9 @@ class PPOTrainerWrapper:
                 stats = self.train_step(batch_prompts)
                 all_stats.append(stats)
             
-            # 汇总统计
-            avg_reward = np.mean([s["reward/mean"] for s in all_stats])
-            avg_kl = np.mean([s["kl/mean"] for s in all_stats])
+            # 汇总统计（TRL PPOTrainer 实际返回的 key）
+            avg_reward = np.mean([s.get("ppo/mean_scores", 0) for s in all_stats])
+            avg_kl = np.mean([s.get("ppo/mean_non_score_reward", 0) for s in all_stats])
             
             print(
                 f"Epoch {epoch+1}/{epochs} | "
@@ -1472,11 +1468,15 @@ if __name__ == "__main__":
 
 **实现**：
 ```python
+import numpy as np
+
 # 维护 running statistics
-reward_stats = []  # 存储所有 reward
+reward_stats = []  # 存储所有历史 reward
 
 def normalize_reward(reward):
     """标准化奖励分数"""
+    if len(reward_stats) == 0:
+        return reward  # 无历史数据时跳过归一化
     reward_mean = np.mean(reward_stats)
     reward_std = np.std(reward_stats) + 1e-8  # 防止除零
     return (reward - reward_mean) / reward_std
