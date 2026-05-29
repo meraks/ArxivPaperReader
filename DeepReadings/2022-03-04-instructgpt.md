@@ -25,7 +25,7 @@
 
 **原文**: "We make our models, data, and code publicly available."
 
-**解读**: OpenAI 还没变成 closedAI，仍然开源模型和数据（讽刺的是，这是他们最后一篇完全开源的 LLM 论文）。
+**解读**: 这句话实际上指的是他们公开了部分数据集（如标注数据）和训练代码，**但模型权重并未真正开源**。InstructGPT 的模型只通过 OpenAI API 提供访问，而非公开下载。这与后来 Meta 开源 LLaMA 等模型的做法不同，不能将其等同于"完全开源"。
 
 ### 1.2 研究动机
 
@@ -147,7 +147,7 @@ SFT 使用两类 prompt 来源：
 #### 训练细节
 
 **超参数**：
-- **Epochs**: 16（两个 epoch 后 validation loss 就上升，但更多 epoch 改善 RM 分数）
+- **Epochs**: 16（**1 epoch 后 validation loss 就上升**，但更多 epoch 改善 RM 分数）
 - **Learning rate**: cosine decay，初始 1.37e-4
 - **Dropout**: 0.2
 - **Batch size**: 64
@@ -188,6 +188,7 @@ train_dataset = train_dataset.map(
 )
 
 # SFT 训练配置
+# 注意：dropout 和 max_seq_length 属于 SFTTrainer 的参数，不属于 TrainingArguments
 training_args = TrainingArguments(
     output_dir="./sft_model",
     num_train_epochs=16,
@@ -195,8 +196,6 @@ training_args = TrainingArguments(
     learning_rate=1.37e-4,
     lr_scheduler_type="cosine",
     warmup_steps=100,
-    dropout=0.2,
-    max_seq_length=2048,
     save_strategy="epoch",
 )
 
@@ -207,6 +206,7 @@ trainer = SFTTrainer(
     train_dataset=train_dataset,
     tokenizer=tokenizer,
     dataset_text_field="text",
+    max_seq_length=2048,  # 属于 SFTTrainer 参数
 )
 
 trainer.train()
@@ -320,7 +320,7 @@ $$\mathcal{L}(\theta) = -\frac{1}{C(K,2)} \mathbb{E}_{(x, y_w, y_l) \sim D} \lef
 > **原文**: "We train our reward models for a single epoch over the data."
 > 
 > **解读**: RM 只训练 1 epoch，因为：
-> - 对比数据相对稀疏（33k prompts）
+> - 对比数据相对稀疏（~31K prompts，生成约 33K 成对对比）
 > - 防止过拟合特定的标注员偏好
 > - RM 只需要学到"一般性偏好"，不需要完美拟合训练数据
 
@@ -329,6 +329,7 @@ $$\mathcal{L}(\theta) = -\frac{1}{C(K,2)} \mathbb{E}_{(x, y_w, y_l) \sim D} \lef
 ```python
 import torch
 import torch.nn as nn
+import numpy as np  # 补充缺失的 import
 from transformers import AutoModel
 
 class RewardModel(nn.Module):
@@ -385,8 +386,10 @@ def reward_model_loss(r_theta, x, y_w, y_l, attention_mask_w, attention_mask_l):
     x_y_w = torch.cat([x, y_w], dim=1)
     x_y_l = torch.cat([x, y_l], dim=1)
     
-    mask_w = torch.cat([torch.ones_like(x[:, :1]), attention_mask_w], dim=1)
-    mask_l = torch.cat([torch.ones_like(x[:, :1]), attention_mask_l], dim=1)
+    # 修正：应拼接整个 prompt 的 mask，而非只取一列
+    prompt_mask = torch.ones_like(x)  # prompt 部分全为 1（无 padding）
+    mask_w = torch.cat([prompt_mask, attention_mask_w], dim=1)
+    mask_l = torch.cat([prompt_mask, attention_mask_l], dim=1)
     
     # 获取奖励分数
     r_w = r_theta(x_y_w, mask_w)
@@ -675,10 +678,16 @@ for epoch in range(ppo_epochs):
             rewards
         )
         
-        # 4. 可选：混合预训练梯度
+        # 4. 可选：混合预训练梯度（PPO-ptx）
+        # pretrain_batch 需从预训练数据集中采样
         if use_ptx:
+            pretrain_batch = next(iter(pretrain_dataloader))  # 从预训练数据集中取一个 batch
             pretrain_loss = compute_pretrain_loss(model, pretrain_batch)
+            ptx_optimizer.zero_grad()
             (pretrain_loss * gamma).backward()
+            ptx_optimizer.step()
+        
+# 注意：以上训练循环已完整处理所有 PPO 步骤，无需再调用 ppo_trainer.train()
 
 def compute_reward_score(reward_model, prompt, response, device="cuda"):
     """计算 RM 奖励分数"""
@@ -705,12 +714,6 @@ def compute_pretrain_loss(model, pretrain_batch):
         labels=inputs
     )
     return outputs.loss
-
-# 训练
-ppo_trainer.train()
-for epoch in range(ppo_epochs):
-    # PPO 训练已在上方 ppo_trainer.train() 中完成
-    pass
 ```
 
 > **类比理解：PPO 就像用导师反馈来改进**
@@ -989,7 +992,7 @@ def format_example(example):
 train_dataset = Dataset.from_list(sft_examples)
 train_dataset = train_dataset.map(
     lambda x: {"text": format_example(x)},
-    remove_columns=sft_examples[0].keys()
+    remove_columns=list(sft_examples[0].keys())  # 修正：dict.keys() 需转为 list
 )
 
 # 训练配置（与论文一致）
@@ -1260,7 +1263,7 @@ from transformers import AutoModelForSequenceClassification
 class PPOTrainerWrapper:
     """
     PPO 训练的封装类
-    包含 PPO + KL penalty + 可选的 PTO-ptx
+    包含 PPO + KL penalty + 可选的 PPO-ptx
     """
     def __init__(
         self,
@@ -1556,7 +1559,7 @@ graph LR
     
     subgraph "Step 3: PPO"
         A3[新 Prompts ~31K] --> B3[生成响应]
-        B3 --> C3[对比数据 ~33K]
+        B3 --> C3[模型生成的响应]
         C3 --> D3[Reward Model 打分]
         D3 --> E3[计算 PPO Loss + KL Penalty]
         E3 --> F3[更新策略模型]
@@ -1668,8 +1671,8 @@ Response: "（可能只满足部分约束）"
 
 **时间线**：
 - **2022.03**: InstructGPT 论文发布
-- **2022.06**: OpenAI 发布 ChatGPT（基于 InstructGPT + 对话训练）
-- **2022.12**: ChatGPT 对公众开放（爆火）
+- **2022.11**: ChatGPT 对公众开放（爆火）
+- **2023.03**: GPT-4 发布
 
 **关系**：
 ```
@@ -1867,7 +1870,7 @@ InstructGPT 学到: 支持同性婚姻的立场
 - **ChatGPT**: [ChatGPT: Optimizing Language Models for Dialogue](https://openai.com/blog/chatgpt)
 - **Constitutional AI**: [Constitutional AI: Harmlessness from AI Feedback](https://arxiv.org/abs/2212.08073)
 - **DPO**: [Direct Preference Optimization: Your Language Model is Secretly a Reward Model](https://arxiv.org/abs/2305.18290)
-- **RLAIF**: [Training a Helpful and Harmless Assistant with Reinforcement Learning from Human Feedback](https://arxiv.org/abs/2204.05862)
+- **RLAIF**: [RLAIF: Scaling Reinforcement Learning from Human Feedback with AI Feedback](https://arxiv.org/abs/2309.00267)
 - **GPT-4**: [GPT-4 Technical Report](https://arxiv.org/abs/2303.08774)
 
 **开源实现**：
@@ -1932,8 +1935,3 @@ InstructGPT 是 AI 对齐研究的里程碑论文。它证明：
 这些问题的探索，推动了后续的 Constitutional AI、DPO、Scalable Oversight 等研究。
 
 **InstructGPT 的遗产不在于具体算法，而在于开启"AI 对齐"作为严肃的研究领域。**
-
----
-
-*报告完成日期：2026-05-29*  
-*论文信息：Training Language Models to Follow Instructions with Human Feedback, arXiv:2203.02155*
