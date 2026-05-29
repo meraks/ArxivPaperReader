@@ -957,9 +957,11 @@ def rope(x, m, d, theta):
     cos_vals = torch.cos(m[:, None] * theta[None, :])  # (seq_len, d/2)
     sin_vals = torch.sin(m[:, None] * theta[None, :])  # (seq_len, d/2)
     
-    # 交错排列为 (seq_len, d)
-    cos_vals = torch.stack([cos_vals, cos_vals], dim=-1).reshape(seq_len, d)
-    sin_vals = torch.stack([sin_vals, sin_vals], dim=-1).reshape(seq_len, d)
+    # 扩展为 (seq_len, d) — 使用 cat 重复，与 rotate_half 的两半交换自洽
+    # cat([cos_vals, cos_vals], dim=-1) 得到 [c₁,c₂,...,c_{d/2},c₁,c₂,...,c_{d/2}]
+    # 配合 rotate_half 的 cat([-x₂, x₁]) 实现两半维度配对: (i, i+d/2) 用同一频率 θ_i
+    cos_vals = torch.cat([cos_vals, cos_vals], dim=-1)  # (seq_len, d)
+    sin_vals = torch.cat([sin_vals, sin_vals], dim=-1)  # (seq_len, d)
     
     # rotate_half
     x1 = x[..., :d//2]  # (batch_size, seq_len, d/2)
@@ -1714,7 +1716,7 @@ quadrantChart
 | MNLI-m | **84.6** | 80.2 | **-4.4** | NLI |
 | MNLI-mm | **83.4** | 79.8 | **-3.6** | NLI |
 
-**平均变化**：RoFormer 在 7 个任务上 **+0.46**（但方差极大，非全面领先）
+**平均变化**：RoFormer 在 7 个任务上 **+0.53**（但方差极大，非全面领先）
 
 ### 5.3.3 任务选择性分析
 
@@ -1955,7 +1957,7 @@ RoPE 提出后（2021 年），已成为大语言模型位置编码的主流选�
 
 ## 参考文献
 
-- Su et al. (2021). RoFormer: Enhanced Transformer with Rotary Position Embedding. arXiv:2104.09864.
+- Su, J., Murtadha, A., Pan, S., Lu, Y., & Lu, M. (2021). RoFormer: Enhanced Transformer with Rotary Position Embedding. arXiv:2104.09864.
 - Devlin et al. (2018). BERT: Pre-training of Deep Bidirectional Transformers.
 - Vaswani et al. (2017). Attention Is All You Need.
 
@@ -2043,11 +2045,17 @@ class RotaryPositionalEmbeddings(nn.Module):
     def _neg_half(self, x: torch.Tensor) -> torch.Tensor:
         """
         旋转辅助函数：将向量的后半部分取负并移到前半部分
-        
-        数学原理：
-        - 2D 旋转矩阵：[x₁, x₂] → [x₁ cos θ - x₂ sin θ, x₁ sin θ + x₂ cos θ]
-        - 对应逐元素形式：x ⊙ cos θ + [-x₂, x₁] ⊙ sin θ
-        - [-x₂, x₁] 就是 rotate_half(x)
+
+        数学原理（两半交换配对）：
+        - 将向量 x 分成两半 x₁ = x[..., :d/2], x₂ = x[..., d/2:]
+        - 返回 [-x₂, x₁]，使 (x[i], x[i+d/2]) 构成一个旋转对
+        - RoPE 核心公式：rotated = x ⊙ cos + rotate_half(x) ⊙ sin
+          其中 rotated[i]    = x[i]·cos[i] - x[i+d/2]·sin[i]
+                rotated[i+d/2] = x[i+d/2]·cos[i] + x[i]·sin[i]
+        - 等价于对每个 2D 子空间 [x[i], x[i+d/2]]^T 应用旋转矩阵 [[cosθ, -sinθ], [sinθ, cosθ]]
+
+        注：论文公式 (3.4.2) 使用相邻交换 [-x₂, x₁, -x₄, x₃, ...]（每个旋转对由相邻两维构成），
+        本实现使用两半交换（旋转对由相隔 d/2 的维度构成），两者数学等价，仅维度配对约定不同。
         
         Args:
             x: 输入张量，形状 (..., d)
@@ -2106,13 +2114,14 @@ class RotaryPositionalEmbeddings(nn.Module):
         rotated = x * cos + self._neg_half(x) * sin
         
         # 可选：只对部分维度应用 RoPE
-        # 当 rope_percentage < 1.0 时，只旋转前 rope_percentage * d 个维度
+        # 当 rope_percentage < 1.0 时，只旋转前 rope_percentage * d 个维度，其余维度保持原值
         if rope_percentage < 1.0:
             d_rope = int(self.d * rope_percentage)
-            rotated[..., :d_rope] = x[..., :d_rope]  # 恢复原始值
-            rotated[..., d_rope:] = x[..., d_rope:]  # 恢复原始值
-            # 实际上应该只旋转前 d_rope 个维度，但实现中是"不旋转"
-            # 这里的实现可能需要修正（见 6.3 节）
+            # 正确实现：只对前 d_rope 维应用 RoPE，后 d - d_rope 维保持 x 原值
+            rotated = torch.cat([
+                x[..., :d_rope] * cos[..., :d_rope] + self._neg_half(x[..., :d_rope]) * sin[..., :d_rope],
+                x[..., d_rope:]
+            ], dim=-1)
         
         return rotated
 ```
@@ -2284,9 +2293,9 @@ class LinearAttention(nn.Module):
         q = self.rope(q)
         k = self.rope(k)
         
-        # 核函数特征映射（ELU+1）
+        # 核函数特征映射（ReLU+1，简化的 ELU+1 替代）
         def phi(x):
-            return torch.where(x > 0, x, torch.relu(x)) + 1
+            return torch.where(x > 0, x, torch.relu(x)) + 1  # 等价于 ReLU(x) + 1
         
         q_phi = phi(q)  # (batch_size, seq_len, num_heads, head_dim)
         k_phi = phi(k)
@@ -2386,22 +2395,13 @@ q = self.rope(q, rope_percentage=0.5)
 - **混合编码**：部分维度用 RoPE，部分维度用其他位置编码
 - **性能优化**：减少计算量（牺牲一定性能）
 
-**本实现的问题**：
+**本实现已修正**（见 6.1.1 主代码块）：
 ```python
-if rope_percentage < 1.0:
-    d_rope = int(self.d * rope_percentage)
-    rotated[..., :d_rope] = x[..., :d_rope]  # BUG: 应该旋转前 d_rope 个维度
-    rotated[..., d_rope:] = x[..., d_rope:]  # BUG: 后面的维度也不旋转
-```
-
-**修正实现**：
-```python
-if rope_percentage < 1.0:
-    d_rope = int(self.d * rope_percentage)
-    # 只对前 d_rope 个维度应用旋转，后面的保持不变
-    rotated_rotated = rotated[..., :d_rope]
-    rotated_original = x[..., d_rope:]
-    rotated = torch.cat([rotated_rotated, rotated_original], dim=-1)
+# 正确实现：只对前 d_rope 维应用 RoPE，后 d - d_rope 维保持 x 原值
+rotated = torch.cat([
+    x[..., :d_rope] * cos[..., :d_rope] + _neg_half(x[..., :d_rope]) * sin[..., :d_rope],
+    x[..., d_rope:]
+], dim=-1)
 ```
 
 #### 6.3.3 陷阱 1：维度必须是偶数
@@ -2523,7 +2523,10 @@ LLaMA 使用了略微修改的 RoPE 版本：
 **关键差异 1：base 值可配置**
 ```python
 # LLaMA 配置
-config.base = 1000000  # 比 RoFormer 的 10000 大得多
+# LLaMA-1/LLaMA-2 配置 base=10000（默认值）
+# CodeLLaMA 使用 base=100000（放大 10 倍以支持更长序列）
+# 用户可根据任务需求调整 base 值
+config.base = 10000  # LLaMA-1/2 默认值；可改为 100000 以增强长程能力
 ```
 
 **影响**：
@@ -2627,7 +2630,7 @@ class PaLMAttention(nn.Module):
 想象不同品牌手机使用同一款芯片（RoPE）：
 
 - **RoFormer**：标准版手机（使用默认 RoPE 配置，base=10000）
-- **LLaMA**：旗舰版手机（超频 RoPE，base=1000000，适合长序列）
+- **LLaMA**：旗舰版手机（RoPE base=10000，标准配置）
 - **GPT-NeoX**：开发者版手机（可定制 RoPE，partial_rotary_factor 参数）
 - **PaLM**：平板电脑（MQA + RoPE，优化内存占用）
 
@@ -2679,7 +2682,7 @@ print(f"快频率周期: {period_256:.2f}")
 
 #### 6.5.2 局限性 2：大 base 值的 trade-off
 
-**问题**：LLaMA 使用 base=1000000（远大于 RoFormer 的 base=10000）
+**问题**：LLaMA 使用 base=10000（与 RoFormer 相同），但 CodeLLaMA 使用 base=100000（远大于 RoFormer）
 
 **优势**：
 - 更大的 base → 更慢的频率衰减
@@ -2702,7 +2705,7 @@ print(f"快频率周期: {period_256:.2f}")
 
 **解读**：
 - **base=10000** 在标准长度（512）和外推（1024）上均表现良好
-- **base=1000000** 虽然理论上更利于长程，但实际性能下降（可能需要更多训练数据）
+- **base=100000**（CodeLLaMA）虽然理论上更利于长程，但实际性能下降（可能需要更多训练数据）
 
 #### 6.5.3 局限性 3：无法建模非均匀位置依赖
 
