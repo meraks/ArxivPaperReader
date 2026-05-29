@@ -1,4 +1,4 @@
-# FlashAttention 深度阅读报告（Part 1：Chapters 1-3）
+# FlashAttention 深度阅读报告
 
 ## Chapter 1: 论文概述与核心贡献
 
@@ -380,9 +380,6 @@ $$O_{\text{new}} = \frac{e^{m - m_{\text{new}}} \cdot l \cdot O + e^{S_{\text{bl
 这些公式是 FlashAttention 的数学核心，允许分块计算而不损失精度。
 
 ---
-
-**Part 1 完**
-# FlashAttention 深度阅读报告（Part 2：Chapters 4-7）
 
 ## Chapter 4: FlashAttention 前向算法详解
 
@@ -1445,10 +1442,7 @@ Q × K^T → 只计算特定块（局部 + 全局）
 
 ---
 
-**Part 2 完**
-# FlashAttention 深度阅读报告（Part 2：代码详解）
-
-## Part 2: 代码详解
+## 代码详解
 
 ---
 
@@ -2474,5 +2468,3 @@ graph TB
 | Tensor Core MMA | `flash_fwd_kernel.h` (伪代码) | - | 矩阵乘法加速 |
 
 ---
-
-**Part 3 完**
