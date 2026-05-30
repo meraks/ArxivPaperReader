@@ -204,7 +204,9 @@ HBM 访问: 读 P(N²), 读 V(Nd), 写 O(Nd)
 
 **反向传播的困境**：
 反向传播仍需 S 和 P 的梯度计算：
-$$dS = P \\odot (dP - \\mathbf{1} \\cdot \\text{rowsum}(dP \\odot P))$$\n\n其中 $dP = dO \\cdot V^T$，$\\text{rowsum}$ 对每行求和。
+$$dS = P \odot (dP - \mathbf{1} \cdot \text{rowsum}(dP \odot P))$$
+
+其中 $dP = dO \cdot V^T$，$\text{rowsum}$ 对每行求和。
 
 这要求存储 S 或 P（$O(N²)$ 空间）。
 
@@ -359,7 +361,8 @@ $$o_i^{\text{new}} = \frac{e^{m_i - m_i^{\text{new}}} \cdot l_i \cdot o_i + \sum
 4. 更新人数：$n_{\text{new}} = n + 1$
 
 **最终平均分**：
-**最终加权平均分**（去掉数值稳定偏移 $m_{\\text{new}}$）：\n$$\\text{average} = \\frac{s_{\\text{new}}}{n_{\\text{new}}}$$
+**最终加权平均分**（去掉数值稳定偏移 $m_{\text{new}}$）：
+$$\text{average} = \frac{s_{\text{new}}}{n_{\text{new}}}$$
 
 **对应到 Online Softmax**：
 - $m$：当前最大值（相当于最高分）
