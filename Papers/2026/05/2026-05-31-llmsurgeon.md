@@ -1061,12 +1061,6 @@ $$\text{Overlap Accuracy} = 1 - \frac{1}{2} \sum_{k=1}^{K} |α_k - π̂_k|$$
 - **问题**：混淆矩阵会从 K×K 变成 (K_img × K_text)×(K_img × K_text)，维度爆炸如何处理？
 
 ---
-
-**报告撰写说明：**
-- 本报告基于论文 LLMSurgeon: Diagnosing Data Mixture of Large Language Models (ACL 2026)
-- 所有数值声明均提供来源标注（M1 防护）
-- 报告结构围绕论文实质内容组织，避免模板化表述（M5 防护）
-- 目标长度：~450 行（符合 400-500 行要求）
 # LLMSurgeon：诊断大语言模型的数据混合物深度阅读报告（代码篇）
 
 ## Ch6: 核心代码实现详解
@@ -1298,6 +1292,7 @@ class HFSequenceClassifier:
                 outputs = self.model(**inputs)
                 loss = outputs.loss
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
                 optimizer.step()
                 optimizer.zero_grad()
 
@@ -2542,8 +2537,8 @@ print(f"Inverse Correction Gain: {gain*100:.1f}%")  # 应 >2%
 
 ---
 
-**报告撰写说明：**
-- 本报告基于 LLMSurgeon 官方代码（https://github.com/Yaxin9Luo/LLMSurgeon）
-- 所有代码片段均标注来源文件路径（M1 防护）
-- 报告围绕代码实质内容组织，避免模板化表述（M5 防护）
-- 目标长度：~280 行（符合 200-300 行要求）
+## 参考链接
+
+- 论文：[arXiv:2605.30348](https://arxiv.org/abs/2605.30348) (ACL 2026 Main)
+- 官方代码：[GitHub: Yaxin9Luo/LLMSurgeon](https://github.com/Yaxin9Luo/LLMSurgeon) (MIT License)
+- 报告文件：[Papers/2026/05/2026-05-31-llmsurgeon.md](https://github.com/meraks/ArxivPaperReader/blob/main/Papers/2026/05/2026-05-31-llmsurgeon.md)
