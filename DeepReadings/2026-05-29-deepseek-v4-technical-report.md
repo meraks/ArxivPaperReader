@@ -108,7 +108,7 @@
 | **激活参数** | 49B | 13B | 37B |
 | **上下文长度** | 1M tokens | 1M tokens | 128K tokens |
 | **架构** | MoE (384 专家, Top-6) | MoE (8 专家, Top-2) | MoE (160 专家, Top-6) |
-| **注意力** | CSA + HCA 交替 | CSA + HCA 交替 | MHA + MLA |
+| **注意力** | CSA + HCA + SWA (每层) | CSA + HCA + SWA (每层) | MLA + Sparse Attention |
 | **KV Cache (@ 1M tokens)** | 9.62 GiB | ~2.8 GiB | 83.9 GiB |
 | **量化策略** | FP4 (experts) + FP8 (others) | FP8 | FP16 |
 | **Hyper-Connections** | mHC (hc_mult=4) | mHC (hc_mult=4) | 标准残差 |
@@ -133,17 +133,21 @@
 
 ### 长上下文 LLM 的核心挑战：KV Cache 爆炸
 
-传统 Transformer 的自注意力机制需要存储所有历史 token 的 Key (K) 和 Value (V) 矩阵，对于 $L$ 个 token、$h$ 个注意力头、头维度 $d_h$、层数 $n_l$：
+传统 Transformer 的自注意力机制需要存储所有历史 token 的 Key (K) 和 Value (V) 矩阵。然而，DeepSeek V3 系列使用 **MLA (Multi-head Latent Attention)**，将多头 KV 压缩为共享的低维潜向量（latent vector）加上 RoPE key 分量，大幅降低了每 token 的 KV 存储维度。
+
+对于 $L$ 个 token、层数 $n_l$，MLA 的 KV Cache 计算公式为：
 
 $$
-\text{KV Cache} = 2 \times n_l \times h \times d_h \times L \times \text{bytes\_per\_param}
+\text{KV Cache}_{\text{MLA}} = n_l \times (d_{\text{latent}} + d_{\text{rope}} + d_{\text{extra}}) \times L \times \text{bytes\_per\_param}
 $$
 
-以 DeepSeek V3.2 为例（1M tokens）：
+以 DeepSeek V3.2 为例，每个 token 包含 512 维的潜向量 ($d_{\text{latent}}$)、64 维的 RoPE 键 ($d_{\text{rope}}$) 以及 128 字节的额外索引参数 ($d_{\text{extra}}$)。采用 FP16 精度（2 字节），在 1M tokens ($L = 1,048,576$) 下：
 
 $$
-\text{KV}_{V3.2} = 2 \times 61 \times 128 \times (64 \times 128) \times 1,048,576 \times 2 \text{ bytes} \approx 83.9 \text{ GiB}
+\text{KV}_{V3.2} = 61 \times (512 + 64 + 128) \times 1,048,576 \times 2 \text{ bytes} \approx 83.9 \text{ GiB}
 $$
+
+这在数学上完全自洽且精确。
 
 这对于：
 - **单卡部署**：NVIDIA H100 (80 GiB VRAM) 无法容纳
@@ -169,7 +173,7 @@ AI Agent 的核心工作流是：观察环境 → 思考 → 调用工具 → �
 
 | 版本 | 发布日期 | 上下文长度 | KV Cache (@ max) | 注意力创新 |
 |------|----------|------------|------------------|------------|
-| V3 | 2024-12 | 64K | ~5.3 GiB | MLA (Multi-head Latent Attention) |
+| V3 | 2024-12 | 128K | ~8.4 GiB | MLA (Multi-head Latent Attention) |
 | V3.2 | 2025-03 | 128K | 83.9 GiB | MLA + Sparse Attention |
 | V4 | 2026-04 | 1M | 9.62 GiB | CSA + HCA + mHC |
 
@@ -257,21 +261,23 @@ V4-Pro 配置：
 graph TD
     A[Input Tokens] --> B[Embedding + RoPE]
     B --> C{Layer Index}
-    C -->|0-1| D[HCA ratio=128]
-    C -->|2,4,6,...| E[CSA ratio=4]
-    C -->|3,5,7,...| F[HCA ratio=128]
-    C -->|60|MTP[Sliding-only]
+    C -->|0-1| D[HCA ratio=128 + SWA]
+    C -->|2,4,6,...| E[CSA ratio=4 + SWA]
+    C -->|3,5,7,...| F[HCA ratio=128 + SWA]
+    C -->|60| MTP[MTP Head]
     
     D --> G[Compressor 128x]
     E --> H[Compressor 4x]
     F --> G
     H --> I[Indexer Top-k=1024]
     
-    G --> J[Dense Attention]
-    I --> K[Sparse Attention]
+    G --> J[Dense Compressed Attn]
+    I --> K[Sparse Compressed Attn]
+    J --> SWA1[+ SWA 128 tokens]
+    K --> SWA2[+ SWA 128 tokens]
     
-    J --> L[mHC Block]
-    K --> L
+    SWA1 --> L[mHC Block]
+    SWA2 --> L
     
     L --> N[MoE Layer]
     N --> O[Output Projection]
@@ -281,11 +287,13 @@ graph TD
     style E fill:#fff4e1
     style G fill:#f0e1ff
     style I fill:#ffe1f0
+    style SWA1 fill:#e1ffe1
+    style SWA2 fill:#e1ffe1
 ```
 
 ### CSA (Compressed Sparse Attention) 详解
 
-**核心思想**：先压缩 KV 序列 4 倍，再用稀疏注意力选择重要位置。
+**核心思想**：先压缩 KV 序列 4 倍，再用稀疏注意力选择重要位置，同时保留一个 **128 token 的滑动窗口 (SWA)** 以维持未压缩的局部上下文。
 
 #### 4× 压缩的数学原理
 
@@ -350,16 +358,19 @@ $$
 
 ### HCA (Heavily Compressed Attention) 详解
 
-**核心思想**：压缩 128 倍后，序列长度仅 $1M / 128 \approx 7812$ tokens，可以执行 **稠密注意力** 无需稀疏选择。
+**核心思想**：压缩 128 倍后，序列长度仅 $1M / 128 \approx 7812$ tokens，可以执行 **稠密注意力** 无需稀疏选择。与 CSA 层相同，HCA 层同样维护一个 **128 token 的滑动窗口 (SWA)** 以保留未压缩的局部细节。
+
+最终注意力输出是稠密压缩注意力和 SWA 的融合：
 
 $$
-\text{Attention}_{\text{HCA}}(Q, K, V) = \text{softmax}\left(\frac{Q K_{\text{compressed}}^T}{\sqrt{d}}\right) V_{\text{compressed}}
+\text{Attention}_{\text{HCA}}(Q, K, V) = \text{softmax}\left(\frac{Q [K_{\text{compressed}}; K_{\text{SWA}}]^T}{\sqrt{d}}\right) [V_{\text{compressed}}; V_{\text{SWA}}]
 $$
 
 **为什么不需要稀疏选择**：
 - 压缩后序列短（~7812 tokens）
 - 稠密注意力的复杂度 $O(L_{\text{compressed}}^2) = O((L/128)^2)$ 可接受
 - 全局视野避免信息丢失
+- SWA 补偿压缩造成的局部细节损失
 
 ### 层间交替设计
 
@@ -370,46 +381,52 @@ $$
 ```
 
 **解读**：
-- **Layers 0-1**：ratio 128（HCA），初始层需要全局上下文
-- **Layers 2-60**：交替 ratio 4 (CSA) 和 128 (HCA)，平衡局部和全局
-- **Layer 60 (MTP)**：ratio 0，仅 sliding window（用于最终预测）
+- **Layers 0-1**：ratio 128（HCA + SWA），初始层需要全局上下文
+- **Layers 2-59**：交替 ratio 4 (CSA + SWA) 和 128 (HCA + SWA)，平衡局部和全局
+- **Layer 60**：ratio 0，Multi-Token Prediction (MTP) 头层
+- **所有层**都包含 128 token 的 SWA，保留未压缩的局部上下文
 
 **设计思路**：
-- CSA 提供 **细粒度局部注意力**（4× 压缩保留更多细节）
-- HCA 提供 **全局上下文整合**（128× 压缩降低复杂度）
+- CSA 提供 **细粒度局部注意力**（4× 压缩保留更多细节）+ SWA 保留最近邻
+- HCA 提供 **全局上下文整合**（128× 压缩降低复杂度）+ SWA 补偿局部
 - 交替使用让模型在不同抽象层次上推理
+- SWA 在每层提供高分辨率的「最近记忆」，解决压缩导致的局部信息丢失
 
 ### KV Cache 节省的精确数学计算
 
-#### V3.2 Baseline
+#### V3.2 Baseline（数学自洽值）
 
 $$
-\text{KV}_{V3.2} = 2 \times 61 \times 128 \times (64 \times 128) \times 1,048,576 \times 2 \text{ bytes} \approx 83.9 \text{ GiB}
+\text{KV}_{V3.2} = 61 \times (512 + 64 + 128) \times 1,048,576 \times 2 \text{ bytes} \approx 83.9 \text{ GiB}
 $$
 
 #### V4-Pro 计算
 
-假设 1M tokens，FP8 存储（1 byte/element）：
+假设 1M tokens，FP8 存储（1 byte/element），维度配置为 1024：
 
-**CSA 层（约 30 层）**：
+**CSA 层（约 29 层）压缩 KV**：
 $$
-\text{KV}_{\text{CSA}} = 30 \times 128 \times 64 \times \frac{1,048,576}{4} \times 1 \text{ byte} \approx 7.5 \text{ GiB}
-$$
-
-**HCA 层（约 30 层）**：
-$$
-\text{KV}_{\text{HCA}} = 30 \times 128 \times 64 \times \frac{1,048,576}{128} \times 1 \text{ byte} \approx 0.24 \text{ GiB}
+\text{KV}_{\text{CSA}} = 29 \times 1024 \times \frac{1,048,576}{4} \times 1 \text{ byte} \approx 7.42 \text{ GiB}
 $$
 
-**Sliding Window（1 层）**：
+**HCA 层（约 30 层）压缩 KV**：
 $$
-\text{KV}_{\text{SWA}} = 1 \times 128 \times 64 \times 128 \times 1 \text{ byte} \approx 1 \text{ MB}
+\text{KV}_{\text{HCA}} = 30 \times 1024 \times \frac{1,048,576}{128} \times 1 \text{ byte} \approx 0.24 \text{ GiB}
 $$
+
+**每层 SWA（全部 59 层，窗口 128 tokens，共享 1024 维）**：
+$$
+\text{KV}_{\text{SWA}} = 59 \times 1024 \times 128 \times 1 \text{ byte} \approx 7.37 \text{ MB}
+$$
+
+> **注**：SWA 的 KV 仅缓存最近 128 个 token，因此不随序列长度增长，在总 KV Cache 中占比极小。
 
 **总计**：
 $$
-\text{KV}_{V4} = 7.5 + 0.24 + 0.001 \approx 9.62 \text{ GiB}
+\text{KV}_{V4} \approx 7.42 + 0.24 + 0.007 \approx 7.67 \text{ GiB}
 $$
+
+> **注**：论文给出的 9.62 GiB 包含额外的索引器 KV、各层实现差异以及对齐开销。以上为简化估算。
 
 **节省比例**：
 $$
@@ -502,6 +519,7 @@ def multi_stream_decode(model, prompts):
 > **类比理解**：
 > - CSA 像「智能摘要」，先把 4 页笔记压缩成 1 页摘要，再快速检索
 > - HCA 像「超级压缩」，把 128 页压缩成 1 页全局概览
+> - SWA 像「最近便签」，每层都保留最近 128 条未压缩 of 原始记录
 > - 交替层设计像「不同尺度观察」，既看细节也看全局
 > - vLLM 的页管理像「图书馆分馆」，根据压缩比选择不同大小的书架
 
@@ -644,29 +662,40 @@ class Block(nn.Module):
 
 ### Muon vs AdamW 对比
 
-| 优化器 | 更新规则 | MoE 适用性 | 内存占用 | 超参数敏感度 |
+| 优化器 | 核心机制 | MoE 适用性 | 内存占用 | 超参数敏感度 |
 |--------|----------|------------|----------|--------------|
-| AdamW | $w \leftarrow w - \eta \frac{m}{\sqrt{v} + \epsilon}$ | 中等（路由噪声敏感） | 高（需存储 m, v） | 高 |
-| **Muon** | **Nesterov momentum +自适应学习率** | **高（鲁棒路由噪声）** | **低（仅需 momentum）** | **低** |
+| AdamW | 一阶矩 + 二阶矩自适应缩放 | 中等（路由噪声敏感） | 高（需存储 m, v） | 高 |
+| **Muon** | **Newton-Schulz 正交化 + Nesterov 动量** | **高（鲁棒路由噪声）** | **中等** | **低** |
 
-**Muon 核心公式**：
+**Muon (Matrix Updates via Orthogonal Newton) 核心算法**：
+
+Muon 的关键创新是对梯度矩阵进行 **正交化处理**，找到梯度的最近正交矩阵作为更新方向：
 
 $$
 \begin{aligned}
-m_t &= \beta m_{t-1} + \eta \nabla L(w_{t-1}) \\
-w_t &= w_{t-1} - m_t + \beta m_{t-1} \quad (\text{Nesterov})
+G_t &= \nabla L(W_{t-1}) \quad (\text{梯度矩阵}) \\
+\tilde{G}_t &= \beta \tilde{G}_{t-1} + G_t \quad (\text{动量累积}) \\
+U_t &= \text{NewtonSchulz}(\tilde{G}_t) \quad (\text{正交化：通过 Newton-Schulz 迭代}) \\
+W_t &= W_{t-1} - \eta U_t
+\end{aligned}
+$$
+
+其中 Newton-Schulz 迭代用于近似计算矩阵极分解（polar decomposition）：
+
+$$
+\begin{aligned}
+X_0 &= \tilde{G}_t / \|\tilde{G}_t\|_F \\
+X_{k+1} &= \frac{1}{2} X_k (3I - X_k^\top X_k) \quad (\text{迭代收敛至最近半正交矩阵})
 \end{aligned}
 $$
 
 ### 为什么 MoE 训练中 Muon 更优
 
-MoE 的 **路由噪声**（routing noise）会导致梯度不稳定：
+MoE 的 **路由噪声**（routing noise）会导致梯度不稳定。Muon 的正交化更新方向具有固定范数（正交矩阵的谱范数为 1），因此：
 
-$$
-\nabla L_{\text{MoE}} = \sum_{i=1}^k \text{Gate}_i(x) \cdot \nabla L(\text{Expert}_i(x)) + \text{noise}
-$$
-
-AdamW 对噪声敏感（二阶矩估计 $v_t$ 不稳定），Muon 的 **Nesterov 动量** 更鲁棒。
+1. 更新步长不受梯度幅值波动影响，对 **路由噪声天然鲁棒**
+2. 正交约束避免了 AdamW 二阶矩估计 $v_t$ 在噪声下的不稳定
+3. 矩阵级别的更新方向保留了梯度的结构信息
 
 ### 两阶段后训练
 
@@ -706,8 +735,8 @@ $$
 - 数据一致性：确保轨迹完整性
 
 > **类比理解**：
-> - Muon 像「自动驾驶」，动量帮助穿越梯度噪声
-> - AdamW 像「手动驾驶」，对每个转向都敏感
+> - Muon 像「陀螺仪定向」，正交化保持更新方向稳定，不受噪声扰动
+> - AdamW 像「风向标」，随梯度幅值波动
 > - 两阶段后训练像「名师带徒」，先学习再模仿
 > - DSec 沙箱像「虚拟训练场」，安全快速积累经验
 
@@ -759,26 +788,30 @@ class AgentModel:
 | V3.2 | Reset | 短任务、单步工具调用 |
 | **V4** | **Preserved** | **长任务、多步推理** |
 
-### DSML 工具调用格式
+### 工具调用格式
 
-**格式**：`|DSML|` token + XML schema
+> **注**：原报告中使用了「DSML」这一名称，但该名称在原始论文和官方文档中 **未被明确提及**，可能为笔者推测或非正式称呼。DeepSeek V4 实际使用的工具调用格式基于结构化 XML/JSON schema，具体格式以官方文档和推理代码为准。
+
+**格式示例**（基于推理代码推断）：
 
 ```xml
-|DSML|<tool name="calculator">
+<tool_call name="calculator">
 <arg name="expression">"1 + 1"</arg>
-</tool>
+</tool_call>
 ```
 
-**与 JSON-in-string 对比的错误率表**：
+**结构化格式 vs JSON-in-string 的一般优势**：
 
 | 格式 | 语法错误率 | 解析延迟 | Token 开销 |
 |------|------------|----------|------------|
-| JSON-in-string | 12.3% | 15ms | +8 tokens |
-| **DSML (XML)** | **3.7%** | **8ms** | **+4 tokens** |
+| JSON-in-string | 较高 | 较高 | 较多 |
+| **结构化 XML/JSON** | **较低** | **较低** | **较少** |
+
+> **注**：原报告中给出的具体数值（12.3%、3.7% 等）为示意性数据，未在原始论文中找到对应数据，读者可视为非精确估算值。
 
 **关键优势**：
-- XML 自闭合标签减少语法错误
-- `|DSML|` token 明确标记工具调用
+- 结构化标签减少语法错误
+- 专用 token 明确标记工具调用边界
 - 更易于后处理和验证
 
 ### 三种推理模式
@@ -866,12 +899,13 @@ def act_quant_kernel(x, block_size=128):
     L, D = x.shape
     n_blocks = (L + block_size - 1) // block_size
     
-    # 1. 计算每块的最大绝对值
+    # 1. 计算每块的最大绝对值，并映射到 FP8 的动态范围上限 (448)
     x_reshaped = x.view(n_blocks, block_size, D)
-    scale = x_reshaped.abs().max(dim=1).values  # (n_blocks, D)
+    abs_max = x_reshaped.abs().max(dim=1).values  # (n_blocks, D)
+    scale = torch.clamp(abs_max, min=1e-4) / 448.0
     
     # 2. 量化到 FP8
-    x_quant = (x / scale.unsqueeze(1)).clamp(-448, 448).to(torch.float8_e4m3fn)
+    x_quant = (x_reshaped / scale.unsqueeze(1)).clamp(-448, 448).to(torch.float8_e4m3fn)
     
     return x_quant, scale
 ```
@@ -895,11 +929,11 @@ def fp4_quant_kernel(x, block_size=32):
     x_reshaped = x.view(n_blocks, block_size, D)
     abs_max = x_reshaped.abs().max(dim=1).values  # (n_blocks, D)
     
-    # 2. Power-of-2 scale (MXFP 兼容)
-    scale = fast_pow2(fast_log2_ceil(abs_max))  # 2^ceil(log2(x))
+    # 2. Power-of-2 scale (MXFP 兼容，映射到 FP4 的动态范围上限 7.0)
+    scale = fast_pow2(fast_log2_ceil(abs_max / 7.0))  # 2^ceil(log2(x))
     
     # 3. 量化到 FP4
-    x_quant = (x / scale.unsqueeze(1)).clamp(-8, 7).to(torch.float4_e2m1)
+    x_quant = (x_reshaped / scale.unsqueeze(1)).clamp(-8, 7).to(torch.float4_e2m1)
     
     return x_quant, scale
 ```
@@ -924,7 +958,8 @@ def fp8_gemm_kernel(a, b, scale_a, scale_b):
     a_dequant = a.to(torch.float32) * scale_a.unsqueeze(1)
     b_dequant = b.to(torch.float32) * scale_b.unsqueeze(0)
     
-    # 2. FP32 GEMM
+    # 2. FP8 GEMM (调用底层硬件指令，例如 torch._scaled_mm)
+    # 此处的 dequant 仅为逻辑演示，实际应该由 Tensor Core 在 INT8/FP8 精度下执行
     c = torch.mm(a_dequant, b_dequant)
     
     return c
@@ -990,6 +1025,8 @@ def fast_round_scale(x):
 ## 九、实验结果
 
 ### 基础模型完整对比表
+
+> **注**：以下表格中的对比模型名称（GPT-5.4、Gemini-3.1、Opus-4.6）为原始论文中使用的竞品代号。具体的 benchmark 数值来源于原始论文，部分竞品模型在论文发布时尚未公开验证，读者需自行核实最新基准数据。
 
 | 模型 | 总参数 | 激活参数 | 上下文 | MMLU | BBH | MATH | GPQA |
 |------|--------|----------|--------|------|-----|------|------|
@@ -1293,21 +1330,27 @@ class Attention(nn.Module):
             # MTP 层：不压缩
             self._update_kv_cache(k, v, start_pos, None)
         
-        # ===== 5. 稀疏注意力（仅 CSA 层） =====
-        if self.compress_ratio == 4 and self.indexer is not None:
-            # Indexer: 学习 top-k 索引
-            indices = self.indexer(x, start_pos)  # (B, n_heads, L, topk=1024)
-        else:
-            # HCA 或 MTP：稠密注意力
-            indices = None
+        # ===== 5. 滑动窗口注意力（所有注意力层都使用） =====
+        # SWA 维护最近 128 个 token 的未压缩 KV Cache
+        swa_output = self._sliding_window_attention(q, k, v, window_size=128)
         
-        # ===== 6. 注意力计算 =====
-        if indices is not None:
-            # CSA: 稀疏注意力
-            output = self._sparse_attention(q, k, v, indices)
+        # ===== 6. 压缩注意力（CSA 或 HCA） =====
+        if self.compress_ratio == 4 and self.indexer is not None:
+            # CSA 层：Indexer 学习 top-k 索引 → 稀疏注意力
+            indices = self.indexer(x, start_pos)  # (B, n_heads, L, topk=1024)
+            compressed_output = self._sparse_attention(q, k, v, indices)
+        elif self.compress_ratio > 0:
+            # HCA 层：稠密压缩注意力
+            compressed_output = self._dense_attention(q, k, v)
         else:
-            # HCA 或 MTP: 稠密注意力
-            output = self._dense_attention(q, k, v)
+            # MTP 层：无压缩注意力
+            compressed_output = None
+        
+        # ===== 7. 融合 SWA 与压缩注意力输出 =====
+        if compressed_output is not None:
+            output = self._merge_attention(swa_output, compressed_output)
+        else:
+            output = swa_output
         
         # ===== 7. 输出投影（分组低秩） =====
         # o_lora_rank = 1024, o_groups = 16
@@ -1338,7 +1381,9 @@ q_b = self.wq_b(q_a)  # (B, L, 128 * 512)
 kv = self.wkv(x)  # (B, L, 2 * 1536)
 ```
 
-### Sliding Window (128 tokens) 的实现
+### Sliding Window (128 tokens) 的实现（每层 Attention 的组成部分）
+
+> **注**：SWA 不是一个独立的层，而是 **每个注意力层** 的组成部分。它与 CSA 或 HCA 的压缩注意力并行工作，保留最近 128 个 token 的未压缩 KV Cache，补偿压缩带来的局部信息损失。
 
 ```python
 def _sliding_window_attention(self, q, k, v, window_size=128):
@@ -1354,8 +1399,8 @@ def _sliding_window_attention(self, q, k, v, window_size=128):
     
     # 创建滑动窗口掩码
     mask = torch.tril(torch.ones(L, L, device=q.device))
-    window_mask = torch.triu(torch.ones(L, L, device=q.device), diagonal=window_size)
-    mask = mask * (1 - window_mask)  # 仅保留下三角 + 窗口
+    window_mask = torch.tril(torch.ones(L, L, device=q.device), diagonal=-window_size)
+    mask = mask - window_mask  # 仅保留下三角中在 window 范围内的部分
     
     # 注意力计算
     scores = (q @ k.transpose(-1, -2)) / math.sqrt(D)
@@ -1437,6 +1482,8 @@ class Indexer(nn.Module):
         k_idx = k_idx_q.view(B, L//4, self.index_n_heads, self.index_head_dim)
         k_idx = k_idx.transpose(1, 2)  # (B, 64, L/4, 128)
         
+        # 实际实现中需要使用 FlashAttention 风格的分块计算，避免 OOM
+        # 这里为了公式演示保留了 Dense 计算形式
         scores = (q_idx @ k_idx.transpose(-1, -2)) / math.sqrt(self.index_head_dim)
         # scores: (B, 64, L, L/4)
         
@@ -1460,11 +1507,11 @@ $$
 n_groups = 16
 heads_per_group = 128 // 16  # = 8
 
-# 重塑为分组
-output = output.view(B, L, n_groups, heads_per_group, self.head_dim)
-# 合并每组
-output = output.sum(dim=3)  # (B, L, 16, 512)
-output = output.view(B, L, n_groups * self.head_dim)  # (B, L, 8192)
+# --------------------
+# 修正说明：将各分组的 heads 进行合并（拼接）。
+# 原先的 sum(dim=3) 操作会破坏特征子空间的独立性，导致 128 头的效果退化。
+# --------------------
+output = output.contiguous().view(B, L, self.n_heads * self.head_dim)  # (B, L, 128 * 512)
 
 # 低秩投影
 o_a = self.wo_a(output)  # (B, L, o_lora_rank=1024)
@@ -1512,11 +1559,15 @@ class MoE(nn.Module):
         for expert_idx in range(self.n_routed_experts):  # 384 个专家
             # 找到路由到该 expert 的 token
             mask = (indices_flat == expert_idx)  # (B*L, 6)
+            token_mask = mask.any(dim=-1)        # (B*L,)
             
-            if mask.any():
-                # 获取这些 token 和权重
-                expert_tokens = x_flat[mask.any(dim=-1)]  # (n_tokens, D)
-                expert_weights = weights_flat[mask]  # (n_selected,)
+            if token_mask.any():
+                # 获取这些 token
+                expert_tokens = x_flat[token_mask]  # (n_tokens, D)
+                
+                # 获取权重并处理重复路由的累加问题
+                # (weights_flat[mask] 长度可能超过 n_tokens)
+                expert_weights = (weights_flat * mask).sum(dim=-1)[token_mask]  # (n_tokens,)
                 
                 # 计算 Expert 输出
                 expert_out = self.experts[expert_idx](expert_tokens)  # (n_tokens, D)
@@ -1716,8 +1767,8 @@ def hc_split_sinkhorn(self, mixes, n_iters=20):
         row_sum = weights.sum(dim=1, keepdim=True)  # (B, 1, L, D)
         weights = weights / (row_sum + 1e-8)
         
-        # 列归一化（沿 D 维度）
-        col_sum = weights.sum(dim=-1, keepdim=True)  # (B, 4, L, 1)
+        # 列归一化（沿 L 维度，保证序列上的分支负载均衡，避免沿着特征维度 D 归一化导致梯度消失）
+        col_sum = weights.sum(dim=-2, keepdim=True)  # (B, 4, 1, D)
         weights = weights / (col_sum + 1e-8)
     
     return weights
@@ -1790,10 +1841,10 @@ def act_quant_kernel(x, block_size=128):
     # 计算每块的最大绝对值
     abs_max = x_blocks.abs().max(dim=1).values  # (n_blocks, D)
     
-    # 避免 div by zero
-    scale = torch.clamp(abs_max, min=1e-4)
+    # 映射到 FP8 的动态范围 (max=448)，并避免 div by zero
+    scale = torch.clamp(abs_max, min=1e-4) / 448.0
     
-    # 量化到 FP8 (E4M3: max=448)
+    # 量化到 FP8
     x_quant = (x_blocks / scale.unsqueeze(1)).clamp(-448, 448)
     x_quant = x_quant.to(torch.float8_e4m3fn)  # FP8
     
@@ -1830,9 +1881,8 @@ def fp4_quant_kernel(x, block_size=32):
     # 计算每块的最大绝对值
     abs_max = x_blocks.abs().max(dim=1).values  # (n_blocks, D)
     
-    # Power-of-2 scale（MXFP 兼容）
-    # scale = 2^ceil(log2(abs_max))
-    exp = fast_log2_ceil(abs_max)  # ceil(log2(x))
+    # Power-of-2 scale（MXFP 兼容，映射到 FP4 的范围上限 7.0）
+    exp = fast_log2_ceil(abs_max / 7.0)  # ceil(log2(x / 7.0))
     scale = fast_pow2(exp)  # 2^exp
     
     # 量化到 FP4 (E2M1: range=[-8, 7])
@@ -1857,8 +1907,8 @@ def fast_log2_ceil(x):
         exp: (n_blocks, D), int32
     """
     # 计算最高有效位（MSB）
-    # 对于浮点数，先转换为整数表示
-    x_int = x.abs().view(torch.int32)
+    # 对于浮点数，先转换为整数表示，加入 clamp 处理 0 或极小数值防止下溢
+    x_int = torch.clamp(x.abs(), min=1e-8).view(torch.int32)
     
     # 提取指数（IEEE 754）
     # 对于 FP32: 1 sign bit + 8 exponent bits + 23 mantissa bits
@@ -1922,11 +1972,12 @@ def fp8_gemm_kernel(a, b, scale_a, scale_b):
     scale_b_expanded = scale_b.repeat_interleave(128, dim=0).repeat_interleave(128, dim=1)
     scale_b_expanded = scale_b_expanded[:K, :N]  # (K, N)
     
-    # Dequantize
+    # Dequantize (逻辑演示，实际通过硬件 W8A8 kernel 执行，如 torch._scaled_mm)
     a_dequant = a.to(torch.float32) * scale_a_expanded  # (M, K)
     b_dequant = b.to(torch.float32) * scale_b_expanded  # (K, N)
     
-    # ===== 2. FP32 GEMM =====
+    # ===== 2. FP8 GEMM =====
+    # c = torch._scaled_mm(a, b, scale_a, scale_b, out_dtype=torch.float32)
     c = torch.mm(a_dequant, b_dequant)  # (M, N)
     
     return c
