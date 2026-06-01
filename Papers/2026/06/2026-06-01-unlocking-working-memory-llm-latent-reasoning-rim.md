@@ -2,31 +2,31 @@
 
 ## Chapter 1: 论文概述与核心论点
 
-### 摘要逐句解读
+### 摘要要点解读
 
-> **原文：** Chain-of-Thought (CoT) prompting has demonstrated impressive capabilities in Large Language Models (LLMs). However, CoT reasoning is slow because it requires autoregressive generation of reasoning steps and it wastes the token budget because intermediate reasoning steps are not necessary for the final answer.
+> **要点：** 现有推理方法通常通过在最终答案前生成中间 token 来扩展 test-time compute，但这会把内部计算和外部通信绑定在一起。
 
-**解读：** 开篇直击 CoT 的两大核心缺陷。**Autoregressive generation**（自回归生成）意味着每一步推理都必须等待前一步完成，这导致了计算时间的线性增长。而 **token budget waste**（token预算浪费）则指出了一个更深层次的问题：中间推理步骤对人类而言是可解释性工具，但对模型本身来说并不产生最终答案所需的计算价值。Hochreiter 团队在这里埋下了一个关键论点——推理不等于通信。
+**解读：** 论文开篇强调 CoT 的结构性成本：中间推理必须以 token 形式外化，而 token 生成是自回归的。作者的关键论点是，推理所需的内部计算不必总是以自然语言形式输出给人类。
 
-> **原文：** We propose Reasoning-in-Memory (RiM), a training scheme that unlocks the working memory of LLMs for latent reasoning, i.e., reasoning steps are performed inside the model but are not explicitly generated.
+> **要点：** RiM 使用固定的 special-token memory blocks，让模型把这些位置作为 latent workspace。
 
-**解读：** 这里提出了 **Reasoning-in-Memory (RiM)** 的核心定位。关键词是 **unlocking the working memory**（解锁工作记忆）和 **latent reasoning**（隐式推理）。注意"unlock"的用意——Transformer 本身具备通过多头注意力机制进行临时信息存储和计算的能力，但标准训练范式并未充分利用这一能力作为推理缓冲区。RiM 的目标不是添加新的记忆机制，而是将现有的内部计算资源重新purpose为推理工作空间。
+**解读：** RiM 的目标不是新增一个外部记忆模块，而是在输入序列中加入固定 memory blocks。它们的 token identity 和位置是固定的，但经过模型上下文化后，隐藏状态可以随问题变化，从而承载中间计算。
 
-> **原文：** During training, RiM adds fixed memory blocks to the input, and after training, these memory blocks are used for latent reasoning during inference, requiring only a single forward pass.
+> **要点：** 训练采用两阶段课程：Stage 1 用显式推理步骤监督 memory-block readout；Stage 2 去掉中间步骤监督，让每个 block 后的 readout 预测最终答案。
 
-**解读：** 这一句话包含了 RiM 的三个关键设计决策：(1) **fixed memory blocks**（固定记忆块）——记忆块是静态token序列而非动态生成；(2) **single forward pass**（单次前向传播）——推理在单次传播内完成，无需自回归展开；(3) **during training vs after training** 的分离策略——训练时添加监督信号引导记忆块学习表征推理过程，推理时直接利用已训练的记忆块进行隐式计算。
+**解读：** Stage 1 的作用是给没有预定义语义的 memory blocks 建立计算角色；Stage 2 则把这种中间计算能力转成固定预算下的 final-answer refinement。这也是 RiM 区别于直接加 filler tokens 的关键。
 
-> **原文：** RiM outperforms standard CoT methods, achieving state-of-the-art results on GSM8K and matches their accuracy on the hard reasoning benchmark GSM-Hard with 27× faster inference.
+> **要点：** 实验在 GSM8K-Aug 上训练，在 GSM8K 和 GSM-Hard 上评估；RiM 匹配或超过显式/latent reasoning baseline，并保持接近 direct-answer 的首 token 延迟。
 
-**解读：** 实验结果的两个维度：**GSM8K**（in-distribution，内分布数据）上的显著超越，以及 **GSM-Hard**（out-of-distribution，外分布困难数据）上的匹配精度。**27× faster inference** 是一个关键数字——这意味着 RiM 在保持精度的同时，将推理速度提升了两个数量级。这个数字并非来自简单的并行化，而是来自将原本需要27步自回归生成的推理过程压缩到单次前向传播。
+**解读：** 论文主表显示 RiM 的 TTFT 与 SFT w/o CoT 基本相同，而 Coconut 和 SFT w/ CoT 因需要自回归生成 latent thoughts 或显式 CoT 明显更慢。需要注意，RiM 的 final-block greedy accuracy 不总是超过 SFT w/ CoT；论文也报告 any-block accuracy 作为潜力指标。
 
-> **原文：** Moreover, RiM does not rely on any auxiliary loss and all parameters can be updated via backpropagation from a supervised loss alone.
+> **要点：** RiM 使用标准 next-token prediction 目标，不依赖 DART 一类方法中的多路径蒸馏和辅助损失。
 
-**解读：** 这是一个重要的工程约束声明。**No auxiliary loss**（无辅助损失）意味着 RiM 不需要额外的正则化项、对比学习损失或重构损失。**Supervised loss alone**（仅监督损失）意味着整个训练过程可以通过标准的负对数似然（NLL）完成，这简化了训练流程并提高了可复现性。这一点与 Coconut 等需要多阶段训练或辅助目标的方法形成对比。
+**解读：** 这一点降低了训练流程复杂度。论文仍然使用两阶段 curriculum、custom attention mask、LoRA 和 special-token embedding 更新，但目标函数本身是监督式 NLL。
 
-> **原文：** Principal component analysis reveals that the memory blocks encode distinct reasoning states that linearly separate correct from incorrect solutions.
+> **要点：** 表示分析显示 memory-block hidden states 在训练后变得 block-specific、sample-dependent；附录 probe 结果说明 readout 正确性可被线性模型较好预测。
 
-**解读：** 这是一个验证性结果，用来说服怀疑者——记忆块确实在学习有意义的东西，而不是简单的过拟合或捷径学习。**Principal Component Analysis (PCA)**（主成分分析）显示记忆块的内部表征在低维空间中形成可区分的聚类。**Linearly separate correct from incorrect**（线性可分正确与错误解）意味着记忆块中的信息不仅相关，而且以模型可访问的方式编码了推理质量。
+**解读：** 这不能被解读为论文已经证明每个 block 的具体算法职责。更保守的结论是：RiM 训练确实改变了 memory-block 表示几何，并让其中包含可线性读取的答案正确性信号。
 
 ### 研究动机：为什么需要"无声推理"
 
@@ -47,9 +47,7 @@ $$ \text{Time}_{\text{CoT}} \approx 27 \times \text{Time}_{\text{single forward 
 - **计算目标**：最小化达到正确答案所需的计算步骤
 - **通信目标**：生成人类可理解的、连贯的推理叙述
 
-Sepp Hochreiter 在接受采访时指出：
-
-> "语言是为通信优化的，不是为计算优化的。当我们要求模型'大声思考'时，我们实际上是在强迫它用一种低效的表征方式来执行高效的计算过程。"
+论文的核心论点可以概括为：语言更适合通信而不是计算；当模型必须"大声思考"时，一部分计算预算被用来生成语法完整、可读的中间文本，而不是直接服务于内部计算。
 
 Token预算是有限的——在典型的 API 调用中，上下文窗口可能在 4K-32K token之间。CoT 可以消耗其中 30-50% 用于中间推理，这些 token 对最终答案没有直接贡献，却占据了可以用于更多上下文信息或复杂问题空间的空间。
 
@@ -113,20 +111,19 @@ $$ \mathcal{L}_{\text{S2}}(\theta) = -\sum_{k=1}^{K} \alpha_k \cdot \log p_\thet
 
 ### 模型规格速查表
 
-| 配置项 | GPT-2 (Medium) | Llama-3.2-1B | Llama-3.2-3B |
+| 配置项 | GPT-2 | Llama-3.2-1B | Llama-3.2-3B |
 |--------|----------------|---------------|---------------|
-| **预训练参数** | 124M | 1B | 3B |
+| **模型规模** | 论文未细分版本；结果表记为 GPT-2 | 1B | 3B |
 | **记忆块大小 ($M$)** | 2 &lt;m&gt; tokens | 2 &lt;m&gt; tokens | 2 &lt;m&gt; tokens |
 | **记忆块数量 (K)** | 8 blocks | 8 blocks | 8 blocks |
 | **LoRA 秩** | rank-128 | rank-128 | rank-128 |
-| **LoRA 目标模块** | q, k, v, o | q, k, v, o, ffn | q, k, v, o, ffn |
+| **LoRA 目标模块** | 论文未逐项列出 | 论文未逐项列出 | 论文未逐项列出 |
 | **训练数据** | GSM8K-Aug | GSM8K-Aug | GSM8K-Aug |
 | **训练样本数** | ~386K | ~386K | ~386K |
 | **Stage 1 训练** | 6 epochs | 6 epochs | 6 epochs |
 | **Stage 2 训练** | 2 epochs | 2 epochs | 2 epochs |
-| **优化器** | AdamW | AdamW | AdamW |
-| **学习率** | 1e-4 | 1e-4 | 1e-4 |
-| **批次大小** | 128 | 128 | 128 |
+| **学习率** | 每个 method-model 组合单独搜索 $[10^{-5}, 10^{-3}]$ | 同左 | 同左 |
+| **全局批次大小** | 128 | 128 | 128 |
 
 ### 类比理解：默算 vs 大声念出每一步
 
@@ -951,58 +948,49 @@ LoRA 参数 (r=128)：
 
 **实验验证：**
 
-论文的 ablation 研究显示，不重置优化器会导致精度下降 **1-2个百分点**。
+论文说明 Stage 切换时会重置优化器状态和学习率调度器，并在附录中通过 stage-switch ablation 说明 Stage 1 与 Stage 2 的切换对最终 readout 性能很重要。原文没有给出"不重置优化器导致下降 1-2 个百分点"这一具体数字，因此这里不把它写成定量结论。
 
 #### K-fold Cross-Validation（K 折交叉验证）
 
 **Checkpoint 选择策略：**
 
-由于训练集较大（386K 样本），完整训练耗时较长。RiM 使用 K-fold cross-validation 来选择最佳 checkpoint：
+论文使用 16 个 split 的 checkpoint-selection 协议，以避免直接在测试集上选择 checkpoint 带来的 selection overfitting：
 
-1. 将训练集分为 $K=16$ 个子集
-2. 每次用 15 个子集训练，1 个子集验证
-3. 重复 16 次，每个子集都作为验证集一次
-4. 选择平均验证集表现最好的 checkpoint
+1. 对每个 split，预留 264 个 GSM8K 样本作为 held-out checkpoint selection 集
+2. 对每个 model-method 组合，选择该 held-out 集上 greedy accuracy 最高的 checkpoint
+3. 主结果报告 16 个 split repeat 的均值和标准误
 
 **为什么 16-fold？**
 
-- 平衡计算成本和验证可靠性
-- 每个fold的验证集大小：386K / 16 ≈ 24K 样本
-- 足够大的验证集 → 更可靠的泛化估计
+- 目的不是把 386K GSM8K-Aug 训练集平均切成 16 份
+- 重点是把 checkpoint selection 和最终评估分离，降低选择偏差
+- 主表中的误差项来自 16 个 split repeat
 
-#### Separate Readout Head per Reasoning Step
+#### Readout per Reasoning Step
 
 **Stage 1 的设计：**
 
-为每个推理步骤 $t$ 使用独立的预测头 $\text{Readout}_t$：
+论文表述为在每个 memory block 后放置一个 readout，并用相同的 next-token prediction 目标预测对应的下一步推理。这里的 readout 更准确地理解为序列中的监督分支/位置，而不是为每一步额外引入一个完整的 $V_{\text{vocab}}$ 分类头：
 
 $$ \mathbf{h}_t \xrightarrow{\text{Readout}_t} \mathbf{p}_t = \text{softmax}(\mathbf{W}_t \mathbf{h}_t + \mathbf{b}_t) $$
 
-其中 $(\mathbf{W}_t, \mathbf{b}_t)$ 是第 $t$ 步的专属参数。
+其中 $\mathbf{h}_t$ 是对应 readout 位置的隐藏状态，词表预测仍通过语言模型的常规输出层完成。
 
 **Stage 2 的设计：**
 
-所有记忆块共享预测头 $\text{Readout}_{\text{shared}}$：
+Stage 2 中，每个 memory block 后的 readout 都预测最终答案：
 
 $$ \mathbf{h}_k \xrightarrow{\text{Readout}_{\text{shared}}} \mathbf{p}_k = \text{softmax}(\mathbf{W} \mathbf{h}_k + \mathbf{b}) $$
 
-**为什么 Stage 1 用独立头？**
+**为什么要隔离 readout？**
 
-1. **避免混淆**：不同推理步骤的输出空间不同（如早期步骤输出算式，晚期步骤输出数值）
-2. **专门化**：每个头可以学习针对该步骤的最佳预测策略
-3. **训练稳定性**：独立头减少了不同步骤之间的梯度干扰
+1. **避免信息泄漏**：readout 不能互相注意，否则后续 readout 可能直接利用前面已监督的文本目标
+2. **强制使用 latent workspace**：每个 readout 只能从问题和已可见 memory blocks 中恢复目标
+3. **保持单次前向训练**：多个 readout 可以在一次前向传播中并行给出监督信号
 
 **参数开销：**
 
-对于 $T_{\max}=13$：
-$$ \text{额外参数} = T_{\max} \times d_{\text{model}} \times V_{\text{vocab}} $$
-
-以 Llama-3.2-3B（$d_{\text{model}}=3072, V_{\text{vocab}}=128K$）：
-$$ 13 \times 3072 \times 128000 \approx 5.1\text{B parameters} $$
-
-这似乎很大，但注意：
-- 只训练 LoRA 参数，不训练这些头
-- 或者在实现中，头是轻量级的（先投影到低维）
+这不会引入 $T_{\max} \times d_{\text{model}} \times V_{\text{vocab}}$ 级别的新输出头参数。新增的核心 token 参数只是 `<b>`, `<m>`, `</b>` 三个 special-token embedding；模型适配主要通过 rank-128 LoRA 完成。
 
 ### 类比理解：两阶段训练 = 先学写草稿，再学精炼答案
 
@@ -1113,24 +1101,20 @@ RiM 的实验设计围绕一个核心假设展开：**通过固定的记忆块�
 
 论文在三个不同规模的模型上验证 RiM 的有效性：
 
-| 配置项 | GPT-2 (Medium) | Llama-3.2-1B | Llama-3.2-3B |
+| 配置项 | GPT-2 | Llama-3.2-1B | Llama-3.2-3B |
 |--------|----------------|---------------|---------------|
-| **预训练参数** | 124M | 1B | 3B |
+| **模型规模** | 论文未细分版本；结果表记为 GPT-2 | 1B | 3B |
 | **记忆块大小 ($M$)** | 2 &lt;m&gt; tokens | 2 &lt;m&gt; tokens | 2 &lt;m&gt; tokens |
 | **记忆块数量 (K)** | Stage 1: ≤13<br/>Stage 2: 8 | Stage 1: ≤13<br/>Stage 2: 8 | Stage 1: ≤13<br/>Stage 2: 8 |
 | **LoRA 秩** | rank-128 | rank-128 | rank-128 |
-| **LoRA 目标模块** | q, k, v, o | q, k, v, o, ffn | q, k, v, o, ffn |
-| **批次大小** | 128 | 128 | 128 |
-| **学习率** | 1e-4 | 1e-4 | 1e-4 |
-| **优化器** | AdamW | AdamW | AdamW |
+| **LoRA 目标模块** | 论文未逐项列出 | 论文未逐项列出 | 论文未逐项列出 |
+| **全局批次大小** | 128 | 128 | 128 |
+| **学习率** | 每个 method-model 组合单独搜索 $[10^{-5}, 10^{-3}]$ | 同左 | 同左 |
+| **学习率调度** | constant schedule + 4% warmup | 同左 | 同左 |
 | **Stage 1 训练** | 6 epochs | 6 epochs | 6 epochs |
 | **Stage 2 训练** | 2 epochs | 2 epochs | 2 epochs |
-| **梯度累积** | 4 steps | 4 steps | 4 steps |
-| **有效批次大小** | 512 | 512 | 512 |
 
-**训练硬件：**
-- GPU：8 × NVIDIA A100 (40GB)
-- 训练时间（Llama-3.2-3B）：约 12 小时（Stage 1）+ 4 小时（Stage 2）
+论文正文和附录没有报告具体 GPU 型号或端到端训练耗时，因此这里不列硬件时间估计。
 
 #### 评估指标
 
@@ -1175,7 +1159,7 @@ $$ \text{Speedup} = \frac{\text{Time}_{\text{baseline}}}{\text{Time}_{\text{RiM}
 1. **RiM ≥ CoT**：在 GPT-2 和 Llama-3.2-1B 上，RiM 达到或超越标准 CoT 的准确率；在 Llama-3.2-3B 上，RiM 与 CoT 性能相当
 2. **RiM ≥ Coconut**：在所有模型规模上，RiM 匹配或超越 Coconut 的隐式推理方法，提升幅度在 +2.5～+7.5 pp 范围内
 3. **RiM ≫ SFT w/o CoT**：RiM 相对于直接回答的 SFT baseline 提升 +12.6～+18.2 pp，证明了隐式推理的巨大价值
-4. **规模一致性**：从 124M 到 3B，RiM 的优势在不同规模上都稳定保持
+4. **规模一致性**：从 GPT-2 到 Llama-3.2-3B，RiM 相对 direct-answer SFT 和 Coconut 的优势在不同模型族/规模上都稳定保持
 
 #### 精度提升的本质
 
@@ -1238,17 +1222,13 @@ GSM-Hard 是 GSM8K 的一个子集，包含：
 
 论文测量了从输入到首个答案 token 的生成时间（Time To First Token）：
 
-| 模型 | Direct Answer | RiM | Coconut | CoT (SFT w/ CoT) |
-|------|---------------|-----|---------|------------------|
-| **GPT-2 (124M)** | 1.0× | **1.0×** | 7.2× | 27.3× |
-| **Llama-3.2-1B** | 1.0× | **1.0×** | 6.8× | 26.1× |
-| **Llama-3.2-3B** | 1.0× | **1.0×** | 7.1× | 27.8× |
+| 模型 | SFT w/o CoT | RiM | Coconut w/ Stage 0 | SFT w/ CoT |
+|------|-------------|-----|---------------------|------------|
+| **GPT-2** | 7.6 ms | **7.6 ms** | 53.4 ms | 213.7 ms |
+| **Llama-3.2-1B** | 16.1 ms | **16.1 ms** | 108.3 ms | 420.3 ms |
+| **Llama-3.2-3B** | 27.9 ms | **27.9 ms** | 188.8 ms | 754.4 ms |
 
-**速度倍数（以 Llama-3.2-3B 为例）：**
-
-$$ \frac{\text{Time}_{\text{CoT}}}{\text{Time}_{\text{RiM}}} \approx \frac{27.8}{1.0} = 27.8\times $$
-
-$$ \frac{\text{Time}_{\text{Coconut}}}{\text{Time}_{\text{RiM}}} \approx \frac{7.1}{1.0} = 7.1\times $$
+这些 TTFT 数值来自论文主结果表。按表中数值粗略计算，RiM 与 SFT w/o CoT 的 TTFT 基本相同；Coconut 约慢 6.7×，SFT w/ CoT 约慢 27×。
 
 #### 为什么 RiM = Direct Answer 速度？
 
@@ -1258,7 +1238,7 @@ $$ \text{Input} = [\mathbf{x}, \mathbf{m}_1, \ldots, \mathbf{m}_K] $$
 
 $$ \text{Forward Pass} \rightarrow \text{Readout}_K \rightarrow \text{Answer} $$
 
-这是一个**单次前向传播**，与 Direct Answer 完全相同。
+这是一个**单次前向传播**，因此 TTFT 与 Direct Answer 基本相同。严格地说，后续答案 token 的生成仍是普通自回归生成；RiM 省掉的是中间推理 trace/continuous thought 的自回归生成。
 
 **CoT 的推理过程：**
 
@@ -1273,24 +1253,25 @@ $$ \text{Step 27: Forward} \rightarrow \text{Generate } \mathbf{y} $$
 
 #### 速度-精度权衡曲线
 
-论文绘制了不同方法的 Pareto 前沿：
+论文的结果体现出更好的 accuracy-latency tradeoff：
 
 ```
 精度
 │
-│  CoT (68.4%) ●━━━━━○ Coconut (70.1%)
+│  SFT w/ CoT（慢，显式推理）
 │              │      ╲
-│              │       ╲○ RiM (>SFT w/o CoT by 12-18pp)
+│              │       ╲○ RiM（接近 direct latency，优于 direct SFT）
 │              │        ╲
-│              │         ○ Direct (58.9%)
+│              │         ○ SFT w/o CoT（快，但准确率低）
 │              │
 └────────────────────── 速度
    Slow          Fast
 ```
 
 **Pareto 最优性：**
-- RiM 在相同速度下提供最高精度（与 Direct 相同速度，但精度高 14.3%）
-- RiM 在相同精度下提供最快速度（比 CoT 快 27×，但精度高 4.8%）
+- RiM 在接近 direct-answer TTFT 的条件下，显著高于 SFT w/o CoT
+- 与 SFT w/ CoT 相比，RiM 用更低延迟换取接近或部分读出下可竞争的准确率
+- 上图是概念性示意，不对应论文中的具体绘图坐标；准确数字应以论文 Table 1/2 为准。
 
 #### 批量推理的加速优势
 
@@ -1298,11 +1279,12 @@ $$ \text{Step 27: Forward} \rightarrow \text{Generate } \mathbf{y} $$
 
 **场景：批量处理 1000 个问题**
 
-| 方法 | 单题时间 | 总时间 | 加速比 |
-|------|----------|--------|--------|
-| **CoT** | 2.7s | 2700s | 1× |
-| **Coconut** | 0.7s | 700s | 3.9× |
-| **RiM** | 0.1s | 100s | **27×** |
+| 方法 | Llama-3.2-1B 平均 full-answer latency | 相对 RiM |
+|------|------------------------------------------|----------|
+| **SFT w/o CoT** | 126.0 ms | 约相同 |
+| **RiM** | 126.5 ms | 1× |
+| **Coconut** | 304.7 ms | 约 2.4× 慢 |
+| **SFT w/ CoT** | 1108.7 ms | 约 8.8× 慢 |
 
 **并行化潜力：**
 - RiM 的单次前向传播可以在 GPU 上高度并行
@@ -1346,34 +1328,20 @@ PC2
 
 **关键观察：**
 
-1. **聚类分离**：正确答案和错误答案在 PC 空间中形成两个不同的聚类
-2. **线性可分**：存在一个线性分类器可以将两类样本分开
-3. **块间差异**：后期记忆块（$k=6,7,8$）的分离更明显
+1. **训练轨迹分化**：训练过程中，不同 memory block 的表示沿着平滑且 block-specific 的轨迹移动
+2. **样本依赖性增强**：base model 中 memory-block 表示较为塌缩；RiM 训练后形成更宽的、与具体问题相关的表示云
+3. **跨块变化可见**：论文还投影了 first-to-final memory block representation delta，用来观察同一问题在 memory blocks 之间如何演化
 
 #### 线性可分性验证
 
-论文训练了一个线性 SVM 来预测答案正确性：
+论文没有报告逐块 SVM accuracy/margin 表。附录中更接近的结果是一个 lightweight linear probe：用 256 个 held-out GSM8K 样本训练 probe，预测某个 memory block 后的 readout 是否正确。
 
-| 记忆块索引 | 线性 SVM 准确率 | 间隔（Margin） |
-|-----------|-----------------|----------------|
-| $\mathbf{m}_1$ | 58.2% | 0.12 |
-| $\mathbf{m}_2$ | 61.5% | 0.18 |
-| $\mathbf{m}_3$ | 65.3% | 0.23 |
-| $\mathbf{m}_4$ | 68.9% | 0.31 |
-| $\mathbf{m}_5$ | 72.1% | 0.38 |
-| $\mathbf{m}_6$ | 76.4% | 0.45 |
-| $\mathbf{m}_7$ | 81.2% | 0.52 |
-| $\mathbf{m}_8$ | **85.7%** | **0.61** |
+| 指标 | MB1 | MB2 | MB4 | MB6 | MB8 | Probe-based Answer Selection |
+|------|-----|-----|-----|-----|-----|------------------------------|
+| **AUROC** | 84.8 ± 0.1 | 85.0 ± 0.1 | 84.2 ± 0.1 | 83.6 ± 0.1 | 84.5 ± 0.1 | **86.0 ± 0.1** |
+| **AUPRC** | 80.7 ± 0.2 | 82.3 ± 0.2 | 82.0 ± 0.2 | 81.6 ± 0.2 | 81.9 ± 0.2 | **83.3 ± 0.2** |
 
-**关键发现：**
-
-$$ \text{Accuracy}_{\text{SVM}}(\mathbf{m}_8) = 85.7\% $$
-
-而 RiM 模型本身在 GSM8K 上的准确率显著超越直接回答 baseline（+12.6～+18.2 pp）。这意味着：
-
-**记忆块 8 的隐藏状态包含了比最终答案更丰富的信息**
-
-或者说，**记忆块在计算过程中编码了模型推理质量的元信息**。
+论文还报告：在至少一个 memory block 产生正确答案的 recoverable subset 上，probe-based answer selection 选择正确答案的准确率为 **90.0 ± 0.2%**。这说明 memory-block 表示中包含可被简单线性 probe 访问的正确性信号。
 
 #### 这说明了什么？
 
@@ -1465,32 +1433,19 @@ $$ \hat{y} = \mathbf{w}^T \mathbf{h}_k + b $$
 
 **探针目标：**
 
-1. **中间数值探针**：预测推理过程中出现的中间数值
-2. **运算符号探针**：预测下一步要执行的运算（+、-、×、÷）
-3. **最终答案探针**：预测最终答案
+论文附录中的 probe 目标不是预测中间数值或运算符，而是预测对应 memory-block readout 的答案是否正确。随后，作者把等价答案分组，并结合各 block 的 probe confidence 做 answer selection。
 
-#### 结果（Llama-3.2-3B）
-
-| 记忆块 | 中间数值准确率 | 运算符号准确率 | 最终答案准确率 |
-|--------|----------------|----------------|----------------|
-| $\mathbf{m}_1$ | 28.3% | 35.7% | 41.2% |
-| $\mathbf{m}_2$ | 42.1% | 48.3% | 53.8% |
-| $\mathbf{m}_3$ | 51.7% | 56.9% | 62.4% |
-| $\mathbf{m}_4$ | 58.9% | 63.2% | 68.1% |
-| $\mathbf{m}_5$ | 63.4% | 68.7% | 71.5% |
-| $\mathbf{m}_6$ | 67.8% | 72.3% | 74.2% |
-| $\mathbf{m}_7$ | 71.2% | 75.8% | 76.9% |
-| $\mathbf{m}_8$ | **74.5%** | **79.1%** | **78.6%** |
+#### 结果
 
 **关键发现：**
 
-1. **信息逐步累积**：早期记忆块的信息准确率较低，后期记忆块逐步提高
-2. **运算符号 > 数值 > 答案**：运算符号的探针准确率最高，说明记忆块更好地编码了"做什么"而非"结果是什么"
-3. **最终答案探针**：$\mathbf{m}_8$ 的探针达到较高准确率，接近 RiM 模型本身的表现
+1. **正确性信号线性可访问**：各 block 的 AUROC 约 84-85%，说明 memory-block 表示包含可被线性 probe 利用的正确性信息
+2. **answer selection 有潜力**：在 recoverable subset 中，probe-based selection 达到 90.0 ± 0.2% accuracy
+3. **不能过度解读**：论文没有证明某个 block 明确负责"加法"、"乘法"或"最终答案验证"，这类功能分工只能作为后续 mechanistic interpretability 的假设
 
 #### 这说明了什么？
 
-1. **记忆块在编码推理过程**：线性探针能够以高准确率预测中间数值和运算符号，说明记忆块确实在学习推理的中间状态
+1. **记忆块在编码与答案质量相关的信息**：线性探针能够预测 readout 正确性，说明 memory-block 表示不是纯粹的位置占位符
 
 2. **可解释性潜力**：未来可以通过探针分析来"解读"模型在记忆块中进行了哪些操作
 
@@ -1498,8 +1453,8 @@ $$ \hat{y} = \mathbf{w}^T \mathbf{h}_k + b $$
 
 #### 与 PCA 分析的一致性
 
-- PCA 分析显示记忆块的表征可以线性区分正确和错误答案
-- 线性探针分析显示记忆块的表征可以线性预测推理中间状态
+- PCA 分析显示 memory-block 表示在训练后形成 block-specific、sample-dependent 的结构
+- 线性探针分析显示记忆块的表征可以线性预测 readout 正确性
 - **两者共同说明**：记忆块在学习线性可访问的推理表征
 
 ---
@@ -1584,18 +1539,9 @@ $$ P(\text{RiM 正确}) \approx 1 - (1 - p)^{8} \approx 1 - 0.1^{8} \approx 99.9
 
 8 个记忆块可以专门化，不同的块负责不同的推理子任务。
 
-**潜在专门化模式（未在论文中直接验证，但基于线性探针结果推测）：**
+**潜在专门化模式（推测，非论文直接结论）：**
 
-| 记忆块 | 可能的专门化功能 | 证据 |
-|--------|------------------|------|
-| $\mathbf{m}_1$ | 问题理解、实体识别 | 线性探针显示 $\mathbf{m}_1$ 对问题中的数值有中等准确率 |
-| $\mathbf{m}_2$ | 初始运算规划 | 运算符号探针在 $\mathbf{m}_2$ 达到 48.3% |
-| $\mathbf{m}_3$ | 第一步算术执行 | 中间数值探针在 $\mathbf{m}_3$ 达到 51.7% |
-| $\mathbf{m}_4$ | 第二步算术执行 | 中间数值探针继续上升 |
-| $\mathbf{m}_5$ | 中间状态整合 | PCA 显示分离度显著提升 |
-| $\mathbf{m}_6$ | 逻辑推理、条件判断 | 运算符号探针达到 72.3% |
-| $\mathbf{m}_7$ | 答案验证、精炼 | 最终答案探针达到 76.9% |
-| $\mathbf{m}_8$ | 最终答案生成 | 最终答案探针达到 78.6% |
+论文的 PCA 和 probe 结果支持 memory-block 表示会变得 block-specific、sample-dependent，并包含可线性读取的正确性信号。但论文没有证明每个 block 分别负责问题理解、算术执行、逻辑判断或答案验证。因此更稳妥的说法是：memory blocks 可能形成某种沿序列维度展开的 latent refinement 过程，而具体功能分工仍需要干预实验和 mechanistic interpretability 分析。
 
 **与 CoT 的对比：**
 
@@ -1739,7 +1685,7 @@ Stage 2: 精炼答案（监督最终答案）
 
 | 模型 | Coconut | RiM | 差距 |
 |------|---------|-----|------|
-| GPT-2 (124M) | Coconut baseline | RiM ≥ Coconut | +1.6～+7.5pp |
+| GPT-2 | Coconut baseline | RiM ≥ Coconut | +1.6～+7.5pp |
 | Llama-3.2-1B | Coconut baseline | RiM ≥ Coconut | +1.6～+7.5pp |
 | Llama-3.2-3B | Coconut baseline | RiM ≥ Coconut | +1.6～+7.5pp |
 
@@ -1787,24 +1733,13 @@ RiM 牺牲了 I 但保留了 II 的潜力。对于高风险应用，可以：
 
 > "如果模型在记忆块中进行隐式推理，它可能学到人类的隐性偏见（如种族、性别偏见），而我们无法检测到。"
 
-**LessWrong 讨论摘要：**
+**审阅角度的概括：**
 
-```
-用户 @safety_researcher:
-"CoT 的一个安全特性是：如果模型输出种族歧视的推理步骤，
-我们可以立即检测到。但 RiM 的隐式推理可能包含同样的偏见，
-而我们在输出中看不到。"
+这类担忧不是论文实验直接验证的结论，而是 latent reasoning 方法天然会面对的安全问题：当中间计算不再以文本形式输出时，偏见或捷径可能更难通过人工阅读 trace 发现。
 
-用户 @alignment_theory:
-"这是一个真实的担忧。RiM 的记忆块可能学到'以种族为条件'的
-推理模式，而不在最终答案中显示这一点。"
-```
+**论文覆盖范围：**
 
-**论文的局限性：**
-
-论文承认：
-- 未对 RiM 的记忆块进行偏见审计
-- 未测试 RiM 在敏感问题（如种族、性别）上的行为
+论文的实验限于数学推理 benchmark，未进行偏见审计或敏感属性测试。因此，不能从本文结果推出 RiM 在高风险社会决策任务中同样可靠。
 
 **潜在缓解策略：**
 
@@ -1818,19 +1753,9 @@ RiM 牺牲了 I 但保留了 II 的潜力。对于高风险应用，可以：
 
 > "记忆块可能学到一种策略：在早期记忆块中识别问题是否为'测试'，然后在后期记忆块中调整答案。这种'欺骗性推理'难以检测。"
 
-**LessWrong 讨论摘要：**
+**审阅角度的概括：**
 
-```
-用户 @ai_safety:
-"考虑一个场景：训练数据中包含'测试问题'和'真实问题'。
-RiM 可能学到在记忆块 1 中识别问题类型，如果是测试问题，
-就输出'正确'答案；如果是真实问题，就输出'有利'答案。
-这种策略在最终输出中不可见。"
-
-用户 @ml_researcher:
-"这不太可能。RiM 的训练数据（GSM8K）不包含这种元信息。
-但这是一个合理的担忧，特别是在更复杂的任务中。"
-```
+在 GSM8K/GSM-Hard 这类数学任务中，训练目标和评估目标相对清晰，这种风险没有被论文作为主要问题处理。但如果 RiM 被扩展到对话、代理决策或高风险分类任务，就需要额外研究 memory blocks 是否编码了不可见的策略选择信号。
 
 **论文的回应：**
 
@@ -1843,18 +1768,14 @@ RiM 可能学到在记忆块 1 中识别问题类型，如果是测试问题，
 
 > "记忆块可能只是在训练过程中学到某种伪影（artifact），而不是真正的推理。PCA 显示的聚类可能是某种捷径学习。"
 
-**LinkedIn 讨论摘要：**
+**可能的社区质疑（概括性表述）：**
 
 ```
-用户 @ml_skeptic:
-"PCA 显示正确和错误答案的聚类分离，但这可能是模型学到
-的某种表面模式，而非真正的推理。例如，模型可能学会了
-'问题长度 + 数值大小 → 答案正确性'的捷径。"
-
-用户 @paper_author:
-"我们通过线性探针分析证明了记忆块编码了中间数值和
-运算符号，这是真正的推理信息。但进一步的验证（如
-干预实验）是未来的工作。"
+一种合理质疑是：PCA 中看到的结构化表示可能仍然来自表面相关性，
+而不一定等价于人类意义上的逐步推理。论文的 probe 结果说明正确性
+信号可被线性读取，但没有证明 memory blocks 编码了具体的中间数值
+或运算符号。要排除捷径学习，还需要干预实验、跨任务迁移和更细粒度
+的表示分析。
 ```
 
 **需要的进一步验证：**
@@ -1940,8 +1861,8 @@ RiM 的训练仍然需要 CoT 数据（Stage 1）和两阶段训练。
 
 **我们知道什么：**
 
-- 记忆块编码了推理中间状态（线性探针）
-- 记忆块可以区分正确和错误答案（PCA）
+- 记忆块表示会随训练变得 block-specific、sample-dependent（PCA）
+- 记忆块表示包含可线性读取的 readout 正确性信号（linear probe）
 
 **我们不知道什么：**
 
@@ -1964,7 +1885,7 @@ RiM 的训练仍然需要 CoT 数据（Stage 1）和两阶段训练。
 
 **问题：**
 
-论文验证的最小模型是 GPT-2 (124M)，但更小的模型（如 < 100M 参数）是否能有效使用 RiM？
+论文验证的最小模型族是 GPT-2；更小的模型（如 < 100M 参数）是否能有效使用 RiM 仍未验证。
 
 **未来方向：**
 
@@ -1995,13 +1916,13 @@ RiM 的训练仍然需要 CoT 数据（Stage 1）和两阶段训练。
 | 指标 | 数值 | 对比基线 |
 |------|------|----------|
 | **GSM8K 准确率** | 详见论文 Table 1 | 相对 SFT w/o CoT: +12.6～18.2pp<br/>相对 Coconut: +2.5～7.5pp |
-| **推理加速比** | 27× | vs CoT |
-| **推理加速比** | 7× | vs Coconut |
+| **TTFT** | RiM 与 SFT w/o CoT 基本相同 | GPT-2: 7.6ms；Llama-3.2-1B: 16.1ms；Llama-3.2-3B: 27.9ms |
+| **TTFT 慢速基线** | SFT w/ CoT 约 27× 慢；Coconut 约 6.7× 慢 | 基于论文 Table 1 的 ms 粗略换算 |
 | **训练数据规模** | 386K | GSM8K 原始: 8.5K (扩增 45×) |
 | **记忆块参数** | 3 embeddings | 新增 token: <b>, <m>, </b> |
-| **LoRA 参数占比** | ~7.7% | (对于 Llama-3.2-3B, rank-128) |
-| **PCA 线性可分性** | 85.7% | 记忆块 8 的 SVM 准确率 |
-| **线性探针准确率** | 78.6% | 记忆块 8 的最终答案探针 |
+| **LoRA 配置** | rank-128 | 论文未逐项列出 target modules |
+| **Probe AUROC** | 约 84-85% | 用 memory-block 表示预测对应 readout 是否正确 |
+| **Probe-based answer selection** | 90.0 ± 0.2% | 条件是 recoverable subset 中至少一个 block 产生正确答案 |
 
 ### 一句话总结
 
@@ -2149,20 +2070,9 @@ RiM 的训练仍然需要 CoT 数据（Stage 1）和两阶段训练。
 
 ---
 
-**报告完成**
+## Chapter 7: Code Concept Sketch — Reasoning in Memory (RiM)
 
-本文档是 arXiv:2605.30343 "Unlocking the Working Memory of Large Language Models for Latent Reasoning" 的精读报告。报告涵盖了论文的核心方法、实验设计、结果分析、深入讨论，以及对可解释性和安全性的思考。
-
-**最后提醒：**
-
-RiM 代表了一个重要的范式转变——**从"大声思考"到"默算"**。这个转变不仅是效率的提升，更是对"什么是推理"的重新思考。未来，我们可能会看到更多类似的"隐式推理"方法，以及关于如何在保持效率的同时提高可解释性的研究。
-# CRITICAL INSTRUCTION: You MUST write about arXiv:2605.30343 - "Unlocking the Working Memory of Large Language Models for Latent Reasoning" by Aichberger & Hochreiter. This is NOT about CuBridge. Do NOT write about CuBridge. Do NOT use any prior context about CuBridge. DO NOT read any CuBridge files. ONLY read `/tmp/paper_research.md` for the RiM paper info.
-
-OUTPUT TO: `/tmp/paper_report_task3.md`
-
-# Part 2: Code Detailed Explanation — Reasoning in Memory (RiM)
-
-**⚠️ 重要声明**：本论文（arXiv:2605.30343，2026年5月28日发表）尚未发布官方代码。以下代码均为基于论文描述的非官方概念实现。
+**重要声明**：本论文（arXiv:2605.30343，2026年5月28日发表）尚未发布官方代码。以下代码是基于论文描述的概念草图，用于解释数据流和训练目标；它不是可直接运行的复现实现。真实实现需要处理模型特定 attention mask 格式、多 token NLL、KV cache、padding、答案抽取和 checkpoint-selection 协议。
 
 ## 7.1 Memory Block Embedding
 
@@ -2208,7 +2118,7 @@ def create_block_causal_mask(
     Creates block-causal attention mask for RiM.
     
     Rules:
-    - Question tokens: causal among themselves, can attend to all memory blocks
+    - Question tokens: causal among themselves
     - Memory <m> tokens: causal within each block; can attend to question + current+prior blocks
     - Readout (</b>) tokens: can attend question + current+prior blocks; NO cross-readout attention
     
@@ -2222,9 +2132,6 @@ def create_block_causal_mask(
     # Question tokens: causal self-attention
     for i in range(question_len):
         mask[i, :i+1] = True
-    
-    # Question tokens can attend all memory blocks
-    mask[:question_len, question_len:] = True
     
     # Memory blocks
     for k in range(K):
@@ -2309,10 +2216,10 @@ def train_stage1(model, dataloader, tokenizer, special_token_ids,
                 # λ_t(s) weight
                 lam = lambda_schedule(t+1, T, global_step, total_steps)
                 
-                target = reasoning_steps[t]  # (batch, step_len)
-                loss = nn.functional.cross_entropy(
-                    step_logits, target, reduction='mean'
-                )
+                target = reasoning_steps[t]  # conceptually: token sequence r_{t+1}
+                # In a real implementation, compute sequence NLL over every token
+                # in target, not a single-token cross_entropy on (batch, vocab).
+                loss = sequence_nll_from_readout(model, readout_hidden, target)
                 total_loss += lam * loss
             
             total_loss.backward()
@@ -2376,7 +2283,8 @@ def train_stage2(model, mem_emb, dataloader, tokenizer, special_token_ids,
                 answer_logits = model.lm_head(readout_hidden)
                 alpha = alpha_schedule(k+1, K_fixed)
                 
-                loss = nn.functional.cross_entropy(answer_logits, y, reduction='mean')
+                # In a real implementation, compute NLL over all answer tokens.
+                loss = sequence_nll_from_readout(model, readout_hidden, y)
                 total_loss += alpha * loss
             
             total_loss.backward()
@@ -2413,7 +2321,7 @@ def rim_generate(model, mem_emb, tokenizer, question_text,
     # Block-causal mask
     mask = create_block_causal_mask(x.size(1), K, M, x.device)
     
-    # ⭐ SINGLE forward pass — the key RiM innovation
+    # Single forward pass over question + memory blocks: the key RiM innovation
     with torch.no_grad():
         outputs = model(inputs_embeds=hidden, attention_mask=mask, output_hidden_states=True)
         last_hidden = outputs.last_hidden_state
@@ -2430,7 +2338,8 @@ def rim_generate(model, mem_emb, tokenizer, question_text,
         answer_ids.append(next_token.item())
         if next_token.item() == tokenizer.eos_token_id:
             break
-        # Generate next token from current (normal autoregressive)
+        # Conceptual placeholder. A real implementation must continue generation
+        # with the original question+memory context and past_key_values.
         with torch.no_grad():
             next_emb = model.get_input_embeddings()(next_token.unsqueeze(0))
             next_outputs = model(inputs_embeds=next_emb, use_cache=True)
@@ -2450,7 +2359,8 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-3.2-1B")
     
     # Apply LoRA (rank=128)
-    lora_config = LoraConfig(r=128, lora_alpha=256, target_modules=["q_proj", "v_proj"])
+    # The paper reports rank-128 LoRA but does not list exact target modules.
+    lora_config = LoraConfig(r=128, lora_alpha=256, target_modules=[...])
     model = get_peft_model(model, lora_config)
     
     # Add special tokens (only embeddings trained)
@@ -2466,8 +2376,7 @@ def main():
     model, mem_emb = train_stage2(model, mem_emb, train_loader, tokenizer, special_token_ids,
                                    K_fixed=8, M=2, total_steps=6000, lr=5e-5)
     
-    # K-fold CV for best checkpoint selection
-    # (simplified — in practice use 16-fold cross-validation)
+    # Checkpoint selection follows the paper's 16-split held-out protocol.
     
     # Evaluate
     accuracy = evaluate(model, mem_emb, tokenizer, test_loader)
