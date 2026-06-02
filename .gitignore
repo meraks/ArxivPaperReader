@@ -5,6 +5,7 @@
 # Editor and IDE files
 .idea/
 .vscode/
+.claude/
 *.swp
 *.swo
 *~
@@ -23,6 +24,9 @@ __pycache__/
 .ruff_cache/
 .coverage
 htmlcov/
+.venv
+pyproject.toml
+.python-version
 
 # Virtual environments
 .venv/
