@@ -501,16 +501,3 @@ if __name__ == "__main__":
 | Mamba (Gu & Dao, 2023) | 状态空间模型，另一种 O(n) 序列建模路径 |
 | Fourier Neural Operator (Li et al., 2021) | 谱域算子学习，与 FUNCATTN 共享谱方法思路 |
 | DeepONet (Lu et al., 2021) | 算子学习的另一主流范式 |
-
----
-
-## 附录：论文评分详情
-
-| 维度 | 评分 | 理由 |
-|------|:---:|------|
-| **Novelty** | 3/3 | 将 functional maps 与 attention 融合是全新范式 |
-| **Impact** | 3/3 | ICML 2026，科学计算 + ML 交叉领域影响广泛 |
-| **Tech Depth** | 3/3 | 闭式解 + 理论分析（Lipschitz、极限行为） |
-| **Evidence** | 3/3 | 6 个 PDE benchmark + 3D 分割 + OOD + 超分辨率 |
-| **Reusability** | 2/3 | 代码开源但仓库较简单（9 commits） |
-| **总分** | **14/15** | 🔬 Deep Read |
