@@ -514,8 +514,3 @@ if __name__ == "__main__":
 | **Evidence** | 3/3 | 6 个 PDE benchmark + 3D 分割 + OOD + 超分辨率 |
 | **Reusability** | 2/3 | 代码开源但仓库较简单（9 commits） |
 | **总分** | **14/15** | 🔬 Deep Read |
-
----
-
-*报告完成时间：2026-06-03*
-*经 Claude Code ARS Review 核实并修复 — 5/5 公式正确，代码通过 CC1-CC9 审计*
