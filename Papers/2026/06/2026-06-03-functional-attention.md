@@ -322,51 +322,64 @@ FUNCATTN/
 ### 6.2 核心 FUNCATTN 概念实现
 
 ```python
-# ⚠️ 基于论文 Algorithm 1 / Section 3 描述的概念实现
+# ⚠️ 基于论文 Section 4 描述的概念实现
 # 目的：帮助理解算法流程，非官方实现代码
-# 来源：arxiv.org/abs/2605.31559 Section 3
+# 来源：arxiv.org/abs/2605.31559 Section 4
+# 关键论文细节：
+#   - λ = sigmoid(α) 是可学习标量（论文 Appendix D.3）
+#   - 多头注意力 H=8（论文 Appendix C.2）
+#   - 谱投影使用 Φ^T 而非伪逆 Φ†（论文 Remark 4.1）
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 class FunctionalAttention(nn.Module):
     """
-    Functional Attention Layer
-    
+    Functional Attention Layer (多头版本)
+
     将标准 softmax attention 替换为函数空间中的线性算子估计。
-    
+
     参数形状：
       - n: 输入 token 数量
-      - d: 特征维度
-      - k: 基函数数量 (k << n, 典型值 64-128)
+      - d: 特征维度 (d_model)
+      - k: 基函数数量 (k << n, 典型值 64)
+      - H: 注意力头数 (论文使用 8)
     """
-    
-    def __init__(self, d_model: int, k: int = 64, lambda_reg: float = 0.01):
+
+    def __init__(self, d_model: int, num_heads: int = 8, k: int = 64,
+                 alpha_init: float = 0.0):
         super().__init__()
+        assert d_model % num_heads == 0, "d_model 必须能被 num_heads 整除"
         self.d_model = d_model
+        self.num_heads = num_heads
+        self.head_dim = d_model // num_heads
         self.k = k
-        self.lambda_reg = lambda_reg
-        
+
         # Q, K, V 线性投影
         self.W_q = nn.Linear(d_model, d_model, bias=False)
         self.W_k = nn.Linear(d_model, d_model, bias=False)
         self.W_v = nn.Linear(d_model, d_model, bias=False)
-        
-        # 基函数生成器
-        self.basis_phi = nn.Sequential(
-            nn.Linear(d_model, k),
-            nn.Softmax(dim=-1)  # Softmax 沿 k 维 → partition of unity
-        )
-        self.basis_psi = nn.Sequential(
-            nn.Linear(d_model, k),
-            nn.Softmax(dim=-1)
-        )
-        
-        # 输出投影
+
+        # 基函数生成器（每个 head 一组：Φ 与 Ψ）
+        # 论文 Eq. 9: B = Softmax(Linear(X))，沿 k 维做 Softmax → partition of unity
+        self.basis_phi = nn.ModuleList([
+            nn.Sequential(nn.Linear(d_model, k), nn.Softmax(dim=-1))
+            for _ in range(num_heads)
+        ])
+        self.basis_psi = nn.ModuleList([
+            nn.Sequential(nn.Linear(d_model, k), nn.Softmax(dim=-1))
+            for _ in range(num_heads)
+        ])
+
+        # 可学习正则化参数：λ = sigmoid(α)（论文 Appendix D.3）
+        # 论文消融中 α_init ∈ {0, 3, 6}：
+        #   sigmoid(0)=0.5, sigmoid(3)≈0.95, sigmoid(6)≈0.998
+        self.alpha = nn.Parameter(torch.tensor(alpha_init))
+
+        # 输出投影（多头拼接后线性混合）
         self.W_o = nn.Linear(d_model, d_model, bias=False)
-    
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Args:
@@ -375,54 +388,62 @@ class FunctionalAttention(nn.Module):
             out: (B, n, d)
         """
         B, n, d = x.shape
-        
-        # Step 1: 线性投影
-        Q = self.W_q(x)  # (B, n, d)
-        K = self.W_k(x)
-        V = self.W_v(x)
-        
-        # Step 2: 生成自适应基函数
-        Phi = self.basis_phi(x)  # (B, n, k)
-        Psi = self.basis_psi(x)  # (B, n, k)
-        
-        # Step 3: 谱投影 — 从 token 空间到函数空间
-        # 注意：Q 用 query 空间基 Φ，K/V 用 key-value 空间基 Ψ
-        Q_tilde = torch.bmm(Phi.transpose(1, 2), Q)  # (B, k, d)
-        K_tilde = torch.bmm(Psi.transpose(1, 2), K)  # (B, k, d)
-        V_tilde = torch.bmm(Psi.transpose(1, 2), V)  # (B, k, d)
-        
-        # Step 4: 估计 Functional Transport Operator C
-        # C* = Q̃ K̃^T (K̃ K̃^T + λ I_k)^{-1}
-        KKT = torch.bmm(K_tilde, K_tilde.transpose(1, 2))  # (B, k, k)
-        # Tikhonov 正则化
-        eye = torch.eye(self.k, device=x.device).unsqueeze(0)  # (1, k, k)
-        M = KKT + self.lambda_reg * eye  # (B, k, k)
-        
-        # 解线性系统 M · C^T = K̃ Q̃^T
-        QK = torch.bmm(Q_tilde, K_tilde.transpose(1, 2))  # (B, k, k)
-        # C = QK @ M^{-1}  实际上解: M @ C^T = QK^T
-        C = torch.linalg.solve(
-            M, QK.transpose(1, 2)
-        ).transpose(1, 2)  # (B, k, k)
-        
-        # Step 5: 输出重构
-        # Out = Φ @ C @ Ṽ
-        CV = torch.bmm(C, V_tilde)  # (B, k, d)
-        out = torch.bmm(Phi, CV)  # (B, n, d)
-        
+        H, D_h = self.num_heads, self.head_dim
+
+        # Step 1: 线性投影 → 拆成多头
+        # (B, n, d) → (B, n, H, D_h) → (B, H, n, D_h)
+        Q = self.W_q(x).view(B, n, H, D_h).transpose(1, 2)
+        K = self.W_k(x).view(B, n, H, D_h).transpose(1, 2)
+        V = self.W_v(x).view(B, n, H, D_h).transpose(1, 2)
+
+        # 当前 λ（标量，由 α 经 sigmoid 得到）
+        lam = torch.sigmoid(self.alpha)
+
+        # Step 2-5: 对每个 head 独立做 FuncAttn
+        head_outs = []
+        for h in range(H):
+            Q_h, K_h, V_h = Q[:, h], K[:, h], V[:, h]  # (B, n, D_h)
+
+            # Step 2: 自适应基函数（每个 head 独立学习）
+            Phi_h = self.basis_phi[h](x)  # (B, n, k)
+            Psi_h = self.basis_psi[h](x)  # (B, n, k)
+
+            # Step 3: 谱投影 — Q 用 query 空间基 Φ，K/V 用 key-value 空间基 Ψ
+            Q_tilde = torch.bmm(Phi_h.transpose(1, 2), Q_h)  # (B, k, D_h)
+            K_tilde = torch.bmm(Psi_h.transpose(1, 2), K_h)
+            V_tilde = torch.bmm(Psi_h.transpose(1, 2), V_h)
+
+            # Step 4: 估计 Functional Transport Operator C
+            # C* = Q̃ K̃^T (K̃ K̃^T + λ I_k)^{-1}
+            KKT = torch.bmm(K_tilde, K_tilde.transpose(1, 2))  # (B, k, k)
+            eye = torch.eye(self.k, device=x.device).unsqueeze(0)  # (1, k, k)
+            M = KKT + lam * eye  # (B, k, k)，Tikhonov 正则化
+
+            # 等价地解 M C^T = K̃ Q̃^T（避免显式求逆）
+            #   C = QK M^{-1}  ⇒  C^T = M^{-1} QK^T  ⇒  solve(M, QK^T) = C^T
+            QK = torch.bmm(Q_tilde, K_tilde.transpose(1, 2))  # (B, k, k) = Q̃ K̃^T
+            C = torch.linalg.solve(M, QK.transpose(1, 2)).transpose(1, 2)  # (B, k, k)
+
+            # Step 5: 输出重构 → Out = Φ C Ṽ
+            CV = torch.bmm(C, V_tilde)  # (B, k, D_h)
+            out_h = torch.bmm(Phi_h, CV)  # (B, n, D_h)
+            head_outs.append(out_h)
+
+        # 拼接所有 head → (B, n, d)
+        out = torch.stack(head_outs, dim=1).transpose(1, 2).contiguous().view(B, n, d)
         return self.W_o(out)
 
 
 class FUNCATTNBlock(nn.Module):
-    """完整的 FUNCATTN Transformer Block"""
-    
-    def __init__(self, d_model: int, k: int = 64, lambda_reg: float = 0.01,
-                 expansion: int = 4, dropout: float = 0.1):
+    """完整的 FUNCATTN Transformer Block（Pre-LN）"""
+
+    def __init__(self, d_model: int, num_heads: int = 8, k: int = 64,
+                 alpha_init: float = 0.0, expansion: int = 4, dropout: float = 0.1):
         super().__init__()
-        self.attn = FunctionalAttention(d_model, k, lambda_reg)
+        self.attn = FunctionalAttention(d_model, num_heads, k, alpha_init)
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
-        
+
         self.ffn = nn.Sequential(
             nn.Linear(d_model, d_model * expansion),
             nn.GELU(),
@@ -430,7 +451,7 @@ class FUNCATTNBlock(nn.Module):
             nn.Linear(d_model * expansion, d_model),
             nn.Dropout(dropout),
         )
-    
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = x + self.attn(self.norm1(x))
         x = x + self.ffn(self.norm2(x))
@@ -441,17 +462,18 @@ class FUNCATTNBlock(nn.Module):
 # 使用示例
 # ============================================================
 if __name__ == "__main__":
-    # 模拟 PDE 求解场景: n 个网格点, 每个点 d 维特征
+    # 模拟 PDE 求解场景：n 个网格点，每个点 d 维特征
     B, n, d = 4, 1024, 128
     k = 64  # 仅 64 个基函数
-    
-    model = FUNCATTNBlock(d_model=d, k=k).cuda()
+    num_heads = 8  # 论文使用 8 heads（Appendix C.2）
+
+    model = FUNCATTNBlock(d_model=d, num_heads=num_heads, k=k).cuda()
     x = torch.randn(B, n, d).cuda()
-    
+
     out = model(x)
     print(f"Input:  {x.shape}")   # (4, 1024, 128)
     print(f"Output: {out.shape}")  # (4, 1024, 128)
-    print(f"Basis:  k={k}, compression ratio: {n/k:.0f}:1")
+    print(f"Basis:  k={k}, heads={num_heads}, compression ratio: {n/k:.0f}:1")
     print(f"Complexity: O(n·d·k)={1024*128*64:,} vs O(n²·d)={1024*1024*128:,}")
 ```
 
@@ -459,9 +481,10 @@ if __name__ == "__main__":
 
 1. **数值稳定性**：使用 `torch.linalg.solve` 而非显式求逆，避免数值精度问题
 2. **基函数初始化**：论文使用可学习的 Linear 层生成基函数，权重按标准方式初始化（论文未指定具体初始化方案，实践中 Xavier/He 初始化均可使初始基函数近似均匀分布）
-3. **正则化选择**：$\lambda \in [10^{-3}, 10^{-1}]$，数据集规模越小，$\lambda$ 应设得越大
+3. **λ 是可学习标量**（论文 Appendix D.3）：实现中 `λ = sigmoid(α)`，`α` 是单一标量参数。论文消融中初始化 `α_init ∈ {0, 3, 6}`，对应 `λ_init ≈ {0.5, 0.95, 0.998}`——值越大代表 Tikhonov 正则化越强
 4. **k 的选择**：$k=32$ 对简单任务足够，$k=128$ 对复杂 PDE 更有效，进一步增大 k 收益递减
-5. **Woodbury 恒等式优化**：论文附录提到当 $k > d$ 时可用 Woodbury 恒等式转换为 $d \times d$ 矩阵求逆，始终在较小维度上计算
+5. **Woodbury 恒等式优化**：论文附录 B.1 提到当 $k > d$ 时可用 Woodbury 恒等式转换为 $d \times d$ 矩阵求逆，始终在较小维度上计算（实际复杂度 $O(ndk + dk \cdot \min(k,d) + \min(k,d)^3)$）
+6. **多头设计**：论文 PDE 基准使用 H=8（Appendix C.2）。每个 head 独立学习一组基函数 Φ/Ψ 和一个共享的可学习 λ
 
 ---
 
