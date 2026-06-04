@@ -134,7 +134,7 @@ $$\text{Attention}(Q,K,V) \approx \phi(Q)(\phi(K)V)^T$$
 
 **兼容性证明**：RoPE 的位置编码可以写在 $\phi$ 外部：
 
-$$\text{RoPE-LinearAtt} = \phi(R_m Q) (R_n K)^T V^T$$
+$$\text{RoPE-LinearAtt} = \phi(R_m Q) (R_n K)^T V$$
 
 由于 $R_m$ 是正交矩阵，$\phi(R_m Q) \approx R_m \phi(Q)$（对于某些核函数），因此位置信息在线性注意力下仍得以保持。
 
@@ -840,6 +840,8 @@ $$\text{angle}_i(m) = m \cdot \theta_i = \frac{m}{10000^{2(i-1)/d}}$$
 - Sinusoidal 的频率是 $10000^{-2i/d}$，RoPE 的频率是 $10000^{-2(i-1)/d}$
 - 两者本质相同，只是索引偏移 1
 
+> **注**：论文自身存在轻微不一致：公式 (15) 使用 $\theta_i = 10000^{-2(i-1)/d}$，而在 Section 3.3 性质描述和 Section 3.4.3 长程衰减分析中采用 $\theta_i = 10000^{-2i/d}$。这实际上是一个离差一的索引偏移，对实际影响甚微（仅改变哪一维度对应哪个频率），但读者应注意此点。
+
 #### 3.5.4 频率选择的数学性质
 
 **定理**：随着相对位置 $|m-n|$ 增大，RoPE 的内积 $q_m^T k_n$ 呈现衰减趋势。
@@ -1131,7 +1133,7 @@ RoPE 的数学设计就是让注意力机制"只看相对速度"，自动忽略�
 
 #### 4.2.2 衰减性质（定性分析）
 
-**性质**（直觉解释）：当 $d$ 足够大时，RoPE 的内积 $|q_m^T k_n|$ 随 $|m-n|$ 增大而呈现衰减趋势。注意：这是一个基于直觉和数值实验的观察，论文中使用 Abel 变换给出了上界分析，但并非严格意义上的定理证明。
+**性质**（数学证明）：当 $d$ 足够大时，RoPE 的内积 $|q_m^T k_n|$ 随 $|m-n|$ 增大而呈现衰减趋势。论文在 Section 3.4.3 使用 Abel 变换给出了严格的上界分析（详见公式 36-37），证明了这一性质。
 
 **直觉解释**：
 
@@ -1482,7 +1484,7 @@ $\sin$ 和 $\cos$ 是定义域为 $\mathbb{R}$ 的连续函数，对于任意 $m
 
 **后续研究**（如 RoPE 的改进版本）：
 - **xPos**：通过指数衰减增强外推能力
-- **ALiBi**：结合 RoPE 和线性偏置，进一步提升外推
+- **ALiBi**：通过在注意力分数中添加线性偏置编码位置信息，可进一步提升外推能力
 
 #### 4.5.6 外推的理论局限性
 
@@ -1524,108 +1526,7 @@ $\sin$ 和 $\cos$ 是定义域为 $\mathbb{R}$ 的连续函数，对于任意 $m
 
 RoPE 的外推能力就像望远镜的"调焦范围"——不是无限的，但比固定焦距好得多。
 
-### 4.6 2D RoPE 扩展
 
-#### 4.6.1 动机：多维度位置编码
-
-**问题**：某些应用需要编码**多个维度**的位置信息：
-- **音乐**：时间位置 + 音高（pitch）
-- **图像**：水平位置 + 垂直位置
-- **视频**：时间 + 空间（x, y）
-- **代码**：行号 + 缩进层级
-
-**现有方法的局限**：
-- Sinusoidal：只能编码 1D 位置（需要多个独立的编码器）
-- Shaw 相对编码：需要为每个维度设计独立的偏置矩阵
-
-**RoPE 的优势**：旋转变换天然支持多维扩展。
-
-#### 4.6.2 2D RoPE 的数学形式
-
-对于 2D 位置 $(m, n) \in \mathbb{Z}^2$，定义：
-
-$$R^{2d}_{\Theta, (m, n)} = R^d_{\Theta_x, m} \otimes R^d_{\Theta_y, n}$$
-
-其中 $\otimes$ 是 Kronecker 积，$\Theta_x = (\theta_{x,1}, \ldots, \theta_{x,d/2})$，$\Theta_y = (\theta_{y,1}, \ldots, \theta_{y,d/2})$。
-
-**注意**：Kronecker 积 $R^d_{\Theta_x,m} \otimes R^d_{\Theta_y,n}$ 得到的矩阵维度为 $d^2 \times d^2$，不能简单化为 $2d \times 2d$ 的块对角矩阵。旋转角度也不能写作简单的 $m\theta_i + n\theta_i$ 相加形式。实际应用中，每个 2D 块在两个方向上的绝对位置 $(m,n)$ 分别独立旋转，相对位置不变性通过 $(m-m', n-n')$ 形式保持。
-
-#### 4.6.3 音乐应用示例
-
-**场景**：音乐中的音符有两个位置：
-- 时间位置（节拍，$m$）
-- 音高位置（MIDI 音符编号，$n$）
-
-**2D RoPE 编码**：
-$$R^{2d}_{\Theta, (m, n)} = R^d_{\Theta_{\text{time}}, m} \otimes R^d_{\Theta_{\text{pitch}}, n}$$
-
-**注意力计算**：
-$$\langle R^{2d}_{\Theta, (m, n)} q_{(m,n)}, R^{2d}_{\Theta, (m', n')} k_{(m',n')} \rangle$$
-
-**相对位置依赖**：
-- 时间相对位置：$m - m'$
-- 音高相对位置：$n - n'$
-
-**意义**：模型可以同时学习"时间旋律模式"（如 $do-re-mi$ 的序列）和"和声模式"（如大三和弦的音程关系）。
-
-#### 4.6.4 图像应用示例
-
-**场景**：图像中的像素有两个位置：
-- 水平位置（列，$x$）
-- 垂直位置（行，$y$）
-
-**2D RoPE 编码**：
-$$R^{2d}_{\Theta, (x, y)} = R^d_{\Theta_x, x} \otimes R^d_{\Theta_y, y}$$
-
-**ViT 中的应用**（Vision Transformer）：
-- 原始 ViT 使用 1D 位置编码（将 2D 图像展平为 1D 序列）
-- 2D RoPE 可以保持 2D 结构，提升空间关系建模能力
-
-#### 4.6.5 理论性质
-
-**定理**（2D 相对位置不变性）：对于任意 2D 位置 $(m, n)$ 和 $(m', n')$：
-
-$$\langle R^{2d}_{\Theta, (m, n)} q, R^{2d}_{\Theta, (m', n')} k \rangle = q^T R^{2d}_{\Theta, (m-m', n-n')} k$$
-
-**证明**：利用 Kronecker 积的性质和 1D RoPE 的相对位置不变性。
-
-**意义**：2D RoPE 同样保持相对位置不变性！
-
-#### 4.6.6 计算复杂度
-
-**直接 2D RoPE**：
-- 矩阵维度：$2d \times 2d$（Kronecker 积）
-- 计算复杂度：$O((2d)^2) = O(4d^2)$（不可接受）
-
-**优化方案**：
-- **分解计算**：分别计算 $R^d_{\Theta_x, m}$ 和 $R^d_{\Theta_y, n}$，然后组合
-- **近似计算**：使用低秩近似或稀疏化
-- **混合方案**：1D RoPE + 2D 相对偏置
-
-**论文建议**：对于大多数应用，1D RoPE 已经足够。2D RoPE 主要用于特殊任务（音乐、图像）。
-
-#### 4.6.7 与其他多维位置编码的对比
-
-**Separable Encoding**（ViT）：
-- 方法：分别编码 $x$ 和 $y$，然后相加
-- 公式：$PE(x, y) = PE_x(x) + PE_y(y)$
-- 问题：加法注入，不兼容线性注意力
-
-**2D RoPE**：
-- 方法：Kronecker 积的旋转变换
-- 公式：$R^{2d}_{\Theta, (x, y)} = R^d_{\Theta_x, x} \otimes R^d_{\Theta_y, y}$
-- 优势：乘法注入，兼容线性注意力
-
-#### 类比理解：地球仪的经纬度
-
-想象地球仪上的一个点：
-- **1D 位置编码**：只看经度（忽略纬度，无法区分南北半球）
-- **2D RoPE**：同时看经度和纬度（精确定位）
-- **相对位置**：两个城市的"距离"需要同时考虑经度差和纬度差（大圆距离）
-
-2D RoPE 就像地球仪的"经纬度系统"——可以精确定位多维空间中的点，并计算它们的相对关系。
-
----
 
 ## Chapter 3-4 总结
 
@@ -1957,7 +1858,7 @@ RoPE 提出后（2021 年），已成为大语言模型位置编码的主流选�
 
 ## 参考文献
 
-- Su, J., Murtadha, A., Pan, S., Lu, Y., & Lu, M. (2021). RoFormer: Enhanced Transformer with Rotary Position Embedding. arXiv:2104.09864.
+- Su, J., Lu, Y., Pan, S., Murtadha, A., Wen, B., & Liu, Y. (2021). RoFormer: Enhanced Transformer with Rotary Position Embedding. arXiv:2104.09864.
 - Devlin et al. (2018). BERT: Pre-training of Deep Bidirectional Transformers.
 - Vaswani et al. (2017). Attention Is All You Need.
 
@@ -1976,6 +1877,7 @@ RoPE 的实现简洁而高效，核心代码仅约 50 行。下面是教学简�
 
 ```python
 import torch
+import math
 from torch import nn
 from typing import Optional
 
@@ -2111,17 +2013,17 @@ class RotaryPositionalEmbeddings(nn.Module):
         # x 的形状: (batch_size, seq_len, num_heads, d)
         # cos/sin 的形状: (seq_len, d)
         # 广播后: (batch_size, seq_len, num_heads, d)
-        rotated = x * cos + self._neg_half(x) * sin
-        
-        # 可选：只对部分维度应用 RoPE
-        # 当 rope_percentage < 1.0 时，只旋转前 rope_percentage * d 个维度，其余维度保持原值
         if rope_percentage < 1.0:
             d_rope = int(self.d * rope_percentage)
-            # 正确实现：只对前 d_rope 维应用 RoPE，后 d - d_rope 维保持 x 原值
-            rotated = torch.cat([
-                x[..., :d_rope] * cos[..., :d_rope] + self._neg_half(x[..., :d_rope]) * sin[..., :d_rope],
-                x[..., d_rope:]
-            ], dim=-1)
+            # 只对前 d_rope 维应用 RoPE
+            x_rope = x[..., :d_rope]
+            x_pass = x[..., d_rope:]
+            rotated_rope = x_rope * cos[..., :d_rope] + self._neg_half(x_rope) * sin[..., :d_rope]
+            rotated = torch.cat([rotated_rope, x_pass], dim=-1)
+        else:
+            rotated = x * cos + self._neg_half(x) * sin
+
+        # 已在上方处理 rope_percentage < 1.0 的情况
         
         return rotated
 ```
@@ -2295,7 +2197,7 @@ class LinearAttention(nn.Module):
         
         # 核函数特征映射（ReLU+1，简化的 ELU+1 替代）
         def phi(x):
-            return torch.where(x > 0, x, torch.relu(x)) + 1  # 等价于 ReLU(x) + 1
+            return torch.relu(x) + 1  # 等价于 ELU(x) + 1 当 x>0 时
         
         q_phi = phi(q)  # (batch_size, seq_len, num_heads, head_dim)
         k_phi = phi(k)
@@ -2524,7 +2426,7 @@ LLaMA 使用了略微修改的 RoPE 版本：
 ```python
 # LLaMA 配置
 # LLaMA-1/LLaMA-2 配置 base=10000（默认值）
-# CodeLLaMA 使用 base=100000（放大 10 倍以支持更长序列）
+# CodeLLaMA 使用 base=10000000（放大 100 倍以支持更长序列）
 # 用户可根据任务需求调整 base 值
 config.base = 10000  # LLaMA-1/2 默认值；可改为 100000 以增强长程能力
 ```
@@ -2549,16 +2451,15 @@ class LLaMAAttention(nn.Module):
         ...
 ```
 
-**关键差异 3：缩放因子**
+**关键差异 3：注意力缩放**
 ```python
-# LLaMA 的 RoPE 包含额外的缩放
-q = q * self.scaling  # scaling = 1 / sqrt(head_dim)
-q_rot = self.rotary_emb(q)
+# LLaMA 的注意力包含标准缩放（与 RoPE 无关）
+attention_scores = q @ k.transpose(-2, -1) * self.scaling  # scaling = 1 / sqrt(head_dim)
 ```
 
 **意义**：
-- 缩放在 RoPE 之前应用
-- 避免 RoPE 旋转后的数值不稳定
+- 这是标准 Transformer 注意力的缩放因子（QK^T/√d），与位置编码无关
+- RoPE 本身不包含此缩放，仅影响 Q 和 K 的旋转
 
 #### 6.4.2 GPT-NeoX 的 RoPE 实现
 
@@ -2682,7 +2583,7 @@ print(f"快频率周期: {period_256:.2f}")
 
 #### 6.5.2 局限性 2：大 base 值的 trade-off
 
-**问题**：LLaMA 使用 base=10000（与 RoFormer 相同），但 CodeLLaMA 使用 base=100000（远大于 RoFormer）
+**问题**：LLaMA 使用 base=10000（与 RoFormer 相同），但 CodeLLaMA 使用 base=1000000（远大于 RoFormer）
 
 **优势**：
 - 更大的 base → 更慢的频率衰减
@@ -2705,7 +2606,7 @@ print(f"快频率周期: {period_256:.2f}")
 
 **解读**：
 - **base=10000** 在标准长度（512）和外推（1024）上均表现良好
-- **base=100000**（CodeLLaMA）虽然理论上更利于长程，但实际性能下降（可能需要更多训练数据）
+- **base=1000000**（CodeLLaMA）虽然理论上更利于长程，但实际性能下降（可能需要更多训练数据）
 
 #### 6.5.3 局限性 3：无法建模非均匀位置依赖
 
@@ -2743,18 +2644,12 @@ print(f"快频率周期: {period_256:.2f}")
 - 来源：[Sun et al., 2022] "Extended Transformer Construction"
 
 **方向 2：ALiBi（Attention with Linear Biases）**
-- 核心改进：结合 RoPE 和线性偏置
-- 公式：`Attention(q, k) = q @ k.T + m - n`（m-n 是相对位置）
+- 核心改进：直接在注意力分数中添加线性偏置（独立于 RoPE）
+- 公式：`Attention(q, k) = q @ k.T / sqrt(d) + (m - n)`（m-n 是相对位置）
 - 优势：外推能力更强（可外推到 16K+ tokens）
 - 来源：[Press et al., 2021] "ALiBi: A Method with Reduced Length Extrapolation"
 
-**方向 3：Cordonnier（2D RoPE for Vision）**
-- 核心改进：将 RoPE 扩展到 2D（图像）
-- 公式：`RoPE_2D(x, (h, w)) = RoPE_h(x, h) ⊗ RoPE_w(x, w)`
-- 应用：ViT（Vision Transformer）
-- 来源：[Cordonnier et al., 2020] "ViT with 2D RoPE"
-
-**方向 4：CoPE（Contextized Position Encoding）**
+**方向 3：CoPE（Contextized Position Encoding）**
 - 核心改进：让位置编码依赖于上下文（动态位置）
 - 公式：`CoPE(x, m, context) = RoPE(x, m) × context_weight`
 - 优势：适应不同任务的位置需求

@@ -109,9 +109,9 @@ Functional Attention 的关键洞察：
 
 **Step 1：投影到谱系数（Spectral Projection）**
 
-将 Q、K、V 从 token 空间投影到函数空间：
+将 Q、K、V 从 token 空间投影到函数空间。**注意不对称性**：Q 使用 query 空间的基 Φ，K 和 V 使用 key-value 空间的基 Ψ（论文 Eq. 4）。实践中用转置 Φ^T 替代伪逆 Φ†（论文 Remark 4.1）：
 
-$$\tilde{Q} = \Psi^T Q \in \mathbb{R}^{k \times d}$$
+$$\tilde{Q} = \Phi^T Q \in \mathbb{R}^{k \times d}$$
 $$\tilde{K} = \Psi^T K \in \mathbb{R}^{k \times d}$$
 $$\tilde{V} = \Psi^T V \in \mathbb{R}^{k \times d}$$
 
@@ -135,7 +135,7 @@ $$C^* = \tilde{Q}\tilde{K}^T \left(\tilde{K}\tilde{K}^T + \lambda I_k\right)^{-1
 $$\boxed{\text{FUNCATTN}(Q, K, V) = \Phi \; C^* \; \tilde{V}}$$
 
 > **类比理解**：
-> 整个过程就像翻译的三步：(1) 将原文（token 表示）编码为中间语义表示（k 维谱系数），(2) 在语义空间中做信息传递（k×k 算子），(3) 将结果解码回原文格式（token 空间）。
+> 整个过程就像翻译的三步：(1) 将原文（token 表示）编码为中间语义表示（k 维谱系数）——但注意 **Q 用 Φ 编码、K/V 用 Ψ 编码**（编码器本身不对称），(2) 在语义空间中做信息传递（k×k 算子 C），(3) 将结果用 Φ 解码回 token 空间。Q 与 K/V 使用不同基，正是 Functional Maps 框架中"在两个不同函数空间之间估计传输算子"的核心思想。
 
 ### 3.3 基函数的设计
 
@@ -172,9 +172,9 @@ Input:  X ∈ R^{n×d}          # n tokens, d dims
    Ψ = Softmax(Linear_Ψ(X))  # R^{n×k}
 
 3. Spectral Projection:
-   Q̃ = Ψ^T @ Q               # R^{k×d}
-   K̃ = Ψ^T @ K               # R^{k×d}
-   Ṽ = Ψ^T @ V               # R^{k×d}
+   Q̃ = Φ^T @ Q               # R^{k×d}   # Q 用 query 空间基 Φ
+   K̃ = Ψ^T @ K               # R^{k×d}   # K 用 key-value 空间基 Ψ
+   Ṽ = Ψ^T @ V               # R^{k×d}   # V 同 K，用 Ψ
 
 4. Functional Transport Operator (Closed-form):
    M = K̃ @ K̃^T + λ·I_k       # R^{k×k}
@@ -386,7 +386,8 @@ class FunctionalAttention(nn.Module):
         Psi = self.basis_psi(x)  # (B, n, k)
         
         # Step 3: 谱投影 — 从 token 空间到函数空间
-        Q_tilde = torch.bmm(Psi.transpose(1, 2), Q)  # (B, k, d)
+        # 注意：Q 用 query 空间基 Φ，K/V 用 key-value 空间基 Ψ
+        Q_tilde = torch.bmm(Phi.transpose(1, 2), Q)  # (B, k, d)
         K_tilde = torch.bmm(Psi.transpose(1, 2), K)  # (B, k, d)
         V_tilde = torch.bmm(Psi.transpose(1, 2), V)  # (B, k, d)
         
