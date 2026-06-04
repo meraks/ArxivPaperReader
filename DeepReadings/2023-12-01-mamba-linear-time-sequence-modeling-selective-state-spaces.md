@@ -36,13 +36,13 @@
 
 Mamba 是一种新型的序列建模架构，基于**选择性状态空间模型 (Selective State Space Models)**。其核心创新包括：
 
-1. **线性时间复杂度**: 在推理时实现 $O(L)$ 的复杂度，而非 Transformer 的 $O(L^2)$
-2. **选择机制**: 使 SSM 的参数（$\Delta, B, C$）依赖于输入，实现**内容感知 (content-aware)** 推理
-3. **5倍推理吞吐量**: 在相同序列长度下，相比标准 Transformer 实现了 5 倍的推理速度提升
-4. **有效序列长度**: 实验显示在百万长度序列上仍能保持性能
-5. **简化架构**: 将 SSM 和 MLP 合并为单一模块，参数量减少但性能提升
+1. **线性时间复杂度**: 训练 $O(L)$ FLOPs（vs Transformer 的 $O(L^2 d)$），推理**每步 $O(1)$**（无 KV cache，状态大小固定）
+2. **选择机制**: 使 SSM 的部分参数（$\Delta, B, C$）依赖于输入，实现**内容感知 (content-aware)** 推理；$A$ 仍是固定可学习矩阵
+3. **4-5× 推理吞吐量**: 相比同等规模 Transformer，推理吞吐量提升 4-5×，主要因为没有 KV cache 允许更大 batch size
+4. **百万长度序列**: 性能随序列长度增长（DNA、音频上扩展到 1M tokens 仍提升），合成任务上可外推到 1M（训练时长的 4000×）
+5. **简化架构**: 将 H3 架构中的"SSM block + MLP block"合并为单一模块，主体参数 $3ED^2$（$E=2$ 时即 $6D^2$），与 Transformer 的 $12D^2$（MHA + MLP）参数匹配
 
-> **类比理解**: Mamba 可以想象成一个智能秘书，Transformer 需要记住对话中的每句话（$O(N^2)$ 记忆），而 Mamba 只需要记住当前"重要"的信息（选择性机制），且可以线性处理。就像读书时，你不需要记住每个字，而是记住关键信息。
+> **类比理解**: Mamba 可以想象成一个智能秘书，Transformer 需要记住对话中的每句话（$O(L^2)$ 关联记忆 + KV cache），而 Mamba 只需要维护一个固定大小的"工作记忆"（状态 $h \in \mathbb{R}^{D \times N}$），通过选择机制动态决定记住什么/遗忘什么。就像读书时，秘书只记关键笔记，原始文字可以扔掉。
 
 ### 1.2 论文结构
 
@@ -89,7 +89,7 @@ $$ \text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right
 
 ### 2.3 内容感知推理的重要性
 
-**核心问题**: 现有的线性时间架构（如 S4）是**线性时不变 (LTI)** 系统，参数 $A, B, C$ 固定，无法根据输入动态调整行为。
+**核心问题**: 现有的线性时间架构（如 S4）是**线性时不变 (LTI)** 系统，参数 $(\Delta, A, B, C)$ 都固定，无法根据输入动态调整行为。
 
 **Transformer 的优势**: 注意力机制是**内容感知 (content-aware)** 的，能够：
 - 根据输入动态决定关注哪些部分
@@ -104,32 +104,34 @@ $$ \text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right
 
 ### 3.1 连续状态空间模型 (Continuous SSM)
 
-S4 基于经典的状态空间模型：
+S4 基于经典的状态空间模型（论文 Eq. 1）：
 
 $$
 \begin{aligned}
-h'(t) &= Ah(t) + Bx(t) \\
-y(t) &= Ch(t) + Dx(t)
+h'(t) &= \mathbf{A}\,h(t) + \mathbf{B}\,x(t) \\
+y(t) &= \mathbf{C}\,h(t)
 \end{aligned}
 $$
 
-其中：
-- $h(t)$: 隐藏状态，维度为 $N$
-- $x(t)$: 输入信号，维度为 $1$（单通道）或 $H$（多通道）
-- $y(t)$: 输出信号
-- $A$: 状态转移矩阵，$N \times N$
-- $B$: 输入矩阵，$N \times H$
-- $C$: 输出矩阵，$H \times N$
-- $D$: 直连项（可选）
+其中（论文 Section 2.4 维度定义）：
+- $h(t)$: 隐藏状态，$\in \mathbb{R}^{N}$
+- $x(t)$: 输入信号（标量，1 通道）—— 论文 baseline；多通道时每个通道独立
+- $y(t)$: 输出信号（标量）
+- $\mathbf{A} \in \mathbb{R}^{N \times N}$: 状态转移矩阵（S4 中为**对角**结构以加速计算）
+- $\mathbf{B} \in \mathbb{R}^{N \times 1}$: 输入矩阵
+- $\mathbf{C} \in \mathbb{R}^{1 \times N}$: 输出矩阵
+
+**注意**：$\mathbf{D}$ 项（直连 / skip connection）**不在论文 Eq. 1 中**，而是作为 SSM 输出的一个**额外加性项**：最终输出 $y(t) = \mathbf{C}\,h(t) + D\,x(t)$。D 是一维标量（单通道）或每通道一个标量（多通道）。代码实现里 $\mathbf{D}$ 是一个 $(d_{\text{inner}},)$ 的 Parameter 向量。
 
 > **类比理解**:
 > 想象一个蓄水池系统：
 > - $h(t)$ 是水位（状态）
 > - $x(t)$ 是进水量（输入）
 > - $y(t)$ 是出水量（输出）
-> - $A$ 控制水的蒸发/渗漏（状态转移）
-> - $B$ 控制进水对水位的影响
-> - $C$ 控制水位如何影响出水量
+> - $\mathbf{A}$ 控制水的蒸发/渗漏（状态转移）
+> - $\mathbf{B}$ 控制进水对水位的影响
+> - $\mathbf{C}$ 控制水位如何影响出水量
+> - $\mathbf{D}$ 是"短路管道"——让一部分进水直接流向出水，不经过蓄水池（skip connection）
 
 ### 3.2 离散化 (Discretization)
 
@@ -188,16 +190,20 @@ $$ \mathcal{K}_t = C \bar{A}^t \bar{B} $$
 
 ### 3.4 LTI 性质与 S4D
 
-**LTI (Linear Time-Invariant)**: 传统 S4 的参数 $A, B, C$ 是固定的，与输入无关。
+**LTI (Linear Time-Invariant)**：传统 S4 的参数 $(\Delta, \mathbf{A}, \mathbf{B}, \mathbf{C})$ 都是**固定的**，与输入和时间步无关（论文 Section 2.3）。即：
+$$\Delta_t = \Delta,\quad \mathbf{A}_t = \mathbf{A},\quad \mathbf{B}_t = \mathbf{B},\quad \mathbf{C}_t = \mathbf{C} \quad \forall t$$
+
+由 LTI 性质，递推可展开为**全局卷积**（论文 Eq. 3）：$y = x * \bar{\mathbf{K}}$，其中卷积核 $\bar{\mathbf{K}} = (\mathbf{C}\bar{\mathbf{B}}, \mathbf{C}\bar{\mathbf{A}}\bar{\mathbf{B}}, \ldots)$ 是固定可预计算的，可通过 FFT 等高效算法并行训练。
 
 **S4D**: 简化版的 S4，其中：
-- $A$ 是对角矩阵，元素由特殊初始化方法决定
-- 使用 DPLR（Diagonal Plus Low Rank）或 S4D-S3/S4D-Lin 等初始化策略
+- $\mathbf{A}$ 是**对角矩阵**（$\mathbf{A} \in \mathbb{R}^{N \times N}$，但只有 $N$ 个非零元素），无需 DPLR 分解
+- 使用 S4D-Real / S4D-Lin / S4D-Inv 等初始化策略（论文中 S4D-Real 最常用）
+- 由于 $\mathbf{A}$ 对角，$\bar{\mathbf{A}}^k h$ 退化为逐元素乘法，递推 $h_t = \bar{\mathbf{A}} h_{t-1} + \bar{\mathbf{B}} x_t$ 复杂度 $O(N)$ 而非 $O(N^2)$
 
-**参数数量**: 传统 S4D 参数量为 $O(N \cdot d)$，其中 $N$ 是状态维度，$d$ 是模型维度。
+**参数数量**: 传统 S4D 参数量为 $O(N \cdot d)$（$\mathbf{A}$ 对角所以只算 $N$ 个值 / 通道），相比完整 S4 的 $O(N^2 d)$ 大幅减少。
 
 > **类比理解**:
-> LTI 系统就像是预设好的固定规则程序，不管输入什么，都用同一套处理流程。S4D 是其中一种高效的实现方式，就像优化过的规则库。
+> LTI 系统就像是预设好的固定规则程序，不管输入什么，都用同一套处理流程。S4D 是其中一种高效的实现方式，就像把规则库从"全连接表"优化为"按索引查表"，大幅减少存储和查询开销。
 
 ---
 
@@ -205,26 +211,33 @@ $$ \mathcal{K}_t = C \bar{A}^t \bar{B} $$
 
 ### 4.1 从 S4 到 S6：参数输入依赖化
 
-Mamba 的核心创新是将 SSM 的参数从固定变为**输入依赖**：
+Mamba 的核心创新是将 SSM 的部分参数从固定变为**输入依赖**（论文 Algorithm 2 / Section 3.2）：
 
 $$
 \begin{aligned}
-B &\rightarrow B_t = \text{Linear}(x_t) \\
-C &\rightarrow C_t = \text{Linear}(x_t) \\
-\Delta &\rightarrow \Delta_t = \text{Linear}(x_t)
+B &\rightarrow B_t = s_B(x_t) = \text{Linear}_N(x_t) \in \mathbb{R}^{N} \\
+C &\rightarrow C_t = s_C(x_t) = \text{Linear}_N(x_t) \in \mathbb{R}^{N} \\
+\Delta &\rightarrow \Delta_t = \tau_\Delta\!\left(\text{Parameter} + s_\Delta(x_t)\right) \in \mathbb{R}^{D}
 \end{aligned}
 $$
 
-其中 $x_t$ 是第 $t$ 个时间步的输入。
+其中：
+- $B_t, C_t$ 直接由 $x_t$ 经线性投影得到，shape 为 $(L, N)$，**没有 broadcast**
+- $\Delta_t$ 的设计更精巧：先经 $s_\Delta(x_t) = \text{Broadcast}_D(\text{Linear}_1(x_t))$ 投影到标量再广播到所有 $D$ 个通道，然后**加上一个可学习的 Parameter 偏置**（D 维），最后经过 $\tau_\Delta = \text{softplus}$ 保证正值。这样 $\Delta_t$ 的 shape 是 $(L, D)$
+- **$A$ 不是输入依赖的**，仍是 $D \times N$ 的可学习参数（对角矩阵），通过 $\bar{A}_t = \exp(\Delta_t A)$ 离散化
 
-**选择性 SSM (S6) 完整公式**:
+**选择性 SSM (S6) 完整公式**（沿用论文 Eq. 4 的 ZOH 离散化）：
 
 $$
 \begin{aligned}
-h_t &= \sigma(\Delta_t) \bar{A} h_{t-1} + \Delta_t B_t x_t \\
+\bar{A}_t &= \exp(\Delta_t A) \\
+\bar{B}_t &= (\Delta_t A)^{-1}\bigl(\exp(\Delta_t A) - I\bigr)\cdot \Delta_t B_t \\
+h_t &= \bar{A}_t h_{t-1} + \bar{B}_t x_t \\
 y_t &= C_t h_t + D x_t
 \end{aligned}
 $$
+
+> **简化形式**：实际 Mamba 代码采用简化近似 $\bar{B}_t \approx \Delta_t B_t$（在 $\Delta_t$ 较小时误差很小），并把 $h_t = \bar{A}_t h_{t-1} + \Delta_t B_t x_t$ 直接实现，避免矩阵求逆。
 
 > **类比理解**:
 > 传统 S4 像是固定路线的公交车，不管谁上车、去哪里，都按预定路线行驶。Mamba 像是智能导航系统，根据目的地（输入内容）实时调整路线。
@@ -236,9 +249,12 @@ $$
 - **作用**: 控制"关注"当前输入的程度
 - **值越大**: 快速更新状态，更多关注当前输入
 - **值越小**: 保持历史状态，更多关注长期记忆
-- **初始化**: 使用 `softplus` 确保正值，范围 $[\delta_{\min}, \delta_{\max}]$
+- **形状**: $(L, D)$——每个通道都有独立的 $\Delta$
+- **初始化**: 论文 Section 3.6，$\Delta$ 初始化为 $\tau_\Delta^{-1}(\text{Uniform}([\delta_{\min}, \delta_{\max}]))$，典型范围 $[10^{-3}, 10^{-1}]$
 
-$$ \Delta_t = \text{softplus}(W_\Delta x_t + b_\Delta) $$
+$$ \Delta_t = \text{softplus}\!\left(\text{Parameter} + \text{Broadcast}_D(\text{Linear}_1(x_t))\right) $$
+
+注意这不是普通的 `Linear(x_t) + bias`，而是**低秩 + 参数化偏置**的设计——先降到 1 维再广播到 D 维，再加一个 D 维可学习偏置。Parameter 的存在使得即使输入不变，每个通道也有自己专属的"基础时间步长"。
 
 #### 4.2.2 $B$ - 输入矩阵
 
@@ -279,11 +295,17 @@ $$ \Delta_t = \text{softplus}(W_\Delta x_t + b_\Delta) $$
 > - **Copying Task**: 像是在一篇文章中找到并复制特定关键词
 > - **Induction Heads**: 像是理解模式 "找规律" 游戏，看到 A→B 后，再看到 A 就预期 B
 
-### 4.4 定理 1：与 RNN 门控的联系
+### 4.4 定理 1：与 RNN 门控的联系（论文 Theorem 1 / Section 3.5.1）
 
-论文证明了选择性 SSM 与门控 RNN（如 LSTM, GRU）的等价性。
+论文 Theorem 1 实际上**只在 N=1 的退化情形**下建立了与门控机制的联系，并非直接等价于完整 LSTM/GRU。论文原话：
 
-**LSTM 的门控机制**:
+> **Theorem 1**（简化表述）：当 $N=1$, $A=-1$, $B=1$, $s_\Delta(x) = \text{Linear}(x)$, $\tau_\Delta = \text{softplus}$ 时，选择性 SSM 的递推可化简为
+> $$g_t = \sigma(\text{Linear}(x_t)),\quad h_t = (1 - g_t)\,h_{t-1} + g_t\,x_t$$
+> 这正是一个**简单门控循环更新**（gated recurrence）。
+
+**为什么 N=1 情形重要**：它揭示了选择机制的"门控"本质——$\Delta_t$ 起到了"遗忘/输入门"的作用：大的 $\Delta_t$ 让 $h_t \approx x_t$（重置为新输入），小的 $\Delta_t$ 让 $h_t \approx h_{t-1}$（保留历史）。
+
+**与 LSTM 的对比**（用于直觉理解，非严格等价）：
 
 $$
 \begin{aligned}
@@ -296,12 +318,20 @@ h_t &= o_t \odot \tanh(c_t) & \text{隐藏状态}
 \end{aligned}
 $$
 
-**等价性**: 选择性 SSM 可以看作是门控 RNN 的一种简化形式，其中：
-- $\Delta_t$ 对应遗忘门 $f_t$
-- $B_t x_t$ 对应输入门 $i_t \odot \tilde{c}_t$
-- $C_t$ 对应输出门 $o_t$
+直觉上的对应关系（不严格）：
 
-**关键区别**: Mamba 通过硬件优化实现了高效的并行训练，而传统门控 RNN 训练效率低。
+| 选择性 SSM | LSTM 组件 |
+|------|------|
+| $\Delta_t$（softplus 输出） | 遗忘门 $f_t$ + 输入门 $i_t$（共同决定"保留多少旧状态/写入多少新输入"） |
+| $B_t x_t$ | $i_t \odot \tilde{c}_t$（写入新候选状态） |
+| $C_t$ | 输出门 $o_t$（决定从状态读出什么） |
+
+**关键区别**：
+1. 论文仅在 N=1 退化情形下证明严格等价；一般情形（N>1）只是**直觉上的类比**
+2. LSTM 的门依赖前一刻隐藏状态 $h_{t-1}$，而 SSM 的 $B_t, C_t$ 仅依赖当前输入 $x_t$（这是为并行训练付出的代价）
+3. Mamba 通过硬件优化（parallel scan + kernel fusion + recomputation）实现了比传统门控 RNN 高效得多的并行训练
+
+> **重要更正**：上一版本文档中"$\Delta_t$ 对应遗忘门 $f_t$"等映射是直觉类比，不是论文 Theorem 1 的直接结论。论文仅证明 N=1 情形等价于 $h_t = (1-g_t)h_{t-1} + g_t x_t$ 这种最简门控形式。
 
 ---
 
@@ -368,28 +398,31 @@ y = fused_mamba_block(x)
 
 ### 5.4 Recomputation 机制
 
-**问题**: Selective Scan 需要存储所有中间结果（$h_t$），内存消耗为 $O(L)$。
+**问题**: Selective Scan 在前向时如果存储所有中间状态 $h_t$（shape $(B, L, D, N)$），内存消耗为 $O(BLDN)$。
 
-**解决方案**: 在反向传播时重计算而非存储。
+**解决方案**（论文 Section 3.3.2）：在反向传播时**重计算**中间状态，而非在前向时保存。
 
 **步骤**:
-1. **前向传播**: 只存储必要的输入和最终输出
-2. **反向传播**: 重新计算中间梯度
+1. **前向传播**: 只存储输入 $\Delta, A, B, C, x$（shape 均为 $O(BLD)$）和最终输出 $y$
+2. **反向传播**: 从 HBM 重新加载输入到 SRAM，在 SRAM 中重算前向以获得中间状态，再算梯度
 
-**内存节省**: 从 $O(L)$ 降至 $O(1)$ 或 $O(\log L)$。
+**内存节省**: 论文原话 "the fused selective scan layer has the same memory requirements as an optimized transformer implementation with FlashAttention"——即 $O(BLD)$，与 FlashAttention 相同。**不是 $O(1)$ 或 $O(\log L)$**。不要把"parallel scan 的 $O(\log L)$ 深度"和"内存"混淆——深度（depth）影响延迟但不减少内存。
 
 ### 5.5 与 FlashAttention 的内存效率对比
 
-| 方法 | 复杂度 | 内存 | 并行性 |
+| 方法 | 计算复杂度 | 内存 | 并行性 |
 |------|--------|------|--------|
-| Standard Attention | $O(L^2)$ | $O(L^2)$ | 高 |
-| FlashAttention | $O(L^2)$ | $O(L)$ | 高 |
-| Mamba (Selective SSM) | $O(L)$ | $O(L)$ | 高（通过 Parallel Scan） |
-| Mamba (with Recomputation) | $O(L)$ | $O(1)$ | 高 |
+| Standard Attention | $O(L^2 d)$ | $O(L^2)$ | 高 |
+| FlashAttention | $O(L^2 d)$ | $O(L)$ | 高 |
+| Mamba (Selective SSM, 无 Recomp) | $O(BLDN)$ | $O(BLDN)$ | 高（通过 Parallel Scan） |
+| Mamba (with Recomputation) | $O(BLDN)$ | $O(BLD)$（与 FlashAttention 同） | 高 |
 
 **关键差异**:
-- FlashAttention 优化了内存但计算复杂度仍是 $O(L^2)$
-- Mamba 同时优化了计算和内存复杂度
+- FlashAttention 优化了内存但**计算复杂度仍是 $O(L^2 d)$**——序列翻倍计算量翻 4 倍
+- Mamba 的**计算复杂度是 $O(L)$**——序列翻倍计算量翻 2 倍
+- 两者在 recomputation 后内存都是 $O(L)$，但 Mamba 在长序列下 FLOPs 优势明显
+
+> **更正说明**：上一版文档"Mamba with Recomputation 内存 O(1)"是错误的。Selective Scan 仍需存储输入 $\Delta, A, B, C, x$（总 $O(BLD)$）以备反向重算，内存下界就是 $O(L)$，与 FlashAttention 相同。
 
 > **类比理解**:
 > - **Standard Attention**: 像是做全连接网状计算，每两两节点都要计算关系
@@ -414,42 +447,55 @@ Input → Norm → Attention → Add → Norm → MLP → Add → Output
 Input → Norm → Mamba Block (SSM + MLP merged) → Output
 ```
 
-### 6.2 详细组件
+### 6.2 详细组件（论文 Section 3.4 + Figure 3）
 
 ```
-Input x
+Input x ∈ R^{B×L×D}
     ↓
-in_proj: Linear projection (d → 2*d)
+in_proj: Linear (D → 2·d_inner)        # 一半走 x 路径，一半走门控 z 路径
     ↓
-Split: x_proj, z_proj
+Split: x, z
     ↓
-x_proj: Conv1d (depthwise) → SiLU → x_proj (B, Δ, C)
+conv1d: Depthwise Conv (kernel=4) → 因果裁剪到 L
     ↓
-SSM: Selective Scan → y
+SiLU
     ↓
-Gating: y * SiLU(z_proj)
+x_proj: Linear (d_inner → dt_rank + 2·d_state) → 拆分得 Δ, B, C
     ↓
-out_proj: Linear projection (d → d)
+dt_proj: Linear (dt_rank → d_inner)
     ↓
-Output
+softplus
+    ↓
+SSM: Selective Scan  (用 A_log 派生 A=-exp(A_log), D 作 skip)
+    ↓
+Gating: y * SiLU(z)                    # 门控在 out_proj 之前
+    ↓
+out_proj: Linear (d_inner → D)         # 注意是 d_inner→D，不是 2·d_inner→D
+    ↓
+Output ∈ R^{B×L×D}
 ```
 
 ### 6.3 扩展因子与参数量
 
-**扩展因子 (Expansion Factor)**: $E = 2$
+**扩展因子 (Expansion Factor)**: $E = 2$（论文 Section 3.4）
 
-- 输入维度: $d$
-- SSM 内部维度: $2d$（通过 `in_proj`）
+- 输入维度: $d$（即 d_model）
+- 内部维度: $d_{\text{inner}} = E \cdot d = 2d$
+- `in_proj` 把 $d$ 投影到 $2 \cdot d_{\text{inner}} = 4d$（一半给 x 路径，一半给门控 z 路径），输出是 $y \in \mathbb{R}^{d_{\text{inner}}}$
 
-**参数计算**:
-- `in_proj`: $d \times 2d = 2d^2$
-- `conv1d`: $2d \times k$（k 是 kernel size）
-- `x_proj` (for B, Δ, C): $2d \times 3d_{inner}$
-- `dt_proj`: $d_{inner} \times d$
-- `A_log`: $d_{inner}$（对数参数）
-- `out_proj`: $2d \times d = 2d^2$
+**参数计算**（论文 Section 3.4 给出主体，$3ED^2$ for E=2 即 $6D^2$）：
 
-**总参数量**: 约 $12d^2$（忽略小项）
+| 组件 | 形状 | 参数量 | 说明 |
+|------|------|--------|------|
+| `in_proj` | $d \to 2 d_{\text{inner}}$ | $2d \cdot 2d = 4d^2$ | x 与 z 共享一次投影 |
+| `out_proj` | $d_{\text{inner}} \to d$ | $d_{\text{inner}} \cdot d = 2d^2$ | 门控后的 $y$ 投回 $d$ |
+| `conv1d` | depthwise | $d_{\text{inner}} \cdot k$ | 典型 $k=4$，远小于 $d^2$ |
+| `x_proj` | $d_{\text{inner}} \to (\text{dt\_rank} + 2 N)$ | $d_{\text{inner}} \cdot (\text{dt\_rank} + 2N)$ | 投影到 $(\Delta, B, C)$，其中 $N$ 是 d_state (典型 16) |
+| `dt_proj` | $\text{dt\_rank} \to d_{\text{inner}}$ | $\text{dt\_rank} \cdot d_{\text{inner}}$ | 低秩→全维 |
+| `A_log` | $(d_{\text{inner}}, N)$ | $d_{\text{inner}} \cdot N$ | 对角 A 的对数参数 |
+| `D` | $(d_{\text{inner}},)$ | $d_{\text{inner}}$ | 跳跃连接 |
+
+**参数量**（忽略小项）：主体线性层 ≈ $4d^2 + 2d^2 = 6d^2$，与论文 "3ED² for E=2 = 6D²" 一致。SSM 内部（x_proj、dt_proj、A_log）参数量与 $N$（典型 16）、dt_rank（典型 ~d/16）相关，远小于 $6d^2$ 的主体部分。
 
 > **类比理解**:
 > 扩展因子 $E=2$ 就像是在处理信息时，先把信息"扩容"两倍进行处理，处理完成后再压缩回原大小。这给模型更多的"思考空间"。
@@ -471,67 +517,72 @@ $$ \text{SiLU}(x) = x \cdot \sigma(x) $$
 
 ### 7.1 合成任务
 
-| 任务 | Transformer | S4 | Mamba |
-|------|-------------|----|----|
-| Selective Copying | 100% | 0% | 100% |
-| Induction Heads | 100% | 0% | 100% |
+**论文 Figure 4 (Selective Copying, 序列长度 4096) 实际数据**：
 
-**结论**: Mamba 在内容感知任务上表现与 Transformer 相当，优于传统 S4。
+| 模型 | Selective Copying 准确率 |
+|------|-----|
+| S4 (no gate) / S4 layer | 18.3% |
+| H3 / S4 | 57.0% |
+| Mamba / S4 | 56.4% |
+| **Mamba / S6 (Mamba)** | **99.8%** |
+
+**Induction Heads（论文 Figure 5）**：
+- Mamba 能完美外推到 1M 长度的序列（约训练时长的 **4000×**）
+- 其他方法（H3、Hyena 等）最长只能外推到 2× 训练长度
+
+**结论**: Mamba 在内容感知任务上不仅解决问题，还能**无限长度外推**，这是其他 SSM 类方法做不到的。
 
 ### 7.2 语言预训练
 
-**数据集**: The Pile（825GB 文本）
+**数据集**: The Pile（300B tokens 训练，论文 Section 4.2）
 
 **模型配置**:
-- Mamba: 130M - 1.3B 参数
-- 基线: Transformer (GPT-2, GPT-Neo)
+- Mamba: 130M / 370M / 790M / 1.4B（Mamba-3B 在 Section 4 之外的后续工作中）
+- 基线: Pythia（与 Mamba 相同 tokenizer / 数据集 / 训练长度）
 
-**验证集困惑度 (Validation Perplexity)**:
+**验证集困惑度**（论文 Table 1，使用 NeoX tokenizer）：
 
-| 模型 | 参数量 | PPL |
-|------|--------|-----|
-| GPT-2 | 117M | 18.32 |
-| Mamba | 130M | 16.81 |
-| GPT-Neo | 125M | 18.67 |
-| Mamba | 355M | 14.91 |
-| GPT-3 Small | 350M | 15.50 |
+| 模型 | Pile ppl ↓ | LAMBADA ppl ↓ |
+|------|--------|--------|
+| Pythia-160M | 29.64 | 38.10 |
+| **Mamba-130M** | **10.56** | **16.07** |
+| Pythia-410M | 9.95 | 10.84 |
+| **Mamba-370M** | **8.28** | **8.14** |
+| Pythia-1B | 7.82 | 7.92 |
+| **Mamba-790M** | **7.33** | **6.02** |
 
-**结论**: Mamba 在相同参数量下优于 Transformer。
+**结论**: Mamba 在相同参数量下显著优于 Pythia（如 Mamba-130M Pile ppl 10.56 vs Pythia-160M 29.64）。Mamba-790M 的 LAMBADA ppl 6.02 **甚至超过 Pythia-1B 的 7.92**——"matches baselines at twice the model size"。
 
 ### 7.3 下游任务评估
 
-**Zero-shot 评估** (CommonSenseQA, HellaSwag, PIQA 等):
+**Zero-shot 评估**（LAMBADA、HellaSwag、PIQA、Arc-E、Arc-C、WinoGrande 平均准确率，论文 Table 1）：
 
-| 模型 | 参数量 | 平均准确率 |
+| 模型 | 参数量 | 平均准确率 ↑ |
 |------|--------|------------|
-| Pythia | 410M | 25.8% |
-| Mamba | 379M | 28.2% |
-| Pythia | 1.0B | 30.6% |
-| Mamba | 1.0B | 34.0% |
+| Pythia-160M | 160M | 40.6% |
+| **Mamba-130M** | 130M | **44.7%** |
+| Pythia-410M | 410M | 48.2% |
+| **Mamba-370M** | 370M | **50.0%** |
+| Pythia-1B | 1B | 51.9% |
+| **Mamba-790M** | 790M | **57.1%** |
 
-**结论**: Mamba 在下游任务上持续优于同规模 Transformer。
+**结论**: Mamba-790M (57.1%) 平均准确率超过 Pythia-1B (51.9%)——同等参数量下平均提升约 +2 到 +5 个百分点；Mamba-790M 甚至逼近 Pythia-1.4B (55.2%)。
 
 ### 7.4 推理吞吐量
 
-**基准**: A100 GPU, 序列长度 2K
+**论文 Section 4.5 结论**：Mamba 相比同等规模的 Transformer 实现了 **4-5× 更高的推理吞吐量**，原因是**没有 KV cache**，可以使用更高的 batch size。
 
-| 模型 | 吞吐量 (tokens/s) | 相对速度 |
-|------|-------------------|---------|
-| Transformer | 352K | 1x |
-| FlashAttention | 500K | 1.4x |
-| RWKV | 200K | 0.57x |
-| Mamba | 1.76M | 5x |
+论文图 12 给出了具体的速度曲线，但具体数值（tokens/s）依赖 batch size 和 prompt 长度，未在正文表格中明确列出。定性结论是：随着 prompt 增长，Transformer 因 KV cache 内存压力增大而无法扩 batch，Mamba 因常数大小状态可保持高 batch，因而吞吐量优势进一步扩大。
 
-**关键发现**: Mamba 实现了 5 倍的推理吞吐量提升。
+> **更正说明**：上一版文档中具体的"352K / 500K / 200K / 1.76M"等数字无法在论文正文核实，建议删除具体数字或标注"出自图 12 实验配置"。
 
 ### 7.5 长序列性能
 
-**序列长度扩展**: 从 2K 到 1M
-
-**结果**:
-- Mamba 在百万长度序列上仍保持稳定性能
-- 推理时间呈线性增长
-- 内存使用恒定（通过状态缓存）
+**论文 Section 4.3 (DNA) 与 Section 4.4 (Audio)**：
+- DNA 建模：在序列长度从 1K 扩展到 1M 时，Mamba 性能持续提升
+- 音频建模（YouTubeMix 音频波形）：在 1M 长度预训练时 Mamba 表现最佳
+- 训练时间随序列长度**线性增长**（$O(L)$）
+- 推理时内存使用**恒定**（state 固定大小，无需 KV cache）
 
 > **类比理解**:
 > Transformer 像是"以空间换时间"，需要存储所有历史信息才能处理新输入。Mamba 像是"以时间换空间"，用递推方式逐步更新状态，无需存储完整历史。
@@ -548,13 +599,13 @@ $$ \text{SiLU}(x) = x \cdot \sigma(x) $$
 
 ```
 MambaBlock
-├── in_proj (Linear): d_model → d_inner * 2
+├── in_proj (Linear): d_model → d_inner * 2        # 一半给 x 路径，一半给门控 z
 ├── conv1d (Depthwise Conv): d_inner, kernel_size=4, padding=3
-├── x_proj (Linear): d_inner → dt_rank + 2 * d_state
-├── dt_proj (Linear): dt_rank → d_inner
-├── A_log (Parameter): d_state
-├── D (Parameter): d_inner
-└── out_proj (Linear): d_inner * 2 → d_model
+├── x_proj (Linear): d_inner → dt_rank + 2 * d_state   # 同时产生 Δ, B, C
+├── dt_proj (Linear): dt_rank → d_inner              # Δ 从低秩投到全维
+├── A_log (Parameter): d_inner × d_state             # A 是 (d_inner, d_state) 对角
+├── D (Parameter): d_inner                            # 跳跃连接（按通道）
+└── out_proj (Linear): d_inner → d_model              # 门控后 y 投回 d_model
 ```
 
 ### 1.2 组件详解
@@ -638,34 +689,41 @@ self.dt_proj = nn.Linear(dt_rank, d_inner, bias=True)
 **激活**: 使用 `softplus` 确保正值
 
 ```python
-delta = F.softplus(dt_proj)  # δ = log(1 + exp(x))
+delta = F.softplus(self.dt_proj(delta))  # δ = log(1 + exp(x))
 ```
 
 #### 1.2.5 A_log (State Matrix A)
 
-**作用**: 状态转移矩阵的对数参数
+**作用**: 状态转移矩阵 $A$ 的对数参数化（S4D-Real 初始化）
 
-**形状**: `(d_state,)`
+**形状**: `(d_inner, d_state)`——每个输入通道和每个状态维度都有独立的 A 值（$A$ 是对角矩阵，等价于 $D \times N$ 个标量）
 
-**初始化**:
+**初始化**（S4D-Real / HiPPO 风格，论文 Section 3.6）：
 
 ```python
-# S4D 初始化
-A = repeat(torch.arange(1, d_state + 1, dtype=torch.float32), "n -> d n", d=d_inner)
-A_log = torch.log(A)
+# 官方代码：直接存 log(正数 arange)，forward 时再取负
+A = repeat(
+    torch.arange(1, d_state + 1, dtype=torch.float32),
+    "n -> d n", d=d_inner
+)  # (d_inner, d_state)，值为 [1, 2, ..., d_state]
+A_log = torch.log(A)  # log(正数) ∈ R
 self.A_log = nn.Parameter(A_log)
 ```
 
 **使用**:
 
 ```python
-A = -torch.exp(self.A_log).float()  # A = -exp(log_A)
+A = -torch.exp(self.A_log.float())  # A = -exp(A_log)，确保 A < 0
 ```
 
-**为什么用对数**: 确保参数优化稳定，防止梯度消失/爆炸。
+**为什么用对数**: 状态转移矩阵 $A$ 在前向时必须为负值（这是 S4D-Real / HiPPO 初始化的硬约束，对应"衰减"动力学）。通过 $A = -\exp(A_{\log})$ 参数化可以保证：
+1. $A$ 始终为负（数值稳定，防止动力学发散）
+2. 优化空间是 $A_{\log}$ 的**无约束实数空间**（不受 $\exp$ 限制）
+
+> **更正**：上一版文档说 A_log shape 是 `(d_state,)`，与下文初始化代码（`d_inner × d_state`）自相矛盾。**正确形状是 `(d_inner, d_state)`**。
 
 > **类比理解**:
-`A_log` 存储的是"遗忘率"的对数。指数化后得到实际遗忘率，取负是因为 SSM 中 A 通常为负值（确保稳定）。
+`A_log` 存储的是"遗忘率"取对数再取负。指数化后取负，得到实际遗忘率（恒为正），乘 $-1$ 后得到 $A$（恒为负）。负的 $A$ 意味着状态随时间衰减，与"遗忘"的物理直觉一致。
 
 #### 1.2.6 D (Skip Connection)
 
@@ -686,17 +744,19 @@ self.D = nn.Parameter(torch.ones(d_inner))
 
 #### 1.2.7 out_proj (Output Projection)
 
-**作用**: 将处理后的特征投影回原始维度
+**作用**: 将门控后的 SSM 输出投影回原始维度
 
-**形状**: `(batch, seq_len, d_inner * 2) → (batch, seq_len, d_model)`
+**形状**: `(batch, seq_len, d_inner) → (batch, seq_len, d_model)`
 
 **代码**:
 
 ```python
-self.out_proj = nn.Linear(d_inner * 2, d_model, bias=False)
+self.out_proj = nn.Linear(d_inner, d_model, bias=False)
 ```
 
-**输入**: 门控后的 SSM 输出
+**输入**: 门控后的 $y$（即 `silu(z) * y_ssm`），shape 为 `(B, L, d_inner)`
+
+> **更正**：上一版文档 `nn.Linear(d_inner * 2, d_model, ...)` 是错的。`in_proj` 输出的 $2 d_{\text{inner}}$ 维**已经**分成两个独立路径（x 走 SSM，z 走门控），二者共享同一线性层但语义独立。门控在 out_proj 之前完成，out_proj 的输入是门控后的 $d_{\text{inner}}$ 维向量，不是 $2 d_{\text{inner}}$。
 
 ---
 
@@ -712,39 +772,45 @@ def forward(self, x):
     Returns:
         output: (batch, seq_len, d_model)
     """
-    B, L, D = x.shape
+    B, L, d_model = x.shape
 
     # 1. 输入投影
-    xz = self.in_proj(x)  # (B, L, d_inner * 2)
-    x, z = xz.chunk(2, dim=-1)  # 分别用于 SSM 和门控
+    xz = self.in_proj(x)             # (B, L, 2 * d_inner)
+    x, z = xz.chunk(2, dim=-1)       # 各 (B, L, d_inner)
 
-    # 2. 卷积 (需要 NHWC 格式)
-    x = x.transpose(1, 2)  # (B, d_inner, L)
-    x = self.conv1d(x)[:, :, :L]  # 因果卷积，裁剪到原长度
-    x = x.transpose(1, 2)  # (B, L, d_inner)
+    # 2. 因果卷积 (depthwise)
+    x = x.transpose(1, 2)             # (B, d_inner, L) NLC→NCL
+    x = self.conv1d(x)[:, :, :L]     # 裁掉右侧 padding，保持因果性
+    x = x.transpose(1, 2)             # (B, L, d_inner) NCL→NLC
 
     # 3. SiLU 激活
     x = F.silu(x)
 
-    # 4. 生成 SSM 参数
-    x_dbl = self.x_proj(x)  # (B, L, dt_rank + 2 * d_state)
-    delta, B, C = torch.split(x_dbl, [self.dt_rank, self.d_state, self.d_state], dim=-1)
+    # 4. 生成 SSM 参数 (Δ, B, C)
+    x_dbl = self.x_proj(x)           # (B, L, dt_rank + 2 * d_state)
+    delta, B, C = torch.split(
+        x_dbl, [self.dt_rank, self.d_state, self.d_state], dim=-1
+    )
 
-    # 5. Delta 投影和激活
-    delta = self.dt_proj(delta)  # (B, L, d_inner)
-    delta = F.softplus(delta)
+    # 5. Δ 低秩→全维 + softplus
+    delta = F.softplus(self.dt_proj(delta))  # (B, L, d_inner)
 
-    # 6. Selective Scan (核心)
-    y = self.selective_scan(x, delta, A, B, C, D)
+    # 6. 从 A_log 构造 A（(d_inner, d_state) 对角矩阵，恒为负）
+    A = -torch.exp(self.A_log.float())  # (d_inner, d_state)
 
-    # 7. 门控
-    y = y * F.silu(z)
+    # 7. Selective Scan (核心)
+    y = self.selective_scan(x, delta, A, B, C, self.D)
 
-    # 8. 输出投影
-    output = self.out_proj(y)
+    # 8. 门控 (在 out_proj 之前)
+    y = y * F.silu(z)                 # (B, L, d_inner)
+
+    # 9. 输出投影
+    output = self.out_proj(y)         # (B, L, d_model)
 
     return output
 ```
+
+> **更正**：上一版代码在调用 `selective_scan` 前**没有构造 `A`**，直接使用了未定义的 `A, B, C, D` 变量名（其中 `D` 还与前面 `B, L, D = x.shape` 的维度变量 `D` 冲突）。正确做法是从 `self.A_log` 派生 `A = -exp(A_log)`，并使用 `self.D` 作为 skip 项。
 
 ### 2.2 流程详解
 
@@ -858,34 +924,42 @@ def selective_scan_ref(u, delta, A, B, C, D):
 
 ### 3.3 并行优化实现
 
-**关键优化**: 使用 `torch.cumsum` 或自定义 CUDA kernel 实现并行扫描。
+**关键优化**: 使用 **work-efficient parallel scan**（Blelloch scan）算法，将 $O(L)$ 串行递推并行化为 $O(\log L)$ 深度、$O(L)$ 总工作量的并行计算。
+
+> **重要更正**：`torch.cumsum` 是为**加法递推**（prefix sum）设计的，**不能直接用于 SSM 的乘法递推** $h_t = A_t h_{t-1} + B_t x_t$。正确的并行化是**算子化的 scan**：定义关联二元运算 $(a_1, b_1) \circ (a_2, b_2) = (a_1 \cdot a_2,\; a_2 \cdot b_1 + b_2)$，使得递推可分块并行。PyTorch 的 `cumprod` 也不够，因为递推是乘加混合（affine）形式。
+
+**PyTorch 简化版（用 `torch.linalg.solve_triangular` / 自定义 scan）**：
 
 ```python
 def selective_scan_parallel(u, delta, A, B, C, D):
-    """并行化实现"""
-    # 离散化
-    deltaA = torch.exp(einsum(delta, A, "b l d, d n -> b l d n"))
-    deltaB_u = einsum(delta, B, u, "b l d, b l n, b l d -> b l d n")
+    """
+    简化版 PyTorch 并行实现（教学用，性能远不及官方 CUDA kernel）。
+    实际官方实现是手写 CUDA scan，见 mamba_ssm/ops/selective_scan_interface.cu。
+    """
+    # 1. 离散化
+    deltaA = torch.exp(einsum(delta, A, "b l d, d n -> b l d n"))  # (B, L, d_inner, d_state)
+    deltaB_u = einsum(delta, B, u, "b l d, b l n, b l d -> b l d n")  # (B, L, d_inner, d_state)
 
-    # 转置以使用 cumsum
-    # 对每个 (b, d, n) 通道独立扫描
-    B, L, d_inner, d_state = deltaA.shape
+    B_, L, d_inner, d_state = deltaA.shape
 
-    # 重塑为 (B*d_state, d_inner, L) 以便使用 cumsum
-    deltaA_flat = deltaA.permute(0, 3, 1, 2).reshape(B * d_state, d_inner, L)
-    deltaB_u_flat = deltaB_u.permute(0, 3, 1, 2).reshape(B * d_state, d_inner, L)
-
-    # 使用 cumsum 进行并行扫描
-    # 这里的实现简化了，实际需要更复杂的处理
-    # 官方实现使用 CUDA kernel
-
-    # ... (并行扫描逻辑)
-
-    # 输出计算
-    y = einsum(x, C, "b l d n, b l n -> b l d") + u * D
+    # 2. 对每个 (b, d, n) 通道独立做并行 scan
+    #    关联运算: (a1, b1) ∘ (a2, b2) = (a1 * a2, a2 * b1 + b2)
+    #    这里简化为 for 循环展示——实际 CUDA 实现是 work-efficient parallel scan
+    h = torch.zeros(B_, d_inner, d_state, device=u.device, dtype=u.dtype)
+    ys = []
+    for t in range(L):
+        h = deltaA[:, t] * h + deltaB_u[:, t]
+        y_t = einsum(h, C[:, t], "b d n, b n -> b d")
+        ys.append(y_t)
+    y = torch.stack(ys, dim=1)  # (B, L, d_inner)
+    y = y + u * D
 
     return y
 ```
+
+**真正的并行实现**需要将上述 for 循环替换为 Blelloch-style 的并行 scan：up-sweep 构建"乘积树"，down-sweep 自顶向下传播部分结果，最终每个位置得到 $[0, t]$ 区间内所有 $\bar{A}$ 的乘积和 $\bar{B}x$ 的加权和。深度 $O(\log L)$，工作量 $O(L)$。
+
+> **原版代码错误说明**：上一版的 `selective_scan_parallel` 错误地使用了 `torch.cumsum`（适用于 prefix sum）来"实现"SSM 的乘法递推。这在概念上是不正确的——`cumsum` 只能算 $\sum x_t$，不能算 $\prod A_t$ 形式的乘法递推。请勿直接复制该代码。
 
 ### 3.4 官方 CUDA 实现要点
 
@@ -911,7 +985,8 @@ __global__ void selective_scan_kernel(
     // 每个线程处理一个 d_state
     int n = threadIdx.x;
 
-    // 并行扫描
+    // 注：下方 for 循环是**伪代码示意**，未体现真正的并行扫描
+    // 实际官方 kernel 在 block 内对 L 个时间步做 work-efficient parallel scan
     float x = 0.0f;
     for (int l = 0; l < L; l++) {
         float delta_a = expf(delta[b*L*d + l*d + d] * A[d*d_state + n]);
@@ -928,9 +1003,9 @@ __global__ void selective_scan_kernel(
 
 | 实现方式 | 训练速度 | 推理速度 | 内存使用 |
 |---------|---------|---------|---------|
-| Python 参考 | 慢（串行） | 慢 | 低 |
-| PyTorch cumsum | 中等 | 中等 | 中等 |
-| 官方 CUDA | 快 | 快 | 低（with Recomputation） |
+| Python 参考（for 循环串行） | 慢（无并行） | 慢 | 低 |
+| PyTorch 自定义 scan（教学版） | 中等 | 中等 | 中等 |
+| 官方 CUDA scan | 快 | 快 | 低（with Recomputation） |
 
 > **类比理解**:
 串行实现就像单车道公路，车（计算）一辆一辆通过。并行实现就像多车道高速路，车可以同时通过。CUDA 实现则是专门为这种交通设计的"超高速路"。
@@ -943,9 +1018,9 @@ __global__ void selective_scan_kernel(
 
 | 特性 | 训练模式 | 推理模式 |
 |------|---------|---------|
-| 输入 | 完整序列 | 单个 token |
-| 复杂度 | 并行 (O(log L)) | 串行 (O(1) per token) |
-| 内存 | 存储中间结果 | 只存储状态 |
+| 输入 | 完整序列（长度 L） | 单个 token（1 step） |
+| 复杂度 | FLOPs $O(BLDN)$，Parallel Scan 深度 $O(\log L)$ | 串行 $O(1)$ per step（state 固定大小） |
+| 内存 | 存储输入 $\Delta, A, B, C, x$（$O(BLD)$）以备反向重算 | 只存储 `conv_state` + `ssm_state`（常数大小） |
 | 用途 | 预训练/微调 | 文本生成 |
 
 ### 4.2 状态缓存
@@ -973,65 +1048,69 @@ class MambaBlock:
 ### 4.3 单步推理代码
 
 ```python
-def step(self, x, conv_state=None, ssm_state=None):
+def step(self, x, conv_state, ssm_state):
     """
-    单步推理
+    单步推理（自回归生成时的单 token 前向）
 
     Args:
-        x: (batch, 1, d_model) - 单个 token
-        conv_state: (batch, d_inner, kernel_size - 1) - 卷积状态缓存
-        ssm_state: (batch, d_inner, d_state) - SSM 状态缓存
+        x:           (B, 1, d_model)         单个 token
+        conv_state:  (B, d_inner, d_conv-1)  上一时刻缓存的卷积输入窗口（**不含**当前 token）
+        ssm_state:   (B, d_inner, d_state)   上一时刻的 SSM 隐藏状态 h_{t-1}
 
     Returns:
-        output: (batch, 1, d_model)
-        new_conv_state: 更新的卷积状态
-        new_ssm_state: 更新的 SSM 状态
+        output:          (B, 1, d_model)
+        new_conv_state:  更新后的卷积窗口（d_conv-1 个元素）
+        new_ssm_state:   更新后的 SSM 状态 h_t
     """
-    # 1. 输入投影
-    xz = self.in_proj(x)
-    x, z = xz.chunk(2, dim=-1)
+    # 1. 输入投影 + 分流
+    xz = self.in_proj(x.squeeze(1))      # (B, 2*d_inner)
+    x, z = xz.chunk(2, dim=-1)            # 各 (B, d_inner)
 
-    # 2. 卷积 (使用缓存状态)
-    if conv_state is None:
-        conv_state = torch.zeros(x.shape[0], x.shape[2], self.kernel_size - 1, device=x.device)
+    # 2. 因果卷积（depthwise）：把 conv_state 与当前 x 拼成长度 d_conv 的窗口
+    conv_window = torch.cat([conv_state, x.unsqueeze(-1)], dim=-1)  # (B, d_inner, d_conv)
+    x_conv = F.conv1d(
+        conv_window,                     # (B, d_inner, d_conv)
+        self.conv1d.weight,              # (d_inner, 1, k=d_conv)
+        bias=self.conv1d.bias,
+        groups=self.d_inner,
+    )                                    # (B, d_inner, 1)
+    new_conv_state = conv_window[:, :, 1:]  # 滚动窗口：去掉最早元素，剩 d_conv-1 个
 
-    # 拼接缓存状态和当前输入
-    x = torch.cat([conv_state, x], dim=-1)  # (B, d_inner, kernel_size)
-    x = x.transpose(1, 2)  # (B, kernel_size, d_inner)
-    x = self.conv1d(x)  # (B, 1, d_inner)
-    x = x.transpose(1, 2)  # (B, 1, d_inner)
-
-    # 更新缓存状态
-    new_conv_state = torch.cat([conv_state, x], dim=-1)[:, :, -(self.kernel_size - 1):]
-
-    # 3. 激活
-    x = F.silu(x)
+    # 3. SiLU
+    x = F.silu(x_conv.squeeze(-1))        # (B, d_inner)
 
     # 4. 生成 SSM 参数
-    x_dbl = self.x_proj(x)
-    delta, B, C = torch.split(x_dbl, [...], dim=-1)
-    delta = F.softplus(self.dt_proj(delta))
+    x_dbl = self.x_proj(x)                # (B, dt_rank + 2*d_state)
+    delta, B_t, C_t = torch.split(
+        x_dbl, [self.dt_rank, self.d_state, self.d_state], dim=-1
+    )
+    delta = F.softplus(self.dt_proj(delta))   # (B, d_inner)
 
-    # 5. 单步 SSM
-    if ssm_state is None:
-        ssm_state = torch.zeros(x.shape[0], x.shape[2], self.d_state, device=x.device)
+    # 5. 单步 SSM 递推
+    A = -torch.exp(self.A_log.float())        # (d_inner, d_state)
+    # 离散化（单步简化形式）
+    deltaA = torch.exp(delta.unsqueeze(-1) * A)  # (B, d_inner, d_state)
+    deltaB_x = delta.unsqueeze(-1) * B_t * x.unsqueeze(-1)  # (B, d_inner, d_state)
 
-    # 离散化 (单步)
-    deltaA = torch.exp(einsum(delta, self.A, "b l d, d n -> b l d n"))  # (B, 1, d_inner, d_state)
-    deltaB_u = einsum(delta, B, x, "b l d, b l n, b l d -> b l d n")
+    new_ssm_state = deltaA * ssm_state + deltaB_x  # (B, d_inner, d_state)
 
-    # 更新状态
-    new_ssm_state = deltaA.squeeze(1) * ssm_state + deltaB_u.squeeze(1)
+    # 6. 输出 y
+    y = (new_ssm_state * C_t.unsqueeze(1)).sum(dim=-1) + self.D * x  # (B, d_inner)
 
-    # 输出
-    y = einsum(new_ssm_state, C.squeeze(1), "b d n, b n -> b d")
-
-    # 6. 门控和输出
-    y = y * F.silu(z.squeeze(1))
-    output = self.out_proj(torch.cat([y, z.squeeze(1)], dim=-1))
+    # 7. 门控 + 输出投影
+    y = y * F.silu(z)                    # (B, d_inner)
+    output = self.out_proj(y)            # (B, d_model)
 
     return output.unsqueeze(1), new_conv_state, new_ssm_state
 ```
+
+> **更正**：上一版代码存在多个 bug：
+> 1. `out_proj` 接收 `cat([y, z])` 后 shape 变成 `2*d_inner`，与 `out_proj(in_features=d_inner)` 维度不匹配 → **维度错误**
+> 2. `conv1d` 输入顺序错乱：先 `cat → transpose(1,2)` 把 `d_inner` 变成"序列长度"维度，再送入 `conv1d`（`conv1d` 期望 `d_inner` 是 channel 维）→ **卷积维度错误**
+> 3. `new_conv_state` 用 `cat([conv_state, x])[:, :, -(k-1):]`，但 `x` 是 `conv1d` 输出而非输入，会导致缓存的是输出而非输入历史 → **缓存语义错误**
+> 4. `output` 应是 `(B, 1, d_model)` 形状，调用方需要 `unsqueeze(1)`，而非把 `y` 直接 cat 后投出
+>
+> 正确顺序：先把 `conv_state` 与**当前 x** 拼成窗口（不是卷积输出）→ `conv1d` → 滚动窗口去掉最早的 token；门控 `y = y * silu(z)` 在 out_proj **之前**完成。
 
 ### 4.4 文本生成循环
 
@@ -1061,7 +1140,7 @@ def generate(mamba_model, prompt_ids, max_length):
                 x, conv_states[i], ssm_states[i]
             )
 
-        # 采样下一个 token
+        # 采样下一个 token（实际可换 top-k / nucleus 采样）
         next_token = torch.argmax(x[:, -1, :], dim=-1)
         generated.append(next_token.item())
 
@@ -1069,8 +1148,10 @@ def generate(mamba_model, prompt_ids, max_length):
         if next_token == eos_token_id:
             break
 
-        # 准备下一步输入
-        x = next_token.unsqueeze(0).unsqueeze(0)  # (1, 1, vocab_size embedding)
+        # 准备下一步输入：把 token id 查表回 embedding 向量
+        # x = mamba_model.embedding(next_token).unsqueeze(0)  # (1, 1, d_model)
+        # 上式简写为：
+        x = next_token.unsqueeze(0).unsqueeze(0)  # (1, 1) 仅为示意：实际需先 embedding
 
     return generated
 ```
@@ -1093,30 +1174,16 @@ $$ \text{softplus}(x) = \log(1 + e^x) $$
 
 ### 5.2 初始化方法
 
-Mamba 使用特殊的初始化确保 $\Delta$ 在合理范围内：
+Mamba 使用特殊的初始化确保 $\Delta$ 在合理范围内（论文 Section 3.6）。
 
-```python
-def init_dt_bias(self, dt_rank, d_inner):
-    """初始化 dt_bias"""
-    # 目标范围
-    dt_min = 0.001
-    dt_max = 0.1
+**关键思想**：训练时 $\Delta = \text{softplus}(\text{dt\_proj.bias} + s_\Delta(x))$。在训练初期，我们希望 $s_\Delta(x)$ 接近 0（即"输入无关"），让 $\Delta$ 主要由可学习 bias 决定，因此 bias 应被初始化为 $\text{softplus}^{-1}(\text{uniform}(\delta_{\min}, \delta_{\max}))$，即 $\log(\exp(\delta) - 1)$。
 
-    # 目标中点
-    dt = torch.rand(d_inner) * (dt_max - dt_min) + dt_min
-
-    # softplus 反函数: softplus^{-1}(y) = log(e^y - 1)
-    # 我们希望 softplus(dt_proj @ input + dt_bias) ≈ dt
-    # 假设 input 均值为 0，则 dt_bias ≈ softplus^{-1}(dt)
-    dt_bias = torch.log(torch.exp(dt) - 1)
-
-    self.dt_proj.bias.data = dt_bias
-```
+> **重要更正**：softplus 的严格反函数是 $\text{softplus}^{-1}(y) = \log(e^y - 1)$。官方代码用数值稳定写法 `dt + log(-expm1(-dt))` 代替，更适合大 dt 值（见下方 5.4 节）。**注**：`dt_scale` 因子不参与 bias 初始化，只控制 weight 初始方差。
 
 ### 5.3 为什么需要特殊初始化
 
 1. **稳定性**: $\Delta$ 控制状态更新率，不合适的值会导致梯度消失/爆炸
-2. **多样性**: 不同的维度可能需要不同的时间步长
+2. **多样性**: 不同的通道可能需要不同的时间步长
 3. **收敛**: 好的初始化加速训练收敛
 
 > **类比理解**:
@@ -1124,20 +1191,36 @@ $\Delta$ 初始化就像是给时钟设置"初始速度"。太快会错过重要
 
 ### 5.4 官方实现代码
 
+> **更正**：上一版的 `init_dt_bias` 函数用 `log(dt) / dt_scale` 算 softplus 逆，**与官方代码不一致**。`dt_scale` 实际只用在**权重初始化**（控制 dt_proj.weight 的初始方差），**不参与 bias 初始化**。下面是真实官方代码（`mamba_ssm/modules/mamba_simple.py`）：
+
 ```python
-# 来自 mamba_ssm/modules/mamba_simple.py
-if self.dt_init == "constant":
-    self.dt_proj.bias.data[:] = self.dt_init_value
-elif self.dt_init == "random":
-    self.dt_proj.bias.data = torch.rand(
-        self.d_inner,
-        device=self.dt_proj.bias.device
-    ) * (self.dt_max - self.dt_min) + self.dt_min
-    # softplus 反初始化
-    inv_dt = torch.clamp(self.dt_proj.bias.data, min=self.dt_init_floor)
-    with torch.no_grad():
-        self.dt_proj.bias.data = torch.log(inv_dt) / self.dt_scale
+# 来自 mamba_ssm/modules/mamba_simple.py（节选）
+
+# 1) 权重初始化（与 dt_scale 相关）
+dt_init_std = self.dt_rank ** -0.5 * dt_scale
+if dt_init == "constant":
+    nn.init.constant_(self.dt_proj.weight, dt_init_std)
+elif dt_init == "random":
+    nn.init.uniform_(self.dt_proj.weight, -dt_init_std, dt_init_std)
+
+# 2) bias 初始化：用 log-uniform 在 [dt_min, dt_max] 采样，然后求逆 softplus
+#    目标：训练初期 softplus(bias) ≈ target_dt
+import math
+dt = torch.exp(
+    torch.rand(self.d_inner) * (math.log(dt_max) - math.log(dt_min))
+    + math.log(dt_min)
+).clamp(min=dt_init_floor)
+# 严格逆 softplus: inv_dt = log(exp(dt) - 1)
+# 数值稳定写法：inv_dt = dt + log(-expm1(-dt)) = dt + log(1 - exp(-dt))
+inv_dt = dt + torch.log(-torch.expm1(-dt))
+with torch.no_grad():
+    self.dt_proj.bias.copy_(inv_dt)
 ```
+
+**要点**：
+- `dt_scale` 用于**控制 weight 的初始方差**（`dt_init_std = dt_rank^-0.5 * dt_scale`），与 bias 无关
+- bias 用**严格逆 softplus** `dt + log(-expm1(-dt))`，数学上等价于 `log(exp(dt) - 1)`，但前者数值更稳定（`expm1(-dt) = -expm1(dt)` 在 dt 较大时精度更好）
+- 实际 forward 是 `delta = F.softplus(dt_proj(x))`，其中 `dt_proj` 是带 bias 的 `nn.Linear`，bias 在 softplus 内部
 
 ---
 

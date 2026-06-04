@@ -176,16 +176,48 @@ c: executable code    — 可执行代码实现
 
 ### 4.3 四阶段流程
 
-```
-Stage 1: Synthesis     Stage 2: Verification    Stage 3: Caching       Stage 4: Expansion
-┌──────────────┐      ┌──────────────┐        ┌──────────────┐       ┌──────────────┐
-│ 子智能体发现   │      │ 执行合成技能  │        │ 已验证技能    │       │ 使用频率≥τ=3 │
-│ 当前技能空间   │ ───► │ 验证可执行性  │ ─────► │ 存入仓库      │ ────► │ 加入正式     │
-│ 无法解决子任务 │      │ 和输出有效性  │        │ ΔA_i         │       │ action space │
-│ ↓              │      │              │        │              │       │ A_i          │
-│ LLM生成       │      │ 成功→Caching │        │ 失败→丢弃    │       │              │
-│ a_new=<n,d,c> │      │ 失败→丢弃    │        │              │       │              │
-└──────────────┘      └──────────────┘        └──────────────┘       └──────────────┘
+```mermaid
+flowchart LR
+    subgraph S1 [Stage 1: Synthesis]
+        direction TB
+        A["发现技能缺失<br/>(当前空间无法解决)"] --> B["LLM生成新技能<br/>a_new = &lt;n, d, c&gt;"]
+    end
+
+    subgraph S2 [Stage 2: Verification]
+        direction TB
+        C["实际执行合成代码<br/>(验证可执行性与有效性)"]
+        D{"验证是否成功?"}
+        C --> D
+        D -- "失败" --> E["丢弃 (Discard)"]
+    end
+
+    subgraph S3 [Stage 3: Caching]
+        direction TB
+        F[/"存入合成技能仓库 ΔA_i"/]
+    end
+
+    subgraph S4 [Stage 4: Expansion]
+        direction TB
+        G{"使用频率<br/>c(a_new) ≥ τ=3?"}
+        H[/"正式加入<br/>Action Space A_i"/]
+        I["留在缓存 ΔA_i 中"]
+        G -- "是" --> H
+        G -- "否" --> I
+    end
+
+    B --> C
+    D -- "成功" --> F
+    F --> G
+    
+    style A fill:#f9f2f4,stroke:#d04437,stroke-width:2px,color:#000
+    style B fill:#f9f2f4,stroke:#d04437,stroke-width:2px,color:#000
+    style C fill:#fff2cc,stroke:#d6b656,stroke-width:2px,color:#000
+    style D fill:#fff2cc,stroke:#d6b656,stroke-width:2px,color:#000
+    style E fill:#f8cecc,stroke:#b85450,stroke-width:2px,color:#000
+    style F fill:#d5e8d4,stroke:#82b366,stroke-width:2px,color:#000
+    style G fill:#dae8fc,stroke:#6c8ebf,stroke-width:2px,color:#000
+    style H fill:#dae8fc,stroke:#6c8ebf,stroke-width:2px,color:#000
+    style I fill:#f5f5f5,stroke:#666666,stroke-width:2px,color:#000
 ```
 
 #### Stage 1: Synthesis（合成）
@@ -564,7 +596,7 @@ EvoDS/
 │   ├── base_agent.py       # Agent基类
 │   ├── manager.py          # Manager Agent (905B)
 │   ├── data_cleaner.py     # Cleaner子智能体 (6.5KB)
-│   ├── feature_enginner.py # Featurizer子智能体 (6.8KB)
+│   ├── feature_engineer.py # Featurizer子智能体 (6.8KB)
 │   ├── model_developer.py  # Modeler子智能体 (6.6KB)
 │   ├── visualizer.py       # Visualizer子智能体 (6.3KB)
 │   ├── debugger.py         # Debugger子智能体 (2.6KB)
@@ -604,6 +636,7 @@ class ModelDeveloper(BaseAgent):
     - ASA合成的新技能
     """
     def __init__(self, config, skill_repo):
+        super().__init__()
         self.skill_repo = skill_repo  # 合成技能仓库 ΔA_3
         self.action_space = config.model_skills  # 预定义技能 A_3
         
