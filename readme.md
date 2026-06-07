@@ -1,8 +1,6 @@
 # Arxiv LLM Daily Papers \- 每日大模型论文抓取仓库
 
-**每日自动抓取 Arxiv 最新 LLM 相关论文 \| 大模型智能筛选、摘要提炼、结构化归档**
-
-
+**每日自动抓取 Arxiv 最新 LLM 相关论文 | 大模型智能筛选、摘要提炼、结构化归档**
 
 ## 项目介绍
 
@@ -26,7 +24,7 @@
 
 ## 技术栈
 
-- **核心语言**：Python 3\.9\+
+- **核心语言**：Python 3.9+
 
 - **数据来源**：Arxiv Official API
 
@@ -40,17 +38,17 @@
 
 每日生成的论文文档包含以下标准化内容：
 
-- 论文英文标题 \+ 中文翻译
+- 论文英文标题 + 中文翻译
 
-- 作者信息 \& 所属机构
+- 作者信息 & 所属机构
 
-- 发布时间 \& Arxiv 编号
+- 发布时间 & Arxiv 编号
 
-- 原文链接 \& PDF下载链接
+- 原文链接 & PDF下载链接
 
 - LLM 精炼核心摘要（去除冗余学术套话）
 
-- 核心创新点 \& 研究价值总结
+- 核心创新点 & 研究价值总结
 
 - 研究方向分类标签
 
@@ -58,7 +56,7 @@
 
 | 日期 | 论文 | arXiv |
 |------|------|-------|
-| 2026-06-05 | Vortex: Efficient and Programmable Sparse Attention Serving for AI Agents | [2606.06453](https://arxiv.org/abs/2606.06453) |
+| 2026-06-05 | Goedel-Architect: Streamlining Formal Theorem Proving with Blueprint Generation and Refinement | [2606.06468](https://arxiv.org/abs/2606.06468) |
 | 2026-06-04 | AutoLab: Automated Benchmarking and Evolution of LLM Agents | [2606.0512x](https://arxiv.org/abs/2606.0512x) |
 | 2026-06-03 | Functional Attention: From Pairwise Affinities to Functional Correspondences | [2605.31559](https://arxiv.org/abs/2605.31559) |
 | 2026-06-02 | Positional versus Symbolic Attention Heads | [2605.31558](https://arxiv.org/abs/2605.31558) |
@@ -93,7 +91,5 @@
 ## 许可证
 
 本项目基于 **MIT License** 开源，可自由用于学习、科研、二次开发。
-
-
 
 > （注：文档部分内容可能由 AI 生成）
