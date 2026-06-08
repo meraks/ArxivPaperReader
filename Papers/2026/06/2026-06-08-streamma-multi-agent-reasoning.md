@@ -140,7 +140,7 @@ $$\frac{C^{stream}}{C^{serial}} = \rho \cdot \frac{r_{c_{pd}} (\alpha + r_{c_{cp
 |------|------|
 | **基准** | AIME 2025/2026, HMMT 2026, GPQA-Diamond, Humanity's Last Exam (HLE), LiveCodeBench Generation/Easy/Tough |
 | **模型** | Claude Opus 4.6-high, GPT-5.4-medium |
-| **拓扑** | Chain (A=4), Tree (A=3), Graph (A=4) |
+| **拓扑** | Chain (A=4), Tree (A=4), Graph (A=4) |
 | **推理步数 S** | auto（模型自适应）或手动设定 4/16/64 |
 | **基座** | Single（单Agent直接推理）|
 
@@ -417,17 +417,18 @@ class SerialProtocol:
 
 ### 7.1 论文自述的局限性
 
-1. **端点 LLM 依赖**：实验仅在 Claude Opus 4.6 和 GPT-5.4 上进行，轻量级模型（~7B）的适用性未知
-2. **拓扑探索有限**：仅测试了 Chain/Tree/Graph 三种预设拓扑，未探索动态拓扑自适应
-3. **步骤分割策略**：S 步的均匀分割假设在复杂推理中可能不成立（前几步实际上更长/更复杂）
+1. **拓扑探索有限**：仅测试了 Chain/Tree/Graph 三种预设拓扑，未探索动态拓扑自适应
+2. **步骤分割策略**：S 步的均匀分割假设在复杂推理中可能不成立（前几步实际上更长/更复杂）
+3. **任务需可分解为步骤**：论文明确指出 Stream 协议要求任务可被分解为有意义的推理步骤
 4. **理论假设的理想化**：p_j 独立同分布的假设在实际推理链中不完全成立（步骤间有语义依赖）
 
 ### 7.2 报告补充分析
 
-5. **下游 Agent 角色固化**：当前设计下游 Agent 均为 reviewer-corrector，未探索异构角色（如一个做验证、一个做扩展）
-6. **步骤边界与语义完整性的张力**：强制 S 步分割可能切断完整推理思路，`END_STEP` 作为人工边界可能引入 artifact
-7. **现实部署的队列管理**：高并发下下游队列可能积压，论文未分析反压（backpressure）机制
-8. **与 RiM/CoT 的对比缺失**：未与最近流行的 latent reasoning（如 RiM, Coconut）对比
+1. **端点 LLM 依赖**：实验仅在 Claude Opus 4.6 和 GPT-5.4 上进行，轻量级模型（~7B）的适用性未知（论文未将此列为局限性，反而强调 GPT-5.4 呈现相同趋势，证明模式与 backbone 和拓扑无关）
+2. **下游 Agent 角色固化**：当前设计下游 Agent 均为 reviewer-corrector，未探索异构角色（如一个做验证、一个做扩展）
+3. **步骤边界与语义完整性的张力**：强制 S 步分割可能切断完整推理思路，`END_STEP` 作为人工边界可能引入 artifact
+4. **现实部署的队列管理**：高并发下下游队列可能积压，论文未分析反压（backpressure）机制
+5. **与 RiM/CoT 的对比缺失**：未与最近流行的 latent reasoning（如 RiM, Coconut）对比
 
 ### 7.3 潜在改进方向
 
@@ -444,10 +445,10 @@ class SerialProtocol:
 
 | 论文 | 关联 |
 |------|------|
-| Du et al. (2023) *Improving Factuality and Reasoning in LLMs through Multiagent Debate* | Multi-agent debate 的前驱 |
+| Du et al. (2024) *Improving Factuality and Reasoning in LLMs through Multiagent Debate* | Multi-agent debate 的前驱 |
 | Li et al. (2024) *LLM Discussion* | 多 Agent 共识形成 |
 | Wang et al. (2024) *MAD: Multi-Agent Debate* | 多轮辩论框架 |
-| Besta et al. (2024) *Graph of Thoughts* | DAG 推理拓扑的先驱 |
+| Besta et al. (2023) *Graph of Thoughts* | DAG 推理拓扑的先驱（非论文原文引用，报告推荐延伸阅读）|
 | Aichberger & Hochreiter (2026) *RiM* | Latent reasoning，Stream 的自然延伸方向 |
 | Yao et al. (2023) *Tree of Thoughts* | 树搜索推理 |
 | Wei et al. (2022) *Chain-of-Thought* | 单 Agent 分步推理的奠基之作 |
