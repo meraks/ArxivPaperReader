@@ -1,5 +1,15 @@
 # DeepSeekMath: 开源数学推理的突破——论文深度解析
 
+> **论文信息**
+> - **标题**：DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models
+> - **作者**：Zhihong Shao, Peiyi Wang, Qihao Zhu, Runxin Xu, Junxiao Song, Xiao Bi, Haowei Zhang, Mingchuan Zhang, Y.K. Li, Y. Wu, Daya Guo
+> - **机构**：DeepSeek-AI, Tsinghua University, Peking University
+> - **arXiv**：[2402.03300](https://arxiv.org/abs/2402.03300) (v3, Apr 27 2024)
+> - **官方代码**：[deepseek-ai/DeepSeek-Math](https://github.com/deepseek-ai/DeepSeek-Math)
+> - **模型**：🤗 [deepseek-math-7b-base](https://huggingface.co/deepseek-ai/deepseek-math-7b-base) | [deepseek-math-7b-instruct](https://huggingface.co/deepseek-ai/deepseek-math-7b-instruct) | [deepseek-math-7b-rl](https://huggingface.co/deepseek-ai/deepseek-math-7b-rl)
+
+---
+
 ## Ch1: 论文概述与核心贡献
 
 ### 1.1 一句话总结
