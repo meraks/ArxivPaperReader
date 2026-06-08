@@ -52,16 +52,6 @@
 
 - 研究方向分类标签
 
-## 最新精读论文
-
-| 日期 | 论文 | arXiv |
-|------|------|-------|
-| 2026-06-05 | Goedel-Architect: Streamlining Formal Theorem Proving with Blueprint Generation and Refinement | [2606.06468](https://arxiv.org/abs/2606.06468) |
-| 2026-06-04 | AutoLab: Automated Benchmarking and Evolution of LLM Agents | [2606.0512x](https://arxiv.org/abs/2606.0512x) |
-| 2026-06-03 | Functional Attention: From Pairwise Affinities to Functional Correspondences | [2605.31559](https://arxiv.org/abs/2605.31559) |
-| 2026-06-02 | Positional versus Symbolic Attention Heads | [2605.31558](https://arxiv.org/abs/2605.31558) |
-| 2026-06-01 | LinTree: Structured Search Histories for LLM Reasoning | [2605.31xxx](https://arxiv.org/abs/2605.31xxx) |
-
 ## 项目优势
 
 - **AI 赋能，告别无效信息**：区别于普通爬虫只爬取原始数据，大模型智能筛选提纯，只保留高价值LLM前沿论文。
