@@ -78,13 +78,13 @@ $$ \text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right
 
 | 架构 | 复杂度 | 核心问题 |
 |------|--------|----------|
-| Linear Attention | $O(L)$ | 表达能力有限，难以建模复杂依赖 |
-| Gated Convolutions (e.g., RWKV) | $O(L)$ | 推理速度慢（需要序列化计算） |
+| Linear Attention（如 Performer, Linear Transformer） | $O(L)$ | 表达能力有限，难以建模复杂依赖 |
+| Gated Linear RNN（如 RWKV, RetNet） | $O(L)$ | 推理需序列化（无法用 KV cache 加速）；Mamba 论文 Section 2.1 也将 RWKV 归为 Linear Attention / Linear RNN 系列 |
 | 传统 SSM (S4) | $O(L)$ | 参数固定，无法进行**内容感知推理** |
 
 > **类比理解**:
 > - **Linear Attention**: 像是只看关键词的快速阅读，可能会漏掉隐含关系
-> - **Gated Convolutions**: 像是排队办事，必须一个接一个，不能并行
+> - **Gated Linear RNN (RWKV 等)**: 像是排队办事，必须一个接一个，不能并行
 > - **传统 SSM**: 像是固定的做事规则，不管具体情况如何都用同一套流程
 
 ### 2.3 内容感知推理的重要性
@@ -519,12 +519,21 @@ $$ \text{SiLU}(x) = x \cdot \sigma(x) $$
 
 **论文 Figure 4 (Selective Copying, 序列长度 4096) 实际数据**：
 
-| 模型 | Selective Copying 准确率 |
-|------|-----|
-| S4 (no gate) / S4 layer | 18.3% |
-| H3 / S4 | 57.0% |
-| Mamba / S4 | 56.4% |
-| **Mamba / S6 (Mamba)** | **99.8%** |
+| 模型 (Model) | 架构 (Arch.) | 序列层 (Layer) | 准确率 |
+|------|------|------|-----|
+| S4 | No gate | S4 | 18.3% |
+| — | No gate | S6 | 97.0% |
+| H3 | H3 | S4 | 57.0% |
+| Hyena | H3 | Hyena | 30.1% |
+| H3 | H3 | S6 | 99.7% |
+| Mamba | Mamba | S4 | 56.4% |
+| Mamba | Mamba | Hyena | 28.4% |
+| **Mamba** | **Mamba** | **S6 (Mamba)** | **99.8%** |
+
+**关键对比**：
+- S4 (LTI, 无选择) 仅 18.3% — 几乎随机水平
+- 仅换 layer 为 S6（保留 S4 架构）→ 跃升到 97.0%，说明**核心来自选择机制**
+- Mamba + S6 完整配置达到 99.8%（论文 Figure 4 中 S4 模型对 18.3%，Mamba 完整模型 99.8%，差距 81.5 个百分点）
 
 **Induction Heads（论文 Figure 5）**：
 - Mamba 能完美外推到 1M 长度的序列（约训练时长的 **4000×**）
