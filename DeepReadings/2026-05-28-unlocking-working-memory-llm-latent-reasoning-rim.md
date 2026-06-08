@@ -1,5 +1,14 @@
 # 论文精读报告：Unlocking the Working Memory of Large Language Models for Latent Reasoning
 
+
+> **论文信息**
+> - **标题**：Unlocking the Working Memory of Large Language Models for Latent Reasoning
+> - **作者**：Lukas Aichberger, Sepp Hochreiter
+> - **arXiv**：[2605.30343](https://arxiv.org/abs/2605.30343)
+> - **官方代码**：无官方实现
+
+---
+
 ## Chapter 1: 论文概述与核心论点
 
 ### 摘要要点解读

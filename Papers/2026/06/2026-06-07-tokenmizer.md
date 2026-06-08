@@ -1,5 +1,14 @@
 # TokenMizer: 图结构会话记忆 — 为长周期LLM会话管理上下文
 
+
+> **论文信息**
+> - **标题**：TokenMizer: Graph-Structured Session Memory for Long-Horizon LLM Context Management
+> - **作者**：Shweta Mishra
+> - **arXiv**：[2606.06337](https://arxiv.org/abs/2606.06337)
+> - **官方代码**：无官方实现
+
+---
+
 > **论文**: TokenMizer: Graph-Structured Session Memory for Long-Horizon LLM Context Management  
 > **作者**: Shweta Mishra (Independent Researcher)  
 > **arXiv**: [2606.06337](https://arxiv.org/abs/2606.06337) · 2026-06-04  

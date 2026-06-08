@@ -1,5 +1,14 @@
 # FlashAttention 深度阅读报告
 
+
+> **论文信息**
+> - **标题**：FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness
+> - **作者**：Tri Dao, Daniel Y. Fu, Stefano Ermon, Atri Rudra, Christopher Ré
+> - **arXiv**：[2205.14135](https://arxiv.org/abs/2205.14135)
+> - **官方代码**：[Dao-AILab/flash-attention](https://github.com/Dao-AILab/flash-attention)
+
+---
+
 ## Chapter 1: 论文概述与核心贡献
 
 **本章大纲：**

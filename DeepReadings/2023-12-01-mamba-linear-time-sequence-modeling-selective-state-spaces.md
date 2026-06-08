@@ -1,5 +1,14 @@
 # Mamba: 线性时间序列建模深度阅读报告
 
+
+> **论文信息**
+> - **标题**：Mamba: Linear-Time Sequence Modeling with Selective State Spaces
+> - **作者**：Albert Gu, Tri Dao
+> - **arXiv**：[2312.00752](https://arxiv.org/abs/2312.00752)
+> - **官方代码**：[state-spaces/mamba](https://github.com/state-spaces/mamba)
+
+---
+
 **论文题目**: Mamba: Linear-Time Sequence Modeling with Selective State Spaces
 **作者**: Albert Gu, Tri Dao
 **arXiv ID**: 2312.00752

@@ -1,5 +1,14 @@
 # MobileMoE 深度研读报告
 
+
+> **论文信息**
+> - **标题**：MobileMoE: Scaling On-Device Mixture of Experts
+> - **作者**：Yanbei Chen, Hanxian Huang, Ernie Chang, Jacob Szwejbka, Digant Desai, Zechun Liu et al.
+> - **arXiv**：[2605.27358](https://arxiv.org/abs/2605.27358)
+> - **官方代码**：无官方实现
+
+---
+
 ## Ch 1: 论文概述与核心论点
 
 ### 基本信息

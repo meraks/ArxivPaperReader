@@ -10,6 +10,15 @@ keywords: [视觉推理, 图像编辑, 多模态大语言模型, 强化学习, �
 
 # ETCHR: Editing To Clarify and Harness Reasoning
 
+
+> **论文信息**
+> - **标题**：ETCHR: Editing To Clarify and Harness Reasoning
+> - **作者**：Beichen Zhang, Yuhong Liu, Jinsong Li, Yuhang Zang, Jiaqi Wang, Dahua Lin
+> - **arXiv**：[2605.23897](https://arxiv.org/abs/2605.23897)
+> - **官方代码**：无官方实现
+
+---
+
 > **通过编辑图像来澄清和利用推理能力——一个解耦的、推理感知的图像编辑器，为多模态大语言模型提供视觉推理辅助。**
 
 ---

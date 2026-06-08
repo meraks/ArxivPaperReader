@@ -1,5 +1,14 @@
 # Gated DeltaNet-2: Decoupling Erase and Write in Linear Attention
 
+
+> **论文信息**
+> - **标题**：Gated DeltaNet-2: Decoupling Erase and Write in Linear Attention
+> - **作者**：Ali Hatamizadeh, Yejin Choi, Jan Kautz
+> - **arXiv**：[2605.22791](https://arxiv.org/abs/2605.22791)
+> - **官方代码**：无官方实现
+
+---
+
 > **作者**: Ali Hatamizadeh, Yejin Choi, Jan Kautz
 > **机构**: NVIDIA
 > **发布日期**: 2026-05-21

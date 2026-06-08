@@ -1,5 +1,14 @@
 # LLM Self-Recognition: Steering and Retrieving Activation Signatures
 
+
+> **论文信息**
+> - **标题**：LLM Self-Recognition: Steering and Retrieving Activation Signatures
+> - **作者**：Thibaud Ardoin, Jonas Schäfer, Gerhard Wunder
+> - **arXiv**：[2606.06315](https://arxiv.org/abs/2606.06315)
+> - **官方代码**：无官方实现
+
+---
+
 **论文精读报告**
 
 - **论文标题**: LLM Self-Recognition: Steering and Retrieving Activation Signatures

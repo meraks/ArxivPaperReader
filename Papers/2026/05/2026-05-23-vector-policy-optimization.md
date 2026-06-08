@@ -1,5 +1,14 @@
 # Vector Policy Optimization: Training for Diversity Improves Test-Time Search
 
+
+> **论文信息**
+> - **标题**：Vector Policy Optimization: Training for Diversity Improves Test-Time Search
+> - **作者**：Ryan Bahlous-Boldi, Isha Puri, Idan Shenfeld, Akarsh Kumar, Mehul Damani, Sebastian Risi et al.
+> - **arXiv**：[2605.22817](https://arxiv.org/abs/2605.22817)
+> - **官方代码**：无官方实现
+
+---
+
 > **作者**: Ryan Bahlous-Boldi, Isha Puri, Idan Shenfeld, Akarsh Kumar, Mehul Damani, Sebastian Risi, Omar Khattab, Zhang-Wei Hong, Pulkit Agrawal
 > **机构**: MIT, Improbable AI Lab, MIT-IBM Computing Research Lab, Sakana AI
 > **发布日期**: 2026-05-21

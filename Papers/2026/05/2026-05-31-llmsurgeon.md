@@ -1,5 +1,14 @@
 # LLMSurgeon：诊断大语言模型的数据混合物深度阅读报告
 
+
+> **论文信息**
+> - **标题**：LLMSurgeon: Diagnosing Data Mixture of Large Language Models
+> - **作者**：Yaxin Luo, Jiacheng Cui, Xiaohan Zhao, Xinyi Shang, Jiacheng Liu, Xinyue Bi et al.
+> - **arXiv**：[2605.30348](https://arxiv.org/abs/2605.30348)
+> - **官方代码**：无官方实现
+
+---
+
 ## Ch1: 论文概述与核心论点
 
 ### 摘要逐句解读

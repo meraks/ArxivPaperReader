@@ -1,5 +1,14 @@
 # StreamMA: Streaming Communication in Multi-Agent Reasoning — 深度精读
 
+
+> **论文信息**
+> - **标题**：Streaming Communication in Multi-Agent Reasoning
+> - **作者**：Zhen Yang, Xiaogang Xu, Wen Wang, Cong Chen, Xander Xu, Ying-Cong Chen
+> - **arXiv**：[2606.05158](https://arxiv.org/abs/2606.05158)
+> - **官方代码**：无官方实现
+
+---
+
 > **作者**: Zhen Yang, Xiaogang Xu, Wen Wang, Cong Chen, Xander Xu*, Ying-Cong Chen*  
 > **机构**: HKUST(GZ), Alibaba Group, ZJU, HKUST  
 > **arXiv**: [2606.05158](https://arxiv.org/abs/2606.05158) | **代码**: [EnVision-Research/StreamMA](https://github.com/EnVision-Research/StreamMA)  

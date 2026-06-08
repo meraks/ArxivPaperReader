@@ -1,5 +1,14 @@
 # RoFormer 深度阅读报告
 
+
+> **论文信息**
+> - **标题**：RoFormer: Enhanced Transformer with Rotary Position Embedding
+> - **作者**：Jianlin Su, Yu Lu, Shengfeng Pan, Ahmed Murtadha, Bo Wen, Yunfeng Liu
+> - **arXiv**：[2104.09864](https://arxiv.org/abs/2104.09864)
+> - **官方代码**：[ZhuiyiTechnology/roformer](https://github.com/ZhuiyiTechnology/roformer)
+
+---
+
 ## Chapter 1: 论文概述与核心贡献
 
 **本章概要**：从 RoFormer 论文的摘要解读入手，剖析现有位置编码方法的核心痛点，揭示 RoPE 通过旋转机制实现"绝对编码、相对效果"的数学本质，以及它为线性注意力带来的革命性兼容性。
