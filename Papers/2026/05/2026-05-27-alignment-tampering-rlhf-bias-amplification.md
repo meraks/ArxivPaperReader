@@ -11,11 +11,6 @@ date: 2026-05-27
 # Alignment Tampering: RLHF 如何被利用来放大不对齐偏差
 
 
-> **论文信息**
-> - **标题**：Alignment Tampering: How Reinforcement Learning from Human Feedback Is Exploited to Optimize Misaligned Biases
-> - **作者**：Dongyoon Hahm, Dylan Hadfield-Menell, Kimin Lee
-> - **arXiv**：[2605.27355](https://arxiv.org/abs/2605.27355)
-> - **官方代码**：无官方实现
 
 ---
 

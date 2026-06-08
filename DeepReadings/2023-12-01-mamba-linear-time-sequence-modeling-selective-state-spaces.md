@@ -9,13 +9,6 @@
 
 ---
 
-**论文题目**: Mamba: Linear-Time Sequence Modeling with Selective State Spaces
-**作者**: Albert Gu, Tri Dao
-**arXiv ID**: 2312.00752
-**发表日期**: 2023年12月1日
-
----
-
 ## 目录 (Table of Contents)
 
 ### PART 1 - 论文阅读报告

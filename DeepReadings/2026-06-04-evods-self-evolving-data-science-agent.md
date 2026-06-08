@@ -1,12 +1,6 @@
 # EvoDS: 自进化自主数据科学Agent — 深度精读
 
 
-> **论文信息**
-> - **标题**：EvoDS: Self-Evolving Autonomous Data Science Agent with Skill Learning and Context Management
-> - **作者**：Zherui Yang, Fan Liu, Yansong Ning, Hao Liu
-> - **arXiv**：[2606.03841](https://arxiv.org/abs/2606.03841)
-> - **官方代码**：无官方实现
-
 ---
 
 > **论文**: EvoDS: Self-Evolving Autonomous Data Science Agent with Skill Learning and Context Management  

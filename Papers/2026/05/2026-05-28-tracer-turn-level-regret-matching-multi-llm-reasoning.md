@@ -10,12 +10,6 @@ keywords: [Multi-Agent LLM, Regret Matching, Reinforcement Learning, Cooperative
 # TRACER: Turn-level Regret Matching with Inner Reinforcement Credit for Cooperative Multi-LLM Reasoning
 
 
-> **论文信息**
-> - **标题**：TRACER: Turn-level Regret Matching with Inner Reinforcement Credit for Cooperative Multi-LLM Reasoning
-> - **作者**：Chusen Li, Zhou Liu, Shuigeng Zhou, Wentao Zhang
-> - **arXiv**：[2605.28699](https://arxiv.org/abs/2605.28699)
-> - **官方代码**：无官方实现
-
 ---
 
 ## 一、研究背景与动机

@@ -1,19 +1,12 @@
 # KV Cache Optimization Strategies for Scalable and Efficient LLM Inference — 深度精读
 
+---
 
 > **论文信息**
 > - **标题**：KV Cache Optimization Strategies for Scalable and Efficient LLM Inference
 > - **作者**：Y. Xu, N. K. Khaira, T. Singh
 > - **arXiv**：[2603.20397](https://arxiv.org/abs/2603.20397)
 > - **官方代码**：无官方实现（综述论文）
-
----
-
-> **论文**: KV Cache Optimization Strategies for Scalable and Efficient LLM Inference
-> **作者**: Y. Xu, N. K. Khaira, T. Singh
-> **arXiv**: [2603.20397](https://arxiv.org/abs/2603.20397) | 2026年3月
-> **页数**: 24页，14张图 | **类型**: 系统综述 (Survey)
-> **代码**: 无官方实现（综述论文，涵盖30+篇独立论文的方法）
 
 ---
 

@@ -1,12 +1,6 @@
 # MOSS: Self-Evolution through Source-Level Rewriting in Autonomous Agent Systems
 
 
-> **论文信息**
-> - **标题**：MOSS: Self-Evolution through Source-Level Rewriting in Autonomous Agent Systems
-> - **作者**：Qianshu Cai, Yonggang Zhang, Xianzhang Jia, Huajiang Zheng, Wei Xue, Jun Song et al.
-> - **arXiv**：[2605.22794](https://arxiv.org/abs/2605.22794)
-> - **官方代码**：无官方实现
-
 ---
 
 > **Authors**: Qianshu Cai, Yonggang Zhang, Xianzhang Jia, Wei Xue, Jun Song, Xinmei Tian, Yike Guo

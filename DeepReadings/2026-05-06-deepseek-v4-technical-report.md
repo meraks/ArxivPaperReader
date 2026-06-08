@@ -1,15 +1,5 @@
 # DeepSeek-V4 技术报告精读：面向 Agent AI 的百万 token 高效上下文
 
-
-> **论文信息**
-> - **标题**：DeepSeek-V4: Towards Highly Efficient Million-Token Context for Agentic AI
-> - **作者**：DeepSeek Team
-> - **arXiv**：deepseek-ai/DeepSeek-V4 (Technical Report on HuggingFace)
-> - **官方代码**：[deepseek-ai/DeepSeek-V4](https://github.com/deepseek-ai/DeepSeek-V4)
-> - **模型**：🤗 [deepseek-ai/DeepSeek-V4-Flash](https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash)
-
----
-
 ---
 
 ## 论文元信息

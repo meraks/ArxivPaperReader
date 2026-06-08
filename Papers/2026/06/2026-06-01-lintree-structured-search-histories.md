@@ -1,11 +1,6 @@
 # LinTree: Improving LLM Reasoning with Explicitly Structured Search Histories
 
 
-> **论文信息**
-> - **标题**：LinTree: Improving LLM Reasoning with Explicitly Structured Search Histories
-> - **作者**：Liwei Kang, Yee Whye Teh, Wee Sun Lee
-> - **arXiv**：[2605.31492](https://arxiv.org/abs/2605.31492)
-> - **官方代码**：无官方实现
 
 ---
 

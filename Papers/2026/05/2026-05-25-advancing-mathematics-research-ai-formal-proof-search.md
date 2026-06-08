@@ -1,12 +1,6 @@
 # Advancing Mathematics Research with AI-Driven Formal Proof Search
 
 
-> **论文信息**
-> - **标题**：Advancing Mathematics Research with AI-Driven Formal Proof Search
-> - **作者**：George Tsoukalas, Anton Kovsharov, Sergey Shirobokov, Anja Surina, Moritz Firsching, Gergely Bérczi et al.
-> - **arXiv**：[2605.22763](https://arxiv.org/abs/2605.22763)
-> - **官方代码**：无官方实现
-
 ---
 
 > **作者**: George Tsoukalas, Anton Kovsharov, Sergey Shirobokov et al.

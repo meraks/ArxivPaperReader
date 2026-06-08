@@ -1,12 +1,6 @@
 # Goedel-Architect: 基于蓝图生成与精炼的形式化定理证明框架
 
 
-> **论文信息**
-> - **标题**：Goedel-Architect: Streamlining Formal Theorem Proving with Blueprint Generation and Refinement
-> - **作者**：Jui-Hui Chung, Ziyang Cai, Zihao Li, Qishuo Yin, Rohit Agarwal, Simon Park et al.
-> - **arXiv**：[2606.06468](https://arxiv.org/abs/2606.06468)
-> - **官方代码**：无官方实现
-
 ---
 
 > **论文标题**：Goedel-Architect: Streamlining Formal Theorem Proving with Blueprint Generation and Refinement  

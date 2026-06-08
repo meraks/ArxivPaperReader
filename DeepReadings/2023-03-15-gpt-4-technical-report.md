@@ -1,12 +1,5 @@
 # GPT-4 Technical Report — 深度精读
 
-
-> **论文信息**
-> - **标题**：GPT-4 Technical Report
-> - **作者**：OpenAI
-> - **arXiv**：[2303.08774](https://arxiv.org/abs/2303.08774)
-> - **官方代码**：无官方实现
-
 ---
 
 > **论文**: GPT-4 Technical Report
