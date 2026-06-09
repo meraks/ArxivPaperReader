@@ -5,8 +5,6 @@
 - 作者：Zhiling Yan, Dingjie Song, Hanrong Zhang, Wei Liang, Yuxuan Zhang, Yutong Dai, Lifang He, Philip S. Yu, Ran Xu, Xiang Li, Lichao Sun
 - arXiv ID：2606.06741
 - 提交日期：2026-06-08
-- 摘要获取：web_extract(PDF) ✅
-- PDF解析：web_extract(PDF) ✅ (20页)
 - 官方代码：github.com/OpenLAIR/OpenSkill（Code coming soon，尚未发布）
 - 代码发现方式：论文标注
 - CodeGraph分析：跳过（代码未发布）
