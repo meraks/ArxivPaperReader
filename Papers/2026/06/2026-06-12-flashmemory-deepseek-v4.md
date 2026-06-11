@@ -723,7 +723,7 @@ Backbone-free 解耦训练的最大优势是**训练效率极高**：
 - LongMemEval-M: 40.2 vs 39.3 (**+0.9 points, +2.3%**)
 - RULER: 89.6 vs 88.3 (**+1.3 points, +1.5%**)
 
-平均提升：**+1.4 points, +2.2%**
+平均提升：**+1.4 points, +2.2%**（自行计算，取三 benchmark 平均差值）
 
 > **类比理解：** "Less is More"（少即是多）——FlashMemory 不是"牺牲精度换效率"，而是"通过去除噪声来提升精度"。就像摄影师通过裁剪掉画面边缘的干扰元素，反而让主体更突出。FM-DS-V4 丢弃的 KV chunks 不是"有用信息"，而是"噪声chunks"，去除后模型的注意力更加集中。
 
@@ -790,7 +790,7 @@ Random 10% 在所有 benchmark 上都显著低于 full-attention，说明**并�
 
 **Conclusion 1: LSA 实现了真正的"Less is More"**
 
-FM-DS-V4 不仅将 KV cache 压缩至 13.5%，还将精度平均提升 +1.4 points。这证明：**Full-attention 的 KV cache 中包含大量噪声chunks，去除后反而提升性能**。
+FM-DS-V4 不仅将 KV cache 压缩至 13.5%，还将精度平均提升 +1.4 points（三 benchmark 平均差值）。这证明：**Full-attention 的 KV cache 中包含大量噪声chunks，去除后反而提升性能**。
 
 > **类比理解：** 这就像"编辑优化文档"——初稿（full-attention）包含大量冗余句子、重复观点、无关细节。编辑（LSA）删除这些噪声后，文章不仅变短了（13.5%），而且观点更清晰、论证更有力（+2.2% 精度）。
 
@@ -923,7 +923,7 @@ original_keys = fp8_values.float() * scale.unsqueeze(-1)  # shape: [N_CHUNKS, N_
 
 - **Uncompressed fp32**: 128 heads × 4 bytes/head = 512 bytes/chunk
 - **Compressed fp8 + scale**: 128 × 1 + 4 = 132 bytes/chunk
-- **压缩率**: 132 / 512 = **25.8%**
+| **压缩率（工程分析）**: 132 / 512 = **25.8%**（基于 DeepSeek-V4 CSA 格式）
 
 > **类比理解：** 这就像将"高清照片"压缩为"高质量 JPEG"——虽然损失了一些精度，但文件大小减少 74.2%，而且视觉质量（模型性能）几乎不受影响。
 
