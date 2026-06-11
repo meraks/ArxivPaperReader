@@ -874,14 +874,21 @@ $$J(\theta) = \mathbb{E}_{q \sim D_{\text{data}}, o \sim \pi_\theta} \left[ \sum
 
 ### 完整对比表
 
-| 方法 | 数据源 | 奖励函数 | 梯度系数 | 显存需求 |
-|------|--------|----------|----------|----------|
-| **SFT** | 离线数据集（专家解答） | $r(o|q) = 1$（正确样本）<br>$r(o|q) = 0$（错误样本） | $c_t = r(o|q)$（统一） | 1×（单模型） |
-| **RFT** | 离线数据集（多采样+筛选） | $r(o|q) = \mathbb{I}[\text{correct}]$（稀疏） | $c_t = r(o|q)$（加权） | 1× |
-| **Online RFT** | 在线采样（策略生成） | $r(o|q) = \mathbb{I}[\text{correct}]$ | $c_t = r(o|q)$ | 1.5× |
-| **DPO** | 离线偏好对（chosen/rejected） | $r(o|q) \propto \log \frac{\pi_\theta(o)}{\pi_{\text{ref}}(o)}$（隐式） | $c_t \propto \text{preference margin}$ | 2× |
-| **PPO** | 在线采样（策略生成） | $r(o|q) = \text{RM}(o|q)$（密集） | $c_t = \text{clip}(\frac{\pi}{\pi_{\text{ref}}}) A_t$ | 4× |
-| **GRPO** | 在线采样（策略生成） | $r(o|q) = \text{RM}(o|q)$（密集） | $c_t = \text{clip}(\frac{\pi}{\pi_{\text{ref}}}) A_i^{\text{group}}$ | 2× |
+| 方法 | 数据源 | 奖励函数 | 梯度系数 $c_t$ | 显存需求 |
+|------|--------|----------|----------------|----------|
+| **SFT** | SFT 数据集（专家解答） | 人工选择 | $c_t = 1$ | 1× |
+| **RFT** | SFT 数据集，输出由 SFT 模型采样 | 规则验证（答案正确性）$\mathbb{I}(o)$ | $c_t = \mathbb{I}(o)$ | 1× |
+| **Online RFT** | SFT 数据集，输出由策略模型 $\pi_\theta$ 实时采样 | 规则验证（答案正确性）$\mathbb{I}(o)$ | $c_t = \mathbb{I}(o)$ | ~1.5× |
+| **DPO** | SFT 数据集，chosen/rejected 由 SFT 模型采样 | 隐式偏好奖励 $\log \frac{\pi_\theta(o^+)}{\pi_{\text{ref}}(o^+)} - \log \frac{\pi_\theta(o^-)}{\pi_{\text{ref}}(o^-)}$ | $c_t \propto \text{DPO 梯度系数}$ | 2× |
+| **PPO** | SFT 数据集，输出由策略模型 $\pi_\theta$ 实时采样 | 奖励模型 RM | $c_t = A_t$（GAE + value function $V_\psi$） | 4× |
+| **GRPO** | SFT 数据集，输出由策略模型 $\pi_\theta$ 实时采样（组采样 $G$ 个） | 奖励模型 RM | $c_t = \hat{A}_{i,t} + \beta\left(\frac{\pi_{\text{ref}}}{\pi_\theta} - 1\right)$（组内相对 advantage + KL） | 2× |
+
+*数据来源：论文 Appendix A.1 (Table in Section A.1.1–A.1.6)*
+
+> **关键区别**：
+> - **RFT vs Online RFT**：数据源不同（离线 SFT 模型采样 vs 在线策略模型采样）
+> - **PPO vs GRPO**：梯度系数不同（个体 absolute advantage $A_t$ 需 value model vs 组内 relative advantage $\hat{A}_{i,t}$ 免 value model）
+> - **GRPO 的 KL 项**：直接加在梯度系数中（$+\beta(\pi_{\text{ref}}/\pi_\theta - 1)$），而非像 PPO 那样加在奖励里
 
 ### 方法谱系
 
@@ -1082,8 +1089,6 @@ DeepSeekMath 在 GSM8K 和 MATH 上的 CoT vs PoT 对比：
 
 ### 反直觉发现：工具带来的增益在 RL 后缩小
 
-### 反直觉发现：工具带来的增益在 RL 后缩小
-
 **观察**：
 - Base 模型：PoT 显著优于 CoT（GSM8K +5.8%，MATH +8.8%）
 - RL 模型：PoT 优势大幅缩小（GSM8K +1.8%，MATH +3.3%）
@@ -1140,21 +1145,28 @@ DeepSeekMath 在 **miniF2F**（形式化定理证明基准，Isabelle 语言）�
 | **任务**：将数学陈述翻译为 Isabelle 形式化语言并构造证明 |
 | **难度**： Olympiad 级别（IMO Shortlist、AMC、AIME） |
 | **评估**：自动验证（Isabelle 证明助手） |
-| **与 MATH 的关系**：miniF2F 是 MATH 数据集的形式化版本 |
+| **来源**：独立的形式化定理证明基准，**不是** MATH 的形式化版本 |
 
-### 实验结果
+*数据来源：论文 Section 2.3, Table 3*
 
-| 模型 | miniF2F (Pass@1) | miniF2F (Pass@100) |
-|------|------------------|-------------------|
-| **DeepSeekMath-Base** | ~25% [推断] | ~40% [推断] |
-| **DeepSeekMath-RL** | ~30% [推断] | ~45% [推断] |
-| **SOTA（闭源）** | ~35% | ~50% |
+### 实验结果（仅 Base 模型评估）
 
-> 注：miniF2F 数值为论文图表目测推断，标记为近似值。
+| 模型 | miniF2F-valid | miniF2F-test |
+|------|--------------|--------------|
+| Mistral 7B | 18.9% | 18.0% |
+| CodeLlama 7B | 16.3% | 17.6% |
+| CodeLlama 34B | 18.5% | 18.0% |
+| Llemma 7B | 20.6% | 22.1% |
+| Llemma 34B | 21.0% | 21.3% |
+| **DeepSeekMath-Base 7B** | **25.8%** | **24.6%** |
+
+*数据来源：论文 Table 3*
+
+> **关键点**：论文**仅评估了 Base 模型**在 miniF2F 上的表现，未报告 Instruct 或 RL 模型的正式定理证明结果。
 
 ### 隐式迁移：非形式化 → 形式化
 
-**发现**：DeepSeekMath 虽仅在**非形式化数学**（GSM8K、MATH）上训练，但在**形式化证明**（miniF2F）上显著优于随机初始化模型。
+**发现**：DeepSeekMath 虽仅在**非形式化数学**（GSM8K、MATH）上训练，但在**形式化证明**（miniF2F）上显著优于其他开源模型（25.8% vs 18.9%-22.1%）。
 
 **迁移机制**：
 1. **逻辑结构共享**：非形式化推理（CoT）与形式化证明（Isabelle）都依赖严格的逻辑链
@@ -1165,21 +1177,23 @@ DeepSeekMath 在 **miniF2F**（形式化定理证明基准，Isabelle 语言）�
 > - **非形式化数学**：自然语言描述（"因为 x > 0，所以 f(x) 单调递增"）
 > - **形式化证明**：编程语言实现（`apply (rule mono_increasing)`）
 >
-> **隐式迁移**：学会自然语言推理（CoT）后，形式化证明（编程）能力自然提升。这类似于：学会数学思维后，学习 Python 代码会更快（逻辑结构共享）。
+> **隐式迁移**：学会自然语言推理（CoT）后，形式化证明（编程）能力自然提升。
 
-### RL 对形式化证明的提升
+### 数学语料对 miniF2F 的影响（消融实验）
 
-**观察**：RL 训练后，miniF2F 的 Pass@100 提升约 +5%（从 ~40% → ~45%）。
+论文 Table 9 对比不同数学语料对 miniF2F 的影响（基于 DeepSeek-Coder-Base-v1.5 7B）：
 
-**解释**：
-- **RL 的稳定性优化**：形式化证明需要精确的 tactic 序列，RL 的"输出分布优化"减少了无效 tactic
-- **Self-Consistency 适配**：形式化证明可通过多次采样尝试不同 tactic 路径，RL 的 Maj@K 提升直接受益
+| 数学语料 | miniF2F-valid | miniF2F-test |
+|---------|--------------|--------------|
+| 无数学预训练 | 20.1% | 21.7% |
+| MathPile | 16.8% | 16.4% |
+| arXiv-RedPajama | 14.8% | 11.9% |
 
-> **实践含义**：
-> - RL 不仅提升数值/代数问题（GSM8K、MATH），也提升定理证明（miniF2F）
-> - 形式化领域可借鉴数学推理的 RL 范式（GRPO + iterative RL）
+*数据来源：论文 Table 9*
 
-### miniF2F 的局限
+> **关键洞察**：与 GSM8K/MATH 一致，arXiv 数据对 miniF2F **无正向提升**（甚至下降），而 DeepSeekMath Corpus（隐含在 Base 模型训练中）显著优于其他语料。
+
+### miniF2F 的局限与未来方向
 
 **挑战**：
 1. **形式化翻译困难**：非形式化陈述 → Isabelle 语言的翻译是独立任务，CoT 训练未直接优化
@@ -2247,6 +2261,7 @@ if __name__ == "__main__":
 4. **Prompt 格式**：使用 `"Let's think step by step and put the final answer within \boxed{}"` 引导 CoT
 
 > **性能对比**（论文 Table 5）：
+> 
 > | 模型 | GSM8K (Pass@1) | MATH (Pass@1) | MATH (Maj@64) |
 > |------|----------------|---------------|---------------|
 > | DeepSeekMath-Base | 64.2% | 36.2% | ~43% [推断] |
