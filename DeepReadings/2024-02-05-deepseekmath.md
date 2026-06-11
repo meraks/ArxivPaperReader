@@ -213,8 +213,8 @@ DeepSeekMath 通过**两个核心创新**——120B tokens 的专用数学预训
 - 结果：GRPO 在 MATH 上达到 51.7%，接近 PPO（[未明确对比，但论文声称 GRPO 与 PPO 性能相当]）
 
 **理论依据**：
-- **绝对 advantage**：A(s,a) = Q(s,a) - V(s)（需要学习 Q 函数和 V 函数）
-- **相对 advantage**：A_i = (r_i - mean(r)) / std(r)（组内相对优势，无需额外模型）
+- **绝对 advantage**：$A(s,a) = Q(s,a) - V(s)$（需要学习 Q 函数和 V 函数）
+- **相对 advantage**：$A_i = \frac{r_i - \text{mean}(\mathbf{r})}{\text{std}(\mathbf{r})}$（组内相对优势，无需额外模型）
 - **无偏性**：当采样数 k→∞ 时，组均值→真实期望，相对优势→绝对优势
 
 **效率提升**：
@@ -662,10 +662,10 @@ Ch3（数据收集）和 Ch4（预训练）构建了 DeepSeekMath 的基础：
 
 PPO（Proximal Policy Optimization）作为RL训练的主流方法，其架构需要同时维护四个神经网络模型：
 
-1. **Policy Model (π_θ)**：主模型，训练过程中持续更新
-2. **Reference Model (π_ref)**：冻结副本，用于KL散度约束
-3. **Value Model (V_φ)**：评估状态价值，计算advantage函数
-4. **Reward Model (R_ψ)**：评估输出质量，提供奖励信号
+1. **Policy Model ($\pi_\theta$)**：主模型，训练过程中持续更新
+2. **Reference Model ($\pi_{\text{ref}}$)**：冻结副本，用于KL散度约束
+3. **Value Model ($V_\varphi$)**：评估状态价值，计算advantage函数
+4. **Reward Model ($R_\psi$)**：评估输出质量，提供奖励信号
 
 > **类比理解：养四只大象**
 > 想象你需要在大房间（GPU显存）里饲养四只成年大象（四个7B参数的模型）。每只大象需要固定的活动空间：
@@ -687,10 +687,10 @@ PPO（Proximal Policy Optimization）作为RL训练的主流方法，其架构�
 GRPO的观察是：**在数学推理任务中，我们可以用"同组内相对排名"替代"绝对价值评估"**。
 
 ### 传统PPO的问题
-PPO需要value function V_φ(s) 来估计baseline：
-```
-A_t = r_t + γV_φ(s_{t+1}) - V_φ(s_t)
-```
+PPO需要value function $V_\varphi(s)$ 来估计baseline：
+
+$$A_t = r_t + \gamma V_\varphi(s_{t+1}) - V_\varphi(s_t)$$
+
 这要求训练一个独立的value model，且需大量交互样本拟合。
 
 ### GRPO的方案
@@ -710,7 +710,7 @@ $$A_i = \frac{r_i - \text{mean}(\mathbf{r})}{\text{std}(\mathbf{r})}$$
 
 **关键参数：**
 - **Group size (k)**：通常为64（论文默认值）
-- **意义**：k越大，mean(r)和std(r)越稳定，但采样成本增加
+- **意义**：k越大，$\text{mean}(\mathbf{r})$和$\text{std}(\mathbf{r})$越稳定，但采样成本增加
 
 ## 5.3 数学形式
 
@@ -845,7 +845,7 @@ $$J(\theta) = \mathbb{E}_{q \sim D_{\text{data}}, o \sim \pi_\theta} \left[ \sum
 - $\pi_\theta$：策略模型
 
 > **三要素框架**：
-> 1. **数据源 ($D_{\text{data}})**：从哪里采样？
+> 1. **数据源 ($D_{\text{data}}$)**：从哪里采样？
 >    - 离线数据集（SFT/RFT）
 >    - 在线策略采样（Online RFT/PPO/GRPO）
 > 2. **奖励函数 ($r(o|q)$)**：如何定义好坏？
@@ -929,8 +929,9 @@ DeepSeekMath 论文最深刻的洞察之一是：**强化学习（RL）不提升
 
 | 指标 | 定义 | 计算方式 |
 |------|------|----------|
-| **Pass@K** | 在 K 次独立采样中，至少有一次正确的概率 | $\text{Pass@K} = 1 - (1 - p)^K$，其中 p 为单次准确率 |
-| **Maj@K** | K 次采样中，多数答案的正确率 | 统计 K 个答案的众数，验证其正确性 |
+| **Pass@K** | 在 K 次独立采样中，至少有一次正确的概率 | $\text{Pass@K} = 1 - (1 - p)^K$，其中 $p$ 为单次准确率 |
+| **Pass@1** | 单次采样的正确率（Pass@K 的特例 $K=1$） | $\text{Pass@1} = p$ |
+| **Maj@K** | K 次采样中，多数答案（众数）的正确率 | $\text{Maj@K} = \mathbb{P}(\text{mode}(\{a_1, ..., a_K\}) = a^*)$，其中 $a^*$ 为真实答案，$a_i$ 为第 $i$ 次采样答案 |
 
 > **类比理解：射击训练的稳定性**
 > 想象一名射击运动员进行 K 次射击训练：
