@@ -819,6 +819,11 @@ DeepSeekMath训练数据**完全来自英文网页**（Common Crawl + filter）�
 
 | 模型 | CMATH（中文数学） |
 |------|------------------|
+| DeepSeekMath-Base | 71.7% |
+| DeepSeekMath-Instruct | 84.6% |
+| DeepSeekMath-RL | 88.8% |
+
+*数据来源：论文 Table 2, Table 5*
 
 > **泛化机制**：
 > 数学符号和逻辑结构具有**语言无关性**（$2+2=4$在所有语言中成立）。RL学习的是**推理模式**而非语言表面形式，因此能跨语言迁移。
