@@ -34,6 +34,6 @@
 | 2606.06468 | Goedel-Architect: Streamlining Formal Theorem Proving with Blueprint Generation and Refinement | Jui-Hui Chung, Ziyang Cai et al. (Princeton PLI) | [Papers](Papers/2026/06/2026-06-05-goedel-architect.md) |
 | 2606.06741 | OpenSkill: Open-World Self-Evolution for LLM Agents | Zhiling Yan et al. | [Papers](Papers/2026/06/2026-06-09-openskill-self-evolution.md) |
 | 2606.07404 | Reversible Foundations: Training a 120B Sparse MoE through State-Preserving Scaling | Rohan Shravan (The School of AI) | [Papers](Papers/2026/06/2026-06-10-reversible-foundations-120b-moe.md) |
-| 2606.09659 | Latent Context Language Models (LCLMs): End-to-End Context Compression at Scale | Ang Li, Sean McLeish et al. (NYU, Modal, Meta FAIR) | [Papers](Papers/2026/06/2026-06-11-lclm-end-to-end-context-compression.md) |
+| 2606.09659 | Latent Context Language Models (LCLMs): End-to-End Context Compression at Scale | Ang Li, Sean McLeish et al. (NYU, Modal, Meta FAIR) | [DeepReadings](DeepReadings/2026-06-11-lclm-end-to-end-context-compression.md) |
 | 2606.09828 | Latent Spatial Memory for Video World Models (Mirage) | Weijie Wang, Haoyu Zhao et al. (Microsoft Research, ZJU) | [Papers](Papers/2026/06/2026-06-11-latent-spatial-memory-video-world-models.md) |
 | HF: deepseek-ai/DeepSeek-V4-Flash | DeepSeek-V4 Technical Report: Towards Million-Token Efficient Context for Agent AI | DeepSeek Team | [DeepReadings](DeepReadings/2026-05-06-deepseek-v4-technical-report.md) |
