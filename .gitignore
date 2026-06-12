@@ -49,3 +49,9 @@ build/
 
 # Local generated artifacts
 .codegraph/
+
+# NodeJS release files
+*.tgz
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
