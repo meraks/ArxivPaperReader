@@ -23,16 +23,6 @@ Mixture-of-Experts (MoE) 架构在百亿（hundred-billion）参数规模的大�
 1. **移动端约束严苛**：显存（通常 ≤5GB）、算力（能效限制）、散热（无主动散热）
 2. **MoE 小规模特性未知**：大模型的稀疏性优势是否能在小模型中保持？
 
-> **类比理解**
->
-> MoE 架构好比一个公司：
-> - 每个 Expert（专家）= 一个专业部门（如研发、市场、财务）
-> - Gate/Routing Network（门控网络）= 项目经理，决定把任务分配给哪个部门
-> - Top-k routing = 项目经理可以同时调用 k 个部门协作
-> - Dense 模型 = 全能通才公司，每项任务所有员工都参与（低效但稳定）
->
-> 传统 MoE 研究关注的是"如何管理万人集团"，而 MobileMoE 探索的是"精干小团队如何高效运作"。
-
 ### 核心创新点（三大贡献）
 
 #### 1. On-Device MoE Scaling Law
@@ -64,14 +54,6 @@ Pre-training → Mid-training → SFT → INT4 QAT
 | MobileMoE-S | 272M | 1.3B | 0.68 GB | ~2-4× fewer |
 | MobileMoE-M | 528M | 2.8B | 1.40 GB | ~2-4× fewer |
 | MobileMoE-L | 922M | 5.3B | 2.65 GB | ~2-4× fewer |
-
-> **类比理解**
->
-> 四阶段训练如大学教育：
-> - Pre-training（预训练）= 通识教育：广泛涉猎各领域知识
-> - Mid-training（中期训练）= 专业学习：聚焦核心专业方向
-> - SFT（监督微调）= 实习实训：在实际任务中磨练技能
-> - QAT（量化感知训练）= 技能精炼：将知识压缩为高效可执行的形式
 
 ---
 
@@ -127,13 +109,6 @@ graph TD
 #### 维度 3：共享专家 (Shared Expert, s)
 
 一个始终激活的 dense 专家，类似于 ResNet 中的残差连接。
-
-> **类比理解**
->
-> 粒度类比——把一个大专家拆成多个细粒度小专家：
-> - 粗粒度（g=1）：一个"全科医院"，什么都能看但深度有限
-> - 细粒度（g=8）：8个"专科诊所"，每个诊所专注一个细分领域，诊断更精准
-> - Shared expert：一个"急诊科"，始终在线处理基础病例
 
 ### On-Device MoE Scaling Law
 
@@ -197,14 +172,6 @@ graph LR
     style C6 fill:#fff4e1
 ```
 
-> **类比理解**
->
-> 端侧 MoE 的 sweet spot 设计好比汽车变速箱：
-> - 过于稀疏（E=1）：单速车，灵活但效率低
-> - 过于密集（E=32）：32速车，选择过多导致决策开销大
-> - E=8 + g=8：8速变速箱，每个速档内部还有细粒度调节，平衡效率与灵活性
-> - Shared expert：怠速/基础转速，始终保证最小输出
-
 ---
 
 ## Ch 3: MoE 训练稳定性技术
@@ -225,16 +192,6 @@ MobileMoE 采用了一种无需辅助损失（auxiliary-loss-free）的负载均
 $$λ_{lb} = 10^{-3}$$
 
 **实现方式**：调整 router 的 bias 项，使得被较少选择的专家在后续迭代中更容易被选中。
-
-> **类比理解**
->
-> 传统 load balancing loss 好比用"罚款"来平衡工作量：
-> - 谁太忙就罚谁，谁太闲就给补贴
-> - 需要不断调整罚款力度（超参数调优）
->
-> Auxiliary-loss-free balancing 好比用"排班系统"自动调节：
-> - 根据历史工作记录，自动调整每个人的被派单概率
-> - 无需人工干预，系统自适应平衡
 
 ### Router Z-Loss Regularization
 
@@ -286,15 +243,6 @@ def grouped_mlp(x, experts, topk_indices):
 |-----|------|------|
 | Load Balancing Loss | 效果直接 | 引入额外超参数，可能影响收敛 |
 | Auxiliary-Loss-Free | 无额外损失，自适应 | 需要精心设计 bias 更新策略 |
-
-> **类比理解**
->
-> MoE 训练稳定性好比城市交通调度：
-> - Load balancing loss = 收拥堵费：用经济手段调节
-> - Auxiliary-loss-free = 智能红绿灯：自适应调节车流
-> - Z-loss regularization = 限速：防止系统失控
-> - Grouped MLP = 快速通道：提高通行效率
-> - Expert parallelism = 多交警协作：分散指挥压力
 
 ---
 
@@ -384,20 +332,6 @@ graph TD
 - Group size = 32
 - **FP32 router**（保持推理稳定性）
 
-> **类比理解**
->
-> 链式学习率调度：
-> - Pre-training: 4e-4 → 快速学习基础模式
-> - Mid-training: 4e-5 → 稳定扩展专业能力
-> - SFT: 4e-6 → 精细调整任务行为
-> - QAT: 4e-6 → 适应量化约束
->
-> 好比学习乐器：
-> - Pre-training: 快速掌握基本指法
-> - Mid-training: 练习经典曲目
-> - SFT: 学习演奏技巧
-> - QAT: 适应不同乐器的特性
-
 ### 训练配置细节
 
 **优化器**：AdamW
@@ -484,14 +418,6 @@ graph TD
 - **TQA (TriviaQA)**: MobileMoE-L (54.8%) 同样显著领先
 - **BoolQ**: Qwen3.5 2B (75.8%) 仍领先，MoE 模型在此基准上优势有限
 - **DROP**: MobileMoE-L (56.2%) 领先，展示了 MoE 在数值推理上的优势
-
-> **类比理解**
->
-> MoE 在代码和数学上的优势好比专业分工：
-> - Dense 模型 = 全栈工程师，什么都能做但深度有限
-> - MoE 模型 = 专家团队，算法专家、数据专家、系统专家各司其职
-> - 代码和数学任务需要"深度专精"，MoE 的专家分工优势更明显
-> - 通用知识任务（如 BoolQ）更依赖广度，MoE 优势相对有限
 
 ### 性能-效率 Pareto Frontier
 
@@ -582,13 +508,6 @@ graph LR
 - 将同一专家的所有 tokens 分组
 - 一次性批量计算，大幅提升效率
 
-> **类比理解**
->
-> MoE kernel 优化好比快递配送：
-> - Naive dispatch = 每个包裹单独配送，效率低
-> - Grouped GEMM = 按区域分拣后批量配送，效率高
-> - 好比将多个小工具打包成瑞士军刀——减少调用次数
-
 ### FP32 Router for Stability
 
 一个关键设计决策是：**保持 router 为 FP32 精度**
@@ -632,14 +551,6 @@ graph LR
 - **MobileMoE-S (0.68 GB)** vs **MobileLLM-Pro (0.68 GB)**
   - MobileMoE-S 在性能上显著领先（46.5 vs 43.7）
   - MobileMoE-S 在推理速度上领先 2-4×
-
-> **类比理解**
->
-> 端侧 MoE 推理好比专业厨房：
-> - Dense 模型 = 单个大厨，什么菜都做（全能但慢）
-> - MoE 模型 = 多个专业厨师，炒菜、烘焙、切配各司其职（分工协作，效率高）
-> - Fused MoE kernel = 流水线作业，减少切换时间
-> - FP32 router = 主厨保持清醒（关键决策不受量化影响）
 
 ---
 
@@ -736,9 +647,3 @@ MobileMoE 代表了端侧 LLM 发展的重要里程碑：
 
 这项工作证明了 MoE 架构不仅在百亿参数规模有效，在子十亿的端侧场景下同样能带来显著收益。随着端侧 AI 的快速发展，MobileMoE 的方法和发现将为未来的研究和实践提供重要参考。
 
-> **类比理解**
->
-> MobileMoE 的意义好比从功能机到智能机的跨越：
-> - Dense 端侧 LLM = 功能机：功能有限，但可靠稳定
-> - MoE 端侧 LLM = 智能机：分工协作，功能强大
-> - MobileMoE = 第一代真正可用的智能手机：开启端侧 AI 新时代

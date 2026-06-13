@@ -84,8 +84,6 @@ LLM 上下文窗口的失效不是瞬间发生的，而是呈现三种退化模�
 **(3) 检索增强（Retrieval Augmentation）**：将历史向量化，按相关性检索。
 - **问题**：「Lost in the Middle」—— U 形注意力模式。语义上相似但上下文无关的内容可能被错误检索；语义上远但结构上关键的信息可能被遗漏。
 
-> **类比理解**：三种传统方法分别对应三种失忆症 —— 截断是「只记得最近 5 分钟」；摘要是「能复述大概但搞不清哪些事做完了哪些还没做」；检索增强是「能回忆相关的片段但丢失了时间线和因果链」。TokenMizer 试图以结构化方式同时解决这三种问题。
-
 ### 2.2 TokenMizer vs MemGPT
 
 这是理解本文定位最关键的区别：
@@ -435,8 +433,6 @@ PENDING: feature engineering for text columns, train baseline XGBoost
 DECIDED: XGBoost over LightGBM (better handling of categorical features)
 FILES: src/eda.py, src/preprocess.py, data/raw/transactions.csv
 ```
-
-> **类比理解**：序列化过程就像一场「紧急撤离演习」。房子（上下文窗口）着火了，你只有 78 个 token 的「逃生包」空间。你会先装什么？身份证明（GOAL/DECISION）> 正在进行的工作（PENDING tasks）> 已完成的工作清单（DONE tasks）> 工具箱（FILE references）。importance 排序确保最重要的东西先进包。
 
 ### 5.3 三级检查点预算
 
