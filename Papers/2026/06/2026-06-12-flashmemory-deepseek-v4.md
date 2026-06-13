@@ -47,7 +47,7 @@ LSA的训练策略突破性地**不需要加载DeepSeek-V4主干模型**：
 - 将Memory Indexer建模为**标准dual-encoder架构**
 - 使用**预计算的表征**进行训练（query embeddings + compressed keys）
 - 训练成本：**单个H20 GPU小时**即可完成
-- 训练框架：标准信息检索训练流程（InfoNCE loss + contrastive learning）
+- 训练框架：**Focal Loss**（γ=2），无单独α系数，类别不平衡由**3:1负采样**+**样本级权重{t,s}*联合处理（论文2.4节：用Focal Loss替代标准BCE），而非InfoNCE
 
 这意味着你不需要拥有数百GB显存的GPU集群，也能训练出适用于超长上下文的memory indexer。
 
@@ -55,40 +55,32 @@ LSA的训练策略突破性地**不需要加载DeepSeek-V4主干模型**：
 
 实验结果显示的"少即是多"效应：
 
-- **平均物理KV缓存占用**：13.5% of full-context baseline
+- **平均物理KV缓存占用**：13.5% of full-context baseline（DS-V4-Flash基线）
 - **500K尺度极端场景**：KV开销减少90%+
-- **精度变化**：+0.6% absolute margin on average（精度不降反升）
-- **具体案例**（LongBench-v2-493K）：
-  - GPU内存：0.74 GB（LSA）vs 7.52 GB（baseline）
-  - 精度：70.0%（LSA）vs 68.1%（baseline）
+- **精度变化**：+0.6% absolute margin on average（所有基准任务平均）
+- **具体案例**（LongBench-v2-L 493K）：
+  - GPU内存：0.18 GB（LSA）vs 1.80 GB（baseline）——**10%**
+  - 精度：70.0%（LSA）vs 68.1%（baseline）——**+1.9 points**
 
 > **为什么减少缓存反而提升精度？**
 >
 > LSA充当了**attention denoiser**的角色。在超长上下文中，全量attention会引入大量无关信息（噪声），干扰模型对关键信息的聚焦。LSA通过主动过滤这些噪声，让模型更专注于真正相关的context。
 
-### 1.4 四大贡献的展开描述
+### 1.4 三大核心贡献（论文原文）
 
-#### 贡献1：新推理范式
+#### 贡献1：Lookahead Sparse Attention (LSA) 推理范式
 
-提出Lookahead Sparse Attention (LSA)——一种通过Neural Memory Indexer主动预测并仅保留query-critical KV chunks的推理范式。这从根本上改变了长上下文推理的内存管理方式：从"被动存储全部"变为"主动预测关键"。
+提出LSA，一种通过Neural Memory Indexer主动预测并仅保留query-critical KV chunks的推理范式。这从根本上解决了长上下文建模能力与硬件效率的矛盾：按需主动获取关键上下文，而非被动存储全部。
 
 #### 贡献2：Backbone-free解耦训练
 
-设计了完全不需要加载massive backbone model的训练策略。通过将indexer建模为标准dual-encoder，使用预计算表征进行独立训练。这使得训练成本从"需要数百GB显存的GPU集群"降至"单个H20 GPU小时"。
+设计了完全不需要加载massive backbone model的训练策略。将indexer建模为独立的dual-encoder，使用预计算表征进行训练，仅优化query projection矩阵（<0.1%参数量）。训练成本从"数百GPU天"降至"单个H20 GPU小时"。
 
-#### 贡献3：在DeepSeek-V4上的实证
+#### 贡献3：突破性效率实证
 
-在DeepSeek-V4架构上实现了LSA，并在三个主要长上下文评估套件（LongBench-v2, LongMemEval, RULER）上验证了有效性。结果显示：
-- KV缓存压缩至13.5%（平均值）
-- 500K尺度减少90%+开销
-- 精度平均提升+0.6%
-
-#### 贡献4：开源实现
-
-完整开源了代码（MIT License）和模型权重（HuggingFace），包括：
-- Memory Indexer训练代码
-- 推理集成示例（demo.py, toy_flashmemory_inference.py）
-- 预训练的retriever权重
+在DeepSeek-V4-Flash上实现LSA，在LongBench-v2、LongMemEval、RULER三大基准上验证：
+- 平均KV缓存仅 **13.5%**（86.5%减少），500K时达 **90%+** 减少
+- 平均精度 **+0.6%**（76.9% → 77.5%），长上下文任务甚至提升更大
 
 ### 1.5 论文定位
 
@@ -123,8 +115,7 @@ $$Memory_{KV} = 2 \times L \times N_{layers} \times d_{model} \times n_{bytes}$$
 - $d_{model}$ = hidden维度
 - $n_{bytes}$ = 每个元素的字节大小（fp16=2, fp32=4）
 
-对于DeepSeek-V4（128层，hidden dim为数千），当L=500K时：
-- KV缓存 ≈ **7.5+ GB GPU内存**
+对于标准DeepSeek-V4（128层，hidden dim为数千），理论上L=500K时KV缓存约 **7.5+ GB**。但论文实验使用的是 **DeepSeek-V4-Flash**（含HCA 128:1压缩层），实测baseline在500K上下文仅 **~1.8 GB**（见Table 1），LSA进一步压缩至 **~0.17 GB**（~9.5%）。
 
 #### 2.1.2 对应用的制约
 
@@ -217,29 +208,27 @@ KV缓存内存瓶颈严重制约了长上下文应用的发展：
 
 ### 2.3 DeepSeek-V4架构背景
 
-#### 2.3.1 Compressed Sparse Attention (CSA)
+#### 2.3.1 混合注意力架构：HCA + CSA
 
-DeepSeek-V4采用了**Compressed Sparse Attention**机制来处理长上下文：
+DeepSeek-V4-Flash采用混合注意力架构处理超长上下文：
 
-- 将长序列划分为chunks（每个chunk固定token数）
-- 使用压缩格式存储KV cache
-- Attention计算时动态解压相关chunks
+- **HCA (Heavily Compressed Attention) 层**：128:1压缩比，保留全局语义粗略表示
+- **CSA (Compressed Sparse Attention) 层**：细粒度token级attention，支持动态稀疏检索
+- 两者并行工作：HCA提供全局背景，CSA处理精确检索
 
-#### 2.3.2 CSA KV-cache压缩格式
+#### 2.3.2 CSA KV-cache压缩格式 (K^{IComp})
 
-DeepSeek-V4的KV cache压缩格式为：
+DeepSeek-V4的**压缩索引键**格式（用于Lightning Indexer/Memory Indexer）：
 
 $$ChunkSize = 128 \text{ bytes (fp8 key)} + 4 \text{ bytes (fp32 scale)} = 132 \text{ bytes}$$
 
-每个chunk被存储为uint8格式，包括：
-- **128 bytes fp8 key**：压缩后的key向量（fp8=8-bit floating point）
-- **4 bytes fp32 scale**：用于dequantization的缩放因子
+每个chunk存储为uint8格式：
+- **128 bytes fp8 key**：压缩后的key向量（128 heads × 1 byte/head）
+- **4 bytes fp32 scale**：全局反量化缩放因子
 
-这种格式比标准fp16格式（256 bytes per chunk）节省约48%内存。
+这是**预计算并冻结**的表示（K^{IComp}），Memory Indexer直接复用，无需额外编码网络。
 
-> **为什么使用fp8而非更低精度？**
->
-> fp8 (8-bit floating point) 在数值表示范围和精度间取得了良好平衡。相比int8，fp8能更好保留attention scores的动态范围；相比fp16，fp8节省50%内存。实验表明fp8对KV缓存的精度影响可忽略。
+> **注意**：实验baseline (DS-V4-Flash) 已包含HCA层，实测500K上下文KV缓存仅~1.8 GB（Table 1），非理论值7.5 GB。
 
 ### 2.4 核心洞察：从被动参与（Passive）到主动预测（Lookahead）
 
@@ -307,14 +296,7 @@ LSA系统由三个核心组件构成：
 3. 只有mask=1的chunks保留在GPU内存，mask=0的chunks可被offload
 4. 下次attention计算时，只对保留的chunks执行sparse attention
 
-> **类比理解：高速公路的智能收费站**
->
-> LSA像是"高速公路的智能收费站系统"：
-> - Prefill阶段 = 车辆进入高速（所有车辆都在高速上）
-> - Decode阶段 = 车辆持续行驶（每64辆车触发一次评估）
-> - Memory Indexer = 智能识别系统（预测哪些车会继续长途，哪些会很快下高速）
-> - Keep_mask = 专属通道标记（只有标记的车辆保留在内侧快车道）
-> - 结果 = 内侧快车道始终保持畅通（内存高效）
+
 
 #### 3.1.3 关键超参数
 
@@ -329,101 +311,62 @@ LSA系统由三个核心组件构成：
 
 #### 3.2.1 Dual-encoder架构
 
-Memory Indexer采用**dual-encoder**架构，独立编码queries和keys：
+Memory Indexer采用**dual-encoder**架构，独立编码queries和keys，复用DeepSeek-V4原生Lightning Indexer结构，仅将最后激活从ReLU改为Sigmoid：
 
-$$Score(q, k) = \sigma \left( \sum_{h=1}^{H} w_h \cdot \text{ReLU}(q_h \cdot k^T) \right)$$
+$$I_{t,s} = \sigma \left( \sum_{h=1}^{n_h^l} w_{t,h}^l \cdot \text{ReLU}(q_{t,h}^l \cdot (K_s^{\text{IComp}})^T) \right)$$
 
 其中：
-- $q$ = query embedding（从当前hidden state计算）
-- $k$ = compressed key embedding（从CSA KV-cache解压得到）
-- $w_h$ = learnable head-specific weights
-- $\sigma$ = sigmoid activation
-- $\text{ReLU}$ = 非线性激活函数
+- $q_{t,h}^l$ = layer l, timestep t, head h的query向量
+- $K_s^{\text{IComp}}$ = chunk s的压缩索引键（frozen，预计算）
+- $w_{t,h}^l$ = 动态路由头权重（由$h_t \cdot W^w$得到）
+- $\sigma$ = sigmoid函数（输出[0,1]概率，对齐二分类目标）
 
-**设计动机**：Dual-encoder架构是信息检索的标准范式，优势在于：
-- Keys可**预计算并缓存**（离线索引）
-- Queries可**独立编码**（实时编码）
-- 评分阶段为**简单点积**（高效）
+**设计动机**：Dual-encoder是检索标准范式：
+- Keys预计算缓存（$K^{\text{IComp}}$冻结）
+- Queries实时编码（仅投影矩阵可训练）
+- 评分为简单点积+ReLU+Sigmoid
 
-#### 3.2.2 Query编码流程
-
-Query编码的完整流程：
+#### 3.2.2 Query编码流程（论文Eq 1-3）
 
 ```
-Input: hidden state h_t ∈ R^{4096}
+Input: hidden state h_t ∈ R^d
 
-Step 1: Low-rank projection
-    q_a = h_t · W_Qa  # 4096 → 2048
+Step 1: Down-projection
+    c_t^Q = h_t · W^{DQ}        # d → d_c
 
-Step 2: RMSNorm
-    q_a = RMSNorm(q_a)
+Step 2: Up-projection to multi-head
+    q_t^l = c_t^Q · W^{IUQ}     # d_c → c^l · n_h^l
+    # Reshape: [n_h^l heads, each head dim = c^l]
 
-Step 3: Expansion to multi-head
-    q_b = q_a · W_Qb  # 2048 → (128 × 128)
-    # Reshape to 128 heads, each head dim=128
-
-Step 4: RoPE (Rotary Position Embedding)
-    q_b = RoPE(q_b, pos=t)
-    # Only apply to last 64 dims (ROPE_DIM=64)
-
-Step 5: Hadamard transform
-    q = Hadamard(q_b)
-    # Walsh-Hadamard matrix multiplication
+Step 3: Dynamic routing weights
+    w_t^l = h_t · W^w           # d → n_h^l
 ```
 
-**关键设计决策**：
-- **Low-rank (r=2048)**：减少参数量，4096→2048→(128×128)
-- **RoPE**：保留位置信息，仅对后半部分应用（64/128 dims）
-- **Hadamard**：替代标准normalization，计算高效
+**关键设计**：
+- **Low-rank bottleneck**：$d_c = 2048$ (q_lora_rank)，非PEFT式LoRA，而是架构固有维度
+- **无RMSNorm、无Hadamard、无RoPE**（这些是原文未提及的错误添加）
+- 路由权重$w_t^l$动态缩放各head重要性
 
 #### 3.2.3 Key编码流程
 
-Key编码直接从CSA KV-cache读取：
+Key直接使用预计算冻结的$K_s^{\text{IComp}}$（132 bytes/chunk fp8+scale）：
 
-```
-Input: compressed_k ∈ uint8^{132}  # [128 bytes fp8 + 4 bytes scale]
-
-Step 1: Dequantization
-    k_fp8 = dequant(compressed_k[:128], scale=compressed_k[128:])
-    k = fp8_to_float32(k_fp8)  # 128 dims
-```
-
-**关键特性**：
-- Keys直接使用DeepSeek-V4的原生CSA compressed format
-- 无需额外编码网络（**frozen representations**）
-- Dequantization开销可忽略（仅在scoring时执行）
+- 无需编码网络（**frozen representations**，论文核心设计）
+- 反量化仅在scoring时执行：$k = \text{fp8\_values} \times \text{scale}$
 
 #### 3.2.4 Scoring与Binary决策
 
-Scoring公式：
+Scoring（论文Eq 4）：
 
-$$I_{t,s} = \sigma \left( \sum_{h=1}^{128} w_{l,t,h} \cdot \text{ReLU}(q_{l,t,h} \cdot k_s^T) \right)$$
+$$I_{t,s} = \sigma \left( \sum_{h=1}^{n_h^l} w_{t,h}^l \cdot \text{ReLU}(q_{t,h}^l \cdot (K_s^{\text{IComp}})^T) \right)$$
 
-其中：
-- $I_{t,s}$ = timestep t时，chunk s的相关性分数（0-1标量）
-- $w_{l,t,h}$ = layer l, timestep t, head h的fused weight
-- $q_{l,t,h}$ = layer l, timestep t, head h的query向量（128-dim）
-- $k_s$ = chunk s的key向量（128-dim）
-- $\sigma$ = sigmoid函数
-
-**Fused weight设计**：
-
-$$w_{scale} = d_{head}^{-0.5} \times N_{heads}^{-0.5} = 128^{-0.5} \times 128^{-0.5} = \frac{1}{128}$$
-
-这个fused weight替代了标准attention中的 $\frac{1}{\sqrt{d_k}}$ scaling factor。
-
-**Binary决策**：
+**Binary决策**（论文Eq 5）：
 
 $$\text{keep}_s = \mathbb{1}[I_{t,s} \geq 0.5]$$
 
-分数≥0.5的chunks被标记为保留（keep=1），其余可被offload（keep=0）。
+分数≥0.5的chunks保留（keep=1），其余可offload。
 
-> **为什么阈值设为0.5？**
->
-> Sigmoid输出在[0,1]范围，0.5是自然的中点。实验表明0.5在保留率和压缩率间取得良好平衡：
-> - 阈值过高 → 保留chunks太少，可能丢失关键信息
-> - 阈值过低 → 保留chunks太多，压缩率不足
-> - 0.5作为初始阈值，实际部署时可针对任务调优
+> **为什么阈值0.5？** Sigmoid自然中点，实验验证平衡保留率/压缩率。实际部署可调优。
 
 ### 3.3 Ensemble聚合策略
 
@@ -475,73 +418,9 @@ Mean模式更保守，倾向于**保留更少chunks**，但可能丢失仅在单
 
 实验结果显示，Ensemble比单层平均提升约2-3%精度。
 
-### 3.4 Hadamard变换的作用
+### 3.4 类比理解：高速公路智能收费站
 
-#### 3.4.1 Walsh-Hadamard矩阵
-
-Hadamard变换使用**Walsh-Hadamard矩阵** $H_n$：
-
-$$H_1 = \begin{bmatrix} 1 \end{bmatrix}, \quad H_{2n} = \begin{bmatrix} H_n & H_n \\ H_n & -H_n \end{bmatrix}$$
-
-对于 $n=128$（query head dim），$H_{128}$ 是128×128的正交矩阵。
-
-#### 3.4.2 归一化Hadamard变换
-
-LSA使用**归一化**的Hadamard变换：
-
-$$\hat{q} = \frac{1}{\sqrt{n}} H_n q$$
-
-归一化确保变换保持向量范数不变：$\|\hat{q}\| = \|q\|$。
-
-#### 3.4.3 替代Softmax Normalization
-
-标准attention使用softmax normalization：
-
-$$\alpha_i = \frac{\exp(q \cdot k_i / \tau)}{\sum_j \exp(q \cdot k_j / \tau)}$$
-
-LSA使用Hadamard + sigmoid替代：
-
-$$I = \sigma(\text{ReLU}(\hat{q} \cdot k^T))$$
-
-**优势**：
-1. **计算高效**：Hadamard变换可通过FFT加速（$O(n \log n)$）
-2. **数值稳定**：无需处理exp的overflow/underflow
-3. **可解释性**：Sigmoid输出直接为[0,1]分数，无需softmax的归一化
-
-> **为什么Hadamard能替代softmax？**
->
-> Hadamard变换是一种"离散傅里叶变换"，它将query映射到Walsh函数基。这个变换后的空间中，query-key相似度计算更"稳定"——不同keys的scores差异更明显，sigmoid的阈值决策更可靠。
-
-### 3.5 类比理解：高速公路智能收费站
-
-> **LSA = 高速公路的智能收费站系统**
->
-> **传统Dense Attention**：
-> - 所有车辆（KV chunks）都在高速公路上行驶
-> - 每个收费站（query）都要检查所有车辆
-> - 无论车辆是否真的会继续长途，都必须占用道路空间
-> - 结果：拥堵（内存爆炸）
->
-> **LSA的智能管理**：
-> - **Memory Indexer** = 智能识别系统，通过车辆目的地、行驶历史预测哪些会继续长途
-> - **τ=64** = 每64辆车触发一次评估，动态调整管理策略
-> - **Keep_mask** = 专属通道标记，只有预测会长途的车辆保留在内侧快车道
-> - **Ensemble** = 多个预测员（不同层）投票，任一判定长途则保留（Union模式）
-> - **Hadamard变换** = 高效的车辆分类算法，快速识别长途vs短途
-> - **结果**：内侧快车道始终保持畅通（内存高效），长途车辆无干扰（精度保持）
-
-**关键对应关系**：
-- 高速公路 = GPU内存
-- 车辆 = KV chunks
-- 收费站 = Query token
-- 智能识别系统 = Memory Indexer
-- 专属通道 = Keep mask
-- 内侧快车道 = Retained chunks
-- 外侧慢车道 = Offloaded chunks
-
-**核心洞察**：就像高速公路不需要让所有车辆都占用内侧车道，LLM不需要让所有KV chunks都占用GPU内存。智能预测 + 动态管理 = 畅通无阻。
-
----
+> **LSA = 高速公路智能收费站**：传统Attention让所有车辆（KV chunks）占用全程车道，拥堵不堪。LSA用Memory Indexer预测哪些车会长途，仅放行长途车占用内侧快车道，短途车分流外侧。τ=64定期重评，Ensemble多层投票。**核心**：GPU内存无需存全量KV，智能预测+动态管理=畅通无阻.
 ## Ch4: 训练方法学：Backbone-Free 解耦训练
 
 ### 4.1 核心挑战：如何训练indexer而不加载主干模型？
@@ -601,39 +480,34 @@ $$
 
 > **类比理解：** Cross-layer majority voting 就像"三位评委打分取多数"——不是单凭一位评委的判断，而是综合三位评委的意见，只有至少两位评委都认为"这个 chunk 重要"时，才最终标记为正样本。这能有效减少单层 attention 的噪声（某层可能"误判"某个不重要 chunk 为重要），就像人类评审中通过"多评委制"来提高决策的可靠性。
 
-### 4.3 损失函数设计
+### 4.3 损失函数设计（论文Eq 12-15）
 
-Indexer 的训练目标是一个二分类问题：给定查询 $q$ 和 candidate chunk $k$，预测该 chunk 是否应该被保留（正样本）或丢弃（负样本）。
+Indexer 训练为二分类：给定query $q$ 和 candidate chunk $k$，预测是否保留（$y\in\{0,1\}$）。
 
-本文使用的损失函数是 **Binary Cross-Entropy (BCE) + Focal Loss** 的组合：
+损失函数：**Focal Loss**（γ=2），无单独α系数，类别不平衡由**3:1负采样**+**样本级权重$w_{t,s}$**联合处理。
 
-$$
-\mathcal{L} = -\sum_{i=1}^{N} \left[ y_i \log(p_i) + (1-y_i) \log(1-p_i) \right] + \lambda \sum_{i=1}^{N} (1-y_i) (1-p_i)^\gamma \log(p_i)
-$$
+Per-sample Focal Loss（论文Eq 15）：
+
+$$\mathcal{L}_{\text{FL}} = \frac{1}{|\mathcal{S}|} \sum_{s \in \mathcal{S}} w_{t,s} \bigl(1 - p_{t,s}^{\text{(correct)}}\bigr)^\gamma \ell_{\text{BCE}}(I_{t,s}, y_{t,s})$$
 
 其中：
-- $y_i \in \{0, 1\}$ 是 ground truth label（1=保留，0=丢弃）
-- $p_i = \sigma(\text{score}(q_i, k_i))$ 是 predicted probability
-- $\gamma$ 是 Focal Loss 的 focusing parameter（通常 $\gamma=2$）
-- $\lambda$ 是 Focal Loss 的权重系数
+- $p_{t,s}^{\text{(correct)}} = p_{t,s} \cdot y_{t,s} + (1-p_{t,s}) \cdot (1-y_{t,s})$ （正确类别置信度）
+- $\ell_{\text{BCE}}$ = 标准BCE
+- $\gamma=2$ = focusing parameter
+- $w_{t,s}$ = `--weighted-loss`调度器计算的样本权重
+- **负采样比 3:1**（每正样本采3个负样本）
 
-#### 为什么需要 Focal Loss？
-
-Focal Loss 的核心动机是处理**极度不平衡的正负样本分布**。在 LSA 的训练数据中，大部分 chunks 都是负样本（不需要保留），只有少数 chunks 是正样本（需要保留）。如果使用标准 BCE，模型会轻易学会"总是预测负样本"，因为这样能在所有负样本上获得接近 0 的 loss，而在少数正样本上的错误预测对总 loss 影响很小。
-
-Focal Loss 通过给难分样本（通常是正样本）更高的权重，迫使模型专注于学习"哪些 chunks 真的很重要"，而不是简单地"全部丢弃"。
-
-> **类比理解：** Focal Loss 就像"考试中的重点题目加权"——如果一个考试有100道题，其中95道是简单题（负样本），5道是难题（正样本），标准 BCE 会让学生学会"放弃难题，只做简单题"也能拿到高分。Focal Loss 则给难题（正样本）更高的权重，学生必须认真对待这些难题才能通过考试。这确保了模型不会"偷懒"，而是真正学习有用的模式。
+**被排除的技巧**（500-run sweep验证无效/有害）：
+- Pairwise-to-Pointwise Chaining（BPR/Margin Loss预训练）
+- Strong Negative Mining（LLM标注硬负样本引入噪声）
+- Weighted Loss Functions（按原生层匹配计数加权，虽提precision但损recall）
 
 #### 只训练 Query Projection Matrices
 
-在 backbone-free 训练中，**只有 query projection matrices (W_DQ, W_IUQ, W_w) 被训练**，而预计算的 key representations (KIComp) 保持 frozen。
+仅优化 $W^{DQ}, W^{IUQ}, W^w$（<0.1%参数量），$K^{\text{IComp}}$ **完全冻结**：
 
-原因有二：
-1. **计算效率**：预计算的 key representations 来自 DeepSeek-V4 的真实 hidden states，已经包含了 backbone 的语义信息。如果允许更新，需要重新计算所有 keys，成本极高。
-2. **稳定性**：frozen keys 提供了稳定的"检索目标"，query projections 只需要学习"如何向这些 keys 提问"，而不是学习"keys 应该长什么样"。
-
-> **类比理解：** 只训练 query projections 就像"固定图书馆书目，训练检索员"——图书馆的书（keys）已经分类上架，不变动。你只需要训练检索员（query projections）学会：当读者提出查询时，如何从固定的书架中找到相关书籍。如果让书架也不断变动，检索员永远无法形成稳定的检索模式。
+1. **计算效率**：Keys来自DS-V4真实hidden states，更新需重新计算所有keys
+2. **稳定性**：Frozen keys提供稳定检索目标，query只学"如何提问"
 
 ### 4.4 训练效率
 
@@ -696,65 +570,45 @@ Backbone-free 解耦训练的最大优势是**训练效率极高**：
 >
 > 实验的目标是验证：精准打包（FM-DS-V4）是否优于盲目打包（full）或随意打包（recency/random）。
 
-### 5.2 主实验结果
+### 5.2 主实验结果（论文Table 1）
 
-下表总结了 FM-DS-V4 在三个 benchmark 上的表现：
+| Benchmark / Dataset | DS-V4-Flash | FM-DS-V4 (Ours) | Recency Only | Random 10% |
+|---------------------|-------------|-----------------|--------------|------------|
+| LongBench-v2-S (46K) | 68.9 (0.17 GB) | **70.2 (0.04 GB)** | 50.0 (0.03 GB) | 53.3 (0.04 GB) |
+| LongBench-v2-M (179K) | 67.6 (0.65 GB) | **68.9 (0.08 GB)** | 54.4 (0.03 GB) | 48.9 (0.09 GB) |
+| LongBench-v2-L (493K) | 68.1 (1.80 GB) | **70.0 (0.18 GB)** | 54.3 (0.04 GB) | 46.9 (0.22 GB) |
+| LongMemEval-S (125K) | 80.6 (0.46 GB) | **82.0 (0.06 GB)** | 19.2 (0.04 GB) | 20.1 (0.07 GB) |
+| LongMemEval-M (500K) | 39.3 (1.82 GB) | **40.2 (0.17 GB)** | 23.1 (0.04 GB) | 25.7 (0.22 GB) |
+| RULER (64K) | 94.7 (0.23 GB) | **95.0 (0.04 GB)** | 36.6 (0.03 GB) | 52.8 (0.05 GB) |
+| RULER (128K) | 94.3 (0.47 GB) | **93.2 (0.06 GB)** | 21.6 (0.03 GB) | 32.3 (0.08 GB) |
+| RULER (256K) | 90.5 (0.94 GB) | **88.2 (0.09 GB)** | 20.6 (0.04 GB) | 41.2 (0.12 GB) |
+| RULER (512K) | 88.3 (1.87 GB) | **89.6 (0.18 GB)** | 18.8 (0.04 GB) | 27.2 (0.22 GB) |
+| **Avg.** | **76.9 (0.93 GB)** | **77.5 (0.10 GB)** | 33.3 (0.04 GB) | 38.7 (0.12 GB) |
 
-| Configuration | LongBench-v2-L (493K) | LongMemEval-M (500K) | RULER (512K) |
-|---------------|------------------------|----------------------|--------------|
-| DS-V4-Flash (Full) | 68.1 (7.52 GB) | 39.3 (7.61 GB) | 88.3 (7.79 GB) |
-| **FM-DS-V4 (Ours)** | **70.0 (0.74 GB)** | **40.2 (0.70 GB)** | **89.6 (0.77 GB)** |
-| Recency Only | 54.3 (0.19 GB) | 23.1 (0.19 GB) | 18.8 (0.19 GB) |
-| Random 10% | 46.9 (0.93 GB) | 25.7 (0.93 GB) | 27.2 (0.95 GB) |
-
-**表格解读**：
-- 第一列是模型配置
-- 每个 benchmark 的两个数字分别是：准确率 (%) 和 GPU 内存使用 (GB)
-- DS-V4-Flash 是 full-attention baseline，保留所有 KV chunks
-- FM-DS-V4 是本文方法，使用 LSA 稀疏化 KV cache
-- Recency Only 只保留最近的 tokens
-- Random 10% 随机保留 10% chunks
+> **关键修正**：Baseline内存为**~1.8 GB**（非7.5 GB），因DS-V4-Flash已含HCA 128:1压缩。FM-DS-V4压缩至**~0.17 GB（~9.5%）**，平均**13.5%**（含短上下文）。
 
 #### 关键发现
 
-**Finding 1: FM-DS-V4 在所有 benchmark 上保持或超越 full-attention 基线**
+**Finding 1: FM-DS-V4 平均精度 +0.6%（76.9% → 77.5%），长上下文任务提升更大**
 
-- LongBench-v2-L: 70.0 vs 68.1 (**+1.9 points, +2.8%**)
-- LongMemEval-M: 40.2 vs 39.3 (**+0.9 points, +2.3%**)
-- RULER: 89.6 vs 88.3 (**+1.3 points, +1.5%**)
+- LongBench-v2-L (493K): **+1.9 points** (70.0 vs 68.1)
+- LongMemEval-M (500K): **+0.9 points** (40.2 vs 39.3)
+- RULER (512K): **+1.3 points** (89.6 vs 88.3)
+- 短上下文(RULER 64K/128K)基本持平或微降（-0.3~-1.1 points）
 
-平均提升：**+1.4 points, +2.2%**（自行计算，取三 benchmark 平均差值）
+> **核心假设验证**：LSA作为**attention denoiser**，过滤无关历史chunks，长上下文任务受益最大。
 
-> **类比理解：** "Less is More"（少即是多）——FlashMemory 不是"牺牲精度换效率"，而是"通过去除噪声来提升精度"。就像摄影师通过裁剪掉画面边缘的干扰元素，反而让主体更突出。FM-DS-V4 丢弃的 KV chunks 不是"有用信息"，而是"噪声chunks"，去除后模型的注意力更加集中。
+**Finding 2: GPU内存从 0.93 GB 降至 0.10 GB（平均86.5%减少），500K达90%+**
 
-**Finding 2: GPU 内存从 7.5+ GB 降至 0.70-0.77 GB (~90% 减少)**
+- LongBench-v2-L: 0.18 GB vs 1.80 GB (**-90.0%**)
+- LongMemEval-M: 0.17 GB vs 1.82 GB (**-90.7%**)
+- RULER 512K: 0.18 GB vs 1.87 GB (**-90.4%**)
 
-- LongBench-v2-L: 0.74 GB vs 7.52 GB (**-6.78 GB, -90.2%**)
-- LongMemEval-M: 0.70 GB vs 7.61 GB (**-6.91 GB, -90.8%**)
-- RULER: 0.77 GB vs 7.79 GB (**-7.02 GB, -90.1%**)
+**Finding 3: Recency Only / Random 10% 全面崩溃 → 证明智能稀疏化必要性**
 
-平均 KV cache 压缩率：**13.5% of full-attention baseline**
-
-> **类比理解：** 这就像将一个 100GB 的硬盘压缩到 13.5GB，而且文件内容（模型精度）反而更好了。FlashMemory 实现了"真正的无损压缩"——不仅节省空间，还提升了质量。
-
-**Finding 3: Recency Only / Random 10% 严重退化 → 证明 LSA 的预测质量**
-
-- Recency Only 在所有 benchmark 上全面崩溃：
-  - LongBench-v2-L: 54.3 vs 68.1 (baseline) → **-13.8 points, -20.3%**
-  - LongMemEval-M: 23.1 vs 39.3 → **-16.2 points, -41.2%**
-  - RULER: 18.8 vs 88.3 → **-69.5 points, -78.7%**
-
-- Random 10% 同样大幅退化：
-  - LongBench-v2-L: 46.9 vs 68.1 → **-21.2 points, -31.1%**
-  - LongMemEval-M: 25.7 vs 39.3 → **-13.6 points, -34.6%**
-  - RULER: 27.2 vs 88.3 → **-61.1 points, -69.2%**
-
-> **类比理解：** Recency Only 和 Random 10% 的失败证明了"选择性保留"必须是**智能的**，而非盲目的。就像旅行打包：
-> - Recency Only = 只带最近买的东西（可能完全不适合目的地）
-> - Random 10% = 闭眼随机抓 10% 物品（肯定漏掉必需品）
-> - FM-DS-V4 = 根据目的地需求精准打包（既轻便又齐全）
->
-> 只有理解"任务需求"的智能选择才能在大幅压缩的同时保持性能。
+- Recency Only在RULER 512K仅 **18.8%**（baseline 88.3%，**-69.5 points**）
+- Random 10%同理大幅退化
+- 证明：稀疏化必须**query-aware**，非启发式/随机
 
 ### 5.3 消融分析
 
@@ -790,21 +644,21 @@ Random 10% 在所有 benchmark 上都显著低于 full-attention，说明**并�
 
 **Conclusion 1: LSA 实现了真正的"Less is More"**
 
-FM-DS-V4 不仅将 KV cache 压缩至 13.5%，还将精度平均提升 +1.4 points（三 benchmark 平均差值）。这证明：**Full-attention 的 KV cache 中包含大量噪声chunks，去除后反而提升性能**。
+FM-DS-V4 将 KV cache 压缩至平均 **13.5%**（500K达~9.5%），平均精度 **+0.6%**（76.9% → 77.5%），长上下文任务提升达 **+1.9 points**。证明：**Full-attention KV cache含大量噪声，去除反而提升性能**。
 
-> **类比理解：** 这就像"编辑优化文档"——初稿（full-attention）包含大量冗余句子、重复观点、无关细节。编辑（LSA）删除这些噪声后，文章不仅变短了（13.5%），而且观点更清晰、论证更有力（+2.2% 精度）。
+> **类比理解：** 就像"编辑优化文档"——初稿含冗余/噪声，编辑删减后文章更短（13.5%）且观点更清晰（+0.6%精度）。
 
 **Conclusion 2: 智能稀疏化远优于盲目压缩**
 
-Recency Only 和 Random 10% 的失败证明了：**稀疏化必须是查询感知的（query-aware）**，而非基于简单启发式（如时间距离、随机采样）。
+Recency Only / Random 10% 全面崩溃证明：**稀疏化必须query-aware**，非启发式/随机。
 
-> **类比理解：** 智能稀疏化就像"个性化推荐系统"——它根据你的当前查询（"我想看科幻电影"）推荐相关内容（"星际穿越"），而不是给你推荐"最近上映的电影"（可能与你无关）或"随机 10% 的电影库"（完全无针对性）。
+> **类比理解：** 智能稀疏化像"个性化推荐"——按当前查询推荐相关内容，而非"最近上映"或"随机10%"。
 
-**Conclusion 3: 超长上下文场景下的内存瓶颈已被解决**
+**Conclusion 3: 超长上下文内存瓶颈已被突破**
 
-FM-DS-V4 在 500K 上下文中仅使用 0.70-0.77 GB GPU 内存，相比 full-attention 的 7.5+ GB 减少 90%+。这使得**在单张消费级 GPU 上推理 500K 上下文成为可能**。
+FM-DS-V4 在 500K 上下文仅用 **~0.17 GB**（baseline ~1.8 GB，**~9.5%**，减少90%+）。单张 H20 即可推理 500K 上下文。
 
-> **类比理解：** 这就像将"需要服务器机房才能运行的大型模型"压缩到"可以在个人电脑上运行"。FM-DS-V4 让长上下文 LLM 从"科研奢侈品"变为"实用工具"——任何拥有一张 H20 GPU 的开发者都可以推理 500K 上下文。
+> **类比理解：** 将"需服务器机房的大模型"压缩到"个人GPU可跑"。长上下文 LLM 从"科研奢侈品"变"实用工具"。
 
 ---
 
@@ -832,67 +686,54 @@ FlashMemory-DeepSeek-V4 的官方代码仓库位于：`https://github.com/libert
 
 ### 6.2 核心推理流程
 
-以下代码从 `toy_flashmemory_inference.py` 中提取，展示了 FlashMemory 的核心推理控制流：
+以下代码从 `toy_flashmemory_inference.py` 中提取，展示了 FlashMemory 的核心推理控制流（已修正以匹配论文Eq 1-6）：
 
 ```python
-# 架构参数（从代码中提取）
+# 架构参数（论文+代码）
 N_HEADS = 128
 HEAD_DIM = 128
-Q_LORA_RANK = 2048
-CHUNK_SIZE = 64
-N_CHUNKS = 128  # 128 chunks * 64 tokens/chunk = 8192 tokens
+Q_LORA_RANK = 2048  # d_c = 2048 (low-rank bottleneck)
+CHUNK_SIZE = 64     # τ = 64
+N_CHUNKS = 128      # 128 chunks * 64 tokens = 8192 tokens (demo规模)
 
-# RoPE (YaRN) 配置
-ROPE_DIM = 64  # 最后 64 维用于 RoPE
-ROPE_BASE = 160000
-ROPE_FACTOR = 16
+# Prefill: 标准dense attention生成压缩KV cache
+kv_cache = model.prefill(prompts)  # [N_CHUNKS, N_HEADS, HEAD_DIM] (fp8 compressed)
 
-# Prefill 阶段：生成 compressed KV cache
-kv_cache = model.prefill(prompts)  # shape: [N_CHUNKS, N_HEADS, HEAD_DIM]
-
-# Decode 阶段：带 periodic indexer 的解码循环
+# Decode: 周期性indexer触发
 for step in range(max_decode_steps):
-    # 每 τ=64 tokens 触发一次 indexer
-    if step % CHUNK_SIZE == 0:
-        # 1. 从当前解码状态提取 query
-        current_query = model.get_query()  # shape: [N_HEADS, HEAD_DIM]
+    if step % CHUNK_SIZE == 0:  # τ=64触发indexer
+        # 1. 当前hidden state
+        h_t = model.get_hidden_state()  # [d]
         
-        # 2. Indexer 评分所有 chunks
-        scores = indexer.score(current_query, kv_cache)  # shape: [N_CHUNKS]
+        # 2. Query编码 (论文Eq 1-3)
+        c_t_Q = h_t @ W_DQ              # d → d_c (2048)
+        q_t = c_t_Q @ W_IUQ             # d_c → n_h * head_dim
+        q_t = q_t.reshape(N_HEADS, HEAD_DIM)
+        w_t = h_t @ W_w                 # d → n_h (动态路由权重)
         
-        # 3. Sigmoid + 阈值筛选
-        probs = torch.sigmoid(scores)
-        selected_chunks = (probs > 0.5).float()
+        # 3. Indexer评分所有chunks (论文Eq 4)
+        # K_IComp: 预计算冻结的压缩索引键 [N_CHUNKS, N_HEADS, HEAD_DIM]
+        scores = sigmoid(sum(w_t[h] * relu(q_t[h] @ K_IComp[h].T) for h in range(N_HEADS)))
         
-        # 4. Sparse attention：仅对选中的 chunks 计算 attention
-        sparse_kv = kv_cache[selected_chunks.bool()]
-        attention_output = model.sparse_attention(current_query, sparse_kv)
+        # 4. Threshold决策 (论文Eq 5)
+        keep_mask = (scores >= 0.5)
+        C_t_MemComp = kv_cache[keep_mask]  # 仅保留关键chunks
+        
+        # 5. Native Lightning Indexer在C_t_MemComp上做Top-k (论文Eq 6)
+        attention_output = model.native_indexer_attention(q_t, C_t_MemComp)
     else:
-        # 非 indexer 触发步：正常解码
-        attention_output = model.attention(current_query, kv_cache)
+        attention_output = model.attention(model.get_query(), kv_cache)
     
-    # 生成下一个 token
     next_token = model.generate(attention_output)
 ```
 
-> **类比理解：** 这段代码的控制流就像"定期体检的旅行者"：
-> - 平时走路（正常解码步）：直接走，不检查行李
-> - 每 64 步停下来（periodic indexer）：检查当前行李，判断接下来需要哪些物品
-> - 根据检查结果轻装上阵（sparse attention）：只带上必需的物品继续走
+#### 关键架构参数解读（论文+代码对照）
 
-#### 关键架构参数解读
-
-- **N_HEADS=128, HEAD_DIM=128**：DeepSeek-V4 的 attention head 配置
-- **Q_LORA_RANK=2048**：Query projection 的低秩维度，用于降低训练难度
-- **CHUNK_SIZE=64**：每个 chunk 包含 64 tokens（检索间隔）
-- **N_CHUNKS=128**：128 chunks × 64 tokens = 8192 tokens 上下文
-
-> **类比理解：** 这些参数就像"物流系统的配置"：
-> - N_HEADS=128：128 条并行的"处理流水线"
-> - HEAD_DIM=128：每条流水线的"处理深度"（128 维向量空间）
-> - Q_LORA_RANK=2048：查询压缩的"中间缓存大小"
-> - CHUNK_SIZE=64：每个"运输箱"装 64 个货物（tokens）
-> - N_CHUNKS=128：总共 128 个箱子（8192 货物）
+- **N_HEADS=128, HEAD_DIM=128**：DeepSeek-V4 attention head配置
+- **Q_LORA_RANK=2048 (d_c)**：Low-rank bottleneck维度，**架构固有**非PEFT式LoRA
+- **CHUNK_SIZE=64 (τ)**：检索间隔，每64 tokens触发indexer
+- **N_CHUNKS=128**：Demo规模8192 tokens；生产环境按上下文长度动态
+- **无RoPE、无RMSNorm、无Hadamard**（原文未提及，代码中也无）
 
 ### 6.3 压缩 KV 格式
 
@@ -1068,29 +909,30 @@ Backbone-free 训练虽然高效，但 frozen keys 限制了检索质量。未�
 
 ### 7.4 延伸阅读
 
-#### 核心论文
+#### 核心论文（论文References节）
 
-1. **DeepSeek-V4 Technical Report**
-   - arXiv:（根据论文引用，应该在 arXiv 上有技术报告）
+1. **DeepSeek-V4 Technical Report** (deepseekv4)
    - HuggingFace: `deepseek-ai/DeepSeek-V4-Flash`
-   - 重点：DeepSeek-V4 的 CSA 架构、MoE 设计、压缩策略
+   - 重点：CSA架构、MoE设计、HCA压缩策略、Lightning Indexer
 
 2. **StreamingLLM** (Xiao et al., 2023)
-   - 核心思想：保留"attention sink" tokens（如初始的几个 tokens）来稳定注意力分布
-   - 与 FlashMemory 的区别：StreamingLLM 是启发式方法（固定保留 sinks），FlashMemory 是学习型方法（预测哪些 chunks 重要）
+   - 核心思想：保留"attention sink" tokens稳定注意力
+   - 区别：启发式固定保留 vs FlashMemory学习型预测
 
 3. **H2O: Heavy-Hitter Oracle** (Zhang et al., 2023)
-   - 核心思想：通过统计 attention scores 来识别"heavy hitters"（高注意力 chunks），只保留这些
-   - 与 FlashMemory 的区别：H2O 是离线统计（需要先看完整数据），FlashMemory 是在线预测（实时预测）
+   - 核心思想：统计attention scores识别heavy hitters
+   - 区别：离线统计需完整数据 vs FlashMemory在线预测
 
 4. **Quest: Query-Aware Sparsity** (Tang et al., 2024)
-   - 核心思想：根据查询动态调整 attention 稀疏性
-   - 与 FlashMemory 的相似性：都是 query-aware 的稀疏化策略
-   - 区别：Quest 可能侧重于 attention 矩阵的稀疏化，FlashMemory 侧重于 KV cache 的稀疏化
+   - 相似性：query-aware稀疏化
+   - 区别：侧重attention矩阵稀疏化 vs FlashMemory侧重KV cache稀疏化
 
 5. **InfLLM** (Xiao et al., 2024)
-   - 核心思想：通过分块和索引来处理超长上下文
-   - 与 FlashMemory 的关系：可能是同时期的工作，都关注长上下文的效率问题
+   - 核心思想：分块+索引处理超长上下文
+   - 关系：同时期工作，同关注长上下文效率
+
+6. **MRCR** (vodrahalli et al., 2024) - Michelangelo benchmark
+   - FlashMemory严重退化案例（48% vs 76%）
 
 #### 相关技术
 
