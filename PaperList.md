@@ -38,5 +38,6 @@
 | 2606.09079 | FlashMemory-DeepSeek-V4: Lightning Index Ultra-Long Context via Lookahead Sparse Attention | Yan Wang, Qifan Zhang et al. (Tencent) | [Papers](Papers/2026/06/2026-06-12-flashmemory-deepseek-v4.md) |
 | 2606.09659 | Latent Context Language Models (LCLMs): End-to-End Context Compression at Scale | Ang Li, Sean McLeish et al. (NYU, Modal, Meta FAIR) | [DeepReadings](DeepReadings/2026-06-11-lclm-end-to-end-context-compression.md) |
 | 2606.09828 | Latent Spatial Memory for Video World Models (Mirage) | Weijie Wang, Haoyu Zhao et al. (Microsoft Research, ZJU) | [Papers](Papers/2026/06/2026-06-11-latent-spatial-memory-video-world-models.md) |
+| 2606.13473 | MaxProof: Scaling Mathematical Proof with Generative-Verifier RL and Population-Level Test-Time Scaling | Jiacheng Chen, Xinyu Zhang, Shunkai Zhang et al. (MiniMax, CUHK, Fudan, Peking, Tsinghua) | [Papers](Papers/2026/06/2026-06-14-maxproof.md) |
 | 2606.13673 | SpatialClaw: Rethinking Action Interface for Agentic Spatial Reasoning | Seokju Cho et al. (NVIDIA/KAIST) | [Papers](Papers/2026/06/2026-06-13-spatialclaw.md) |
 | HF: deepseek-ai/DeepSeek-V4-Flash | DeepSeek-V4 Technical Report: Towards Million-Token Efficient Context for Agent AI | DeepSeek Team | [DeepReadings](DeepReadings/2026-05-06-deepseek-v4-technical-report.md) |
