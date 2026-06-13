@@ -58,3 +58,17 @@ pnpm-lock.yaml
 
 # Shell 
 *.sh
+
+# Obsidian
+.obsidian/
+
+# Other
+*.sqlite3
+
+# Generated files
+*.pyc
+*.pyo
+*.pyd
+
+# Claude
+.claude

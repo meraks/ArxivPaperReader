@@ -84,11 +84,6 @@ $$ \text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right
 | Gated Linear RNN（如 RWKV, RetNet） | $O(L)$ | 推理需序列化（无法用 KV cache 加速）；Mamba 论文 Section 2.1 也将 RWKV 归为 Linear Attention / Linear RNN 系列 |
 | 传统 SSM (S4) | $O(L)$ | 参数固定，无法进行**内容感知推理** |
 
-> **类比理解**:
-> - **Linear Attention**: 像是只看关键词的快速阅读，可能会漏掉隐含关系
-> - **Gated Linear RNN (RWKV 等)**: 像是排队办事，必须一个接一个，不能并行
-> - **传统 SSM**: 像是固定的做事规则，不管具体情况如何都用同一套流程
-
 ### 2.3 内容感知推理的重要性
 
 **核心问题**: 现有的线性时间架构（如 S4）是**线性时不变 (LTI)** 系统，参数 $(\Delta, A, B, C)$ 都固定，无法根据输入动态调整行为。
@@ -125,16 +120,6 @@ $$
 
 **注意**：$\mathbf{D}$ 项（直连 / skip connection）**不在论文 Eq. 1 中**，而是作为 SSM 输出的一个**额外加性项**：最终输出 $y(t) = \mathbf{C}\,h(t) + D\,x(t)$。D 是一维标量（单通道）或每通道一个标量（多通道）。代码实现里 $\mathbf{D}$ 是一个 $(d_{\text{inner}},)$ 的 Parameter 向量。
 
-> **类比理解**:
-> 想象一个蓄水池系统：
-> - $h(t)$ 是水位（状态）
-> - $x(t)$ 是进水量（输入）
-> - $y(t)$ 是出水量（输出）
-> - $\mathbf{A}$ 控制水的蒸发/渗漏（状态转移）
-> - $\mathbf{B}$ 控制进水对水位的影响
-> - $\mathbf{C}$ 控制水位如何影响出水量
-> - $\mathbf{D}$ 是"短路管道"——让一部分进水直接流向出水，不经过蓄水池（skip connection）
-
 ### 3.2 离散化 (Discretization)
 
 为了在离散数据（如文本）上应用 SSM，需要将连续模型离散化。论文采用**零阶保持 (Zero-Order Hold, ZOH)** 方法：
@@ -170,9 +155,6 @@ h_t = A_bar @ h_{t-1} + B_bar * x_t
 y_t = C @ h_t + D * x_t
 ```
 
-> **类比理解**:
-> 离散化就像把连续的视频转换成帧（图片）。步长 $\Delta$ 是帧率，$\Delta$ 越小，采样越密集，但计算量越大。
-
 ### 3.3 卷积模式
 
 通过展开递推公式，可以将其表示为**卷积**操作：
@@ -203,9 +185,6 @@ $$\Delta_t = \Delta,\quad \mathbf{A}_t = \mathbf{A},\quad \mathbf{B}_t = \mathbf
 - 由于 $\mathbf{A}$ 对角，$\bar{\mathbf{A}}^k h$ 退化为逐元素乘法，递推 $h_t = \bar{\mathbf{A}} h_{t-1} + \bar{\mathbf{B}} x_t$ 复杂度 $O(N)$ 而非 $O(N^2)$
 
 **参数数量**: 传统 S4D 参数量为 $O(N \cdot d)$（$\mathbf{A}$ 对角所以只算 $N$ 个值 / 通道），相比完整 S4 的 $O(N^2 d)$ 大幅减少。
-
-> **类比理解**:
-> LTI 系统就像是预设好的固定规则程序，不管输入什么，都用同一套处理流程。S4D 是其中一种高效的实现方式，就像把规则库从"全连接表"优化为"按索引查表"，大幅减少存储和查询开销。
 
 ---
 
@@ -240,9 +219,6 @@ y_t &= C_t h_t + D x_t
 $$
 
 > **简化形式**：实际 Mamba 代码采用简化近似 $\bar{B}_t \approx \Delta_t B_t$（在 $\Delta_t$ 较小时误差很小），并把 $h_t = \bar{A}_t h_{t-1} + \Delta_t B_t x_t$ 直接实现，避免矩阵求逆。
-
-> **类比理解**:
-> 传统 S4 像是固定路线的公交车，不管谁上车、去哪里，都按预定路线行驶。Mamba 像是智能导航系统，根据目的地（输入内容）实时调整路线。
 
 ### 4.2 参数解释
 
@@ -292,10 +268,6 @@ $$ \Delta_t = \text{softplus}\!\left(\text{Parameter} + \text{Broadcast}_D(\text
 **结果**:
 - Mamba 能够学习这种模式
 - 展现了与 Transformer Induction Heads 类似的行为
-
-> **类比理解**:
-> - **Copying Task**: 像是在一篇文章中找到并复制特定关键词
-> - **Induction Heads**: 像是理解模式 "找规律" 游戏，看到 A→B 后，再看到 A 就预期 B
 
 ### 4.4 定理 1：与 RNN 门控的联系（论文 Theorem 1 / Section 3.5.1）
 
@@ -426,11 +398,6 @@ y = fused_mamba_block(x)
 
 > **更正说明**：上一版文档"Mamba with Recomputation 内存 O(1)"是错误的。Selective Scan 仍需存储输入 $\Delta, A, B, C, x$（总 $O(BLD)$）以备反向重算，内存下界就是 $O(L)$，与 FlashAttention 相同。
 
-> **类比理解**:
-> - **Standard Attention**: 像是做全连接网状计算，每两两节点都要计算关系
-> - **FlashAttention**: 优化存储方式，但计算量不变
-> - **Mamba**: 改变计算结构，用"链式"计算替代"网状"计算，同时用重计算优化内存
-
 ---
 
 ## 6. 核心创新三：简化架构设计
@@ -498,9 +465,6 @@ Output ∈ R^{B×L×D}
 | `D` | $(d_{\text{inner}},)$ | $d_{\text{inner}}$ | 跳跃连接 |
 
 **参数量**（忽略小项）：主体线性层 ≈ $4d^2 + 2d^2 = 6d^2$，与论文 "3ED² for E=2 = 6D²" 一致。SSM 内部（x_proj、dt_proj、A_log）参数量与 $N$（典型 16）、dt_rank（典型 ~d/16）相关，远小于 $6d^2$ 的主体部分。
-
-> **类比理解**:
-> 扩展因子 $E=2$ 就像是在处理信息时，先把信息"扩容"两倍进行处理，处理完成后再压缩回原大小。这给模型更多的"思考空间"。
 
 ### 6.4 激活函数
 
@@ -595,9 +559,6 @@ $$ \text{SiLU}(x) = x \cdot \sigma(x) $$
 - 训练时间随序列长度**线性增长**（$O(L)$）
 - 推理时内存使用**恒定**（state 固定大小，无需 KV cache）
 
-> **类比理解**:
-> Transformer 像是"以空间换时间"，需要存储所有历史信息才能处理新输入。Mamba 像是"以时间换空间"，用递推方式逐步更新状态，无需存储完整历史。
-
 ---
 
 # PART 2 - 代码详细说明
@@ -637,9 +598,6 @@ self.in_proj = nn.Linear(d_model, d_inner * 2, bias=False)
 - 第一部分用于 SSM 计算
 - 第二部分用于门控 (gating)
 
-> **类比理解**:
-`in_proj` 就像是信息的"分流器"，把输入信息分成两条处理路径，一条进行状态更新，一条用于门控控制。
-
 #### 1.2.2 conv1d (Depthwise Convolution)
 
 **作用**: 局部特征提取，模拟 Transformer 的位置感知
@@ -664,9 +622,6 @@ self.conv1d = nn.Conv1d(
 ```
 
 **关键**: depthwise conv 每个通道独立卷积，参数量为 $O(d_{inner} \times k)$ 而非 $O(d_{inner}^2 \times k)$。
-
-> **类比理解**:
-Depthwise 卷积就像是多个独立的"小窗口"，每个窗口只看自己通道的信息，互不干扰。这比全卷积更高效。
 
 #### 1.2.3 x_proj (X Projection)
 
@@ -733,9 +688,6 @@ A = -torch.exp(self.A_log.float())  # A = -exp(A_log)，确保 A < 0
 
 > **更正**：上一版文档说 A_log shape 是 `(d_state,)`，与下文初始化代码（`d_inner × d_state`）自相矛盾。**正确形状是 `(d_inner, d_state)`**。
 
-> **类比理解**:
-`A_log` 存储的是"遗忘率"取对数再取负。指数化后取负，得到实际遗忘率（恒为正），乘 $-1$ 后得到 $A$（恒为负）。负的 $A$ 意味着状态随时间衰减，与"遗忘"的物理直觉一致。
-
 #### 1.2.6 D (Skip Connection)
 
 **作用**: 跳跃连接，类似 ResNet 的残差
@@ -749,9 +701,6 @@ self.D = nn.Parameter(torch.ones(d_inner))
 ```
 
 **用途**: 输出公式中的 $D x_t$ 项，允许信息直接传递。
-
-> **类比理解**:
-`D` 就像是"快车道"，允许信息不经过状态处理直接传递到输出。
 
 #### 1.2.7 out_proj (Output Projection)
 
@@ -1018,9 +967,6 @@ __global__ void selective_scan_kernel(
 | PyTorch 自定义 scan（教学版） | 中等 | 中等 | 中等 |
 | 官方 CUDA scan | 快 | 快 | 低（with Recomputation） |
 
-> **类比理解**:
-串行实现就像单车道公路，车（计算）一辆一辆通过。并行实现就像多车道高速路，车可以同时通过。CUDA 实现则是专门为这种交通设计的"超高速路"。
-
 ---
 
 ## 4. 自回归推理 (Step Method)
@@ -1167,9 +1113,6 @@ def generate(mamba_model, prompt_ids, max_length):
     return generated
 ```
 
-> **类比理解**:
-推理模式就像是"实时翻译"，每来一个词就立即翻译，同时记住上下文。训练模式就像是"批量翻译"，一次性处理整篇文章。
-
 ---
 
 ## 5. dt_bias 初始化
@@ -1196,9 +1139,6 @@ Mamba 使用特殊的初始化确保 $\Delta$ 在合理范围内（论文 Sectio
 1. **稳定性**: $\Delta$ 控制状态更新率，不合适的值会导致梯度消失/爆炸
 2. **多样性**: 不同的通道可能需要不同的时间步长
 3. **收敛**: 好的初始化加速训练收敛
-
-> **类比理解**:
-$\Delta$ 初始化就像是给时钟设置"初始速度"。太快会错过重要信息，太慢会反应迟钝。初始化就是在找一个"合适的起始速度"。
 
 ### 5.4 官方实现代码
 
@@ -1265,9 +1205,6 @@ with torch.no_grad():
 - 学习 Mamba 原理
 - 快速实验
 - 无 CUDA 环境
-
-> **类比理解**:
-官方实现像是"赛车"，性能最优但复杂。简化实现像是"自行车"，简单易懂但速度慢。学习时骑自行车就够了，比赛时需要赛车。
 
 ---
 

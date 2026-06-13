@@ -22,8 +22,6 @@
 - **KV cache 压缩方法**（SnapKV, KVzip, Expected Attention 等）：Prefill 阶段仍需完整计算注意力，压缩发生在 cache 写入之后——"先全量扫描再决定扔什么"，扫描本身就很慢
 - **Encoder-decoder 压缩方法**（ICAE, AutoCompressors, LLMLingua-2）：理论上可绕开 prefill 瓶颈，但历史上因缺乏系统性架构设计和足够训练规模，从未具备竞争力
 
-> **类比理解**：KV cache 压缩像"在图书馆里先读完所有书架，然后扔一部分来腾空间"——读的过程（prefill）省不了。LCLM 像"请一位速读专家先把整本书读一遍，写一页摘要（latent tokens），然后基于摘要回答所有问题"——从源头上避免了全量阅读。
-
 ### 1.2 LCLM 核心思路
 
 **Latent Context Language Models (LCLMs)** 是一类 encoder-decoder 架构的 soft-token 压缩器：
@@ -110,8 +108,6 @@ LCLM 通过三个关键设计解决了上述所有问题：
 2. **系统性架构搜索**：消融 4 个维度（pooling × window × mask × adapter），找到最优配置
 3. **大规模训练**：每模型 350B tokens 的 4 阶段训练，含辅助重建任务
 
-> **类比理解**：传统前缀压缩像"只读摘要就做题"——后面所有内容直接丢弃。LCLM 的 interleaved 压缩像"边读边做笔记"——每读一章浓缩一章，最终既有笔记（latent）又有原始内容（text），decoder 可灵活结合两者。
-
 ---
 
 ## Ch3: LCLM 架构设计
@@ -150,8 +146,6 @@ LCLM 的核心转换流程：**长 token 序列 → 短 latent token 序列**。
 | Concatenation | 每 N 个 token 拼接 hidden states | 低 | ≈ Mean，低压缩比略优 |
 
 **关键发现**：Mean Pooling 和 Concatenation 在预训练损失上几乎无差别。低压缩比（4×）下 concat 略优（保留更多顺序信息），高压缩比（16×）下 mean 略优（更强的平滑效果）。Token-based pooling 在所有配置下都明显差于前两者。
-
-> **类比理解**：Token-based pooling 像"只保留每章最后一个词"——信息几乎全丢。Mean pooling 像"求每章的平均摘要"——保留了主要信号。Concatenation 像"把每章的关键句连起来"——保留更多细节但 token 数可能更多。
 
 #### (b) 窗口大小 W
 
@@ -207,8 +201,6 @@ Adapter 是 encoder 和 decoder 之間的维度桥梁（encoder dim → decoder 
 | **Stage 3** — SFT | All（decoder LR=3e-5） | 无 | 3e-5 | SFT mix | 在下游任务上微调 |
 
 **阶段间转换**：Pipeline 自动将分布式 checkpoint（DeepSpeed/FSDP 格式）转换为 HuggingFace 格式，无需人工干预。通过 `AUTO_RESUME=true` 自动从最新 checkpoint 恢复。
-
-> **类比理解**：这四阶段像训练一位"翻译+速读"专家——Stage 0 先学会"听"（建立 encoder 到 decoder 的沟通渠道），Stage 1 学会"读"（encoder 产出的 latent 要有信息量），Stage 2 让"读"和"写"配合优化，Stage 3 在具体任务场景中精调。
 
 ### 4.2 Interleaved 压缩（关键创新）
 
@@ -279,8 +271,6 @@ GSM8K 是衡量压缩对推理能力影响的最佳基准——每个 token 都�
 - 16× 压缩（丢弃 93.75% token）：LCLM 保留 **87% 的推理能力**；所有 KV 压缩方法**归零**
 - 4× 压缩：LCLM 仅损失 2.2pp，KVzip 损失 4.2pp
 - LCLM 在压缩效率和推理保持之间取得了 KV cache 方法无法企及的平衡
-
-> **类比理解**：KV cache 压缩 16× 的数学推理像"从数学证明中随机删除 93.75% 的步骤"——剩下的步骤很可能不连贯。LCLM 像"让数学教授先读完全题，然后用一句关键公式总结"——保留了核心推理逻辑。
 
 ### 5.3 长上下文基准
 
