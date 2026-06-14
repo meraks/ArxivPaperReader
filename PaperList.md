@@ -7,6 +7,7 @@
 | 2001.08361 | Scaling Laws for Neural Language Models | Jared Kaplan, Sam McCandlish, Tom Henighan, Tom B. Brown et al. (OpenAI) | [DeepReadings](DeepReadings/2020-01-23-scaling-laws-neural-language-models.md) |
 | 2104.09864 | RoFormer: Enhanced Transformer with Rotary Position Embedding | Jianlin Su, Yu Lu, Shengfeng Pan, Ahmed Murtadha, Bo Wen, Yunfeng Liu | [DeepReadings](DeepReadings/2021-04-20-roformer-rope.md) |
 | 2203.02155 | InstructGPT (Training language models to follow instructions with human feedback) | Long Ouyang, Jeff Wu et al. (OpenAI) | [DeepReadings](DeepReadings/2022-03-04-instructgpt.md) |
+| 2203.15556 | Training Compute-Optimal Large Language Models (Chinchilla) | Jordan Hoffmann, Sebastian Borgeaud, Arthur Mensch et al. (Google DeepMind) | [DeepReadings](DeepReadings/2022-03-29-chinchilla.md) |
 | 2205.14135 | FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness | Tri Dao, Daniel Y. Fu, Stefano Ermon, Atri Rudra, Christopher Ré | [DeepReadings](DeepReadings/2022-05-27-flashattention.md) |
 | 2303.08774 | GPT-4 Technical Report | OpenAI (280+ authors) | [DeepReadings](DeepReadings/2023-03-15-gpt-4-technical-report.md) |
 | 2305.18290 | Direct Preference Optimization (DPO) | Rafael Rafailov, Archit Sharma, Eric Mitchell, Stefano Ermon, Christopher D. Manning, Chelsea Finn | [DeepReadings](DeepReadings/2023-05-29-dpo.md) |
