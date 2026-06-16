@@ -164,6 +164,8 @@ MSA（MiniMax Sparse Attention）是基于Grouped Query Attention（GQA）的blo
 这种设计遵循Occam's Razor原则：用最少的组件改动实现最大的效果，同时充分复用现有的硬件和软件栈。MSA支持从零开始训练，也支持从已训练的GQA checkpoint进行近无损转换。
 
 架构总览如图所示（论文Figure 1）：
+如下：
+![MiniMax Sparse Attention Architecture](Figures/2026-06-16-MSA-architecture.png)
 
 ```
 Input Sequence X (N tokens)
