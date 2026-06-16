@@ -55,7 +55,7 @@ MSA在109B参数MoE模型上进行了全面消融实验。文本任务（包括�
 
 **贡献4：百万级token上下文支持**
 
-通过blockwise稀疏化，MSA在1M token上下文时将per-token注意力FLOPs降低28.4×。理论上可扩展至更长上下文，因为FLOPs增长从O(N^{2})降至接近线性。Index Branch的top-k块选择机制确保每个token仅关注全局中最相关的少数块，而不论总序列长度。
+通过blockwise稀疏化，MSA在1M token上下文时将per-token注意力FLOPs降低28.4×。理论上可扩展至更长上下文，因为FLOPs增长从$O(N^2)$降至接近线性。Index Branch的top-k块选择机制确保每个token仅关注全局中最相关的少数块，而不论总序列长度。
 
 **贡献5：近无损GQA→MSA转换**
 
@@ -101,7 +101,7 @@ MSA的独特定位在于：(1) 保持GQA/softmax attention的精确性而非近�
 
 (3) Value加权求和：$O(H_q N^2 d_h)$，用归一化后的注意力权重对value进行加权。
 
-当N从32k增长到1M时，FLOPs增长约1000×（平方增长）。内存访问模式也从规则的local access变为不规则的global access，导致GPU利用率下降。即使使用FlashAttention等IO-aware算法，也无法改变O(N^{2})的基本复杂度。
+当N从32k增长到1M时，FLOPs增长约1000×（平方增长）。内存访问模式也从规则的local access变为不规则的global access，导致GPU利用率下降。即使使用FlashAttention等IO-aware算法，也无法改变$O(N^2)$的基本复杂度。
 
 在GQA架构下，复杂度降为$O(2H_q N^2 d_h)$，因为$H_{kv}$ < $H_q$（多个query head共享同一组KV）。但这仅降低常数因子，不改变渐近复杂度。MSA的目标是将每个token的注意力从$O(N)$降至$O(k \times B)$，其中$k$是选中的块数，$B$是块大小，且$k \times B << N$。
 
@@ -111,7 +111,7 @@ MSA的独特定位在于：(1) 保持GQA/softmax attention的精确性而非近�
 
 **稀疏注意力**：通过预定义或学习到的pattern限制每个token的注意力范围。Longformer使用sliding window + global attention，BigBird使用随机+window+global混合pattern。局限在于：(1) pattern通常是固定的，无法适应输入内容；(2) 特定pattern需要定制kernel，硬件利用率低；(3) 训练不稳定，因为attention mask变化剧烈。
 
-**线性注意力**：通过kernel trick将softmax的指数运算替换为可分解的特征映射，将复杂度降至O(N)。Performer使用正交随机特征，Linformer使用低秩投影。局限在于：(1) 近似误差会随着序列长度累积；(2) 需要重新设计训练流程（loss、schedule），不能直接迁移预训练模型；(3) 特征映射的选择对质量影响大，需要调参。
+**线性注意力**：通过kernel trick将softmax的指数运算替换为可分解的特征映射，将复杂度降至$O(N)$。Performer使用正交随机特征，Linformer使用低秩投影。局限在于：(1) 近似误差会随着序列长度累积；(2) 需要重新设计训练流程（loss、schedule），不能直接迁移预训练模型；(3) 特征映射的选择对质量影响大，需要调参。
 
 **KV Cache压缩**：在推理时通过 eviction policy（如FIFO、LRU、H2O的heavy-hitter保留）限制KV cache大小。StreamingLLM保留attention sink tokens（序列开头的几个token）+ sliding window。局限在于：(1) 压缩策略是启发式的，可能丢失关键信息；(2) 仅适用于推理，训练时仍需完整注意力；(3) 状态压缩后无法恢复，导致长程依赖中断。
 
@@ -146,7 +146,7 @@ GQA是MSA的基础，先回顾其核心概念。
 GQA的attention计算：对于第g个group，query head h∈group_g共享K_g、V_g：
 $$Attention_g = \text{softmax}((Q_h W_q) (K_g W_k)^T / \sqrt{d_h}) (V_g W_v)$$
 
-MSA在此基础上构建：每个GQA group配备一个Index Branch，独立选择top-k块，Main Branch在选中块上执行标准GQA attention。Index Branch的参数开销仅为2G d_{model}^{2}，与GQA的3H_q d_{model}^{2} + 2 d_{model}^{2}相比可忽略（因为G << H_q）。
+MSA在此基础上构建：每个GQA group配备一个Index Branch，独立选择top-k块，Main Branch在选中块上执行标准GQA attention。Index Branch的参数开销仅为$2G d_{model}^{2}$，与GQA的$3H_q d_{model}^{2} + 2 d_{model}^{2}$相比可忽略（因为$G << H_q$）。
 
 GQA的另一个优势是成熟的GPU kernel支持（FlashAttention、vLLM、TensorRT-LLM）。MSA继承这一优势，其KV-outer稀疏注意力kernel可以基于FlashAttention的tiling策略实现，无需从零设计新的kernel框架。
 
@@ -197,15 +197,15 @@ Index Branch是一个极简的设计，仅向标准GQA添加2个投影矩阵。
 
 ### 投影矩阵定义
 
-对于输入序列X ∈ R^{N×d_model}，Index Branch使用：
+对于输入序列$X \in \mathbb{R}^{N \times d_{model}}$，Index Branch使用：
 
 $$Q_{idx} = X \cdot W_{idx}^q \in \mathbb{R}^{N \times H_{kv} \times d_{idx}}$$
 
 $$K_{idx} = X \cdot W_{idx}^k \in \mathbb{R}^{N \times 1 \times d_{idx}}$$
 
 其中：
-- H_kv是KV头数量（论文未明确给出具体值）
-- d_idx是Index Branch的注意力头维度（论文未明确给出具体值）
+- $H_{kv}$是KV头数量（论文未明确给出具体值）
+- $d_{idx}$是Index Branch的注意力头维度（论文未明确给出具体值）
 - **关键设计**：每个GQA组有独立的index query head，但所有组共享一个index key head（单头）
 
 #### 官方实现参考代码 (fmha_sm100/sparse_fmha_adapter.py)
@@ -229,13 +229,13 @@ $$K_{idx} = X \cdot W_{idx}^k \in \mathbb{R}^{N \times 1 \times d_{idx}}$$
 
 ### Block-level Max-pooling Scores
 
-将序列划分为固定的blocks：B_1, B_2, ..., B_{N_blocks}，每个block包含B_k个tokens（B_k为block size，论文未明确具体值）。
+将序列划分为固定的blocks：$B_1, B_2, ..., B_{N_{blocks}}$，每个block包含$B_k$个tokens（$B_k$为block size，论文未明确具体值）。
 
 对于每个GQA组g和每个block B_b，计算block-level注意力分数：
 
 $$M_{idx}^{(g,b)} = \max_{j \in B_b} S_{idx}^{(g,j)}$$
 
-其中S_{idx}^{(g,j)}是第j个token的注意力分数（点积后，softmax前）。这种max-pooling操作提取每个block对query的最强响应信号。
+其中$S_{idx}^{(g,j)}$是第j个token的注意力分数（点积后，softmax前）。这种max-pooling操作提取每个block对query的最强响应信号。
 
 ### Top-k Block Selection
 
@@ -282,7 +282,7 @@ Index Branch的极简设计体现在：
 1. **仅添加2个投影矩阵**：W_idx^q和W_idx^k，相比GQA的参数量增加可忽略
 2. **单头共享key**：所有GQA组共享K_idx，进一步减少参数
 3. **Block-level而非token-level**：选择粒度是block，显著降低选择开销
-4. **与GQA紧密集成**：Index Branch的组数等于GQA的KV头数H_kv，无缝对接
+4. **与GQA紧密集成**：Index Branch的组数等于GQA的KV头数$H_{kv}$，无缝对接
 
 ## 3.3 Main Branch详解
 
@@ -296,7 +296,7 @@ $$\text{Attention}^{(g)}(Q_{main}^{(g)}, K_{main}^{(g)}, V_{main}^{(g)}) = \text
 
 其中：
 - (K_main^{(g)})_{sel}和(V_main^{(g)})_{sel}是选中blocks的key和value
-- d_h是head dimension（论文未明确具体值）
+- $d_h$是head dimension（论文未明确具体值）
 - softmax仅对选中blocks计算，未选中blocks的注意力分数为-inf（在softmax后为0）
 
 ### 与标准GQA的关系
@@ -310,7 +310,7 @@ MSA Main Branch与标准GQA的区别：
 | 特性 | 标准GQA | MSA Main Branch |
 |------|---------|------------------|
 | 注意力范围 | 所有N tokens | 仅选中blocks（~k·B_k tokens） |
-| 计算复杂度 | Θ(N²) | Θ(N·k·B_k) |
+| 计算复杂度 | $O(N^2)$ | $O(N \cdot k \cdot B_k)$ |
 | FLOPs @ 1M | 基线 | 28.4×降低 |
 | 输出质量 | 完整注意力 | 约束下最优 |
 
@@ -458,11 +458,11 @@ $$L = L_{LM} + \lambda \cdot L_{KL}$$
    - Index Branch计算block分数M_idx
    - 选择top-k blocks
    - Main Branch仅在选中blocks上计算注意力
-   - 计算L_{LM}和L_{KL}
+   - 计算$L_{LM}$和$L_{KL}$
 
 2. **Backward pass**：
-   - L_{LM}更新所有参数（包括Main Branch投影和Index Branch投影）
-   - L_{KL}仅更新Index Branch投影（W_idx^q, W_idx^k），梯度detach确保不影响Main Branch
+   - $L_{LM}$更新所有参数（包括Main Branch投影和Index Branch投影）
+   - $L_{KL}$仅更新Index Branch投影（$W_{idx}^q$, $W_{idx}^k$），梯度detach确保不影响Main Branch
 
 3. **Warmup后**：
    - Index Branch逐渐学习到选择高价值blocks
@@ -477,11 +477,11 @@ MSA的一个关键优势是：已训练的GQA模型可直接转换为MSA，几�
 转换分为两步：
 
 1. **添加Index Branch投影**：
-   - 随机初始化W_idx^q和W_idx^k
+   - 随机初始化$W_{idx}^q$和$W_{idx}^k$
    - 保持Main Branch投影不变（W_main^q, W_main^k, W_main^v直接复用GQA的投影）
 
 2. **轻量级继续训练**：
-   - 在原任务数据上训练，总损失L = L_{LM} + λ·L_{KL}
+   - 在原任务数据上训练，总损失$L = L_{LM} + λ·L_{KL}$
    - 仅更新Index Branch投影（论文未明确是否也微调Main Branch）
    - 训练成本论文未明确具体时长
 
@@ -570,7 +570,7 @@ Index Branch的top-k block selection是典型的小k top-k问题（k是选中的
 2. **避免归一化**：无需softmax，仅需argmax或argsort的前k个
 3. **硬件友好**：比较操作比exp操作快数倍
 
-这种设计对小k特别有效，因为k << N_blocks（总block数），无需完整排序即可得到top-k。
+这种设计对小k特别有效，因为$k \ll N_{blocks}$（总block数），无需完整排序即可得到top-k。
 
 ## 4.2 KV-outer稀疏注意力
 
@@ -739,12 +739,12 @@ Per-token attention FLOPs降低28.4×的理论基础：
 
 完整GQA的attention FLOPs：$O(2H_q N^{2} d_h)$
 
-MSA的attention FLOPs：$O(Nk B_k d_h)$，其中：
+MSA的attention FLOPs：$O(N \cdot k \cdot B_k \cdot d_h)$，其中：
 - N是序列长度
 - k是选中的block数（论文未明确具体值）
-- B_k是block size（论文未明确具体值）
+- $B_k$是block size（论文未明确具体值）
 
-当$k·B_k << N$时，FLOPs从$O(N^{2})$降至接近$O(N)$。在1M token上下文下，28.4×的FLOPs降低对应$k B_k$ ≈ N/28.4 ≈ 35k tokens。
+当$k \cdot B_k \ll N$时，FLOPs从$O(N^2)$降至接近$O(N)$。在1M token上下文下，28.4×的FLOPs降低对应$k \cdot B_k \approx N/28.4 \approx 35k$ tokens。
 
 ### Wall-clock加速分析
 
@@ -794,7 +794,7 @@ MSA在这些任务上匹配GQA，证明其稀疏注意力不破坏Agent的关键
 
 ### Block Size消融
 
-Block size（B_k）是MSA的关键超参数，决定块选择的粒度。
+Block size（$B_k$）是MSA的关键超参数，决定块选择的粒度。
 
 论文对不同block size进行消融，但**未在提供的材料中明确给出具体数值**。消融结论为：存在最优block size，太大导致选择粒度过粗，太小导致selection overhead增加。
 
@@ -1176,7 +1176,7 @@ MSA仓库依赖以下第三方项目：
 
 **FlashAttention** (Dao et al., 2022): IO-aware注意力算法，通过tiling减少HBM访问。
 - **与MSA关系**：MSA复用FlashAttention的tiling策略和kernel设计模式
-- **区别**：FlashAttention仍是O(N^{2})，MSA降至O(N·k·B_k)
+- **区别**：FlashAttention仍是$O(N^2)$，MSA降至$O(N \cdot k \cdot B_k)$
 
 **FlashAttention-2/3**：进一步优化tensor core利用和work distribution。
 - **与MSA关系**：MSA的KV-outer kernel借鉴了FA-2/3的tensor core优化
