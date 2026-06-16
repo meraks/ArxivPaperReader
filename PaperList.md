@@ -10,6 +10,7 @@
 | 2203.02155 | InstructGPT (Training language models to follow instructions with human feedback) | Long Ouyang, Jeff Wu et al. (OpenAI) | [DeepReadings](DeepReadings/2022-03-04-instructgpt.md) |
 | 2203.15556 | Training Compute-Optimal Large Language Models (Chinchilla) | Jordan Hoffmann, Sebastian Borgeaud, Arthur Mensch et al. (Google DeepMind) | [DeepReadings](DeepReadings/2022-03-29-chinchilla.md) |
 | 2205.14135 | FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness | Tri Dao, Daniel Y. Fu, Stefano Ermon, Atri Rudra, Christopher Ré | [DeepReadings](DeepReadings/2022-05-27-flashattention.md) |
+| 2206.07682 | Emergent Abilities of Large Language Models | Jason Wei, Yi Tay, Rishi Bommasani et al. (Google Research, Stanford, DeepMind) | [DeepReadings](DeepReadings/2022-06-15-emergent-abilities-large-language-models.md) |
 | 2303.08774 | GPT-4 Technical Report | OpenAI (280+ authors) | [DeepReadings](DeepReadings/2023-03-15-gpt-4-technical-report.md) |
 | 2305.18290 | Direct Preference Optimization (DPO) | Rafael Rafailov, Archit Sharma, Eric Mitchell, Stefano Ermon, Christopher D. Manning, Chelsea Finn | [DeepReadings](DeepReadings/2023-05-29-dpo.md) |
 | 2309.00267 | RLAIF: Reinforcement Learning from AI Feedback | Harrison Lee et al. (Google DeepMind) | [DeepReadings](DeepReadings/2023-09-01-rlaif.md) |
