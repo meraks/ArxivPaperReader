@@ -34,7 +34,7 @@ Scaling laws 表明，放大语言模型（训练算力、参数量）可在下�
 
 ### 2.1 定义
 
-论文采用 adapted 自 Steinhardt (2022)、根植于诺贝尔奖物理学家 Philip Anderson 1972 年文集 "More Is Different" 的一般性表述：
+论文采用 adapted 自 Steinhardt (2022)、根植于诺贝尔奖物理学家 Philip Anderson 1972 年文章 "More Is Different" 的一般性表述：
 
 > Emergence is when quantitative changes in a system result in qualitative changes in behavior.
 
@@ -76,7 +76,7 @@ Few-shot prompting 由 GPT-3（Brown et al., 2020）推广：给预训练模型�
 
 ### 3.2 八个案例（Figure 2）
 
-**（A）Modular arithmetic**——3-digit 加减法 + 2-digit 乘法（BIG-Bench, 2022，2-shot）。GPT-3 与 LaMDA 在数个数量级的算力上接近零性能，之后分别在 $2.3\times10^{22}$ FLOPs（13B 参数，GPT-3）与 $10^{23}$ FLOPs（68B 参数，LaMDA）处急剧跃升。
+**（A）算术 (Arithmetic)**——3 位数加减法 + 2 位数乘法（BIG-Bench, 2022，2-shot）。GPT-3 与 LaMDA 在数个数量级的算力上接近零性能，之后分别在 $2.3\times10^{22}$ FLOPs（13B 参数，GPT-3）与 $10^{23}$ FLOPs（68B 参数，LaMDA）处急剧跃升。
 
 **（B）IPA transliterate**——国际音标转写（BIG-Bench）。与算术在相近规模出现类似涌现。
 
@@ -105,7 +105,7 @@ Few-shot prompting 由 GPT-3（Brown et al., 2020）推广：给预训练模型�
 
 | 案例 | 基准 | 涌现模型 | 涌现门槛 (FLOPs) | 参数量 |
 |------|------|----------|------------------|--------|
-| A | 算术 (3-digit) | GPT-3 | 2.3E+22 | 13B |
+| A | 算术 (3 位数) | GPT-3 | 2.3E+22 | 13B |
 | B | IPA 转写 | LaMDA | ~10²³（近似，Figure 2B） | ~68B（近似，Figure 2B） |
 | C | 单词重组 | LaMDA | 见附录 E | — |
 | D | 波斯语 QA | PaLM | 需 62B + 数据 | 62B |
@@ -130,7 +130,7 @@ WiC 案例的核心启示：当某能力在现有最大模型上仍失败时，*
 
 **（B）Instruction following（指令微调）**——在以指令表述的任务混合体上微调，使模型能仅凭指令（无 few-shot 示例）执行未见任务（Ouyang et al., 2022; Wei et al., 2022a; Sanh et al., 2022; Chung et al., 2022）。如 Figure 3B，Wei et al. (2022a) 发现该技术对 $7\times10^{21}$ FLOPs（8B 参数）及更小的模型**反而有害**，仅在放大到 $1.3\times10^{23}$ FLOPs（68B 参数，FLAN）时才改善性能。
 
-**（C）Scratchpad（程序执行）**——对涉及多步的计算任务（如大数相加、执行程序），微调模型预测中间输出（Nye et al., 2021）。如 Figure 3C，在 8-digit 加法上，scratchpad 仅对约 $8.9\times10^{19}$ FLOPs（40M 参数）及更大的模型有益。
+**（C）Scratchpad（程序执行）**——对涉及多步的计算任务（如大数相加、执行程序），微调模型预测中间输出（Nye et al., 2021）。如 Figure 3C，在 8 位数加法上，scratchpad 仅对约 $8.9\times10^{19}$ FLOPs（40M 参数）及更大的模型有益。
 
 **（D）True/False 校准**——衡量模型能否预测自己哪些问题能答对。Kadavath et al. (2022) 比较两种校准方式：模型先给出答案再评估"P(True)"的 True/False 法，与比较正确答案相对其他选项概率的标准法。如 Figure 3D，True/False 法的优越性仅在最大规模 $2.6\times10^{23}$ FLOPs（52B 参数，Anthropic 模型）时才涌现。
 
@@ -171,7 +171,7 @@ Table 1 列出论文汇总的全部涌现能力及各自涌现门槛，共 **23 
 | Multilingual chain-of-thought reasoning | 2.9E+23 | 62B | PaLM | Shi et al. (2022) |
 | Ask me anything prompting | 1.4E+22 | 6B | EleutherAI | Arora et al. (2022) |
 
-门槛横跨极大区间：从 LaMDA scratchpad 的 $8.9\times10^{19}$ FLOPs（40M 参数），到 PaLM WiC 的 $2.5\times10^{24}$ FLOPs（540B 参数），跨越约 5 个数量级。
+门槛横跨极大区间：从 LaMDA scratchpad 的 $8.9\times10^{19}$ FLOPs（40M 参数），到 PaLM WiC 的 $2.5\times10^{24}$ FLOPs（540B 参数），跨越约 4.5 个数量级。
 
 ---
 
