@@ -106,7 +106,7 @@ Few-shot prompting 由 GPT-3（Brown et al., 2020）推广：给预训练模型�
 | 案例 | 基准 | 涌现模型 | 涌现门槛 (FLOPs) | 参数量 |
 |------|------|----------|------------------|--------|
 | A | 算术 (3-digit) | GPT-3 | 2.3E+22 | 13B |
-| B | IPA 转写 | LaMDA | ~10²³ | ~68B |
+| B | IPA 转写 | LaMDA | ~10²³（近似，Figure 2B） | ~68B（近似，Figure 2B） |
 | C | 单词重组 | LaMDA | 见附录 E | — |
 | D | 波斯语 QA | PaLM | 需 62B + 数据 | 62B |
 | E | TruthfulQA | Gopher | 5.0E+23 | 280B |
