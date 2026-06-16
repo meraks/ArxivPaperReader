@@ -63,13 +63,13 @@ MSA在109B参数MoE模型上进行了全面消融实验。文本任务（包括�
 
 ### 1.5 与已有稀疏注意力方法的定位
 
-| 方法 | 复杂度 | 硬件兼容性 | 训练友好性 | MSA区别 |
-|------|--------|-----------|-----------|---------|
-| FlashAttention | $O(N^2)$ | 优秀 | 是 | MSA进一步降低FLOPs |
-| Sparse Attention (Longformer, BigBird) | $O(Nw)$ | 中等 | 需特殊pattern | MSA保持灵活块选择 |
-| Linear Attention (Performer, Linformer) | $O(N)$ | 低 | 近似误差累积 | MSA保持精确注意力 |
-| KV Cache压缩 (StreamingLLM, H2O) | $O(N)$ | 良好 | 推理-only | MSA支持训练+推理 |
-| 状态空间模型 (Mamba, RWKV) | $O(N)$ | 需专用kernel | 架构变动大 | MSA保持GQA兼容 |
+| 方法                                      | 复杂度      | 硬件兼容性     | 训练友好性      | MSA区别         |
+| --------------------------------------- | -------- | --------- | ---------- | ------------- |
+| FlashAttention                          | $O(N^2)$ | 优秀        | 是          | MSA进一步降低FLOPs |
+| Sparse Attention (Longformer, BigBird)  | $O(Nw)$  | 中等        | 需特殊pattern | MSA保持灵活块选择    |
+| Linear Attention (Performer, Linformer) | $O(N)$   | 低         | 近似误差累积     | MSA保持精确注意力    |
+| KV Cache压缩 (StreamingLLM, H2O)          | $O(N)$   | 良好        | 推理-only    | MSA支持训练+推理    |
+| 状态空间模型 (Mamba, RWKV)                    | $O(N)$   | 需专用kernel | 架构变动大      | MSA保持GQA兼容    |
 
 MSA的独特定位在于：(1) 保持GQA/softmax attention的精确性而非近似；(2) 与现有GPU生态（tensor core、HBM）协同设计而非对抗；(3) 训练和推理统一架构，非推理-only优化。
 
@@ -89,7 +89,7 @@ MSA的独特定位在于：(1) 保持GQA/softmax attention的精确性而非近�
 
 **多媒体理解**：视频理解需要处理高帧率长视频（1小时1080p视频≈百万级token），图像序列分析（医学影像、卫星图像时间序列）同样需要超长上下文。
 
-这些场景的共同特点是：序列长度跨越10^5到10^6 token，但并非所有token都对当前预测任务有用。稀疏性假设——每个token只需关注全局中少数相关token——是MSA设计的核心前提。
+这些场景的共同特点是：序列长度跨越$10^5$到$10^6$ token，但并非所有token都对当前预测任务有用。稀疏性假设——每个token只需关注全局中少数相关token——是MSA设计的核心前提。
 
 ### 2.2 注意力机制的二次复杂度瓶颈
 
@@ -139,11 +139,11 @@ GQA是MSA的基础，先回顾其核心概念。
 
 **标准Multi-Head Attention (MHA)**：每个head有独立的query、key、value投影矩阵。参数量：$3H_q d_{model}^{2}$（假设query/key/value维度为$d_model$）。计算复杂度：$O(2H_q N^{2} d_h)$。
 
-**Multi-Query Attention (MQA)**：所有head共享同一组key、value投影矩阵。参数量：$H_q d_{model}^{2} + 2 d_{model}^{2}$。计算复杂度：$O(2H_q N^{2} d_h)$。KV cache大小降至1/H_q。
+**Multi-Query Attention (MQA)**：所有head共享同一组key、value投影矩阵。参数量：$H_q d_{model}^{2} + 2 d_{model}^{2}$。计算复杂度：$O(2H_q N^{2} d_h)$。KV cache大小降至1/$H_q$。
 
-**Grouped Query Attention (GQA)**：折中方案，将H_q个query head分为G个group，每个group共享一组KV head。定义groups数$G = H_q / H_kv$（$H_{kv}$为KV head数）。当G=1时退化为MQA，G=$H_q$时退化为MHA。GQA在参数效率和质量之间取得平衡：比MHA更省KV cache内存，比MQA质量更好。
+**Grouped Query Attention (GQA)**：折中方案，将$H_q$个query head分为G个group，每个group共享一组KV head。定义groups数$G = H_q / H_{kv}$（$H_{kv}$为KV head数）。当G=1时退化为MQA，G=$H_q$时退化为MHA。GQA在参数效率和质量之间取得平衡：比MHA更省KV cache内存，比MQA质量更好。
 
-GQA的attention计算：对于第g个group，query head h∈group_g共享K_g、V_g：
+GQA的attention计算：对于第g个group，query head h∈$group_g$共享$K_g$、$V_g$：
 $$Attention_g = \text{softmax}((Q_h W_q) (K_g W_k)^T / \sqrt{d_h}) (V_g W_v)$$
 
 MSA在此基础上构建：每个GQA group配备一个Index Branch，独立选择top-k块，Main Branch在选中块上执行标准GQA attention。Index Branch的参数开销仅为$2G d_{model}^{2}$，与GQA的$3H_q d_{model}^{2} + 2 d_{model}^{2}$相比可忽略（因为$G << H_q$）。
@@ -231,7 +231,7 @@ $$K_{idx} = X \cdot W_{idx}^k \in \mathbb{R}^{N \times 1 \times d_{idx}}$$
 
 将序列划分为固定的blocks：$B_1, B_2, ..., B_{N_{blocks}}$，每个block包含$B_k$个tokens（$B_k$为block size，论文未明确具体值）。
 
-对于每个GQA组g和每个block B_b，计算block-level注意力分数：
+对于每个GQA组g和每个block $B_b$，计算block-level注意力分数：
 
 $$M_{idx}^{(g,b)} = \max_{j \in B_b} S_{idx}^{(g,j)}$$
 
@@ -279,8 +279,8 @@ $$\text{SelectedBlocks}^{(g)} = \text{TopK}_b(M_{idx}^{(g,b)})$$
 
 Index Branch的极简设计体现在：
 
-1. **仅添加2个投影矩阵**：W_idx^q和W_idx^k，相比GQA的参数量增加可忽略
-2. **单头共享key**：所有GQA组共享K_idx，进一步减少参数
+1. **仅添加2个投影矩阵**：$W_{idx}^q$和$W_{idx}^k$，相比GQA的参数量增加可忽略
+2. **单头共享key**：所有GQA组共享$K_{idx}$，进一步减少参数
 3. **Block-level而非token-level**：选择粒度是block，显著降低选择开销
 4. **与GQA紧密集成**：Index Branch的组数等于GQA的KV头数$H_{kv}$，无缝对接
 
@@ -290,12 +290,12 @@ Main Branch基于标准GQA，但执行**受限注意力**（restricted attention
 
 ### 受限注意力公式
 
-对于第g个GQA组，query tokens Q_main^{(g)}仅对Index Branch选中的blocks计算注意力：
+对于第g个GQA组，query tokens $Q_{main}^{(g)}$仅对Index Branch选中的blocks计算注意力：
 
 $$\text{Attention}^{(g)}(Q_{main}^{(g)}, K_{main}^{(g)}, V_{main}^{(g)}) = \text{softmax}\left(\frac{Q_{main}^{(g)} \cdot (K_{main}^{(g)})_{sel}^T}{\sqrt{d_h}}\right) \cdot (V_{main}^{(g)})_{sel}$$
 
 其中：
-- (K_main^{(g)})_{sel}和(V_main^{(g)})_{sel}是选中blocks的key和value
+- $(K_main^{(g)})_{sel}$和$(V_main^{(g)})_{sel}$是选中blocks的key和value
 - $d_h$是head dimension（论文未明确具体值）
 - softmax仅对选中blocks计算，未选中blocks的注意力分数为-inf（在softmax后为0）
 
@@ -307,12 +307,12 @@ $$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_h}}\right)
 
 MSA Main Branch与标准GQA的区别：
 
-| 特性 | 标准GQA | MSA Main Branch |
-|------|---------|------------------|
-| 注意力范围 | 所有N tokens | 仅选中blocks（~k·B_k tokens） |
-| 计算复杂度 | $O(N^2)$ | $O(N \cdot k \cdot B_k)$ |
-| FLOPs @ 1M | 基线 | 28.4×降低 |
-| 输出质量 | 完整注意力 | 约束下最优 |
+| 特性         | 标准GQA      | MSA Main Branch            |
+| ---------- | ---------- | -------------------------- |
+| 注意力范围      | 所有N tokens | 仅选中blocks（~$k·B_k$ tokens） |
+| 计算复杂度      | $O(N^2)$   | $O(N \cdot k \cdot B_k)$   |
+| FLOPs @ 1M | 基线         | 28.4×降低                    |
+| 输出质量       | 完整注意力      | 约束下最优                      |
 
 #### 官方实现参考代码 (cute/interface.py)
 
@@ -344,7 +344,7 @@ def sparse_atten_func(
 ```
 
 **内部实现要点**（位于 `SparseAttentionForwardSm100` 类）：
-- **CSR sparse metadata**：将 [Hkv, total_q, topK] 的 block indices 转为 CSR (Compressed Sparse Row) 格式
+- **CSR sparse metadata**：将 \[$H_kv$, $total_q,$ $topK$\] 的 block indices 转为 CSR (Compressed Sparse Row) 格式
 - **Two-phase forward/combine**：Phase 1 并行计算各 chunk 的局部注意力，Phase 2 combine 结果
 - **KV-outer formulation**：以 KV block 为外层循环，优化 tensor core 利用率
 - **Paged KV support**：支持 vLLM/TensorRT-LLM 风格的 paged KV cache
@@ -360,9 +360,9 @@ MSA的训练需要确保Index Branch学会选择有价值的blocks，而Main Bra
 $$L_{KL} = D_{KL}\left(P_{main}^{avg} \parallel P_{idx}\right)$$
 
 其中：
-- P_idx^{(g)}是Index Branch对第g组的block选择分布（基于M_idx分数的softmax）
-- P_main^{avg}是所有GQA组的Main Branch block分布的平均值
-- stopgrad(P_main)表示对Main Branch的注意力分数停止梯度，仅更新Index Branch
+- $P_idx^{(g)}$是Index Branch对第g组的block选择分布（基于$M_{idx}$分数的softmax）
+- $P_{main}^{avg}$是所有GQA组的Main Branch block分布的平均值
+- $stopgrad(P_{main})$表示对Main Branch的注意力分数停止梯度，仅更新Index Branch
 
 #### 官方实现参考代码
 
@@ -431,8 +431,8 @@ $$K_{idx} = \text{stopgrad}(X) \cdot W_{idx}^k$$
 
 即：
 - Index Branch的投影输入X被detach（停止梯度）
-- KL loss仅反向传播到W_idx^q和W_idx^k
-- Main Branch的参数（W_main^q, W_main^k, W_main^v）仅由LM loss更新
+- KL loss仅反向传播到$W_{idx}^q$和$W_{idx}^k$
+- Main Branch的参数（$W_{main}^q$, $W_{main}^k$, $W_{main}^v$）仅由LM loss更新
 
 ### Indexer Warmup阶段
 
@@ -449,13 +449,13 @@ $$\text{During warmup: } \text{SelectedBlocks}^{(g)} = \text{All blocks}$$
 $$L = L_{LM} + \lambda \cdot L_{KL}$$
 
 论文未明确给出λ具体值，用于平衡：
-- L_{LM}：保持模型的语言建模能力
-- λ·L_{KL}：引导Index Branch学习block选择
+- $L_{LM}$：保持模型的语言建模能力
+- $λ·L_{KL}$：引导Index Branch学习block选择
 
 ### 训练流程
 
 1. **Forward pass**：
-   - Index Branch计算block分数M_idx
+   - Index Branch计算block分数$M_{idx}$
    - 选择top-k blocks
    - Main Branch仅在选中blocks上计算注意力
    - 计算$L_{LM}$和$L_{KL}$
@@ -478,7 +478,7 @@ MSA的一个关键优势是：已训练的GQA模型可直接转换为MSA，几�
 
 1. **添加Index Branch投影**：
    - 随机初始化$W_{idx}^q$和$W_{idx}^k$
-   - 保持Main Branch投影不变（W_main^q, W_main^k, W_main^v直接复用GQA的投影）
+   - 保持Main Branch投影不变（$W_{main}^q, W_{main}^k, W_{main}^v$直接复用GQA的投影）
 
 2. **轻量级继续训练**：
    - 在原任务数据上训练，总损失$L = L_{LM} + λ·L_{KL}$
@@ -566,7 +566,7 @@ Index Branch的top-k block selection是典型的小k top-k问题（k是选中的
 ### Exp-free设计
 
 论文提出exp-free top-k kernel：
-1. **直接比较原始分数**：不计算exp(M_idx)，直接在M_idx分数上进行top-k
+1. **直接比较原始分数**：不计算$exp(M_{idx}$)，直接在$M_{idx}$分数上进行top-k
 2. **避免归一化**：无需softmax，仅需argmax或argsort的前k个
 3. **硬件友好**：比较操作比exp操作快数倍
 
@@ -608,7 +608,7 @@ Main Branch的稀疏注意力需要高效实现，论文提出KV-outer formulati
 
 $$\text{Attention}(q) = \sum_{c \in \text{Chunks}(q)} \text{LocalAttn}_c(q)$$
 
-其中LocalAttn_c是chunk c的局部注意力输出。
+其中$LocalAttn_c$是chunk c的局部注意力输出。
 
 ### Query Concatenation（Tensor Core利用）
 
@@ -631,9 +631,9 @@ $$\text{Attention}(q) = \sum_{c \in \text{Chunks}(q)} \text{LocalAttn}_c(q)$$
 ### 融合机会
 
 KL loss计算涉及多个操作：
-1. 计算P_idx（Index Branch的block分布）
-2. 计算P_main（Main Branch的block分布）
-3. 计算KL散度：D_KL(P_main || P_idx) = Σ P_main log(P_main / P_idx)
+1. 计算$P_{idx}$（Index Branch的block分布）
+2. 计算$P_{main}$（Main Branch的block分布）
+3. 计算KL散度： $D_{\mathrm{KL}}(P_{\mathrm{main}} \parallel P_{\mathrm{idx}}) = \sum P_{\mathrm{main}} \log\left(\frac{P_{\mathrm{main}}}{P_{\mathrm{idx}}}\right)$
 
 标准实现需要多次kernel launch，中间结果写回全局内存。
 
@@ -1160,7 +1160,7 @@ MSA仓库依赖以下第三方项目：
 
 **与其他稀疏方法结合**：
 - MSA + StreamingLLM（attention sink + sparse selection）
-- MSA + H²O（heavy hitter保留）
+- MSA + H2O（heavy hitter保留）
 - MSA + Local attention（sliding window fallback）
 
 **训练优化**：
@@ -1212,8 +1212,8 @@ MSA仓库依赖以下第三方项目：
 - **区别**：StreamingLLM是推理-only，MSA支持训练
 - **压缩策略**：StreamingLLM使用启发式策略，MSA使用学习到的selection
 
-**H₂O** (Zhang et al., 2023): Heavy hitter保留策略。
-- **区别**：H₂O基于token重要性，MSA基于block重要性
+**H2O** (Zhang et al., 2023): Heavy hitter保留策略。
+- **区别**：H2O基于token重要性，MSA基于block重要性
 - **粒度**：MSA的block-level selection开销更小
 
 ### 状态空间模型
@@ -1280,7 +1280,7 @@ MSA仓库依赖以下第三方项目：
 
 7. Xiao, C., et al. (2023). StreamingLLM: Efficiently Processing Long Sequences with Large Language Models. arXiv:2309.17417.
 
-8. Zhang, Y., et al. (2023). H²O: Heavy-Hitter Oracle for Efficient Generative Inference of Large Language Models. arXiv:2306.14048.
+8. Zhang, Y., et al. (2023). H2O: Heavy-Hitter Oracle for Efficient Generative Inference of Large Language Models. arXiv:2306.14048.
 
 ---
 
