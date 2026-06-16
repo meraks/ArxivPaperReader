@@ -55,7 +55,7 @@ MSA在109B参数MoE模型上进行了全面消融实验。文本任务（包括�
 
 **贡献4：百万级token上下文支持**
 
-通过blockwise稀疏化，MSA在1M token上下文时将per-token注意力FLOPs降低28.4×。理论上可扩展至更长上下文，因为FLOPs增长从Θ(N²)降至接近线性。Index Branch的top-k块选择机制确保每个token仅关注全局中最相关的少数块，而不论总序列长度。
+通过blockwise稀疏化，MSA在1M token上下文时将per-token注意力FLOPs降低28.4×。理论上可扩展至更长上下文，因为FLOPs增长从O(N^{2})降至接近线性。Index Branch的top-k块选择机制确保每个token仅关注全局中最相关的少数块，而不论总序列长度。
 
 **贡献5：近无损GQA→MSA转换**
 
@@ -65,11 +65,11 @@ MSA在109B参数MoE模型上进行了全面消融实验。文本任务（包括�
 
 | 方法 | 复杂度 | 硬件兼容性 | 训练友好性 | MSA区别 |
 |------|--------|-----------|-----------|---------|
-| FlashAttention | Θ(N²) | ✅ 优秀 | ✅ 是 | MSA进一步降低FLOPs |
-| Sparse Attention (Longformer, BigBird) | O(N√N) | ⚠️ 中等 | ⚠️ 需特殊pattern | MSA保持灵活块选择 |
-| Linear Attention (Performer, Linformer) | O(N) | ⚠️ 低 | ⚠️ 近似误差累积 | MSA保持精确注意力 |
-| KV Cache压缩 (StreamingLLM, H₂O) | O(N) | ✅ 良好 | ❌ 推理-only | MSA支持训练+推理 |
-| 状态空间模型 (Mamba, RWKV) | O(N) | ⚠️ 需专用kernel | ⚠️ 架构变动大 | MSA保持GQA兼容 |
+| FlashAttention | $O(N^2)$ | 优秀 | 是 | MSA进一步降低FLOPs |
+| Sparse Attention (Longformer, BigBird) | $O(Nw)$ | 中等 | 需特殊pattern | MSA保持灵活块选择 |
+| Linear Attention (Performer, Linformer) | $O(N)$ | 低 | 近似误差累积 | MSA保持精确注意力 |
+| KV Cache压缩 (StreamingLLM, H2O) | $O(N)$ | 良好 | 推理-only | MSA支持训练+推理 |
+| 状态空间模型 (Mamba, RWKV) | $O(N)$ | 需专用kernel | 架构变动大 | MSA保持GQA兼容 |
 
 MSA的独特定位在于：(1) 保持GQA/softmax attention的精确性而非近似；(2) 与现有GPU生态（tensor core、HBM）协同设计而非对抗；(3) 训练和推理统一架构，非推理-only优化。
 
@@ -93,17 +93,17 @@ MSA的独特定位在于：(1) 保持GQA/softmax attention的精确性而非近�
 
 ### 2.2 注意力机制的二次复杂度瓶颈
 
-标准因果softmax attention的计算复杂度为Θ(2H_q N² d_h)，其中H_q为query head数，N为序列长度，d_h为head维度。分解为三个部分：
+标准因果softmax attention的计算复杂度为$O(2 H_q N^{2} d_h)$，其中$H_q$为query head数，N为序列长度，$d_h$为head维度。分解为三个部分：
 
-(1) Query-Key相似度计算：O(H_q N² d_h)，每个query head计算N×N的注意力分数矩阵。
+(1) Query-Key相似度计算：$O(H_q N^{2} d_h)$，每个query head计算N×N的注意力分数矩阵。
 
-(2) Softmax归一化：O(H_q N²)，对每行（或每列）进行指数运算和归一化。
+(2) Softmax归一化：$O(H_q N^2)$，对每行（或每列）进行指数运算和归一化。
 
-(3) Value加权求和：O(H_q N² d_h)，用归一化后的注意力权重对value进行加权。
+(3) Value加权求和：$O(H_q N^2 d_h)$，用归一化后的注意力权重对value进行加权。
 
-当N从32k增长到1M时，FLOPs增长约1000×（平方增长）。内存访问模式也从规则的local access变为不规则的global access，导致GPU利用率下降。即使使用FlashAttention等IO-aware算法，也无法改变Θ(N²)的基本复杂度。
+当N从32k增长到1M时，FLOPs增长约1000×（平方增长）。内存访问模式也从规则的local access变为不规则的global access，导致GPU利用率下降。即使使用FlashAttention等IO-aware算法，也无法改变O(N^{2})的基本复杂度。
 
-在GQA架构下，复杂度降为Θ(2H_q N² d_h)，因为H_kv < H_q（多个query head共享同一组KV）。但这仅降低常数因子，不改变渐近复杂度。MSA的目标是将每个token的注意力从O(N)降至O(k·B)，其中k是选中的块数，B是块大小，且k·B << N。
+在GQA架构下，复杂度降为$O(2H_q N^2 d_h)$，因为$H_{kv}$ < $H_q$（多个query head共享同一组KV）。但这仅降低常数因子，不改变渐近复杂度。MSA的目标是将每个token的注意力从$O(N)$降至$O(k \times B)$，其中$k$是选中的块数，$B$是块大小，且$k \times B << N$。
 
 ### 2.3 已有方案分类与局限
 
@@ -113,9 +113,9 @@ MSA的独特定位在于：(1) 保持GQA/softmax attention的精确性而非近�
 
 **线性注意力**：通过kernel trick将softmax的指数运算替换为可分解的特征映射，将复杂度降至O(N)。Performer使用正交随机特征，Linformer使用低秩投影。局限在于：(1) 近似误差会随着序列长度累积；(2) 需要重新设计训练流程（loss、schedule），不能直接迁移预训练模型；(3) 特征映射的选择对质量影响大，需要调参。
 
-**KV Cache压缩**：在推理时通过 eviction policy（如FIFO、LRU、H₂O的heavy-hitter保留）限制KV cache大小。StreamingLLM保留attention sink tokens（序列开头的几个token）+ sliding window。局限在于：(1) 压缩策略是启发式的，可能丢失关键信息；(2) 仅适用于推理，训练时仍需完整注意力；(3) 状态压缩后无法恢复，导致长程依赖中断。
+**KV Cache压缩**：在推理时通过 eviction policy（如FIFO、LRU、H2O的heavy-hitter保留）限制KV cache大小。StreamingLLM保留attention sink tokens（序列开头的几个token）+ sliding window。局限在于：(1) 压缩策略是启发式的，可能丢失关键信息；(2) 仅适用于推理，训练时仍需完整注意力；(3) 状态压缩后无法恢复，导致长程依赖中断。
 
-**状态空间模型**：完全抛弃softmax attention，使用线性递归状态更新（如Mamba的S4、RWKV的并行递归）。复杂度O(N)，硬件友好。局限在于：(1) 需要重新设计模型架构，无法直接利用现有预训练的Transformer模型；(2) 训练和推理的实现与Transformer差异大，工程迁移成本高；(3) 某些需要精确检索的任务（如copying）性能下降。
+**状态空间模型**：完全抛弃softmax attention，使用线性递归状态更新（如Mamba的S4、RWKV的并行递归）。复杂度$O(N)$，硬件友好。局限在于：(1) 需要重新设计模型架构，无法直接利用现有预训练的Transformer模型；(2) 训练和推理的实现与Transformer差异大，工程迁移成本高；(3) 某些需要精确检索的任务（如copying）性能下降。
 
 MSA的设计目标是克服以上局限：(1) 保持softmax attention的精确性，无需重新训练流程；(2) 与GQA兼容，可直接从GQA checkpoint转换；(3) GPU kernel与现有生态（tensor core、cutlass、flashinfer）协同设计。
 
@@ -123,7 +123,7 @@ MSA的设计目标是克服以上局限：(1) 保持softmax attention的精确�
 
 MSA遵循简约原则：在不牺牲核心功能的前提下，最小化新增组件，最大化复用现有软硬件。具体体现在：
 
-**架构最小化**：在标准GQA基础上仅增加2个投影矩阵（Index Branch的W_q_idx和W_k_idx），不引入新的可学习状态（如额外的memory、可学习的pattern、低秩投影矩阵）。Index Branch的token选择逻辑仅涉及max-pooling和top-k操作，不涉及复杂的可微分机制。
+**架构最小化**：在标准GQA基础上仅增加2个投影矩阵（Index Branch的$W_{q_{idx}}$和$W_{k_{idx}}$），不引入新的可学习状态（如额外的memory、可学习的pattern、低秩投影矩阵）。Index Branch的token选择逻辑仅涉及max-pooling和top-k操作，不涉及复杂的可微分机制。
 
 **软硬件复用**：KV-outer稀疏注意力kernel复用了FlashAttention的tiling策略和CUDA core/kernel设计模式；query concatenation利用了tensor core的矩阵乘加能力；fused KL loss kernel复用了标准的反向传播逻辑。这些设计确保MSA能在现有GPU（H800、A100）上高效运行，无需定制硬件。
 
@@ -137,16 +137,16 @@ MSA遵循简约原则：在不牺牲核心功能的前提下，最小化新增�
 
 GQA是MSA的基础，先回顾其核心概念。
 
-**标准Multi-Head Attention (MHA)**：每个head有独立的query、key、value投影矩阵。参数量：3H_q d_model²（假设query/key/value维度为d_model）。计算复杂度：Θ(2H_q N² d_h)。
+**标准Multi-Head Attention (MHA)**：每个head有独立的query、key、value投影矩阵。参数量：$3H_q d_{model}^{2}$（假设query/key/value维度为$d_model$）。计算复杂度：$O(2H_q N^{2} d_h)$。
 
-**Multi-Query Attention (MQA)**：所有head共享同一组key、value投影矩阵。参数量：H_q d_model² + 2 d_model²。计算复杂度：Θ(2H_q N² d_h)。KV cache大小降至1/H_q。
+**Multi-Query Attention (MQA)**：所有head共享同一组key、value投影矩阵。参数量：$H_q d_{model}^{2} + 2 d_{model}^{2}$。计算复杂度：$O(2H_q N^{2} d_h)$。KV cache大小降至1/H_q。
 
-**Grouped Query Attention (GQA)**：折中方案，将H_q个query head分为G个group，每个group共享一组KV head。定义groups数G = H_q / H_kv（H_kv为KV head数）。当G=1时退化为MQA，G=H_q时退化为MHA。GQA在参数效率和质量之间取得平衡：比MHA更省KV cache内存，比MQA质量更好。
+**Grouped Query Attention (GQA)**：折中方案，将H_q个query head分为G个group，每个group共享一组KV head。定义groups数$G = H_q / H_kv$（$H_{kv}$为KV head数）。当G=1时退化为MQA，G=$H_q$时退化为MHA。GQA在参数效率和质量之间取得平衡：比MHA更省KV cache内存，比MQA质量更好。
 
 GQA的attention计算：对于第g个group，query head h∈group_g共享K_g、V_g：
 $$Attention_g = \text{softmax}((Q_h W_q) (K_g W_k)^T / \sqrt{d_h}) (V_g W_v)$$
 
-MSA在此基础上构建：每个GQA group配备一个Index Branch，独立选择top-k块，Main Branch在选中块上执行标准GQA attention。Index Branch的参数开销仅为2G d_model²，与GQA的3H_q d_model² + 2 d_model²相比可忽略（因为G << H_q）。
+MSA在此基础上构建：每个GQA group配备一个Index Branch，独立选择top-k块，Main Branch在选中块上执行标准GQA attention。Index Branch的参数开销仅为2G d_{model}^{2}，与GQA的3H_q d_{model}^{2} + 2 d_{model}^{2}相比可忽略（因为G << H_q）。
 
 GQA的另一个优势是成熟的GPU kernel支持（FlashAttention、vLLM、TensorRT-LLM）。MSA继承这一优势，其KV-outer稀疏注意力kernel可以基于FlashAttention的tiling策略实现，无需从零设计新的kernel框架。
 
@@ -208,6 +208,25 @@ $$K_{idx} = X \cdot W_{idx}^k \in \mathbb{R}^{N \times 1 \times d_{idx}}$$
 - d_idx是Index Branch的注意力头维度（论文未明确给出具体值）
 - **关键设计**：每个GQA组有独立的index query head，但所有组共享一个index key head（单头）
 
+#### 官方实现参考代码 (fmha_sm100/sparse_fmha_adapter.py)
+
+```python
+# Index Branch 投影定义（实际实现中通过 fp4_indexer_block_scores 计算）
+# 参考：fp4_indexer_interface.py 中的 fp4_indexer_block_scores 函数
+# 该函数接收：
+#   q_fp4: [total_qo_len, Hq, 64] - packed FP4 Q tensor
+#   k_fp4: [total_pages, Hk, 128, 64] - packed paged FP4 K tensor  
+#   q_scale: [total_qo_len, Hq, G] - Q scale tensor
+#   k_scale: [total_pages, Hk, 128, G] - K scale tensor
+# 返回：[Hq, max_k_tiles, total_qo_len] float32 block scores
+# 
+# 实际计算流程：
+# 1. 将 Q/K 从 FP4 解包并反量化
+# 2. 通过 MMA (Matrix Multiply Accumulate) 计算 Q@K^T 得到注意力分数
+# 3. 对每个 128-token KV page 取 max-pooling 得到 block-level scores
+# 4. 返回形状 [Hq, num_kv_blocks, total_q] 的 block scores
+```
+
 ### Block-level Max-pooling Scores
 
 将序列划分为固定的blocks：B_1, B_2, ..., B_{N_blocks}，每个block包含B_k个tokens（B_k为block size，论文未明确具体值）。
@@ -227,6 +246,34 @@ $$\text{SelectedBlocks}^{(g)} = \text{TopK}_b(M_{idx}^{(g,b)})$$
 其中k是选择的block数量（论文未明确具体值，仅作为符号使用）。
 
 **Local Block Always Included**：当前query所在的local block始终被选中，确保最近邻信息不丢失。这是因果注意力的基本要求。
+
+#### 官方实现参考代码 (csrc/include/sparse_topk_select.cuh)
+
+```cpp
+// 核心 Top-k 选择内核：IndexerTopKWithSortKernel<16>
+// 位于：python/fmha_sm100/csrc/include/sparse_topk_select.cuh
+//
+// 关键设计点：
+// 1. exp-free 设计：直接在 fp32 logits 上做 histogram-based top-k，无需 softmax/exp
+// 2. 两阶段 pipeline：TransposeKernel -> IndexerTopKWithSortKernel
+// 3. fused ascending-by-index sort：使用 warp-level bitonic sort (WarpBitonicSortAsc32/64)
+// 4. OOB clamp in kernel：indices >= num_valid_pages 自动重写为 -1 并排序到尾部
+// 5. 支持 force_begin/force_end：强制包含首尾 blocks (local block always included)
+//
+// 入口函数：
+// cudaError_t SparseTopKSelect(const float* in, int32_t* out, int32_t* workspace,
+//                              uint32_t total_qo_len, uint32_t num_qo_heads,
+//                              uint32_t max_k_tiles, uint32_t num_valid_pages,
+//                              uint32_t force_begin, uint32_t force_end,
+//                              cudaStream_t stream);
+//
+// 其中：
+//   in: [num_qo_heads, max_k_tiles, total_qo_len] fp32 block scores (strided)
+//   out: [total_qo_len, num_qo_heads, topk=16] int32 selected block indices
+//   workspace: int32 buffer, size = num_qo_heads * max_k_tiles * total_qo_len
+//   force_begin: number of forced prefix blocks (always selected)
+//   force_end: number of forced suffix blocks (always selected)
+```
 
 ### 设计要点
 
@@ -267,6 +314,41 @@ MSA Main Branch与标准GQA的区别：
 | FLOPs @ 1M | 基线 | 28.4×降低 |
 | 输出质量 | 完整注意力 | 约束下最优 |
 
+#### 官方实现参考代码 (cute/interface.py)
+
+```python
+# Main Branch 稀疏注意力入口函数
+# 位于：python/fmha_sm100/cute/interface.py
+# 
+# 核心函数签名：
+def sparse_atten_func(
+    q: torch.Tensor,           # [total_q, Hq, 128] BF16 or FP8 E4M3
+    k: torch.Tensor,           # paged: [num_pages, Hkv, blk_kv, 128] or dense: [total_k, Hkv, 128]
+    v: torch.Tensor,           # same layout as k
+    k2q_row_ptr: torch.Tensor, # CSR row pointers [Hkv, total_rows+1]
+    k2q_q_indices: torch.Tensor, # CSR query indices [Hkv, total_q*topK]
+    topK: int,                 # 4, 8, 16, or 32
+    *,
+    cu_seqlens_q: torch.Tensor, # [batch_size+1] prefix sums of Q lengths
+    cu_seqlens_k: torch.Tensor, # [batch_size+1] prefix sums of KV lengths
+    max_seqlen_q: int,
+    max_seqlen_k: int,
+    blk_kv: int = 128,         # KV block size, must match page_size
+    causal: bool = False,
+    softmax_scale: float = None, # defaults to 1/sqrt(128)
+    partial_dtype: torch.dtype = torch.bfloat16,
+    page_table: torch.Tensor = None,   # paged KV page table
+    seqused_k: torch.Tensor = None,    # effective KV length per request
+    ...
+) -> torch.Tensor:  # [total_q, Hq, 128] BF16 output
+```
+
+**内部实现要点**（位于 `SparseAttentionForwardSm100` 类）：
+- **CSR sparse metadata**：将 [Hkv, total_q, topK] 的 block indices 转为 CSR (Compressed Sparse Row) 格式
+- **Two-phase forward/combine**：Phase 1 并行计算各 chunk 的局部注意力，Phase 2 combine 结果
+- **KV-outer formulation**：以 KV block 为外层循环，优化 tensor core 利用率
+- **Paged KV support**：支持 vLLM/TensorRT-LLM 风格的 paged KV cache
+
 ## 3.4 训练方法
 
 MSA的训练需要确保Index Branch学会选择有价值的blocks，而Main Branch在约束下仍能逼近完整注意力。
@@ -281,6 +363,63 @@ $$L_{KL} = D_{KL}\left(P_{main}^{avg} \parallel P_{idx}\right)$$
 - P_idx^{(g)}是Index Branch对第g组的block选择分布（基于M_idx分数的softmax）
 - P_main^{avg}是所有GQA组的Main Branch block分布的平均值
 - stopgrad(P_main)表示对Main Branch的注意力分数停止梯度，仅更新Index Branch
+
+#### 官方实现参考代码
+
+```python
+# KL Loss + 负载均衡融合内核
+# 位于：python/fmha_sm100/csrc/fmha_sm100_reduction.cu
+#
+# 论文描述的 fused KL loss kernel 实际对应：
+# - sparse_fmha_adapter.py 中 build_k2q_csr 的 return_schedule=True
+# - prepare_scheduler.py 中的 SPARSE_SCHEDULE_MODEL 实现负载均衡
+# - combine kernel 中的 partial O + LSE reduce 完成分布式注意力合并
+#
+# 关键函数：
+from fmha_sm100.cute.src.sm100.fwd.combine import combine
+
+def combine(
+    O_partial: Tensor,        # [topK, total_q, Hq, dim] partial attention outputs
+    LSE_partial: Tensor,      # [topK, total_q, Hq] partial log-sum-exp
+    O_out: Tensor,            # [total_q, Hq, dim] output (written in-place)
+    LSE_out: Tensor,          # [total_q, Hq] final LSE (written in-place)
+    cu_seqlens: Tensor,       # prefix sums for varlen batching
+    split_counts: Tensor,     # [total_q, Hkv] per-query split counts
+    output_scale: Tensor = None, # optional global dequant scale for V
+    use_pdl: bool = True,     # programmable dependent launch
+):
+    """Combine split-KV partial outputs into final attention output.
+    
+    实现逻辑：
+    1. 对每个 query 的 topK 个 partial outputs 做 online softmax reduce
+    2. O_final = Σ_i (exp(LSE_i - LSE_max) * O_partial_i) / Σ_i exp(LSE_i - LSE_max)
+    3. 通过 cu_seqlens 索引实现 varlen (variable-length) batching
+    """
+```
+
+```python
+# 负载均衡调度器
+# 位于：python/fmha_sm100/cute/src/sm100/prepare_scheduler.py
+#
+# 关键数据结构：
+class SPARSE_SCHEDULE_MODEL:
+    """SM100 稀疏注意力调度模型"""
+    
+    @staticmethod
+    def balanced_target_q_per_cta(
+        total_q: int, topk: int, blk_kv: int,
+        head_kv: int, qhead_per_kv: int,
+        device: torch.device, usable_SM_count: int = -1,
+    ) -> int:
+        """计算每个 CTA 处理的 query 数量，确保 GPU SMs 负载均衡。
+        
+        调度策略：
+        - 每个 CTA 处理 fixed 数量的 queries
+        - 使用 persistent thread 模型，threads 不退出
+        - 动态负载均衡：快速完成的 CTA 立即获取新任务
+        """
+        ...
+```
 
 ### Gradient Detach机制
 
@@ -356,6 +495,56 @@ MSA的一个关键优势是：已训练的GQA模型可直接转换为MSA，几�
 - 文本benchmark：匹配GQA
 - 视觉benchmark：匹配GQA
 - Agent benchmark：匹配GQA
+
+#### 官方实现参考代码 (sparse_fmha_adapter.py)
+
+```python
+# GQA → MSA 转换的实际调用流程
+# 位于：python/fmha_sm100/sparse_fmha_adapter.py
+
+# Step 1: 构建 sparse prefill plan
+plan_info = sparse_fmha_plan(
+    qo_segment_lens=qo_lens,          # [batch_size] per-request Q lengths
+    kv_segment_lens=kv_lens,          # [batch_size] per-request KV lengths
+    num_qo_heads=128,                 # Q/O head count
+    num_kv_heads=16,                  # KV head count (GQA)
+    page_size=128,                    # KV block/page size
+    kv_block_num=16,                  # topK blocks per query (4/8/16/32)
+    causal=True,
+    usable_SM_count=-1,               # -1 = use all SMs
+)
+# plan_info 包含：
+#   - cu_seqlens_q/k: prefix sums for varlen batching
+#   - kv_segment_lens: per-request KV lengths
+#   - blk_kv: page size (128)
+#   - kv_block_num: topK (16)
+#   - target_q_per_cta: 调度参数
+#   - scheduler_metadata_capacity: 调度元数据容量
+
+# Step 2: 执行 sparse attention
+output, _ = sparse_fmha(
+    q=q,                    # [total_q, 128, 128] BF16
+    k=k_pages,              # [num_pages, 16, 128, 128] paged KV
+    v=v_pages,              # same as k
+    plan_info=plan_info,
+    kv_indices=kv_indices,   # flattened physical page table
+    kv_block_indexes=block_indices,  # [total_q, Hq, topK] sparse block indices
+)
+# 输出：[total_q, 128, 128] BF16
+
+# Step 3: Decode 阶段（使用 SparseDecodePagedAttentionWrapper）
+wrapper = SparseDecodePagedAttentionWrapper(blk_kv=128, causal=True)
+wrapper.plan(
+    page_table=page_table,      # [batch, max_pages_per_seq]
+    seqused_k=seqused_k,        # [batch] effective KV lengths
+    seqlen_q=1,                 # decode: one token per request
+    max_seqlen_k=max_kv_len,
+    q2k_indices=sparse_indices, # [Hkv, total_q, topK] optional
+    num_qo_heads=128,
+    num_kv_heads=16,
+)
+decode_output = wrapper.run(q_decode, k_pages, v_pages)
+```
 
 ---
 
@@ -548,14 +737,14 @@ MoE（Mixture of Experts）架构的特点是：每个token仅路由到部分专
 
 Per-token attention FLOPs降低28.4×的理论基础：
 
-完整GQA的attention FLOPs：Θ(2H_q N² d_h)
+完整GQA的attention FLOPs：$O(2H_q N^{2} d_h)$
 
-MSA的attention FLOPs：Θ(N·k·B_k·d_h)，其中：
+MSA的attention FLOPs：$O(Nk B_k d_h)$，其中：
 - N是序列长度
 - k是选中的block数（论文未明确具体值）
 - B_k是block size（论文未明确具体值）
 
-当k·B_k << N时，FLOPs从O(N²)降至接近O(N)。在1M token上下文下，28.4×的FLOPs降低对应k·B_k ≈ N/28.4 ≈ 35k tokens。
+当$k·B_k << N$时，FLOPs从$O(N^{2})$降至接近$O(N)$。在1M token上下文下，28.4×的FLOPs降低对应$k B_k$ ≈ N/28.4 ≈ 35k tokens。
 
 ### Wall-clock加速分析
 
@@ -732,189 +921,136 @@ Adapter层的作用：
 
 ---
 
-## 6.3 概念代码示例
+## 6.3 关键内核实现详解
 
-⚠️ **非官方概念实现** — 以下代码基于论文Section 3描述编写，目的在于帮助理解算法流程，不可直接用于训练或推理。官方实现请参考GitHub仓库。
+⚠️ 以下基于官方 GitHub 仓库 (MiniMax-AI/MSA) 的实际代码，展示关键组件的实现细节。
 
-### MSA Attention概念实现
+### SparseTopKSelect — Index Branch 核心内核
 
-```python
-# ⚠️ 非官方概念实现 — 基于论文 Section 3.1 描述编写
-# 目的：帮助理解算法流程，不可直接用于训练
+```cpp
+// 位于：python/fmha_sm100/csrc/include/sparse_topk_select.cuh
+// 完整实现了 Index Branch 的 block selection 逻辑
+//
+// Pipeline：
+//   in [Hq, K, qo] fp32 strided
+//     → SparseTopKTransposeKernel (per-head 32x32 SMEM tile transpose)
+//   → transpose_buf [Hq, qo, K] row-contig fp32
+//     → IndexerTopKWithSortKernel<MAX_TOPK=16>
+//        Stage 0: 11-bit fp16 hist → cub::BlockScan → threshold → classify
+//        Stage 1/2/3: 11+11+10 bit fp32 hist refinement
+//        Final: insertion sort over kNumFinalItems=2048 candidates
+//        Fused: warp-only bitonic sort (WarpBitonicSortAsc32/64) — asc by index
+//   → out [qo, num_qo_heads, topk=16] int32 ascending-by-index
+//
+// 关键优化：
+// - exp-free: 直接在 fp32 logits 上做 histogram，无需 softmax/exp
+// - OOB clamp in kernel: indices >= num_valid_pages → -1 sorted to tail
+// - force_begin/force_end: 强制包含首尾 blocks (local block always included)
+// - WarpBitonicSortAsc32: 仅 32 lanes 参与排序，比 cub::BlockRadixSort<512> 快 ~12us
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
-class MSAAttention(nn.Module):
-    """
-    MiniMax Sparse Attention 概念实现
-    基于论文 Section 3.1 的 Index Branch + Main Branch 架构
-    """
-    def __init__(self, d_model, n_heads_q, n_heads_kv, d_idx, block_size, top_k):
-        super().__init__()
-        self.n_heads_kv = n_heads_kv
-        self.block_size = block_size
-        self.top_k = top_k
-        self.d_head = d_model // n_heads_q
-        self.G = n_heads_q // n_heads_kv  # GQA groups
-        
-        # Main Branch projections (standard GQA)
-        self.W_q = nn.Linear(d_model, n_heads_q * self.d_head, bias=False)
-        self.W_k = nn.Linear(d_model, n_heads_kv * self.d_head, bias=False)
-        self.W_v = nn.Linear(d_model, n_heads_kv * self.d_head, bias=False)
-        self.W_o = nn.Linear(n_heads_q * self.d_head, d_model, bias=False)
-        
-        # Index Branch projections (极简: 仅2个矩阵)
-        self.W_idx_q = nn.Linear(d_model, n_heads_kv * d_idx, bias=False)
-        self.W_idx_k = nn.Linear(d_model, 1 * d_idx, bias=False)  # 单head shared
-        
-    def forward(self, x, return_attn_weights=False):
-        B, N, D = x.shape
-        n_blocks = (N + self.block_size - 1) // self.block_size
-        
-        # ===== Main Branch (Standard GQA) =====
-        Q_main = self.W_q(x).view(B, N, self.n_heads_kv, self.G, self.d_head)
-        K_main = self.W_k(x).view(B, N, self.n_heads_kv, 1, self.d_head)
-        V_main = self.W_v(x).view(B, N, self.n_heads_kv, 1, self.d_head)
-        
-        # ===== Index Branch =====
-        Q_idx = self.W_idx_q(x.detach()).view(B, N, self.n_heads_kv, -1)  # stop-gradient
-        K_idx = self.W_idx_k(x.detach()).view(B, N, 1, -1)  # 单head shared
-        
-        # Block-level scores for each group
-        # Q_idx: (B, N, n_heads_kv, d_idx)
-        # K_idx: (B, N, 1, d_idx) -> broadcast to (B, N, n_heads_kv, d_idx)
-        K_idx_broadcast = K_idx.expand(-1, -1, self.n_heads_kv, -1)
-        
-        # S_idx: (B, N, n_heads_kv) - attention scores before softmax
-        S_idx = torch.einsum('bqhd,bkh->bqk', Q_idx, K_idx_broadcast) / (self.d_head ** 0.5)
-        
-        # Block-level max-pooling: M_idx[b, g, block_idx] = max_{j in block} S_idx[b, j, g]
-        M_idx = torch.zeros(B, self.n_heads_kv, n_blocks, device=x.device)
-        for b_idx in range(n_blocks):
-            start = b_idx * self.block_size
-            end = min((b_idx + 1) * self.block_size, N)
-            M_idx[:, :, b_idx] = S_idx[:, start:end, :].max(dim=1)[0]
-        
-        # Top-k block selection (always include current block)
-        selected_blocks = []
-        for g in range(self.n_heads_kv):
-            scores_g = M_idx[:, g, :]  # (B, n_blocks)
-            # Select top-k blocks (implementation varies)
-            top_k_indices = torch.topk(scores_g, k=self.top_k, dim=-1)[1]
-            selected_blocks.append(top_k_indices)
-        
-        # ===== Restricted Attention in Main Branch =====
-        # For each group, compute attention only on selected blocks
-        attn_outputs = []
-        for g in range(self.n_heads_kv):
-            Q_g = Q_main[:, :, g, :, :]  # (B, N, G, d_head)
-            K_g = K_main[:, :, g, :, :]  # (B, N, 1, d_head)
-            V_g = V_main[:, :, g, :, :]  # (B, N, 1, d_head)
-            
-            # Gather selected blocks for this group
-            # (Implementation: mask attention to only selected blocks)
-            # This is simplified - actual kernel uses sparse matmul
-            
-            attn_output_g = self._sparse_attention(Q_g, K_g, V_g, selected_blocks[g])
-            attn_outputs.append(attn_output_g)
-        
-        # Concatenate groups
-        attn_output = torch.cat(attn_outputs, dim=2)  # (B, N, n_heads_q, d_head)
-        attn_output = attn_output.contiguous().view(B, N, -1)
-        output = self.W_o(attn_output)
-        
-        return output
-    
-    def _sparse_attention(self, Q, K, V, selected_blocks):
-        """概念性的稀疏注意力计算 - 实际kernel更复杂"""
-        # 实际实现使用KV-outer formulation + two-phase forward/combine
-        # 这里仅展示概念
-        B, N, G, d_head = Q.shape
-        
-        outputs = []
-        for head in range(G):
-            Q_head = Q[:, :, head, :]  # (B, N, d_head)
-            K_head = K[:, :, 0, :]     # (B, N, d_head)
-            V_head = V[:, :, 0, :]     # (B, N, d_head)
-            
-            # 仅对selected blocks计算注意力
-            # (实际kernel通过稀疏矩阵乘法实现)
-            attn_scores = torch.matmul(Q_head, K_head.transpose(-2, -1)) / (d_head ** 0.5)
-            
-            # Mask unselected blocks
-            mask = torch.ones_like(attn_scores, dtype=torch.bool)
-            for b_idx in range(len(selected_blocks[0])):  # Simplified
-                # Mark selected blocks
-                pass
-            
-            attn_weights = F.softmax(attn_scores.masked_fill(~mask, -1e9), dim=-1)
-            output = torch.matmul(attn_weights, V_head)
-            outputs.append(output)
-        
-        return torch.stack(outputs, dim=2)  # (B, N, G, d_head)
+__global__ void __launch_bounds__(kIndexerNumThreadsPerBlock)
+IndexerTopKWithSortKernel(
+    const float* __restrict__ in,   // [num_qo_heads, qo, K] transposed fp32
+    int32_t* __restrict__ out,      // [qo, num_qo_heads, topk] int32
+    uint32_t total_qo_len, uint32_t num_qo_heads,
+    uint32_t max_k_tiles, uint32_t topk,
+    uint32_t num_valid_pages) {
+  // Per-CTA: 1 CTA per (qo_head, token) row
+  // histogram-based top-k selection → insertion sort → warp-only asc-by-index sort
+  ...
+}
 ```
 
-### KL Loss概念实现
+### SparseAttentionForwardSm100 — Main Branch 核心内核
 
 ```python
-# ⚠️ 非官方概念实现 — KL loss计算
+# 位于：python/fmha_sm100/cute/src/sm100/fwd/atten_fwd.py
+# SM100 sparse attention forward kernel
+#
+# 核心类 SparseAttentionForwardSm100 实现了 KV-outer formulation：
+#   - 以 KV block 为外层循环，优化 tensor core 利用率
+#   - Two-phase forward/combine：Phase 1 并行计算各 chunk，Phase 2 combine
+#   - CSR sparse metadata：k2q_row_ptr + k2q_q_indices 实现稀疏索引
+#   - Paged KV support：兼容 vLLM/TensorRT-LLM 的 paged KV cache
+#
+# Warp layout: 16 warps per CTA
+#   - 2x softmax WGs (4 warps each)
+#   - 1x store WG (4 warps) — Q load + epilogue
+#   - 1x MMA issue warp
+#   - 2x KV load warps
+#   - 1x empty warp
+#
+# Pipeline: Q(2 stage) → S(2 stage) → O(2 stage), KV(1 stage)
+# TMEM: S0/S1 [0:128], [128:256] | O0/O1 [256:384], [384:512]
 
-def kl_loss_fn(main_attn_scores, idx_attn_scores, block_size):
-    """
-    KL散度损失：对齐Index Branch与Main Branch的block分布
+class SparseAttentionForwardSm100:
+    def __init__(self, head_dim=128, qheadperkv=16,
+                 m_block_size=128, n_block_size=128,
+                 paged_kv=False, causal=False, ...):
+        # head_dim=128, page_size=blk_kv=128
+        # qheadperkv ∈ {1, 2, 4, 8, 16}
+        ...
     
-    Args:
-        main_attn_scores: (B, H_q, N, N) - Main Branch attention scores
-        idx_attn_scores: (B, H_kv, N) - Index Branch attention scores
-        block_size: int - block大小
-    """
-    B, H_q, N, _ = main_attn_scores.shape
-    H_kv = idx_attn_scores.shape[1]
-    n_blocks = (N + block_size - 1) // block_size
-    
-    # Compute block-level distributions
-    # P_main: (B, H_kv, n_blocks) - average over groups
-    P_main_blocks = torch.zeros(B, H_kv, n_blocks, device=main_attn_scores.device)
-    
-    for g in range(H_kv):
-        # Average over H_q/H_kv heads in this group
-        group_heads = slice(g * (H_q // H_kv), (g + 1) * (H_q // H_kv))
-        main_scores_g = main_attn_scores[:, group_heads, :, :]  # (B, heads_per_group, N, N)
-        
-        # Compute attention probabilities
-        P_main_g = F.softmax(main_scores_g, dim=-1)  # softmax over key dimension
-        
-        # Aggregate to block level
-        for b_idx in range(n_blocks):
-            start = b_idx * block_size
-            end = min((b_idx + 1) * block_size, N)
-            P_main_blocks[:, g, b_idx] = P_main_g[:, :, :, start:end].sum(dim=-1).mean(dim=1).mean(dim=-1)
-    
-    # P_idx: (B, H_kv, n_blocks) - from Index Branch block scores
-    P_idx_blocks = torch.zeros(B, H_kv, n_blocks, device=idx_attn_scores.device)
-    
-    for g in range(H_kv):
-        idx_scores_g = idx_attn_scores[:, g, :]  # (B, N)
-        
-        for b_idx in range(n_blocks):
-            start = b_idx * block_size
-            end = min((b_idx + 1) * block_size, N)
-            # Max-pooling over block
-            P_idx_blocks[:, g, b_idx] = idx_scores_g[:, start:end].max(dim=-1)[0]
-    
-    # Softmax over blocks to get distributions
-    P_main_blocks = F.softmax(P_main_blocks, dim=-1)
-    P_idx_blocks = F.softmax(P_idx_blocks, dim=-1)
-    
-    # KL divergence: D_KL(P_main || P_idx)
-    kl_div = F.kl_div(P_idx_blocks.log(), P_main_blocks, reduction='batchmean')
-    
-    return kl_div
+    @cute.jit
+    def _fwd_kernel(self, mQ, mK, mV, mO, ...):
+        # 主循环：KV block 外层循环
+        # 1. Q gather4 / load → SMEM
+        # 2. K/V load → SMEM (with paged KV support)
+        # 3. Q@K^T → S in TMEM (tensor core MMA)
+        # 4. Softmax in TMEM → P
+        # 5. P@V → O in TMEM (tensor core MMA)
+        # 6. O store to gmem (split-KV combine if needed)
+        ...
 ```
 
-⚠️ 以上代码仅用于理解MSA的算法流程，实际训练/推理请使用官方GitHub仓库的实现。
+### combine — Split-KV Partial Output 合并
+
+```python
+# 位于：python/fmha_sm100/cute/src/sm100/fwd/combine.py
+# 合并 topK 个 partial attention outputs
+#
+# 算法：Online Softmax Reduce
+#   O_final = Σ_i (exp(LSE_i - LSE_max) * O_partial_i) / Σ_i exp(LSE_i - LSE_max)
+#   其中 LSE_max = max_i LSE_i
+#
+# 支持：PDL (Programmable Dependent Launch) 优化内核间依赖
+
+def combine(
+    O_partial: Tensor,     # [topK, total_q, Hq, dim]
+    LSE_partial: Tensor,   # [topK, total_q, Hq]
+    O_out: Tensor,         # [total_q, Hq, dim]
+    LSE_out: Tensor,       # [total_q, Hq]
+    cu_seqlens: Tensor,    # prefix sums for varlen batching
+    split_counts: Tensor,  # [total_q, Hkv]
+    output_scale: Tensor = None,  # optional global dequant scale
+    use_pdl: bool = True,
+): ...
+```
+
+### CSR 元数据构建
+
+```python
+# 位于：python/fmha_sm100/cute/sparse_index_utils.py
+# 将 [Hkv, total_q, topK] block indices 转为 CSR 格式
+
+def build_k2q_csr(
+    q2k_indices: Tensor,    # [Hkv, total_q, topK] int32
+    cu_seqlens_q: Tensor,   # [batch+1] int32
+    cu_seqlens_k: Tensor,   # [batch+1] int32
+    blk_kv: int,
+    total_k: int, max_seqlen_k: int, max_seqlen_q: int,
+    total_rows: int, qhead_per_kv: int,
+    return_schedule: bool = True,
+) -> tuple[Tensor, Tensor, Optional[SparseAttentionSchedule]]:
+    """Build CSR row pointers and query indices from q2k block selections.
+    
+    返回：
+      k2q_row_ptr:   [Hkv, total_rows+1]  int32 — CSR row pointers
+      k2q_q_indices: [Hkv, total_q*topK]  int32 — flattened query indices
+      schedule:      SparseAttentionSchedule (if return_schedule=True)
+    """
+    ...
+```
 
 ---
 
@@ -1040,7 +1176,7 @@ MSA仓库依赖以下第三方项目：
 
 **FlashAttention** (Dao et al., 2022): IO-aware注意力算法，通过tiling减少HBM访问。
 - **与MSA关系**：MSA复用FlashAttention的tiling策略和kernel设计模式
-- **区别**：FlashAttention仍是O(N²)，MSA降至O(N·k·B_k)
+- **区别**：FlashAttention仍是O(N^{2})，MSA降至O(N·k·B_k)
 
 **FlashAttention-2/3**：进一步优化tensor core利用和work distribution。
 - **与MSA关系**：MSA的KV-outer kernel借鉴了FA-2/3的tensor core优化
