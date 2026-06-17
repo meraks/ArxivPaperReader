@@ -46,4 +46,5 @@
 | 2606.13392 | MiniMax Sparse Attention (MSA): Blockwise Sparse Attention for Ultra-Long-Context LLMs | Xunhao Lai et al. (MiniMax, PKU, NVIDIA, ZJU, HUST) | [Papers](Papers/2026/06/2026-06-16-minimax-sparse-attention.md) |
 | 2606.13473 | MaxProof: Scaling Mathematical Proof with Generative-Verifier RL and Population-Level Test-Time Scaling | Jiacheng Chen, Xinyu Zhang, Shunkai Zhang et al. (MiniMax, CUHK, Fudan, Peking, Tsinghua) | [Papers](Papers/2026/06/2026-06-14-maxproof.md) |
 | 2606.13673 | SpatialClaw: Rethinking Action Interface for Agentic Spatial Reasoning | Seokju Cho et al. (NVIDIA/KAIST) | [Papers](Papers/2026/06/2026-06-13-spatialclaw.md) |
+| 2606.18216 | ZPPO: Zone of Proximal Policy Optimization - Teacher in Prompts, Not Gradients | Byung-Kwan Lee et al. (NVIDIA Research) | [Papers](Papers/2026/06/2026-06-18-zppo-zone-of-proximal-policy-optimization.md) |
 | HF: deepseek-ai/DeepSeek-V4-Flash | DeepSeek-V4 Technical Report: Towards Million-Token Efficient Context for Agent AI | DeepSeek Team | [DeepReadings](DeepReadings/2026-05-06-deepseek-v4-technical-report.md) |
