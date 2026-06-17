@@ -32,6 +32,7 @@
 | 2606.03841 | EvoDS: Self-Evolving Autonomous Data Science Agent | Zherui Yang, Fan Liu, Yansong Ning, Hao Liu (HKUST Guangzhou) | [DeepReadings](DeepReadings/2026-06-04-evods-self-evolving-data-science-agent.md) |
 | 2606.05080 | AutoLab: Can Frontier Models Solve Long-Horizon Autonomous Research & Engineering Tasks? | Zhangchen Xu, Junda Chen, Yue Huang, Dongfu Jiang et al. | [Papers](Papers/2026/06/2026-06-04-autolab.md) |
 | 2606.05158 | StreamMA: Streaming Communication in Multi-Agent Reasoning | Zhen Yang, Xiaogang Xu, Wen Wang, Cong Chen, Xander Xu, Ying-Cong Chen (HKUST(GZ), Alibaba, ZJU, HKUST) | [Papers](Papers/2026/06/2026-06-08-streamma-multi-agent-reasoning.md) |
+| 2606.06036 | Memory is Reconstructed, Not Retrieved: Graph Memory for LLM Agents | Shuo Ji, Yibo Li, Bryan Hooi (NUS) | [Papers](Papers/2026/06/2026-06-17-mragent-active-memory-reconstruction.md) |
 | 2606.06315 | LLM Self-Recognition: Steering and Retrieving Activation Signatures | Thibaud Ardoin, Jonas Schäfer, Gerhard Wunder (FU Berlin) | [Papers](Papers/2026/06/2026-06-06-llm-self-recognition.md) |
 | 2606.06337 | TokenMizer: Graph-Structured Conversation Memory for Long-Horizon LLM Sessions | Shweta Mishra (Independent Researcher) | [Papers](Papers/2026/06/2026-06-07-tokenmizer.md) |
 | 2606.06453 | Vortex: Efficient Programmable Sparse Attention Inference System for AI Agents | Zhuomin Chen, Xinrui Zhong et al. (CMU / Rice / NUS) | [Papers](Papers/2026/06/2026-06-05-vortex.md) |
