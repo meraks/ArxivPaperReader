@@ -162,7 +162,7 @@ OpenSkill将开放世界自进化问题形式化为如下优化问题：
 
 **目标**：
 构建可迁移技能$\hat{S}_i$和验证循环$\tilde{T}_i$，使得：
-$$ \max_{\hat{S}_i, \tilde{T}_i} \mathbb{E}_{i \sim \mathcal{D}} [ \text{PassRate}(\pi_{\theta'}(\hat{S}_i), T_i^{GT}) ] $$
+$ \max_{\hat{S}_i, \tilde{T}_i} \mathbb{E}_{i \sim \mathcal{D}} [ \text{PassRate}(\pi_{\theta'}(\hat{S}_i), T_i^{GT}) ] $
 
 其中$\pi_{\theta'}$是部署时的agent模型（可与构建技能时的模型不同），且仅在最终评估时接触$T_i^{GT}$。
 
@@ -304,7 +304,7 @@ Stage 2 是OpenSkill的核心创新——在完全没有目标答案的情况下
 #### 3.3.1 初始技能草案
 
 从Stage 1的输出生成初始技能草案$\hat{S}_i^{(0)}$：
-$$\hat{S}_i^{(0)} = \pi_\theta(I_i, E_i, p_i, k_i)$$
+$\hat{S}_i^{(0)} = \pi_\theta(I_i, E_i, p_i, k_i)$
 
 其中$\pi_\theta$是技能构建LLM（Opus 4.6 或 GPT 5.2），输出为可执行的代码（Python函数/类）加上自然语言说明。
 
@@ -339,7 +339,7 @@ def test_output_format(data_output):
 
 **Step 1：执行技能并测量虚拟通过率**
 
-$$\tilde{r}^{(j)} = \frac{|\{\text{passed tests in } \tilde{T}_i\}|}{|\tilde{T}_i|}$$
+$\tilde{r}^{(j)} = \frac{|\{\text{passed tests in } \tilde{T}_i\}|}{|\tilde{T}_i|}$
 
 这是在虚拟测试套件$\tilde{T}_i$上的全对全通过率。
 
@@ -353,13 +353,13 @@ $$\tilde{r}^{(j)} = \frac{|\{\text{passed tests in } \tilde{T}_i\}|}{|\tilde{T}_
 
 **Step 3：定向知识检索**（知识缺口时触发）
 
-$$\Delta k^{(j)} = D(F^{(j)}, K)$$
+$\Delta k^{(j)} = D(F^{(j)}, K)$
 
 仅检索与失败诊断直接相关的新知识，而非重新执行整个Stage 1。
 
 **Step 4：就地精炼**
 
-$$\hat{S}_i^{(j+1)} = \pi_\theta(\hat{S}_i^{(j)}, F^{(j)} \mid I_i, E_i, p_i, k_i \cup \Delta k^{(j)})$$
+$\hat{S}_i^{(j+1)} = \pi_\theta(\hat{S}_i^{(j)}, F^{(j)} \mid I_i, E_i, p_i, k_i \cup \Delta k^{(j)})$
 
 关键特性：
 - **就地更新**：直接修改当前技能，而非生成新技能再选最优（非best-of-N）
@@ -382,7 +382,7 @@ $$\hat{S}_i^{(j+1)} = \pi_\theta(\hat{S}_i^{(j)}, F^{(j)} \mid I_i, E_i, p_i, k_
 3. **真实评估**：**仅在此刻**解锁$T_i^{GT}$，执行评估
 4. **报告结果**：
 
-$$\text{PassRate} = \frac{1}{N} \sum_{i=1}^{N} \mathbb{1}[\pi_{\theta'}(\hat{S}_i^*) \text{ passes } T_i^{GT}]$$
+$\text{PassRate} = \frac{1}{N} \sum_{i=1}^{N} \mathbb{1}[\pi_{\theta'}(\hat{S}_i^*) \text{ passes } T_i^{GT}]$
 
 ---
 

@@ -22,11 +22,11 @@ MiniMax Sparse Attention (MSA) 是一种基于Grouped Query Attention (GQA)构�
 
 MSA架构继承标准GQA的投影层，仅增加2个额外投影矩阵，由两个分支组成：
 
-**Index Branch（索引分支）**：每个GQA group配备一个index query head，所有group共享一个index key head。通过block-level max-pooling计算块分数 $$M_{idx}^{(g,b)} = \max_{j \in B_b} S_{idx}^{(g,j)}$$，对每个group选择top-k个key-value块（始终包含当前块）。该分支独立运行，不与Main Branch共享参数。
+**Index Branch（索引分支）**：每个GQA group配备一个index query head，所有group共享一个index key head。通过block-level max-pooling计算块分数 $M_{idx}^{(g,b)} = \max_{j \in B_b} S_{idx}^{(g,j)}$，对每个group选择top-k个key-value块（始终包含当前块）。该分支独立运行，不与Main Branch共享参数。
 
 **Main Branch（主分支）**：标准GQA注意力，但仅对Index Branch选中的块执行精确注意力计算。所有group共享相同的块选择结果。
 
-**训练策略**：采用KL散度损失对齐两个分支的分布，Index Branch的query/key投影使用梯度断开（stop-gradient），并在训练初期使用Indexer Warmup让两个分支都看到完整注意力。总损失函数为 $$L = L_{LM} + \lambda \cdot L_{KL}$$，论文未明确给出λ具体值。
+**训练策略**：采用KL散度损失对齐两个分支的分布，Index Branch的query/key投影使用梯度断开（stop-gradient），并在训练初期使用Indexer Warmup让两个分支都看到完整注意力。总损失函数为 $L = L_{LM} + \lambda \cdot L_{KL}$，论文未明确给出λ具体值。
 
 ### 1.3 关键结果速览
 
@@ -1354,6 +1354,3 @@ MSA仓库依赖以下第三方项目：
 
 8. Zhang, Y., et al. (2023). H2O: Heavy-Hitter Oracle for Efficient Generative Inference of Large Language Models. arXiv:2306.14048.
 
----
-
-**报告完成** - 全文共约700行，覆盖MSA论文的方法、实验、实现和应用。

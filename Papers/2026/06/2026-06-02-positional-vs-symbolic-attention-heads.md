@@ -80,13 +80,13 @@ RoPE（Rotary Position Embedding）是当前主流LLM（LLaMA系列、Qwen、Dee
 
 给定query向量 $q$ 和key向量 $k$ 在位置 $m$ 和 $n$，RoPE对它们施加旋转：
 
-$$q'_m = R(m\Theta) \cdot q, \quad k'_n = R(n\Theta) \cdot k$$
+$q'_m = R(m\Theta) \cdot q, \quad k'_n = R(n\Theta) \cdot k$
 
 其中 $R(\theta)$ 是旋转矩阵，$\Theta = \{\theta_i = b^{-2i/d}\}$ 是频率参数的几何级数。
 
 **关键性质**：旋转后的内积仅依赖于相对位置 $m-n$：
 
-$$(q'_m)^T k'_n = q^T R((m-n)\Theta) k$$
+$(q'_m)^T k'_n = q^T R((m-n)\Theta) k$
 
 **频率分量的物理意义**：
 - **高频分量**（小 $i$，快速旋转）：对位置变化敏感，适合编码精确位置
@@ -102,11 +102,11 @@ Urrutia et al. (2025) 给出了严格的形式化定义：
 
 **定义（Positional Head）**：一个注意力头是位置型的，当且仅当对任意输入序列，其pre-softmax logits仅依赖于key tokens的位置，而不依赖于它们的值。形式化地，对于所有置换 $\pi$：
 
-$$\text{AttnLogits}(x) = \text{AttnLogits}(\pi(x))$$
+$\text{AttnLogits}(x) = \text{AttnLogits}(\pi(x))$
 
 **定义（Symbolic Head）**：一个注意力头是符号型的，当且仅当其logits仅依赖于key tokens的值（符号），在置换下等变：
 
-$$\text{AttnLogits}(\pi(x)) = \pi(\text{AttnLogits}(x))$$
+$\text{AttnLogits}(\pi(x)) = \pi(\text{AttnLogits}(x))$
 
 **度量方法**：对给定的prompt，通过随机置换key tokens并测量注意力分布的cosine similarity，计算positional score和symbolic score。高positional+低symbolic → 位置型；低positional+高symbolic → 符号型。
 
@@ -324,17 +324,17 @@ Hop 2: 位置0的第二字母X→X无匹配→或→
 
 RoPE对 $d$ 维向量施加块对角旋转。对于维度对 $(2j, 2j+1)$：
 
-$$R_j(\theta) = \begin{bmatrix} \cos\theta & -\sin\theta \\ \sin\theta & \cos\theta \end{bmatrix}$$
+$R_j(\theta) = \begin{bmatrix} \cos\theta & -\sin\theta \\ \sin\theta & \cos\theta \end{bmatrix}$
 
 频率：$\theta_j = b^{-2j/d}$，其中 $b$ 通常取10000（LLaMA）或其他值。
 
 对query和key分别在位置 $m$ 和 $n$ 旋转：
 
-$$q^{(m)} = R(m\Theta)q, \quad k^{(n)} = R(n\Theta)k$$
+$q^{(m)} = R(m\Theta)q, \quad k^{(n)} = R(n\Theta)k$
 
 内积：
 
-$$(q^{(m)})^T k^{(n)} = \sum_j q_{2j:2j+1}^T R((m-n)\theta_j) k_{2j:2j+1}$$
+$(q^{(m)})^T k^{(n)} = \sum_j q_{2j:2j+1}^T R((m-n)\theta_j) k_{2j:2j+1}$
 
 这仅依赖于相对位置 $m-n$，且不同频率分量对相对位置的敏感度不同。
 
@@ -427,7 +427,7 @@ Layer 10-12 (Retrieval):       [A] [B] [C] [1] [2] [3] [B] → [A] [B] [C] [1] [
 
 **直觉**：在长序列中，位置机制的注意力分布会逐渐"漂移"（因为位置偏移的累积误差），而符号机制的注意力分布保持稳定。Discrepancy量化了这种差异的核心度量——它衡量的是给定输入序列时，positional head和symbolic head的注意力logits中**最大候选与次大候选之间的差距差异**：
 
-$$\text{Disc}(L) = \max_{x \in \mathcal{X}_L} \left| (z_{\max} - z_{(2)})_{\text{pos}} - (z_{\max} - z_{(2)})_{\text{sym}} \right|$$
+$\text{Disc}(L) = \max_{x \in \mathcal{X}_L} \left| (z_{\max} - z_{(2)})_{\text{pos}} - (z_{\max} - z_{(2)})_{\text{sym}} \right|$
 
 其中 $z_{\max}$ 和 $z_{(2)}$ 分别是在长度为 $L$ 的序列上注意力logits的最大值和次大值，$\mathcal{X}_L$ 是所有可能输入序列的集合。本质上，Discrepancy衡量的是两种机制中"正确答案相对于干扰项的区分度差距"——当这个差距随 $L$ 增大时，模型就会开始犯错误。
 
@@ -439,7 +439,7 @@ $$\text{Disc}(L) = \max_{x \in \mathcal{X}_L} \left| (z_{\max} - z_{(2)})_{\text
 
 对于Number Task，设序列长度为 $L$，跳数为 $H$。每个hop的位置偏移量从 $\{1,...,L\}$ 中选取。注意力分布中非目标位置的"泄露"概率至少为：
 
-$$\varepsilon_{\text{pos}}(L) \geq 1 - \prod_{h=1}^{H} \left(1 - \frac{c}{L}\right) \approx \frac{cH}{L} \quad \text{（当L较大时）}$$
+$\varepsilon_{\text{pos}}(L) \geq 1 - \prod_{h=1}^{H} \left(1 - \frac{c}{L}\right) \approx \frac{cH}{L} \quad \text{（当L较大时）}$
 
 关键在于：**误差随跳数H线性增长，且对序列长度L的依赖不可消除**。
 
@@ -447,7 +447,7 @@ $$\varepsilon_{\text{pos}}(L) \geq 1 - \prod_{h=1}^{H} \left(1 - \frac{c}{L}\rig
 
 对于Letter Task，注意力分布的准确性仅依赖于词汇表中符号的可区分性：
 
-$$\varepsilon_{\text{sym}}(L) \leq H \cdot \frac{1}{|V|}$$
+$\varepsilon_{\text{sym}}(L) \leq H \cdot \frac{1}{|V|}$
 
 其中 $|V|$ 是词汇表大小。**此上界与L无关**——无论序列多长，只要符号足够可区分，匹配就不会失败。
 

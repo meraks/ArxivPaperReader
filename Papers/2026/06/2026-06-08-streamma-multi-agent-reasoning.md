@@ -89,27 +89,27 @@ Stream 协议天然兼容 KV-cache 复用——所有 Agent 共享相同的前�
 
 定义上游 Agent 产生 S 步推理，步骤 j 正确的概率为 p_j。添加正确步骤到上下文将下游步骤正确性提升 δ > 0；添加错误步骤降低 ε > 0。步骤 j 的期望净效应：
 
-$$\mu_j = p_j \cdot \delta - (1-p_j) \cdot \varepsilon$$
+$\mu_j = p_j \cdot \delta - (1-p_j) \cdot \varepsilon$
 
-盈亏平衡点：$$p^* = \frac{\varepsilon}{\delta + \varepsilon}$$，步骤有益当且仅当 p_j > p*。
+盈亏平衡点：$p^* = \frac{\varepsilon}{\delta + \varepsilon}$，步骤有益当且仅当 p_j > p*。
 
 定义三种加权均值：
-- $$\bar{p}$$ = 均匀加权（Serial 的等效输入质量）
-- $$p_{head}$$ = 头部加权（早期步骤权重更大，Stream 的等效输入质量）
-- $$p_{tail}$$ = 尾部加权（后期步骤权重更大）
+- $\bar{p}$ = 均匀加权（Serial 的等效输入质量）
+- $p_{head}$ = 头部加权（早期步骤权重更大，Stream 的等效输入质量）
+- $p_{tail}$ = 尾部加权（后期步骤权重更大）
 
 ### 3.2 Theorem 1：有效性排序
 
-> 根据 $$\bar{p}$$, $$p_{head}$$, $$p_{tail}$$ 与 p* 的关系，三种协议的 sCorr（下游平均步骤正确性）排序分为六种情况：
+> 根据 $\bar{p}$, $p_{head}$, $p_{tail}$ 与 p* 的关系，三种协议的 sCorr（下游平均步骤正确性）排序分为六种情况：
 
 | Regime | 条件 | 排序 |
 |--------|------|------|
-| **I.a** | $$p_{head} > p^*$$, $$p_{tail} < p^*$$, $$\bar{p} > p^*$$ | **Stream > Serial > Single** |
-| **I.b** | $$p_{head} > p^*$$, $$p_{tail} < p^*$$, $$\bar{p} < p^*$$ | **Stream > Single > Serial** |
-| **II.a** | $$\bar{p} > p^*$$, $$p_{tail} > p^*$$, $$p_{head} > p^*$$ | Serial > Stream > Single |
-| **II.b** | $$\bar{p} > p^*$$, $$p_{tail} > p^*$$, $$p_{head} < p^*$$ | Serial > Single > Stream |
-| **III.a** | $$p_{head} < p^*$$, $$\bar{p} < p^*$$, $$p_{tail} < p^*$$ | Single > Stream > Serial |
-| **III.b** | $$p_{head} < p^*$$, $$\bar{p} < p^*$$, $$p_{tail} > p^*$$ | Single > Serial > Stream |
+| **I.a** | $p_{head} > p^*$, $p_{tail} < p^*$, $\bar{p} > p^*$ | **Stream > Serial > Single** |
+| **I.b** | $p_{head} > p^*$, $p_{tail} < p^*$, $\bar{p} < p^*$ | **Stream > Single > Serial** |
+| **II.a** | $\bar{p} > p^*$, $p_{tail} > p^*$, $p_{head} > p^*$ | Serial > Stream > Single |
+| **II.b** | $\bar{p} > p^*$, $p_{tail} > p^*$, $p_{head} < p^*$ | Serial > Single > Stream |
+| **III.a** | $p_{head} < p^*$, $\bar{p} < p^*$, $p_{tail} < p^*$ | Single > Stream > Serial |
+| **III.b** | $p_{head} < p^*$, $\bar{p} < p^*$, $p_{tail} > p^*$ | Single > Serial > Stream |
 
 **实践含义**：现代 LLM 的推理步骤呈现出**头部可靠、尾部衰减**的规律（Regime I），这正是 Stream 最优的条件。论文通过控制扰动实验验证了这一非对称性。
 
@@ -118,11 +118,11 @@ $$\mu_j = p_j \cdot \delta - (1-p_j) \cdot \varepsilon$$
 
 ### 3.3 Theorem 2：加速比上界
 
-$$\text{Speedup} \leq \frac{A[(S + r_{po}) r_{v_{dp}} + S]}{(S + A - 1)(1 + \alpha r_{v_{dp}} + \beta r_{v_{dc}})}$$
+$\text{Speedup} \leq \frac{A[(S + r_{po}) r_{v_{dp}} + S]}{(S + A - 1)(1 + \alpha r_{v_{dp}} + \beta r_{v_{dc}})}$
 
 其中 A=agent 数，S=步数，r_{po}=prefill/output 比，r_{v_{dp}}=decode/prefill 速度比。
 
-当 decode ≫ prefill（$$r_{v_{dp}} \to 0$$）时简化为：
+当 decode ≫ prefill（$r_{v_{dp}} \to 0$）时简化为：
 
 $$\text{Speedup} \leq \frac{AS}{S + A - 1}$$
 

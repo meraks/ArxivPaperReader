@@ -115,12 +115,12 @@ MemGPT 解决的问题是「我三个月前和你说过什么？」；TokenMizer
 - 环境和项目事实
 
 **信息损失（Information Loss）**：
-$$L = 1 - \frac{1}{3}(R_{\text{task}} + R_{\text{dec}} + R_{\text{file}})$$
+$L = 1 - \frac{1}{3}(R_{\text{task}} + R_{\text{dec}} + R_{\text{file}})$
 
 其中回忆率使用模糊匹配计算（Definition 5/6，详见 Ch4）。
 
 **Token 效率（Token Efficiency）**：
-$$\eta = \frac{\text{mean recall}}{|R|/100}$$
+$\eta = \frac{\text{mean recall}}{|R|/100}$
 
 这个指标归一化了回忆率与恢复块 token 成本，使不同会话和领域的方法可以公平比较。**调试会话**被发现是最高效率的领域 —— 其结构化状态（错误→修复→验证）天然适合图表示。
 
@@ -518,7 +518,7 @@ TokenMizer 的压缩管线在序列化**之后**运行，进一步缩减恢复�
 
 ### 6.3 Token 效率指标 η
 
-$$\eta = \frac{\text{mean recall}}{|R|/100}$$
+$\eta = \frac{\text{mean recall}}{|R|/100}$
 
 | 领域 | η (TokenMizer) | 说明 |
 |------|---------------|------|

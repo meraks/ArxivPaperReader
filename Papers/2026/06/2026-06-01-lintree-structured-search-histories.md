@@ -144,7 +144,7 @@ EXPAND ACT D:A->C -> S{ 0:D<C ; 1:A<B }
 
 GRPO (Group Relative Policy Optimization) 是DeepSeek提出的RL方法。论文为搜索任务设计了融合正确性和效率的奖励函数：
 
-$$R(\tau) = \mathbf{1}[\text{valid}(\tau) \land \text{correct}(\tau)] \left(1 - \lambda \sum_{t=0}^{N_{\text{exp}}(\tau)-1} \gamma^t\right)$$
+$R(\tau) = \mathbf{1}[\text{valid}(\tau) \land \text{correct}(\tau)] \left(1 - \lambda \sum_{t=0}^{N_{\text{exp}}(\tau)-1} \gamma^t\right)$
 
 其中：
 - $N_{\text{exp}}(\tau)$：轨迹 $\tau$ 中的搜索展开次数
@@ -185,7 +185,7 @@ GRPO超参数：$N=8$ rollouts/样本，1 epoch。
 **训练细节**：
 - SFT：在(state, action)对上训练，目标是规则启发式值。数据量：BW 1.74M对、Navigation 1.22M对、Sokoban 1.28M对
 - RL：将展开选择建模为决策问题，使用softmax策略梯度：
-  $$\pi_\theta(c \mid \mathcal{C}_{i,t}) = \frac{\exp(-h_\theta(c))}{\sum_{c' \in \mathcal{C}_{i,t}} \exp(-h_\theta(c'))}$$
+  $\pi_\theta(c \mid \mathcal{C}_{i,t}) = \frac{\exp(-h_\theta(c))}{\sum_{c' \in \mathcal{C}_{i,t}} \exp(-h_\theta(c'))}$
 
 > **类比理解**：局部启发式搜索像用GPS导航——GPS只知道当前位置和目的地，根据局部道路信息做最优选择。轨迹条件化推理像拥有全景地图+历史行程记录的司机——理论上能看到更全局的模式（如"那条路总是堵"），但前提是历史记录足够清晰可读。
 

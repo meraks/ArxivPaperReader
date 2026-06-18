@@ -18,7 +18,7 @@
 
 标准 attention 的核心操作是：
 
-$$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d}}\right)V$$
+$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d}}\right)V$
 
 这个操作有三个根本性问题：
 
@@ -44,12 +44,12 @@ $$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d}}\right)V$
 
 给定输入 $X \in \mathbb{R}^{n \times d}$（n 个 token，每个 d 维），通过线性投影得到 Q, K, V：
 
-$$Q = XW_Q, \quad K = XW_K, \quad V = XW_V$$
+$Q = XW_Q, \quad K = XW_K, \quad V = XW_V$
 
 然后计算：
 
-$$A = \text{softmax}\left(\frac{QK^T}{\sqrt{d}}\right) \in \mathbb{R}^{n \times n}$$
-$$\text{Output} = AV \in \mathbb{R}^{n \times d}$$
+$A = \text{softmax}\left(\frac{QK^T}{\sqrt{d}}\right) \in \mathbb{R}^{n \times n}$
+$\text{Output} = AV \in \mathbb{R}^{n \times d}$
 
 这里有一个**隐藏的结构性假设**：输入的 n 个位置是独立的、离散的 token。对于 NLP 中的词序列，这很自然。但对于科学计算中的数据——PDE 在网格上的解、3D 点云、物理场的采样——这个假设是有问题的。
 
@@ -66,11 +66,11 @@ Functional Maps（Ovsjanikov et al., 2012）是 3D 形状分析中的经典框�
 
 具体来说，给定两个形状上的函数空间和各自的基函数 $\Phi_1, \Phi_2$（通常取 Laplace-Beltrami 算子的特征函数），functional map $C \in \mathbb{R}^{k \times k}$ 满足：
 
-$$\Phi_2 C \approx \Pi \Phi_1$$
+$\Phi_2 C \approx \Pi \Phi_1$
 
 其中 $\Pi$ 是真实的点对应矩阵。$C$ 可以通过最小二乘求解：
 
-$$C = \arg\min_C \|\Phi_2 C - \Pi \Phi_1\|_F^2 + \lambda R(C)$$
+$C = \arg\min_C \|\Phi_2 C - \Pi \Phi_1\|_F^2 + \lambda R(C)$
 
 Functional Attention 巧妙地将这个几何处理论**搬到了 attention 的语境中**：attention 层中的 Q、K、V 投影天然形成了函数空间，而「基函数」可以通过学习得到。
 
@@ -105,9 +105,9 @@ Functional Attention 的关键洞察：
 
 将 Q、K、V 从 token 空间投影到函数空间。**注意不对称性**：Q 使用 query 空间的基 Φ，K 和 V 使用 key-value 空间的基 Ψ（论文 Eq. 4）。实践中用转置 Φ^T 替代伪逆 Φ†（论文 Remark 4.1）：
 
-$$\tilde{Q} = \Phi^T Q \in \mathbb{R}^{k \times d}$$
-$$\tilde{K} = \Psi^T K \in \mathbb{R}^{k \times d}$$
-$$\tilde{V} = \Psi^T V \in \mathbb{R}^{k \times d}$$
+$\tilde{Q} = \Phi^T Q \in \mathbb{R}^{k \times d}$
+$\tilde{K} = \Psi^T K \in \mathbb{R}^{k \times d}$
+$\tilde{V} = \Psi^T V \in \mathbb{R}^{k \times d}$
 
 > **类比理解**：
 > 这就像傅里叶变换——把时域信号（n 个 token）转换到频域（k 个频率分量）。不过这里的「基」不是固定的正弦波，而是**可学习的自适应基函数**，由数据驱动。
@@ -116,17 +116,17 @@ $$\tilde{V} = \Psi^T V \in \mathbb{R}^{k \times d}$$
 
 在函数空间中求解最优的线性算子 $C$，使得 $C \tilde{K}$ 尽可能接近 $\tilde{Q}$：
 
-$$C^* = \arg\min_C \|\tilde{Q} - C \tilde{K}\|_F^2 + \lambda \|C\|_F^2$$
+$C^* = \arg\min_C \|\tilde{Q} - C \tilde{K}\|_F^2 + \lambda \|C\|_F^2$
 
 这是带 Tikhonov 正则化的最小二乘问题。闭式解为：
 
-$$C^* = \tilde{Q}\tilde{K}^T \left(\tilde{K}\tilde{K}^T + \lambda I_k\right)^{-1}$$
+$C^* = \tilde{Q}\tilde{K}^T \left(\tilde{K}\tilde{K}^T + \lambda I_k\right)^{-1}$
 
 **Step 3：输出重构**
 
 用 $\Phi$ 基将函数空间的变换结果映射回 token 空间：
 
-$$\boxed{\text{FUNCATTN}(Q, K, V) = \Phi \; C^* \; \tilde{V}}$$
+$\boxed{\text{FUNCATTN}(Q, K, V) = \Phi \; C^* \; \tilde{V}}$
 
 > **类比理解**：
 > 整个过程就像翻译的三步：(1) 将原文（token 表示）编码为中间语义表示（k 维谱系数）——但注意 **Q 用 Φ 编码、K/V 用 Ψ 编码**（编码器本身不对称），(2) 在语义空间中做信息传递（k×k 算子 C），(3) 将结果用 Φ 解码回 token 空间。Q 与 K/V 使用不同基，正是 Functional Maps 框架中"在两个不同函数空间之间估计传输算子"的核心思想。
@@ -135,7 +135,7 @@ $$\boxed{\text{FUNCATTN}(Q, K, V) = \Phi \; C^* \; \tilde{V}}$$
 
 基函数是 Functional Attention 的核心组件之一。论文选择了**可学习自适应基函数**：
 
-$$B = \text{Softmax}\big(\text{Linear}(X)\big) \in \mathbb{R}^{n \times k}$$
+$B = \text{Softmax}\big(\text{Linear}(X)\big) \in \mathbb{R}^{n \times k}$
 
 其中 Linear 是从 $\mathbb{R}^d$ 到 $\mathbb{R}^k$ 的全连接层，Softmax 沿 k 维度应用。
 

@@ -34,7 +34,7 @@ ZPPO将教师知识从梯度空间转移到prompt空间。教师响应被编码�
 
 **NCQ（Negative Candidate-included Question）**：聚合学生所有错误rollout到同一prompt中，暴露共享失败模式。
 
-**Prompt Replay Buffer**：FIFO队列（容量10,000），准入 $$\bar{r}_x < 0.5$$，毕业 $$\bar{r}_x \geq 0.5$$。
+**Prompt Replay Buffer**：FIFO队列（容量10,000），准入 $\bar{r}_x < 0.5$，毕业 $\bar{r}_x \geq 0.5$。
 
 ### 核心结果
 
@@ -63,7 +63,7 @@ $$A^{(g)} = \frac{r(x, y_S^{(g)}) - \bar{r}_x}{\text{std}_x + \epsilon} \tag{1}$
 
 当 rollout group 全部错误（$\bar{r}_x = 0$）或全部正确（$\bar{r}_x = 1$）时，group 内每个 advantage 恰好为零，该 question 完全不产生梯度信号。对于小模型，全部错误的情况正是**需要教师引导的那组问题**。
 
-在 $\{0,1\}$ 二值奖励下，std 在 $\bar{r}_x = 0.5$ 处达到最大值——携带最强学习信号的区域恰恰是 GRPO 的盲区。
+在 $\{0,1\}$ 二值奖励下，$\mathrm{std}_x$ 在 $\bar{r}_x = 0.5$ 处达到最大值，此时 group-relative advantage 携带最强学习信号。而 hard questions（$\bar{r}_x < 0.5$）趋近的是零梯度盲区（$\bar{r}_x = 0$）——小模型最需要教师引导的问题区域，恰恰被 GRPO 静默丢弃。
 
 ### 2.3 Hybrid 方案的局限
 
@@ -75,12 +75,12 @@ $$A^{(g)} = \frac{r(x, y_S^{(g)}) - \bar{r}_x}{\text{std}_x + \epsilon} \tag{1}$
 
 ### 3.1 GRPO的失败模式
 
-**符号定义**。问题 $$x$$，响应 $$y \sim \pi_\theta(\cdot \mid x)$$，$$G_{\mathrm{S}}$$ 个rollout，outcome reward $$r \in \{0,1\}$$，group mean $$\bar{r}_x$$，标准差 $$\mathrm{std}_x$$。
+**符号定义**。问题 $x$，响应 $y \sim \pi_\theta(\cdot \mid x)$，$G_{\mathrm{S}}$ 个rollout，outcome reward $r \in \{0,1\}$，group mean $\bar{r}_x$，标准差 $\mathrm{std}_x$。
 
 **Group-relative advantage**：
 $$A^{(g)} = \frac{r(x, y_{\mathrm{S}}^{(g)}) - \bar{r}_x}{\mathrm{std}_x + \epsilon}$$
 
-**零优势陷阱**。当全部错误（$$\bar{r}_x=0$$）或全部正确（$$\bar{r}_x=1$$）时，所有 $$A^{(g)}=0$$ → 零梯度。Hard question定义：$$\bar{r}_x < 0.5$$。$$\mathrm{std}_x$$ 在 $$\bar{r}_x=0.5$$ 处达到最大值（二元分布方差最大点），携带最强学习信号的区域反而是GRPO的盲区。
+**零优势陷阱**。当全部错误（$\bar{r}_x=0$）或全部正确（$\bar{r}_x=1$）时，所有 $A^{(g)}=0$ → 零梯度。Hard question定义：$\bar{r}_x < 0.5$。$\mathrm{std}_x$ 在 $\bar{r}_x=0.5$ 处达到最大值（二元分布方差最大点），此处 group-relative advantage 携带最强学习信号；$\bar{r}_x < 0.5$ 的 hard questions 正是信号持续减弱的区域，其下限 $\bar{r}_x = 0$ 即为 GRPO 的零梯度盲区。
 
 ### 3.2 BCQ（Binary Candidate-included Question）
 
@@ -110,12 +110,12 @@ $$A^{(g)} = \frac{r(x, y_{\mathrm{S}}^{(g)}) - \bar{r}_x}{\mathrm{std}_x + \epsi
 
 Buffer $\mathcal{B}$ 仅存储问题 $x$（图像+文本），不存储响应。
 
-| 属性 | 值 |
-|------|----|
-| **准入条件** | $\bar{r}_x < 0.5$（hard question） |
-| **毕业条件** | 后续某 step 上 $\bar{r}_x \ge 0.5$ |
-| **淘汰机制** | FIFO，容量 $|\mathcal{B}|_{\max} = 10{,}000$ |
-| **重放比例** | $\rho_{\text{replay}} = 0.25$（重放问题数 / 新问题数） |
+| 属性       | 值                                             |
+| -------- | --------------------------------------------- |
+| **准入条件** | $\bar{r}_x < 0.5$（hard question）              |
+| **毕业条件** | 后续某 step 上 $\bar{r}_x \ge 0.5$                |
+| **淘汰机制** | FIFO，容量 $\mathcal{B}_{\max} = 10{,}000$       |
+| **重放比例** | $\rho_{\text{replay}} = 0.25$（重放问题数 / 新问题数）   |
 | **增强上限** | $\rho_{\text{aug}} = 0.25$（BCQ+NCQ 总数 / 新问题数） |
 
 每次重放时，BCQ/NCQ 候选由当前学生和教师的新采样生成——每次访问候选各不相同。
@@ -250,7 +250,3 @@ ZPPO 基于 GRPO [36] + DAPO [8] 的三个成分：
 - [37] REINFORCE++ (Hu, 2025) — 两步 batch-level advantage normalization
 - [42] Vygotsky (1978) — Zone of Proximal Development
 - [44] PPO (Schulman et al., 2017) — 近端策略优化
-
----
-
-*报告基于 arXiv:2606.18216 原文（Tab. 1–3, Fig. 1–6），所有数字已与论文原文核对。*
