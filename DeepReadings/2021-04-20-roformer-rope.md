@@ -137,13 +137,13 @@ $$\text{Attention}(Q,K,V) \approx \phi(Q)(\phi(K)^TV)\tag{5}$$
 
 $$\text{RoPE-LinearAtt} \approx \phi(R_m Q) (\phi(R_n K)^T V) \tag{10}$$
 
-对于某些核函数，相对位置信息$m-n$还是能够保持：
+对于某些核函数，相对位置信息$m-n$还是能够保持。对于单个 query/key 向量对，核函数的内积为：
 $$
-\phi(R_m q)^T\phi(R_n k) \approx \exp((R_{m}q)^{T}(R_{n}k)) = \exp(q^TR_{n-m}k) \tag{11}
+\phi(R_n k)^T \phi(R_m q) \approx \exp\big((R_m q)^T (R_n k)\big) = \exp(q^T R_{n-m} k) \tag{11}
 $$
-式(11)中 $q$ 和 $k$ 分别是quary和key的列向量。
+（式(11)中 $q$ 和 $k$ 分别是 query 和 key 的列向量，转置统一放在 key 侧 $\phi(R_n k)^T$，与式(5)(10)的矩阵形式惯例一致。）
 相比之下，加法编码 $Q + P_{\text{pos}}$ 在 $\phi$ 变换后无法分离位置和内容：
-$$\phi(Q + P_{\text{pos}}) \neq \phi(Q) + \phi(P_{\text{pos}})$$
+$$\phi(Q + P_{\text{pos}}) \neq \phi(Q) + \phi(P_{\text{pos}}) \tag{25}$$
 
 ### 1.4 类比理解：时钟指针的旋转几何
 
@@ -187,7 +187,7 @@ q_1 和 q_5 的"夹角" = 4θ (自动从绝对位置 1 和 5 中浮现)
 
 $$\text{Attention}(x_i) = \sum_{j=1}^n \alpha_{ij} (x_j W^V) \tag{12}$$
 其中$\alpha_{ij}$:
-$$\alpha_{ij} = \frac{\exp(\text{score}(x_i, x_j))}{\sum_k \exp(\text{score}(x_i, x_k))}$$
+$$\alpha_{ij} = \frac{\exp(\text{score}(x_i, x_j))}{\sum_k \exp(\text{score}(x_i, x_k))} \tag{44}$$
 
 **关键观察**：如果我们打乱序列顺序（重新排列 $x_1, \ldots, x_n$ 的顺序），注意力分数矩阵 $\alpha$ 会完全相同，只是行和列的顺序也跟着打乱了。
 
@@ -247,9 +247,13 @@ Vaswani 还假设这种设计能帮助模型学习**相对位置**依赖："we c
 #### 2.3.1 基本思想
 
 **方法**：直接学习每个位置的 embedding 向量，就像学习 word embedding 一样：
-$$x_m' = x_m + p_m \tag{15}$$
-其中$P_{m}$:
-$$p_m \in \mathbb{R}^d, \quad m = 0, 1, \ldots, L_{\text{max}}-1$$
+$$
+\begin{aligned}
+x_m' &= x_m + p_m \\
+p_m &\in \mathbb{R}^d, \quad m = 0, 1, \ldots, L_{\text{max}}-1
+\end{aligned}
+\tag{3}
+$$
 参数量：$L_{\text{max}} \times d$（对于 $L_{\text{max}}=512$, $d=512$，约 262K 参数）
 
 #### 2.3.2 优缺点
@@ -406,7 +410,7 @@ $$\text{Attention}(Q, K, V) \approx \phi(Q)(\phi(K)^T V) \tag{5}$$
 
 当位置编码通过加法注入（$Q' = Q + P_Q$），核变换后无法分离：
 
-$$\phi(Q + P_Q) \neq \phi(Q) + \phi(P_Q)$$
+$$\phi(Q + P_Q) \neq \phi(Q) + \phi(P_Q) \tag{25}$$
 
 这导致线性注意力下位置信息"丢失"或"扭曲"。
 
@@ -432,7 +436,7 @@ $$
 **乘法的优势**：
 
 1. **线性注意力兼容**：
-$$\phi(R_m q) \approx R_m \phi(q)$$
+$$\phi(R_m q) \approx R_m \phi(q) \tag{26}$$
 （对于某些核函数，旋转可提到 $\phi$ 外部）
 
 2. **外推能力强**：
@@ -526,22 +530,22 @@ $$\langle f_q(x_m, m), f_k(x_n, n) \rangle = g(x_m, x_n, m-n) \tag{23}$$
 #### 3.1.2 与现有方法的对比
 
 **Sinusoidal 位置编码**：
-$$\text{PE}(m) = [\sin(m\theta_1), \cos(m\theta_1), \sin(m\theta_2), \cos(m\theta_2), \ldots]^T$$
+$$\text{PE}(m) = [\sin(m\theta_1), \cos(m\theta_1), \sin(m\theta_2), \cos(m\theta_2), \ldots]^T \tag{27}$$
 
 当计算内积时：
-$$\langle x_m + \text{PE}(m), x_n + \text{PE}(n) \rangle = x_m^T x_n + x_m^T \text{PE}(n) + \text{PE}(m)^T x_n + \text{PE}(m)^T \text{PE}(n)$$
+$$\langle x_m + \text{PE}(m), x_n + \text{PE}(n) \rangle = x_m^T x_n + x_m^T \text{PE}(n) + \text{PE}(m)^T x_n + \text{PE}(m)^T \text{PE}(n) \tag{28}$$
 
 这个内积中绝对位置 $m$ 和 $n$ **无法完全消减**为 $m-n$（虽然 $\text{PE}(m)^T \text{PE}(n)$ 项包含相对位置信息，但其他项仍然混合了绝对位置）。
 
 **Shaw 相对编码**：
-$$\text{Attention}(m, n) = \text{softmax}\left(\frac{q_m^T k_n}{\sqrt{d}} + b_{m-n}\right)$$
+$$\text{Attention}(m, n) = \text{softmax}\left(\frac{q_m^T k_n}{\sqrt{d}} + b_{m-n}\right) \tag{4}$$
 
-虽然显式建模了相对位置，但通过**加法偏置** $b_{m-n}$ 实现，需要额外的 $O(L^2)$ 存储和计算。
+，但通过**加法偏置** $b_{m-n}$ 实现，需要额外的 $O(L^2)$ 存储和计算。
 
 #### 3.1.3 理想解的线索：乘法结构
 
 观察复数乘法的性质：
-$$e^{i m\theta} \cdot e^{-i n\theta} = e^{i(m-n)\theta}$$
+$$e^{i m\theta} \cdot e^{-i n\theta} = e^{i(m-n)\theta} \tag{7}$$
 
 这里绝对位置 $m$ 和 $n$ 自然地合并成相对位置 $m-n$。这提示我们：**如果用复数旋转来编码位置，内积中可能自动出现相对位置**。
 
@@ -556,7 +560,7 @@ $$
 f_q(x_m, m) &= (W_q x_m) e^{i m\theta} \\
 f_k(x_n, n) &= (W_k x_n) e^{i n\theta}
 \end{align}
-\tag{24}
+\tag{1}
 $$
 
 其中：
@@ -603,7 +607,7 @@ $$
 
 取实部：
 
-$$\langle f_q(x_m, m), f_k(x_n, n) \rangle = (ac + bd)\cos((m-n)\theta) - (bc - ad)\sin((m-n)\theta)$$
+$$\langle f_q(x_m, m), f_k(x_n, n) \rangle = (ac + bd)\cos((m-n)\theta) - (bc - ad)\sin((m-n)\theta) \tag{29}$$
 
 **结论**：内积确实只依赖于相对位置 $m-n$！
 
@@ -621,7 +625,7 @@ $$z e^{i\theta} = (x + iy)(\cos\theta + i \sin\theta) = (x\cos\theta - y\sin\the
 
 因此，位置 $m$ 的 2D 旋转矩阵为：
 
-$$R^{2}_{\theta, m} = \begin{pmatrix} \cos(m\theta) & -\sin(m\theta) \\ \sin(m\theta) & \cos(m\theta) \end{pmatrix}$$
+$$R^{2}_{\theta, m} = \begin{pmatrix} \cos(m\theta) & -\sin(m\theta) \\ \sin(m\theta) & \cos(m\theta) \end{pmatrix} \tag{30}$$
 
 ### 3.3 推广到 d 维：d/2 个独立 2D 子空间旋转
 
@@ -640,7 +644,7 @@ $$R^{2}_{\theta, m} = \begin{pmatrix} \cos(m\theta) & -\sin(m\theta) \\ \sin(m\t
 
 对于位置 $m$ 的 $d$ 维向量 $x_m \in \mathbb{R}^d$，定义旋转后的向量：
 
-$$f(x_m, m) = R^d_{\Theta, m} x_m$$
+$$f(x_m, m) = R^d_{\Theta, m} x_m \tag{21}$$
 
 其中 $R^d_{\Theta, m}$ 是一个 $d \times d$ 的块对角矩阵：
 
@@ -649,11 +653,11 @@ R^{2}_{\theta_1, m} & 0 & \cdots & 0 \\
 0 & R^{2}_{\theta_2, m} & \cdots & 0 \\
 \vdots & \vdots & \ddots & \vdots \\
 0 & 0 & \cdots & R^{2}_{\theta_{d/2}, m}
-\end{pmatrix}$$
+\end{pmatrix} \tag{6}$$
 
 每个 $2 \times 2$ 块 $R^{2}_{\theta_i, m}$ 是：
 
-$$R^{2}_{\theta_i, m} = \begin{pmatrix} \cos(m\theta_i) & -\sin(m\theta_i) \\ \sin(m\theta_i) & \cos(m\theta_i) \end{pmatrix}$$
+$$R^{2}_{\theta_i, m} = \begin{pmatrix} \cos(m\theta_i) & -\sin(m\theta_i) \\ \sin(m\theta_i) & \cos(m\theta_i) \end{pmatrix} \tag{30}$$
 
 这里 $\Theta = (\theta_1, \theta_2, \ldots, \theta_{d/2})$ 是 $d/2$ 个不同的旋转频率。
 
@@ -661,7 +665,7 @@ $$R^{2}_{\theta_i, m} = \begin{pmatrix} \cos(m\theta_i) & -\sin(m\theta_i) \\ \s
 
 **定理**：对于任意两个位置 $m$ 和 $n$，以及任意两个向量 $x_m, x_n$：
 
-$$\langle R^d_{\Theta, m} x_m, R^d_{\Theta, m} x_n \rangle = \sum_{i=1}^{d/2} \text{Re}\left[(W^{(i)}_q x_m)(W^{(i)}_k x_n)^* e^{i(m-n)\theta_i}\right]$$
+$$\langle R^d_{\Theta, m} x_m, R^d_{\Theta, m} x_n \rangle = \sum_{i=1}^{d/2} \text{Re}\left[(W^{(i)}_q x_m)(W^{(i)}_k x_n)^* e^{i(m-n)\theta_i}\right] \tag{31}$$
 
 其中 $W^{(i)}_q, W^{(i)}_k$ 是权重矩阵的第 $i$ 个 2D 块。
 
@@ -671,10 +675,10 @@ $$\langle R^d_{\Theta, m} x_m, R^d_{\Theta, m} x_n \rangle = \sum_{i=1}^{d/2} \t
 
 $d$ 维空间可以看作 $d/2$ 个"正交平面"的直和。每个平面上独立旋转，相当于：
 
-- **平面 1**（维度 1-2）：旋转频率 $\theta_1$（慢速旋转，捕获长程依赖）
-- **平面 2**（维度 3-4）：旋转频率 $\theta_2$（中速旋转）
+- **平面 1**（维度 1~2）：旋转频率 $\theta_1$（慢速旋转，捕获长程依赖）
+- **平面 2**（维度 3~4）：旋转频率 $\theta_2$（中速旋转）
 - ...
-- **平面 $d/2$**（维度 $d-1$-$d$）：旋转频率 $\theta_{d/2}$（快速旋转，捕获短程依赖）
+- **平面 $d/2$**（维度 $d-1$~$d$）：旋转频率 $\theta_{d/2}$（快速旋转，捕获短程依赖）
 
 这种多尺度设计类似于 Sinusoidal 位置编码的多频率策略。
 
@@ -684,7 +688,7 @@ $d$ 维空间可以看作 $d/2$ 个"正交平面"的直和。每个平面上独�
 
 RoPE 的旋转矩阵 $R^d_{\Theta, m}$ 的完整定义为：
 
-$$R^d_{\Theta, m} = \text{diag}(R^{2}_{\theta_1, m}, R^{2}_{\theta_2, m}, \ldots, R^{2}_{\theta_{d/2}, m})$$
+$$R^d_{\Theta, m} = \text{diag}(R^{2}_{\theta_1, m}, R^{2}_{\theta_2, m}, \ldots, R^{2}_{\theta_{d/2}, m}) \tag{6}$$
 
 其中 $\text{diag}(\cdot)$ 表示块对角矩阵。展开写：
 
@@ -696,7 +700,7 @@ $$R^d_{\Theta, m} = \begin{pmatrix}
 0 & 0 & 0 & 0 & \cos(m\theta_3) & -\sin(m\theta_3) & \cdots \\
 0 & 0 & 0 & 0 & \sin(m\theta_3) & \cos(m\theta_3) & \cdots \\
 \vdots & \vdots & \vdots & \vdots & \vdots & \vdots & \ddots
-\end{pmatrix}$$
+\end{pmatrix} \tag{6}$$
 
 #### 3.4.2 关键性质
 
@@ -704,7 +708,7 @@ $$R^d_{\Theta, m} = \begin{pmatrix}
 
 $R^d_{\Theta, m}$ 是正交矩阵（实数情形下）或酉矩阵（复数情形下）：
 
-$$(R^d_{\Theta, m})^T R^d_{\Theta, m} = I_d$$
+$$(R^d_{\Theta, m})^T R^d_{\Theta, m} = I_d \tag{32}$$
 
 **证明**：每个 $2 \times 2$ 旋转块都是正交矩阵，块对角矩阵的乘积保持正交性。
 
@@ -712,28 +716,28 @@ $$(R^d_{\Theta, m})^T R^d_{\Theta, m} = I_d$$
 
 **性质 2：群性质（复合旋转）**
 
-$$R^d_{\Theta, m} (R^d_{\Theta, n})^T = R^d_{\Theta, m-n}$$
+$$R^d_{\Theta, m} (R^d_{\Theta, n})^T = R^d_{\Theta, m-n} \tag{33}$$
 
 **证明**：由于块对角结构，只需证明 2D 情形：
 
-$$\begin{pmatrix} \cos(m\theta) & -\sin(m\theta) \\ \sin(m\theta) & \cos(m\theta) \end{pmatrix} \begin{pmatrix} \cos(n\theta) & \sin(n\theta) \\ -\sin(n\theta) & \cos(n\theta) \end{pmatrix}$$
-
-$$= \begin{pmatrix} \cos(m\theta)\cos(n\theta) + \sin(m\theta)\sin(n\theta) & \cos(m\theta)\sin(n\theta) - \sin(m\theta)\cos(n\theta) \\ \sin(m\theta)\cos(n\theta) - \cos(m\theta)\sin(n\theta) & \sin(m\theta)\sin(n\theta) + \cos(m\theta)\cos(n\theta) \end{pmatrix}$$
+$$
+\begin{aligned}
+&\begin{pmatrix} \cos(m\theta) & -\sin(m\theta) \\ \sin(m\theta) & \cos(m\theta) \end{pmatrix} \begin{pmatrix} \cos(n\theta) & \sin(n\theta) \\ -\sin(n\theta) & \cos(n\theta) \end{pmatrix} \\
+&= \begin{pmatrix} \cos(m\theta)\cos(n\theta) + \sin(m\theta)\sin(n\theta) & \cos(m\theta)\sin(n\theta) - \sin(m\theta)\cos(n\theta) \\ \sin(m\theta)\cos(n\theta) - \cos(m\theta)\sin(n\theta) & \sin(m\theta)\sin(n\theta) + \cos(m\theta)\cos(n\theta) \end{pmatrix} \\
+&= \begin{pmatrix} \cos[(m-n)\theta] & -\sin[(m-n)\theta] \\ \sin[(m-n)\theta] & \cos[(m-n)\theta] \end{pmatrix} = R^{2}_{\theta, m-n}
+\end{aligned}
+$$
 
 利用三角恒等式：
 - $\cos(m\theta)\cos(n\theta) + \sin(m\theta)\sin(n\theta) = \cos[(m-n)\theta]$
 - $\cos(m\theta)\sin(n\theta) - \sin(m\theta)\cos(n\theta) = -\sin[(m-n)\theta]$
 - $\sin(m\theta)\cos(n\theta) - \cos(m\theta)\sin(n\theta) = \sin[(m-n)\theta]$
 
-因此：
-
-$$= \begin{pmatrix} \cos[(m-n)\theta] & -\sin[(m-n)\theta] \\ \sin[(m-n)\theta] & \cos[(m-n)\theta] \end{pmatrix} = R^{2}_{\theta, m-n}$$
-
 **意义**：这是"绝对编码自动生成相对依赖"的数学基础！
 
 **性质 3：可交换性**
 
-$$R^d_{\Theta, m} R^d_{\Theta, n} = R^d_{\Theta, m+n} = R^d_{\Theta, n} R^d_{\Theta, m}$$
+$$R^d_{\Theta, m} R^d_{\Theta, n} = R^d_{\Theta, m+n} = R^d_{\Theta, n} R^d_{\Theta, m} \tag{34}$$
 
 **意义**：旋转顺序不影响最终结果，这符合几何直观（先转 $\alpha$ 再转 $\beta$ = 先转 $\beta$ 再转 $\alpha$ = 转 $\alpha+\beta$）。
 
@@ -747,17 +751,17 @@ $$R^d_{\Theta, m} R^d_{\Theta, n} = R^d_{\Theta, m+n} = R^d_{\Theta, n} R^d_{\Th
 - 一般正交矩阵：$O^T O = I$，可能有耦合旋转（非块对角）
 - RoPE 矩阵：特殊的正交矩阵，强制块对角结构（可并行计算）
 
-### 3.5 频率选择：θ_i 的设计
+### 3.5 频率选择：$θ_i$ 的设计
 
 #### 3.5.1 频率公式
 
 RoPE 使用与 Sinusoidal 位置编码相同的频率选择策略：
 
-$$\theta_i = 10000^{-2(i-1)/d}, \quad i = 1, 2, \ldots, d/2$$
+$$\theta_i = 10000^{-2(i-1)/d}, \quad i = 1, 2, \ldots, d/2 \tag{35}$$
 
 **等价形式**（更直观）：
 
-$$\theta_i = \frac{1}{10000^{2(i-1)/d}}$$
+$$\theta_i = \frac{1}{10000^{2(i-1)/d}} \tag{35}$$
 
 **数值示例**（$d=512$）：
 - $\theta_1 = 10000^{0} = 1$（最慢频率）
@@ -787,13 +791,17 @@ $$\theta_i = \frac{1}{10000^{2(i-1)/d}}$$
 
 **Sinusoidal 位置编码**（$d$ 维）：
 
-$$\text{PE}_{(m, 2i)} = \sin\left(\frac{m}{10000^{2i/d}}\right)$$
-
-$$\text{PE}_{(m, 2i+1)} = \cos\left(\frac{m}{10000^{2i/d}}\right)$$
+$$
+\begin{aligned}
+\text{PE}_{(m, 2i)} &= \sin\left(\frac{m}{10000^{2i/d}}\right) \\
+\text{PE}_{(m, 2i+1)} &= \cos\left(\frac{m}{10000^{2i/d}}\right)
+\end{aligned}
+\tag{14}
+$$
 
 **RoPE 的旋转角度**（第 $i$ 个 2D 块）：
 
-$$\text{angle}_i(m) = m \cdot \theta_i = \frac{m}{10000^{2(i-1)/d}}$$
+$$\text{angle}_i(m) = m \cdot \theta_i = \frac{m}{10000^{2(i-1)/d}} \tag{35}$$
 
 **关系**：
 - Sinusoidal 的第 $2i$ 和 $2i+1$ 维对应 RoPE 的第 $i$ 个 2D 块
@@ -826,9 +834,7 @@ RoPE 的关键洞察：旋转矩阵的块对角结构可以用**逐元素操作*
 
 对于位置 $m$ 的向量 $x \in \mathbb{R}^d$，定义：
 
-$$R^d_{\Theta, m} x = x \odot \cos(m\Theta) + \text{rotate\_half}(x) \odot \sin(m\Theta)$$
-
-其中：
+$$R^d_{\Theta, m} x = x \odot \cos(m\Theta) + \text{rotate\_half}(x) \odot \sin(m\Theta) \tag{36}$$
 - $\odot$ 是逐元素乘法（Hadamard product）
 - $\cos(m\Theta) = [\cos(m\theta_1), \cos(m\theta_1), \cos(m\theta_2), \cos(m\theta_2), \ldots]^T \in \mathbb{R}^d$
 - $\sin(m\Theta) = [\sin(m\theta_1), \sin(m\theta_1), \sin(m\theta_2), \sin(m\theta_2), \ldots]^T \in \mathbb{R}^d$
@@ -851,7 +857,7 @@ $$R^4_{\Theta, m} x = \begin{bmatrix} x_1 \cos(m\theta_1) - x_2 \sin(m\theta_1) 
 块对角矩阵形式：
 $$\begin{pmatrix} \cos(m\theta_1) & -\sin(m\theta_1) & 0 & 0 \\ \sin(m\theta_1) & \cos(m\theta_1) & 0 & 0 \\ 0 & 0 & \cos(m\theta_2) & -\sin(m\theta_2) \\ 0 & 0 & \sin(m\theta_2) & \cos(m\theta_2) \end{pmatrix} \begin{pmatrix} x_1 \\ x_2 \\ x_3 \\ x_4 \end{pmatrix} = \begin{bmatrix} x_1\cos(m\theta_1) - x_2\sin(m\theta_1) \\ x_1\sin(m\theta_1) + x_2\cos(m\theta_1) \\ x_3\cos(m\theta_2) - x_4\sin(m\theta_2) \\ x_3\sin(m\theta_2) + x_4\cos(m\theta_2) \end{bmatrix}$$
 
-结果相同 ✓
+结果相同 
 
 #### 3.6.3 正确性证明
 
@@ -870,11 +876,13 @@ $$\begin{pmatrix} \cos(m\theta_i) & -\sin(m\theta_i) \\ \sin(m\theta_i) & \cos(m
 - $\text{rotate\_half}$ 对第 $i$ 块的操作为 $[-x_{2i}, x_{2i-1}]$
 
 代入逐元素公式：
-$$x \odot \cos(m\Theta) + \text{rotate\_half}(x) \odot \sin(m\Theta)$$
-
-$$= [x_{2i-1} \cos(m\theta_i), x_{2i} \cos(m\theta_i)]^T + [-x_{2i} \sin(m\theta_i), x_{2i-1} \sin(m\theta_i)]^T$$
-
-$$= \begin{pmatrix} x_{2i-1} \cos(m\theta_i) - x_{2i} \sin(m\theta_i) \\ x_{2i-1} \sin(m\theta_i) + x_{2i} \cos(m\theta_i) \end{pmatrix}$$
+$$
+\begin{aligned}
+&x \odot \cos(m\Theta) + \text{rotate\_half}(x) \odot \sin(m\Theta) \\
+&= [x_{2i-1} \cos(m\theta_i), x_{2i} \cos(m\theta_i)]^T + [-x_{2i} \sin(m\theta_i), x_{2i-1} \sin(m\theta_i)]^T \\
+&= \begin{pmatrix} x_{2i-1} \cos(m\theta_i) - x_{2i} \sin(m\theta_i) \\ x_{2i-1} \sin(m\theta_i) + x_{2i} \cos(m\theta_i) \end{pmatrix}
+\end{aligned}
+$$
 
 **结论**：逐元素形式与矩阵形式完全等价。每个 2D 块独立处理，块间无交叉耦合——这正是块对角结构的直接体现。
 
@@ -927,15 +935,19 @@ def rope(x, m, d, theta):
 
 在自注意力中，RoPE 分别应用到 query 和 key：
 
-$$q'_m = \text{RoPE}(q_m, m) = q_m \odot \cos(m\Theta) + \text{rotate\_half}(q_m) \odot \sin(m\Theta)$$
-
-$$k'_n = \text{RoPE}(k_n, n) = k_n \odot \cos(n\Theta) + \text{rotate\_half}(k_n) \odot \sin(n\Theta)$$
+$$
+\begin{aligned}
+q'_m &= \text{RoPE}(q_m, m) = q_m \odot \cos(m\Theta) + \text{rotate\_half}(q_m) \odot \sin(m\Theta) \\
+k'_n &= \text{RoPE}(k_n, n) = k_n \odot \cos(n\Theta) + \text{rotate\_half}(k_n) \odot \sin(n\Theta)
+\end{aligned}
+\tag{37}
+$$
 
 注意力分数：
 
-$$\text{Attention}(m, n) = \frac{q'_m \cdot k'_n}{\sqrt{d}}$$
+$$\text{Attention}(m, n) = \frac{q{'}^T_m \cdot k'_n}{\sqrt{d}} \tag{38}$$
 
-**关键性质**：由于 RoPE 的设计，$q'_m \cdot k'_n$ 只依赖于 $m-n$，无需额外计算相对位置偏置。
+**关键性质**：由于 RoPE 的设计，$q{'}^T_m \cdot k'_n$ 只依赖于 $m-n$，无需额外计算相对位置偏置。
 
 #### 3.6.7 RoPE 计算流程图
 
@@ -970,9 +982,7 @@ graph TD
 
 **定理**（相对位置不变性）：对于任意位置 $m, n$ 和任意向量 $x_m, x_n$：
 
-$$\langle \text{RoPE}(q_m, m), \text{RoPE}(k_n, n) \rangle = \langle \text{RoPE}(q_0, 0), \text{RoPE}(k_{n-m}, 0) \rangle$$
-
-其中 $\text{RoPE}(x, m) = R^d_{\Theta, m} x$。
+$$\langle \text{RoPE}(q_m, m), \text{RoPE}(k_n, n) \rangle = \langle \text{RoPE}(q_0, 0), \text{RoPE}(k_{n-m}, 0) \rangle \tag{39}$$
 
 **意义**：内积只依赖于相对位置 $n-m$，而非绝对位置 $m$ 和 $n$。
 
@@ -980,11 +990,14 @@ $$\langle \text{RoPE}(q_m, m), \text{RoPE}(k_n, n) \rangle = \langle \text{RoPE}
 
 设 $q_m, k_n \in \mathbb{C}$（复数表示），则：
 
-$$\langle q_m e^{i m\theta}, k_n e^{i n\theta} \rangle = \text{Re}(q_m e^{i m\theta} \cdot \overline{k_n e^{i n\theta}})$$
-
-$$= \text{Re}(q_m k_n^* e^{i m\theta} e^{-i n\theta})$$
-
-$$= \text{Re}(q_m k_n^* e^{i(m-n)\theta})$$
+$$
+\begin{aligned}
+\langle q_m e^{i m\theta}, k_n e^{i n\theta} \rangle
+&= \text{Re}(q_m e^{i m\theta} \cdot \overline{k_n e^{i n\theta}}) \\
+&= \text{Re}(q_m k_n^* e^{i m\theta} e^{-i n\theta}) \\
+&= \text{Re}(q_m k_n^* e^{i(m-n)\theta})
+\end{aligned}
+$$
 
 设 $q'_0 = q_m$（位置 0 的 query，语义相同），$k'_{n-m} = k_n$（位置 $n-m$ 的 key），则：
 
@@ -996,27 +1009,34 @@ $$\langle q'_0 e^{i 0\cdot\theta}, k'_{n-m} e^{i (n-m)\theta} \rangle = \text{Re
 
 对于 $d$ 维向量，RoPE 定义为：
 
-$$\text{RoPE}(x, m) = R^d_{\Theta, m} x$$
+$$\text{RoPE}(x, m) = R^d_{\Theta, m} x \tag{21}$$
 
 其中 $R^d_{\Theta, m}$ 是块对角旋转矩阵。
 
 利用群性质（性质 2）：
 
-$$R^d_{\Theta, m} (R^d_{\Theta, n})^T = R^d_{\Theta, m-n}$$
+$$R^d_{\Theta, m} (R^d_{\Theta, n})^T = R^d_{\Theta, m-n} \tag{33}$$
 
 内积展开：
 
-$$\langle R^d_{\Theta, m} q_m, R^d_{\Theta, n} k_n \rangle = (R^d_{\Theta, m} q_m)^T (R^d_{\Theta, n} k_n)$$
-
-$$= q_m^T (R^d_{\Theta, m})^T R^d_{\Theta, n} k_n$$
-
-$$= q_m^T R^d_{\Theta, m-n} k_n$$
+$$
+\begin{aligned}
+\langle R^d_{\Theta, m} q_m, R^d_{\Theta, n} k_n \rangle
+&= (R^d_{\Theta, m} q_m)^T (R^d_{\Theta, n} k_n) \\
+&= q_m^T (R^d_{\Theta, m})^T R^d_{\Theta, n} k_n \\
+&= q_m^T R^d_{\Theta, m-n} k_n
+\end{aligned}
+$$
 
 设 $\tilde{q}_0 = q_m$（位置 0 的语义向量），$\tilde{k}_{n-m} = k_n$（位置 $n-m$ 的语义向量），则：
 
-$$\langle R^d_{\Theta, 0} \tilde{q}_0, R^d_{\Theta, n-m} \tilde{k}_{n-m} \rangle = \tilde{q}_0^T R^d_{\Theta, n-m} \tilde{k}_{n-m}$$
-
-$$= q_m^T R^d_{\Theta, n-m} k_n$$
+$$
+\begin{aligned}
+\langle R^d_{\Theta, 0} \tilde{q}_0, R^d_{\Theta, n-m} \tilde{k}_{n-m} \rangle
+&= \tilde{q}_0^T R^d_{\Theta, n-m} \tilde{k}_{n-m} \\
+&= q_m^T R^d_{\Theta, n-m} k_n
+\end{aligned}
+$$
 
 因此：
 
@@ -1040,17 +1060,17 @@ $$\langle R^d_{\Theta, m} q_m, R^d_{\Theta, n} k_n \rangle = \langle R^d_{\Theta
 #### 4.1.5 与其他方法的对比
 
 **Sinusoidal 位置编码**：
-$$\langle x_m + PE(m), x_n + PE(n) \rangle = x_m^T x_n + x_m^T PE(n) + PE(m)^T x_n + PE(m)^T PE(n)$$
+$$\langle x_m + PE(m), x_n + PE(n) \rangle = x_m^T x_n + x_m^T PE(n) + PE(m)^T x_n + PE(m)^T PE(n) \tag{28}$$
 
 绝对位置 $m$ 和 $n$ 在前三项中无法消减，只有最后一项 $PE(m)^T PE(n)$ 包含相对位置信息（但并非纯粹依赖 $m-n$）。
 
 **Shaw 相对编码**：
-$$\text{Attention}(m, n) = \text{softmax}\left(\frac{q_m k_n^T}{\sqrt{d}} + b_{m-n}\right)$$
+$$\text{Attention}(m, n) = \text{softmax}\left(\frac{q_m^T k_n}{\sqrt{d}} + b_{m-n}\right) \tag{4}$$
 
 虽然显式建模了 $m-n$，但需要额外的偏置项 $b_{m-n}$（$O(L^2)$ 存储和计算）。
 
 **RoPE**：
-$$\langle R_m q_m, R_n k_n \rangle = q_m^T R_{m-n} k_n$$
+$$\langle R_m q_m, R_n k_n \rangle = q_m^T R_{m-n} k_n \tag{22}$$
 
 相对位置 $m-n$ 自然出现，无需额外开销。
 
@@ -1070,11 +1090,11 @@ $$\langle R_m q_m, R_n k_n \rangle = q_m^T R_{m-n} k_n$$
 
 设 $q_m = R^d_{\Theta, m} q$，$k_n = R^d_{\Theta, n} k$（其中 $q, k$ 是语义向量），则：
 
-$$q_m^T k_n = q^T R^d_{\Theta, m-n} k$$
+$$q_m^T k_n = q^T R^d_{\Theta, m-n} k \tag{40}$$
 
 展开为 $d/2$ 个 2D 块之和：
 
-$$q_m^T k_n = \sum_{i=1}^{d/2} \left[q^{(i)}_1 k^{(i)}_1 \cos((m-n)\theta_i) + q^{(i)}_2 k^{(i)}_2 \cos((m-n)\theta_i) - q^{(i)}_1 k^{(i)}_2 \sin((m-n)\theta_i) + q^{(i)}_2 k^{(i)}_1 \sin((m-n)\theta_i)\right]$$
+$$q_m^T k_n = \sum_{i=1}^{d/2} \left[q^{(i)}_1 k^{(i)}_1 \cos((m-n)\theta_i) + q^{(i)}_2 k^{(i)}_2 \cos((m-n)\theta_i) - q^{(i)}_1 k^{(i)}_2 \sin((m-n)\theta_i) + q^{(i)}_2 k^{(i)}_1 \sin((m-n)\theta_i)\right] \tag{41}$$
 
 其中 $q^{(i)}_1, q^{(i)}_2$ 是 $q$ 在第 $i$ 个 2D 块的两个分量。
 
@@ -1089,14 +1109,18 @@ $$q_m^T k_n = \sum_{i=1}^{d/2} \left[q^{(i)}_1 k^{(i)}_1 \cos((m-n)\theta_i) + q
 
 **引理**：对于任意固定频率 $\theta_i$，当 $|m-n| \to \infty$ 时：
 
-$$\mathbb{E}\left[\cos((m-n)\theta_i)\right] = 0$$
-
-$$\mathbb{E}\left[\sin((m-n)\theta_i)\right] = 0$$
+$$
+\begin{aligned}
+\mathbb{E}\left[\cos((m-n)\theta_i)\right] &= 0 \\
+\mathbb{E}\left[\sin((m-n)\theta_i)\right] &= 0
+\end{aligned}
+\tag{45}
+$$
 
 **证明**：$\theta_i$ 是无理数（对于 $10000^{-2(i-1)/d}$，$i \neq 1$ 时通常满足），$(m-n)\theta_i \mod 2\pi$ 在 $[0, 2\pi]$ 上均匀分布，$\cos$ 和 $\sin$ 的平均值为 0。
 
 **推论**：
-$$\mathbb{E}\left[q_m^T k_n\right] = \sum_{i=1}^{d/2} \mathbb{E}\left[\ldots\right] = 0$$
+$$\mathbb{E}\left[q_m^T k_n\right] = \sum_{i=1}^{d/2} \mathbb{E}\left[\ldots\right] = 0 \tag{46}$$
 
 **方差分析**（更严格的衰减证明需要高阶矩分析，略）。
 
@@ -1137,13 +1161,16 @@ RoPE 和 Sinusoidal 编码在表面上非常相似：
 #### 4.3.2 注入方式：加法 vs 乘法
 
 **Sinusoidal 编码**：
-$$x'_m = x_m + PE(m)$$
-
-其中：
-$$PE(m) = [\sin(m\theta_1), \cos(m\theta_1), \sin(m\theta_2), \cos(m\theta_2), \ldots]^T$$
+$$
+\begin{aligned}
+x'_m &= x_m + PE(m) \\
+PE(m) &= [\sin(m\theta_1), \cos(m\theta_1), \sin(m\theta_2), \cos(m\theta_2), \ldots]^T
+\end{aligned}
+\tag{3}
+$$
 
 **RoPE**：
-$$x'_m = R^d_{\Theta, m} x_m$$
+$$x'_m = R^d_{\Theta, m} x_m \tag{21}$$
 
 其中 $R^d_{\Theta, m}$ 是旋转矩阵。
 
@@ -1219,12 +1246,12 @@ $$x'_m = R^d_{\Theta, m} x_m$$
 #### 4.4.1 线性注意力的原理
 
 **标准注意力**：
-$$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{Q K^T}{\sqrt{d}}\right) V$$
+$$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{Q K^T}{\sqrt{d}}\right) V \tag{9}$$
 
 **问题**：计算复杂度 $O(L^2 d)$（$L$ 是序列长度），无法处理超长序列。
 
 **线性注意力**（Performer, 2020）：
-$$\text{Attention}(Q, K, V) \approx \phi(Q) (\phi(K) V)^T$$
+$$\text{Attention}(Q, K, V) \approx \phi(Q) (\phi(K)^T V) \tag{5}$$
 
 其中 $\phi: \mathbb{R}^d \to \mathbb{R}^D$ 是核函数的特征映射（$D$ 可以更大，但通过 kernel trick 避免）。
 
@@ -1238,10 +1265,10 @@ $$\text{Attention}(Q, K, V) \approx \phi(Q) (\phi(K) V)^T$$
 
 当位置编码通过加法注入（$Q' = Q + P_Q$），线性注意力变为：
 
-$$\phi(Q + P_Q) (\phi(K + P_K) V)^T$$
+$$\phi(Q + P_Q) (\phi(K + P_K)^T V)$$
 
 **问题**：
-$$\phi(Q + P_Q) \neq \phi(Q) + \phi(P_Q)$$
+$$\phi(Q + P_Q) \neq \phi(Q) + \phi(P_Q) \tag{25}$$
 
 核函数不是线性变换，加法结构被破坏，位置信息"扭曲"或"丢失"。
 
@@ -1251,42 +1278,45 @@ RoPE 通过**乘法**注入位置：$Q' = R_Q Q$，$K' = R_K K$。
 
 线性注意力变为：
 
-$$\phi(R_Q Q) (\phi(R_K K) V)^T$$
+$$\phi(R_Q Q) (\phi(R_K K)^T V)$$
 
 **关键性质**（对于某些核函数）：
-$$\phi(R x) \approx R \phi(x)$$
+$$\phi(R x) \approx R \phi(x) \tag{26}$$
 
-**证明**（以 RBF kernel 为例）：
+设 $\phi(x) = e^{-\|x\|^2/2} x$，由于 $R$ 是正交矩阵（$\|R x\| = \|x\|$），则：
 
-设 $\phi(x) = e^{-\|x\|^2/2} x$，则：
-
-$$\phi(R x) = e^{-\|R x\|^2/2} R x$$
-
-由于 $R$ 是正交矩阵，$\|R x\| = \|x\|$，因此：
-
-$$= e^{-\|x\|^2/2} R x = R (e^{-\|x\|^2/2} x) = R \phi(x)$$
+$$
+\begin{aligned}
+\phi(R x) &= e^{-\|R x\|^2/2} R x \\
+&= e^{-\|x\|^2/2} R x = R (e^{-\|x\|^2/2} x) \\
+&= R \phi(x)
+\end{aligned}
+$$
 
 **结论**：旋转可以提到核函数外部！
 
-因此：
+因此（注意：此处 $R_Q, R_K$ 表示对矩阵每一行施加对应位置的旋转变换，$R_Q^T$ 表示将旋转矩阵的转置作用于每一列）：
 
-$$\phi(R_Q Q) (\phi(R_K K) V)^T = R_Q \phi(Q) (R_K \phi(K) V)^T$$
+$$
+\begin{aligned}
+\phi(R_Q Q) \big( \phi(R_K K)^T V \big)
+&= R_Q \phi(Q) \big( \phi(K)^T R_K^T V \big)
+\end{aligned}
+$$
 
-$$= R_Q \phi(Q) V^T \phi(K)^T R_K^T$$
+若 $R_Q = R_K$（query 和 key 使用同一组位置旋转，即通常情况），则：
 
-如果 $R_Q = R_K$（通常情况），则：
+$$= R_Q \cdot \Big[ \phi(Q) \big( \phi(K)^T (R_Q^T V) \big) \Big]$$
 
-$$= R_Q \phi(Q) V^T \phi(K)^T R_Q^T$$
-
-位置编码 $R_Q$ 和内容 $\phi(Q) V^T \phi(K)^T$ 完全分离！
+位置编码 $R_Q$ 和内容 $\phi(Q) \phi(K)^T V$ 完全分离！
 
 #### 4.4.4 理论意义
 
 **定理**（RoPE 的线性注意力兼容性）：对于任意满足 $\phi(R x) = R \phi(x)$ 的核函数 $\phi$，RoPE 编码的线性注意力可以分解为：
 
-$$\text{RoPE-LinearAtt}(Q, K, V) = R_Q \cdot \phi(Q) (\phi(K) V)^T \cdot R_Q^T$$
+$$\text{RoPE-LinearAtt}(Q, K, V) = R_Q \cdot \phi(Q) \big( \phi(K)^T V \big) \cdot R_Q^T$$
 
-其中 $R_Q$ 只依赖位置，$\phi(Q) (\phi(K) V)^T$ 只依赖内容。
+其中 $R_Q$ 只依赖位置，$\phi(Q) \big( \phi(K)^T V \big)$ 只依赖内容。
 
 **意义**：
 - **计算分离**：可以先计算内容部分（与标准线性注意力相同），再应用位置编码
@@ -1348,7 +1378,7 @@ $$\text{RoPE-LinearAtt}(Q, K, V) = R_Q \cdot \phi(Q) (\phi(K) V)^T \cdot R_Q^T$$
 **关键性质**：旋转矩阵 $R^d_{\Theta, m}$ 通过 $m\theta_i$ 计算，对于任意 $m > L_{\text{train}}$，仍可以计算 $R^d_{\Theta, m}$。
 
 **数学保证**：
-$$R^d_{\Theta, m} = \text{diag}(\cos(m\theta_1), \sin(m\theta_1), \cos(m\theta_2), \sin(m\theta_2), \ldots)$$
+$$R^d_{\Theta, m} = \text{diag}(\cos(m\theta_1), \sin(m\theta_1), \cos(m\theta_2), \sin(m\theta_2), \ldots) \tag{42}$$
 
 $\sin$ 和 $\cos$ 是定义域为 $\mathbb{R}$ 的连续函数，对于任意 $m \in \mathbb{N}$ 都有意义。
 
@@ -1419,7 +1449,8 @@ RoPE 的数学推导揭示了位置编码设计的"黄金标准"：
 从 2D 复数旋转的直观推导，到 $d$ 维空间的块对角结构，从频率选择的理论依据，到高效计算的工程实现，RoPE 的每个设计都有坚实的数学基础和明确的几何直观。
 
 下一章（Chapter 5-6）将探讨 RoPE 的实际应用、性能分析和未来改进方向。
-# RoFormer 深度阅读报告（第三部分）
+
+ ---
 
 ## Chapter 5: 实验评估与性能分析
 
@@ -1539,7 +1570,7 @@ graph TD
    - QNLI：-2.5 分
    - NLI 需要复杂的逻辑推理，可能受 RoPE 在长程依赖建模上的限制影响
 
-### 5.3.4 为什么 QQ P 提升如此显著？
+### 5.3.4 为什么 QQP 提升如此显著？
 
 **假设 1：双句对齐机制**
 - QQP 输入为两个句子 `[Question A, Question B]`
@@ -1617,14 +1648,14 @@ graph TD
 
 **机制 1：位置梯度流**
 $$
-\frac{\partial \mathcal{L}}{\partial \mathbf{p}_i} \text{ 在 RoPE 中直接嵌入注意力}
+\frac{\partial \mathcal{L}}{\partial \mathbf{p}_i} \text{ 在 RoPE 中直接嵌入注意力} \tag{43}
 $$
 - Sinusoidal PE 在早期训练阶段对位置信号不敏感
 - RoPE 通过旋转矩阵强制模型**区分不同相对距离**
 
 **机制 2：频率多样性**
 $$
-\theta_i = 10000^{-2i/d}, \quad i = 0, \dots, d/2-1
+\theta_i = 10000^{-2i/d}, \quad i = 0, \dots, d/2-1 \tag{35}
 $$
 - 多尺度频率让模型同时学习短程和长程依赖
 - 早期训练时短程频率（高频 θ）主导，快速捕捉局部模式
@@ -1644,10 +1675,8 @@ $$
 RoPE 的核心超参数为基频 C：
 
 $$
-m\theta = m \cdot C^{-2i/d}
+m\theta = m \cdot C^{-2i/d} \tag{35}
 $$
-
-**论文报告的消融结论**：
 - C 的选择影响**有效位置编码范围**
 - 默认 C=10000 在多数任务上表现良好
 - 对于特别长的序列，可增大 C 以扩展低频覆盖
@@ -1736,11 +1765,7 @@ RoPE 提出后（2021 年），已成为大语言模型位置编码的主流选�
 
 ---
 
-## 参考文献
 
-- Su, J., Lu, Y., Pan, S., Murtadha, A., Wen, B., & Liu, Y. (2021). RoFormer: Enhanced Transformer with Rotary Position Embedding. arXiv:2104.09864.
-- Devlin et al. (2018). BERT: Pre-training of Deep Bidirectional Transformers.
-- Vaswani et al. (2017). Attention Is All You Need.
 
 
 ## Chapter 6: 代码实现与实战
@@ -2570,5 +2595,8 @@ RoPE 的核心贡献是"用乘法旋转替代加法偏置"，这个看似简单�
 RoPE 的故事还在继续：xPos、ALiBi、2D RoPE 等后续工作正在扩展这个优雅设计的应用边界。但无论未来如何演进，RoFormer 的核心思想——**"旋转位置，而非偏置位置"**——已经永久改变了位置编码的设计范式。
 
 ---
+## 参考文献
 
-**报告完毕**（第三部分：Chapter 5-6）
+- Su, J., Lu, Y., Pan, S., Murtadha, A., Wen, B., & Liu, Y. (2021). RoFormer: Enhanced Transformer with Rotary Position Embedding. arXiv:2104.09864.
+- Devlin et al. (2018). BERT: Pre-training of Deep Bidirectional Transformers.
+- Vaswani et al. (2017). Attention Is All You Need.
