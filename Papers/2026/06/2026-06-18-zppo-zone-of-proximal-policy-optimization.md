@@ -26,11 +26,15 @@ ZPPO 提出第三个路径：**教师仅出现在 prompt 中，从不进入 poli
 
 ### ZPPO 核心思想
 
-ZPPO 受 Vygotsky 的"最近发展区（Zone of Proximal Development）"理论启发，通过三种机制将教师知识限制在 prompt 空间：
+ZPPO将教师知识从梯度空间转移到prompt空间。教师响应被编码为prompt的一部分（BCQ/NCQ重新表述），学生生成全新rollout，策略梯度仅计算学生自身输出。这一设计同时避免了蒸馏的mode-seeking和RL的零优势陷阱。
 
-1. **BCQ（Binary Candidate-included Question）**：一条教师正确响应 + 一条学生错误响应匿名配对放入 prompt，学生甄别哪个正确
-2. **NCQ（Negative Candidate-included Question）**：聚合学生当前 group 的所有错误 rollout，暴露共享失败模式
-3. **Prompt Replay Buffer**：FIFO 队列（容量 10,000），准入条件 $\bar{r}_x < 0.5$，毕业条件 $\bar{r}_x \ge 0.5$
+### 三个核心组件
+
+**BCQ（Binary Candidate-included Question）**：将一条教师正确响应和一条学生错误响应匿名配对，放入prompt让学生甄别。所有梯度来自学生新输出，保持on-policy。
+
+**NCQ（Negative Candidate-included Question）**：聚合学生所有错误rollout到同一prompt中，暴露共享失败模式。
+
+**Prompt Replay Buffer**：FIFO队列（容量10,000），准入 $$\bar{r}_x < 0.5$$，毕业 $$\bar{r}_x \geq 0.5$$。
 
 ### 核心结果
 
@@ -69,15 +73,14 @@ $$A^{(g)} = \frac{r(x, y_S^{(g)}) - \bar{r}_x}{\text{std}_x + \epsilon} \tag{1}$
 
 ## Ch3：ZPPO 核心方法
 
-### 3.1 符号定义
+### 3.1 GRPO的失败模式
 
-- $x$：问题（图像 + 文本）
-- $y \sim \pi_\theta(\cdot|x)$：学生从当前策略采样的响应
-- $G_S$：学生 rollout 分组的 group size
-- $r(x, y) \in \{0, 1\}$：outcome reward（最终答案是否正确）
-- $\bar{r}_x$：group mean reward，$\text{std}_x$：group standard deviation
-- **Hard question 定义**：$\bar{r}_x < 0.5$
-- **Zone of Proximal Development**：$\bar{r}_x < 0.5$ 的问题集合——学生尚未掌握但通过引导可学会
+**符号定义**。问题 $$x$$，响应 $$y \sim \pi_\theta(\cdot \mid x)$$，$$G_{\mathrm{S}}$$ 个rollout，outcome reward $$r \in \{0,1\}$$，group mean $$\bar{r}_x$$，标准差 $$\mathrm{std}_x$$。
+
+**Group-relative advantage**：
+$$A^{(g)} = \frac{r(x, y_{\mathrm{S}}^{(g)}) - \bar{r}_x}{\mathrm{std}_x + \epsilon}$$
+
+**零优势陷阱**。当全部错误（$$\bar{r}_x=0$$）或全部正确（$$\bar{r}_x=1$$）时，所有 $$A^{(g)}=0$$ → 零梯度。Hard question定义：$$\bar{r}_x < 0.5$$。$$\mathrm{std}_x$$ 在 $$\bar{r}_x=0.5$$ 处达到最大值（二元分布方差最大点），携带最强学习信号的区域反而是GRPO的盲区。
 
 ### 3.2 BCQ（Binary Candidate-included Question）
 
