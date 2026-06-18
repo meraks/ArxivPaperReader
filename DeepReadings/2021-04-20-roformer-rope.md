@@ -32,13 +32,17 @@ RoPE 的天才之处在于：它表面上是绝对编码（给位置 $m$ 分配�
 
 RoPE 的核心公式可以写成：
 
-$$f_q(x_m, m) = (W_q x_m) e^{i m \theta}$$
-
-$$f_k(x_n, n) = (W_k x_n) e^{i n \theta}$$
+$$
+\begin{aligned}
+f_q(x_m, m) &= (W_q x_m) e^{i m \theta} \\ 
+f_k(x_n, n) &= (W_k x_n) e^{i n \theta} \\
+\end{aligned}
+\tag{1}
+$$
 
 当计算注意力分数时：
 
-$$\langle f_q(x_m, m), f_k(x_n, n) \rangle = \text{Re}[(W_q x_m)(W_k x_n)^* e^{i(m-n)\theta}]$$
+$$\langle f_q(x_m, m), f_k(x_n, n) \rangle = \text{Re}[(W_q x_m)(W_k x_n)^* e^{i(m-n)\theta}] \tag{2} $$
 
 注意那个 $m-n$ ——绝对位置 $m$ 和 $n$ 在复数乘法中自然消减为相对距离！
 
@@ -48,13 +52,13 @@ $$\langle f_q(x_m, m), f_k(x_n, n) \rangle = \text{Re}[(W_q x_m)(W_k x_n)^* e^{i
 
 **问题本质**：所有现有方法（Sinusoidal、Learned、Shaw、Transformer-XL、T5 Bias）都通过**加法**注入位置信息：
 
-$$\text{Sinusoidal: } x_m' = x_m + p_m$$
+$$\text{Sinusoidal: } x_m' = x_m + p_m \tag{3}$$
 
-$$\text{Shaw: } \text{Attention}(m,n) = \text{softmax}\left(\frac{q_m k_n^T}{\sqrt{d}} + b_{m-n}\right)$$
+$$\text{Shaw: } \text{Attention}(m,n) = \text{softmax}\left(\frac{q_m^T k_n}{\sqrt{d}} + b_{m-n}\right) \tag{4}$$
 
 **加法的问题**：当引入线性注意力（如 Performer 的 kernel trick）时，加法结构会被破坏。线性注意力的核心是：
 
-$$\text{Attention}(Q,K,V) = \phi(Q)(\phi(K)V)^T$$
+$$\text{Attention}(Q,K,V) \approx \phi(Q)(\phi(K)^TV) \tag{5}$$
 
 其中 $\phi$ 是某种核函数映射（如 RBF、ELU+1）。这个公式要求 query 和 key 的位置编码必须**可分离**（在 $\phi$ 之外独立处理），但加法注入的 $q_m + p_{pos}$ 在 $\phi$ 变换下无法保持位置依赖。
 
@@ -94,11 +98,14 @@ $$R^d_{\Theta, m} = \begin{pmatrix}
 0 & 0 & \cos m\theta_2 & -\sin m\theta_2 & \cdots \\
 0 & 0 & \sin m\theta_2 & \cos m\theta_2 & \cdots \\
 \vdots & \vdots & \vdots & \vdots & \ddots
-\end{pmatrix}$$
+\end{pmatrix}\tag{6}$$
 
 这是一个分块对角矩阵，由 $d/2$ 个 $2 \times 2$ 旋转矩阵组成。每个 $2 \times 2$ 块旋转角度为 $m\theta_i$，其中 $\theta_i = 10000^{-2(i-1)/d}$。
 
-**关键性质**：旋转矩阵满足 $R_m R_n^T = R_{m-n}$，这是"绝对编码自动生成相对依赖"的数学基础。
+**关键性质**：旋转矩阵满足 $R_{m}R_{n}^{T} = R_{m}R_{-n} = R_{m-n}$，这是"绝对编码自动生成相对依赖"的数学基础。
+
+**使用指数形式：** 旋转矩阵其实和复数的乘法完全等价。在复数里，旋转 $m\theta$ 就是乘以 $e^{im\theta}$。转置（逆旋转）就是乘以 $e^{−in\theta}$，两者相乘为：
+$$e^{im\theta}⋅e^{−in\theta}=e^{i(m−n)\theta} \tag{7}$$
 
 #### 创新二：绝对编码→相对效果的数学统一
 
@@ -106,9 +113,9 @@ $$R^d_{\Theta, m} = \begin{pmatrix}
 
 证明（简化为 2D）：
 
-设 $q_m = (W_q x_m) e^{i m\theta}$, $k_n = (W_k x_n) e^{i n\theta}$
+设 $q_m = (W_q x_m) e^{i m\theta}$, $k_n = (W_k x_n) e^{i n\theta}$，$q_m$与$k_n$的内积$\langle q_m, k_n \rangle$为:
 
-$$\langle q_m, k_n \rangle = \text{Re}[q_m k_n^*] = \text{Re}[(W_q x_m)(W_k x_n)^* e^{i(m-n)\theta}]$$
+$$\langle q_m, k_n \rangle = \text{Re}[q_m k_n^*] = \text{Re}[(W_q x_m)(W_k x_n)^* e^{i(m-n)\theta}]\tag{8}$$
 
 这个内积中只出现 $(m-n)$，绝对位置 $m$ 和 $n$ 自动消减！
 
@@ -119,19 +126,22 @@ $$\langle q_m, k_n \rangle = \text{Re}[q_m k_n^*] = \text{Re}[(W_q x_m)(W_k x_n)
 **突破点**：RoPE 是少数同时支持标准注意力和线性注意力的位置编码方法之一。
 
 标准注意力：
-$$\text{Attention}(Q,K,V) = \text{softmax}\left(\frac{Q K^T}{\sqrt{d}}\right) V$$
+$$\text{Attention}(Q,K,V) = \text{softmax}\left(\frac{Q K^T}{\sqrt{d}}\right) V \tag{9}$$
 
 线性注意力（Performer）：
-$$\text{Attention}(Q,K,V) \approx \phi(Q)(\phi(K)V)^T$$
+$$\text{Attention}(Q,K,V) \approx \phi(Q)(\phi(K)^TV)\tag{5}$$
 
 其中 $\phi$ 是正定核函数的特征映射（如 RBF kernel 的近似）。
 
-**兼容性证明**：RoPE 的位置编码可以写在 $\phi$ 外部：
+**兼容性证明**：
 
-$$\text{RoPE-LinearAtt} = \phi(R_m Q) (R_n K)^T V$$
+$$\text{RoPE-LinearAtt} \approx \phi(R_m Q) (\phi(R_n K)^T V) \tag{10}$$
 
-由于 $R_m$ 是正交矩阵，$\phi(R_m Q) \approx R_m \phi(Q)$（对于某些核函数），因此位置信息在线性注意力下仍得以保持。
-
+对于某些核函数，相对位置信息$m-n$还是能够保持：
+$$
+\phi(R_m q)^T\phi(R_n k) \approx \exp((R_{m}q)^{T}(R_{n}k)) = \exp(q^TR_{n-m}k) \tag{11}
+$$
+式(11)中 $q$ 和 $k$ 分别是quary和key的列向量。
 相比之下，加法编码 $Q + P_{\text{pos}}$ 在 $\phi$ 变换后无法分离位置和内容：
 $$\phi(Q + P_{\text{pos}}) \neq \phi(Q) + \phi(P_{\text{pos}})$$
 
@@ -150,11 +160,11 @@ $$\phi(Q + P_{\text{pos}}) \neq \phi(Q) + \phi(P_{\text{pos}})$$
 
 #### 可视化
 ```
-位置 1:  ┃ (q₁ 指向北偏东 θ 度)
-位置 3:  ╱ (q₃ 指向北偏东 3θ 度)
-位置 5:  ❱ (q₅ 指向北偏东 5θ 度)
+位置 1:  | (q_1 指向北偏东 θ 度)
+位置 3:  ╱ (q_2 指向北偏东 3θ 度)
+位置 5:  \ (q_5 指向北偏东 5θ 度)
 
-q₁ 和 q₅ 的"夹角" = 4θ (自动从绝对位置 1 和 5 中浮现)
+q_1 和 q_5 的"夹角" = 4θ (自动从绝对位置 1 和 5 中浮现)
 ```
 
 这个类比解释了为什么 RoPE 能"既给蛋糕又吃掉蛋糕"：
@@ -175,14 +185,14 @@ q₁ 和 q₅ 的"夹角" = 4θ (自动从绝对位置 1 和 5 中浮现)
 
 给定输入序列 $x_1, x_2, \ldots, x_n$，自注意力计算：
 
-$$\text{Attention}(x_i) = \sum_{j=1}^n \alpha_{ij} (x_j W^V)$$
-
+$$\text{Attention}(x_i) = \sum_{j=1}^n \alpha_{ij} (x_j W^V) \tag{12}$$
+其中$\alpha_{ij}$:
 $$\alpha_{ij} = \frac{\exp(\text{score}(x_i, x_j))}{\sum_k \exp(\text{score}(x_i, x_k))}$$
 
 **关键观察**：如果我们打乱序列顺序（重新排列 $x_1, \ldots, x_n$ 的顺序），注意力分数矩阵 $\alpha$ 会完全相同，只是行和列的顺序也跟着打乱了。
 
 **数学证明**：对于任意置换 $\sigma$：
-$$\text{Attention}(x_{\sigma(1)}, \ldots, x_{\sigma(n)}) = \sigma(\text{Attention}(x_1, \ldots, x_n))$$
+$$\text{Attention}(x_{\sigma(1)}, \ldots, x_{\sigma(n)}) = \sigma(\text{Attention}(x_1, \ldots, x_n)) \tag{13}$$
 
 这个性质在**集合处理**任务（如点云分类）中是优势，但在**序列建模**任务（如翻译、文本生成）中是灾难——语言本质上是**序列敏感**的：
 
@@ -203,9 +213,13 @@ $$\text{Attention}(x_{\sigma(1)}, \ldots, x_{\sigma(n)}) = \sigma(\text{Attentio
 
 Transformer 原论文（Vaswani et al., 2017）提出了 Sinusoidal 位置编码：
 
-$$PE_{(m, 2i)} = \sin\left(\frac{m}{10000^{2i/d}}\right)$$
-
-$$PE_{(m, 2i+1)} = \cos\left(\frac{m}{10000^{2i/d}}\right)$$
+$$
+\begin{aligned}
+PE_{(m, 2i)} &= \sin\left(\frac{m}{10000^{2i/d}}\right) \\
+PE_{(m, 2i+1)} &= \cos\left(\frac{m}{10000^{2i/d}}\right)  \\
+\end{aligned}
+\tag{14}
+$$
 
 其中：
 - $m$ 是位置索引（$0, 1, 2, \ldots$）
@@ -228,16 +242,14 @@ Vaswani 还假设这种设计能帮助模型学习**相对位置**依赖："we c
 
 **局限 3：线性注意力不兼容**：无法直接迁移到线性注意力框架（如 Performer）。
 
-### 2.3 Learned Absolute Embedding
+### 2.3 可学习的绝对编码
 
 #### 2.3.1 基本思想
 
 **方法**：直接学习每个位置的 embedding 向量，就像学习 word embedding 一样：
-
+$$x_m' = x_m + p_m \tag{15}$$
+其中$P_{m}$:
 $$p_m \in \mathbb{R}^d, \quad m = 0, 1, \ldots, L_{\text{max}}-1$$
-
-$$x_m' = x_m + p_m$$
-
 参数量：$L_{\text{max}} \times d$（对于 $L_{\text{max}}=512$, $d=512$，约 262K 参数）
 
 #### 2.3.2 优缺点
@@ -253,8 +265,10 @@ $$x_m' = x_m + p_m$$
 
 #### 使用场景
 
-BERT 系列（BERT、RoBERTa）使用了 Learned Absolute Embedding，但通常结合**相对位置偏差**（relative position bias）来缓解相对依赖问题。
+BERT 系列（BERT、RoBERTa）使用了可学习的绝对编码，但通常结合**相对位置偏差**（relative position bias）来缓解相对依赖问题。
 
+$$\text{Attention Score} =Q_{i}​K_{j}^T​ + b\left | i-j \right | ​\tag{16}$$
+其中 $b\left | i-j \right |$ 就是一个可训练的标量（或向量），其取值根据距离（如距离为 0、1、2…）查表获得。
 ### 2.4 相对编码演进
 
 相对位置编码的发展可以分为几个里程碑：
@@ -265,7 +279,7 @@ BERT 系列（BERT、RoBERTa）使用了 Learned Absolute Embedding，但通常�
 
 **核心思想**：在注意力计算时显式引入相对位置偏置：
 
-$$\text{Attention}(m, n) = \text{softmax}\left(\frac{q_m k_n^T}{\sqrt{d}} + b_{m-n}\right)$$
+$$\text{Attention}(m, n) = \text{softmax}\left(\frac{q_m^T k_n}{\sqrt{d}} + b_{m-n}\right) \tag{4}$$
 
 其中 $b_k \in \mathbb{R}$ 是可学习的相对位置偏置（$k \in \{-L_{\text{max}}+1, \ldots, L_{\text{max}}-1\}$）。
 
@@ -287,7 +301,7 @@ $$\text{Attention}(m, n) = \text{softmax}\left(\frac{q_m k_n^T}{\sqrt{d}} + b_{m
 **核心创新 2：相对位置编码分解**
 将注意力分数分解为：
 
-$$\text{score}(m, n) = (q_m + u)^T (k_n + v) + q_m^T r_{i-j}$$
+$$\text{score}(m, n) = (q_m + u)^T (k_n + v) + q_m^T r_{i-j} \tag{17}$$
 
 其中：
 - $u, v$ 是可学习向量（不依赖位置）
@@ -314,7 +328,7 @@ $$\text{score}(m, n) = (q_m + u)^T (k_n + v) + q_m^T r_{i-j}$$
 - 相对距离截断到一定范围（如 128）
 
 **公式**：
-$$\text{Attention}(m, n) = \text{softmax}\left(\frac{q_m (k_n + b_{m-n})^T}{\sqrt{d}}\right)$$
+$$\text{Attention}(m, n) = \text{softmax}\left(\frac{q_m^T (k_n + b_{m-n})}{\sqrt{d}}\right) \tag{18}$$
 
 **优势**：
 - 极简设计，易于实现
@@ -330,13 +344,17 @@ $$\text{Attention}(m, n) = \text{softmax}\left(\frac{q_m (k_n + b_{m-n})^T}{\sqr
 
 **核心创新**：将词向量和位置向量**完全解耦**：
 
-$$q_m = q_m^{\text{content}} + q_m^{\text{position}}$$
-
-$$k_n = k_n^{\text{content}} + k_n^{\text{position}}$$
+$$
+\begin{aligned}
+q_m &= q_m^{\text{content}} + q_m^{\text{position}} \\
+k_n &= k_n^{\text{content}} + k_n^{\text{position}}
+\end{aligned}
+\tag{19}
+$$
 
 注意力分数计算时考虑四项组合：
 
-$$\text{score}(m, n) = q_m^{\text{content}} \cdot k_n^{\text{content}} + q_m^{\text{content}} \cdot k_n^{\text{position}} + q_m^{\text{position}} \cdot k_n^{\text{content}} + q_m^{\text{position}} \cdot k_n^{\text{position}}$$
+$$\text{score}(m, n) = q_m^{\text{content}} \cdot k_n^{\text{content}} + q_m^{\text{content}} \cdot k_n^{\text{position}} + q_m^{\text{position}} \cdot k_n^{\text{content}} + q_m^{\text{position}} \cdot k_n^{\text{position}} \tag{20}\label{DeBERTa}$$
 
 **突破点**：内容和位置的完全解耦，让模型能更精细地控制"什么内容+什么位置"的组合。
 
@@ -376,7 +394,7 @@ graph LR
 - Shaw: $q_m k_n^T + b_{m-n}$
 - Transformer-XL: $(q_m + u)^T (k_n + v)^T + q_m^T r_{i-j}$
 - T5 Bias: $q_m (k_n + b_{m-n})^T$
-- DeBERTa: 四项全是加法组合
+- DeBERTa: 四项全是加法组合，$式\ref{DeBERTa}$
 
 #### 2.5.2 加法的根本问题
 
@@ -384,7 +402,7 @@ graph LR
 
 线性注意力的核心是将 $\exp(q \cdot k)$ 替换为核函数 $\phi(q) \phi(k)$：
 
-$$\text{Attention}(Q, K, V) \approx \phi(Q)(\phi(K) V)^T$$
+$$\text{Attention}(Q, K, V) \approx \phi(Q)(\phi(K)^T V) \tag{5}$$
 
 当位置编码通过加法注入（$Q' = Q + P_Q$），核变换后无法分离：
 
@@ -401,10 +419,13 @@ $$\phi(Q + P_Q) \neq \phi(Q) + \phi(P_Q)$$
 #### 2.5.3 乘法注入的革命性
 
 **RoPE 的突破**：首次通过**乘法**（旋转变换）注入位置信息：
-
-$$q_m' = R_m q_m$$
-
-$$k_n' = R_n k_n$$
+$$
+\begin{aligned}
+q_m' &= R_m q_m \\
+k_n' &= R_n k_n
+\end{aligned}
+\tag{21}
+$$
 
 其中 $R_m, R_n$ 是旋转矩阵。
 
@@ -419,7 +440,7 @@ $$R_m = \text{rotation by } m\theta$$
 对于任意 $m > L_{\text{train}}$，仍可计算 $R_m$
 
 3. **绝对编码→相对效果**：
-$$q_m^T k_n = (R_m q)^T (R_n k) = q^T R_{m-n} k$$
+$$q_m^T k_n = (R_m q)^T (R_n k) = q^T R_{m-n} k \tag{22}$$
 （证明见 Chapter 1）
 
 ### 2.6 位置编码方法演化全景图
@@ -481,8 +502,8 @@ RoPE 通过"旋转"这个简单的几何操作，实现了这个圣杯：
 这种"既给蛋糕又吃掉蛋糕"的设计，体现了数学建模在深度学习中的威力——不是堆叠更多参数或更复杂的架构，而是找到一个"正确"的数学抽象。
 
 下一章（Chapter 3-4）我们将深入 RoPE 的数学推导和实现细节，看看这个"旋转"的具体形式是如何设计的。
-# RoFormer 深度阅读报告
 
+---
 ## Chapter 3: RoPE 数学推导
 
 **本章概要**：从问题形式化开始，通过 2D 复数旋转的直观推导，逐步推广到 $d$ 维空间，揭示 RoPE 旋转矩阵的块对角结构，解析频率选择的理论依据，最终给出工程实现的高效计算形式。每个推导步骤都配详细数学解释和几何直观。
@@ -493,7 +514,7 @@ RoPE 通过"旋转"这个简单的几何操作，实现了这个圣杯：
 
 RoPE 的设计目标是找到一对函数 $f_q$ 和 $f_k$，使得位置 $m$ 的 query 和位置 $n$ 的 key 的内积满足：
 
-$$\langle f_q(x_m, m), f_k(x_n, n) \rangle = g(x_m, x_n, m-n)$$
+$$\langle f_q(x_m, m), f_k(x_n, n) \rangle = g(x_m, x_n, m-n) \tag{23}$$
 
 其中：
 - $x_m, x_n \in \mathbb{R}^d$ 是位置 $m$ 和 $n$ 的输入向量（词向量）
@@ -513,7 +534,7 @@ $$\langle x_m + \text{PE}(m), x_n + \text{PE}(n) \rangle = x_m^T x_n + x_m^T \te
 这个内积中绝对位置 $m$ 和 $n$ **无法完全消减**为 $m-n$（虽然 $\text{PE}(m)^T \text{PE}(n)$ 项包含相对位置信息，但其他项仍然混合了绝对位置）。
 
 **Shaw 相对编码**：
-$$\text{Attention}(m, n) = \text{softmax}\left(\frac{q_m k_n^T}{\sqrt{d}} + b_{m-n}\right)$$
+$$\text{Attention}(m, n) = \text{softmax}\left(\frac{q_m^T k_n}{\sqrt{d}} + b_{m-n}\right)$$
 
 虽然显式建模了相对位置，但通过**加法偏置** $b_{m-n}$ 实现，需要额外的 $O(L^2)$ 存储和计算。
 
@@ -530,9 +551,13 @@ $$e^{i m\theta} \cdot e^{-i n\theta} = e^{i(m-n)\theta}$$
 
 在 2D 空间（$d=2$），我们可以用复数来表示向量。设位置 $m$ 的 query 向量为 $q_m \in \mathbb{C}$（复数），定义：
 
-$$f_q(x_m, m) = (W_q x_m) e^{i m\theta}$$
-
-$$f_k(x_n, n) = (W_k x_n) e^{i n\theta}$$
+$$
+\begin{align}
+f_q(x_m, m) &= (W_q x_m) e^{i m\theta} \\
+f_k(x_n, n) &= (W_k x_n) e^{i n\theta}
+\end{align}
+\tag{24}
+$$
 
 其中：
 - $W_q, W_k \in \mathbb{C}^{1 \times d}$ 是复数权重矩阵
@@ -549,9 +574,12 @@ $$\langle f_q(x_m, m), f_k(x_n, n) \rangle = \text{Re}\left[(W_q x_m) e^{i m\the
 
 其中 $\overline{z}$ 表示复数 $z$ 的共轭。展开：
 
-$$= \text{Re}\left[(W_q x_m) e^{i m\theta} \cdot (W_k x_n)^* e^{-i n\theta}\right]$$
-
-$$= \text{Re}\left[(W_q x_m)(W_k x_n)^* e^{i(m-n)\theta}\right]$$
+$$
+\begin{align}
+&= \text{Re}\left[(W_q x_m) e^{i m\theta} \cdot (W_k x_n)^* e^{-i n\theta}\right] \\
+&= \text{Re}\left[(W_q x_m)(W_k x_n)^* e^{i(m-n)\theta}\right]
+\end{align}
+$$
 
 **关键观察**：内积中只出现了 $(m-n)$，绝对位置 $m$ 和 $n$ 完全消减！
 
@@ -563,9 +591,15 @@ $$(W_q x_m)(W_k x_n)^* = (a + bi)(c - di) = (ac + bd) + i(bc - ad)$$
 
 乘以 $e^{i(m-n)\theta} = \cos[(m-n)\theta] + i \sin[(m-n)\theta]$：
 
-$$= \left[(ac + bd) + i(bc - ad)\right] \left[\cos((m-n)\theta) + i \sin((m-n)\theta)\right]$$
-
-$$= (ac + bd)\cos((m-n)\theta) - (bc - ad)\sin((m-n)\theta) + i \left[(ac + bd)\sin((m-n)\theta) + (bc - ad)\cos((m-n)\theta)\right]$$
+$$
+\begin{equation}
+\begin{split}
+  &= \left[(ac + bd) + i(bc - ad)\right] \left[\cos((m-n)\theta) + i \sin((m-n)\theta)\right] \\
+  &= (ac + bd)\cos((m-n)\theta) - (bc - ad)\sin((m-n)\theta) \\
+  &\quad + i \left[(ac + bd)\sin((m-n)\theta) + (bc - ad)\cos((m-n)\theta)\right]
+\end{split}
+\end{equation}
+$$
 
 取实部：
 
