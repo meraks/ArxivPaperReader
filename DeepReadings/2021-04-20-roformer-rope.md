@@ -271,7 +271,7 @@ $$
 
 BERT 系列（BERT、RoBERTa）使用了可学习的绝对编码，但通常结合**相对位置偏差**（relative position bias）来缓解相对依赖问题。
 
-$$\text{Attention Score} =Q_{i}​K_{j}^T​ + b\left | i-j \right | ​\tag{16}$$
+$$\text{AttentionScore} =Q_{i}​K_{j}^T​ + b\left | i-j \right | ​\tag{16}$$
 其中 $b\left | i-j \right |$ 就是一个可训练的标量（或向量），其取值根据距离（如距离为 0、1、2…）查表获得。
 ### 2.4 相对编码演进
 
