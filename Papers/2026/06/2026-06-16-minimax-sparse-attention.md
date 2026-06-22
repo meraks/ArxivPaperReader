@@ -137,16 +137,16 @@ MSA遵循简约原则：在不牺牲核心功能的前提下，最小化新增�
 
 GQA是MSA的基础，先回顾其核心概念。
 
-**标准Multi-Head Attention (MHA)**：每个head有独立的query、key、value投影矩阵。参数量：$3H_q d_{model}^{2}$（假设query/key/value维度为$d_{\text{model}}$）。Per-token FLOPs：$2 H_q N d_h$，总FLOPs：$2 H_q N^2 d_h$。算法复杂度为$O(N^2)$。
+**标准Multi-Head Attention (MHA)**：每个head有独立的query、key、value投影矩阵。参数量：$4d_{model}^{2}$（假设query/key/value维度为$d_{\text{model}}$）。Per-token FLOPs：$2 H_q N d_h$，总FLOPs：$2 H_q N^2 d_h$。算法复杂度为$O(N^2)$。
 
-**Multi-Query Attention (MQA)**：所有head共享同一组key、value投影矩阵。参数量：$H_q d_{model}^{2} + 2 d_{model}^{2}$。Per-token FLOPs：$2 H_q N d_h$，总FLOPs：$2 H_q N^2 d_h$。算法复杂度为$O(N^2)$。KV cache大小降至$1/H_q$。
+**Multi-Query Attention (MQA)**：所有head共享同一组key、value投影矩阵。参数量：$2 d_{model}^{2}\left( 1+\frac{1}{H_{q}} \right)$。Per-token FLOPs：$2 H_q N d_h$，总FLOPs：$2 H_q N^2 d_h$。算法复杂度为$O(N^2)$。KV cache大小降至$1/H_q$。
 
-**Grouped Query Attention (GQA)**：折中方案，将$H_q$个query head分为G个group，每个group共享一组KV head。定义groups数$G = H_q / H_{kv}$（$H_{kv}$为KV head数）。当G=1时退化为MQA，G=$H_q$时退化为MHA。GQA在参数效率和质量之间取得平衡：比MHA更省KV cache内存，比MQA质量更好。
+**Grouped Query Attention (GQA)**：折中方案，将$H_q$个query head分为G个group，每个group共享一组KV head。定义groups数$G = H_q / H_{kv}$（$H_{kv}$为KV head数）。当G=1时退化为MHA，G=$H_q$时退化为MQA。GQA在参数效率和质量之间取得平衡：比MHA更省KV cache内存，比MQA质量更好。
 
 GQA的attention计算：对于第g个group，query head $h \in group_g$共享$K_g$、$V_g$（已投影）：
 $$Attention_g = \text{softmax}\left(\frac{Q_g K_g^T}{\sqrt{d_h}}\right) V_g$$
 
-MSA在此基础上构建：每个GQA group配备一个Index Branch，独立选择top-k块，Main Branch在选中块上执行标准GQA attention。Index Branch的参数开销为$d_{model} \cdot d_{idx} \cdot (H_{kv} + 1)$（$W_q^{\text{idx}} \in \mathbb{R}^{d_{model} \times H_{kv} d_{idx}}$，$W_k^{\text{idx}} \in \mathbb{R}^{d_{model} \times d_{idx}}$），相比GQA的$3H_q d_{model}^2 + 2 d_{model}^2$可忽略（因为$H_{kv} \cdot d_{idx} \ll H_q \cdot d_h$）。
+MSA在此基础上构建：每个GQA group配备一个Index Branch，独立选择top-k块，Main Branch在选中块上执行标准GQA attention。Index Branch的参数开销为$d_{model} \cdot d_{idx} \cdot (H_{kv} + 1)$（$W_q^{\text{idx}} \in \mathbb{R}^{d_{model} \times H_{kv} d_{idx}}$，$W_k^{\text{idx}} \in \mathbb{R}^{d_{model} \times d_{idx}}$），相比GQA的$2 d_{model}^2\left( 1+\frac{g}{Hq} \right)$可忽略（因为$H_{kv} \cdot d_{idx} \ll H_q \cdot d_h$）。
 
 GQA的另一个优势是成熟的GPU kernel支持（FlashAttention、vLLM、TensorRT-LLM）。MSA继承这一优势，其KV-outer稀疏注意力kernel可以基于FlashAttention的tiling策略实现，无需从零设计新的kernel框架。
 
@@ -231,19 +231,19 @@ $$K_{idx} = X \cdot W_{idx}^k \in \mathbb{R}^{N \times 1 \times d_{idx}}$$
 
 将序列划分为固定的blocks：$\mathcal{B}_1, \mathcal{B}_2, ..., \mathcal{B}_{N_{blocks}}$，每个block包含$B_k$个tokens（$B_k=128$为block size，论文Sec 4.1/5.1明确指定）。
 
-对于query position i、GQA组r和block $\mathcal{B}_b$，先计算token-level index score，再max-pool到block level（论文Eq.6）：
+对于query position $i$、GQA组$r$和block $\mathcal{B}_b$，先计算token-level index score，再max-pool到block level（论文Eq.6）：
 
 $$S_{i,j}^{\text{idx},(r)} = \frac{(Q^{\text{idx}})_i^{(r)} \cdot (K^{\text{idx}})_j^{\top}}{\sqrt{d_{\text{idx}}}}, \quad M_{i,b}^{\text{idx},(r)} = \max_{\substack{j \in \mathcal{B}_b \\ j \le i}} S_{i,j}^{\text{idx},(r)}$$
 
-其中$(Q^{\text{idx}})_i^{(r)}$是第i个query在GQA组r的index query向量，$(K^{\text{idx}})_j$是第j个token的index key向量，约束$j \le i$保证因果性。Max-pooling提取每个block内对当前query最强的响应信号，无可见token的block赋值为$-\infty$。
+其中$(Q^{\text{idx}})_i^{(r)}$是第$i$个query在GQA组$r$的index query向量，$(K^{\text{idx}})_j$是第$j$个token的index key向量，约束$j \le i$保证因果性。Max-pooling提取每个block内对当前query最强的响应信号，无可见token的block赋值为$-\infty$。
 
 ### Top-k Block Selection
 
-对每个query position i和GQA组r，选择top-k个block indices（论文Eq.7）：
+对每个query position $i$和GQA组$r$，选择top-k个block indices（论文Eq.7）：
 
 $$\mathcal{I}_i^{(r)} = \mathrm{TopK}_{b \in \{1, \dots, B\}}(M_{i,\cdot}^{\text{idx},(r)}, k)$$
 
-其中$k=16$是选择的block数量（论文Sec 4.1/5.1明确指定，可选值$\{4,8,16,32\}$），$B = \lceil N/B_k \rceil$为总block数。选择结果$\mathcal{I}_i^{(r)}$被该GQA组内所有G个query heads共享。
+其中$k=16$是选择的block数量（论文Sec 4.1/5.1明确指定，可选值$\{4,8,16,32\}$），$B = \lceil N/B_k \rceil$为总block数。选择结果$\mathcal{I}_i^{(r)}$被该GQA组内所有$G$个query heads共享。
 
 **Local Block Always Included**：当前query所在的local block始终被选中，确保最近邻信息不丢失。这是因果注意力的基本要求。
 
@@ -295,13 +295,13 @@ Main Branch基于标准GQA，但执行**受限注意力**（restricted attention
 $$\boldsymbol{O}_i^{(h)} = \text{softmax}\left(\frac{\boldsymbol{Q}_i^{(h)} \cdot (\boldsymbol{K}^{(r)}[\mathcal{I}_i^{(r)}])^{\top}}{\sqrt{d_h}}\right) \cdot \boldsymbol{V}^{(r)}[\mathcal{I}_i^{(r)}]$$
 
 其中：
-- $\boldsymbol{Q}_i^{(h)}$是第i个query在head h的query向量
+- $\boldsymbol{Q}_i^{(h)}$是第$i$个query在head $h$的query向量
 - $\boldsymbol{K}^{(r)}, \boldsymbol{V}^{(r)}$是GQA组r的key/value矩阵
-- $\mathcal{I}_i^{(r)}$是Index Branch为query i、组r选中的block indices
+- $\mathcal{I}_i^{(r)}$是Index Branch为query $i$、组$r$选中的block indices
 - $\boldsymbol{K}^{(r)}[\mathcal{I}_i^{(r)}]$表示从选中blocks中gather因果可见的tokens
 - $d_h=128$是head dimension（论文Sec 5.1明确指定）
 - softmax仅对选中blocks内的tokens计算，未选中tokens的注意力分数为$-\infty$（softmax后为0）
-- $\mathcal{I}_i^{(r)}$被该组内所有G个query heads共享，但每个head保持自己的query投影
+- $\mathcal{I}_i^{(r)}$被该组内所有$G$个query heads共享，但每个head保持自己的query投影
 
 ### 与标准GQA的关系
 
@@ -361,12 +361,12 @@ MSA的训练需要确保Index Branch学会选择有价值的blocks，而Main Bra
 
 训练使用KL散度损失，对齐Index Branch与Main Branch在**选中block内token级**的分布（论文Eq.9-10）。
 
-令$\mathcal{I}_{i,\text{tok}}^{(r)} = (\bigcup_{b \in \mathcal{I}_i^{(r)}} \mathcal{B}_b) \cap \{1, \dots, i\}$为选中blocks内因果可见的tokens。对于每个query position i和GQA组r，定义：
+令$\mathcal{I}_{i,\text{tok}}^{(r)} = (\bigcup_{b \in \mathcal{I}_i^{(r)}} \mathcal{B}_b) \cap \{1, \dots, i\}$为选中blocks内因果可见的tokens。对于每个query position $i$ 和GQA组 $r$，定义：
 
 $$P_{i,j}^{\text{idx},(r)} = \frac{\exp(S_{i,j}^{\text{idx},(r)})}{\sum_{u \in \mathcal{I}_{i,\text{tok}}^{(r)}} \exp(S_{i,u}^{\text{idx},(r)})}, \quad
 P_{i,j}^{(r)} = \frac{1}{G} \sum_{\ell \in \mathcal{H}_r} \frac{\exp(S_{i,j}^{(\ell)})}{\sum_{u \in \mathcal{I}_{i,\text{tok}}^{(r)}} \exp(S_{i,u}^{(\ell)})}, \quad j \in \mathcal{I}_{i,\text{tok}}^{(r)}$$
 
-其中$S_{i,j}^{\text{idx},(r)}$是Index Branch的token-level score，$S_{i,j}^{(\ell)}$是Main Branch head $\ell$的score。Teacher分布$P_{i,j}^{(r)}$取该GQA组内G个query heads在概率层面的平均。KL损失在所有positions和GQA组上取平均：
+其中$S_{i,j}^{\text{idx},(r)}$是Index Branch的token-level score，$S_{i,j}^{(\ell)}$是Main Branch head $\ell$的score。Teacher分布$P_{i,j}^{(r)}$取该GQA组内$G$个query heads在概率层面的平均。KL损失在所有positions和GQA组上取平均：
 
 $$\mathcal{L}_{\text{KL}} = \frac{1}{N H_{kv}} \sum_{i=1}^N \sum_{r=1}^{H_{kv}} D_{\text{KL}}(\text{stopgrad}(P_{i,\cdot}^{(r)}) \parallel P_{i,\cdot}^{\text{idx},(r)})$$
 
@@ -438,7 +438,7 @@ $$Q_{idx} = \text{stopgrad}(X) \cdot W_{idx}^q$$
 $$K_{idx} = \text{stopgrad}(X) \cdot W_{idx}^k$$
 
 即：
-- Index Branch的投影输入X被detach（停止梯度）
+- Index Branch的投影输入$X$被detach（停止梯度）
 - KL loss仅反向传播到$W_{idx}^q$和$W_{idx}^k$
 - Main Branch的参数（$W_{main}^q$, $W_{main}^k$, $W_{main}^v$）仅由LM loss更新
 
@@ -582,7 +582,7 @@ Index Branch的top-k block selection是典型的小k top-k问题（$k=16$，论�
 
 ### Benchmark结果
 
-论文在H800 GPU上与`torch.topk`和TileLang radix-select top-k进行对比（fp32输入，unsorted输出，50次warm-up后取中位数，Sec 4.1 Table 1）：
+论文在H800 GPU上与`torch.topk`和TileLang `radix-select` top-k进行对比（fp32输入，unsorted输出，50次warm-up后取中位数，Sec 4.1 Table 1）：
 
 | Sequence Length N | Blocks B | k | torch (μs) | TileLang (μs) | Ours (μs) | vs torch | vs TileLang |
 |:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
@@ -636,7 +636,7 @@ $$\text{Attention}(q) = \frac{\sum_{c \in \text{Chunks}(q)} \exp(\text{LSE}_c - 
 **问题**：稀疏注意力中，每个query的key数量不固定（选中blocks的token数不同），难以充分利用tensor core。
 
 **解决方案**：query concatenation
-1. 将$\lceil 128/G \rceil$个query positions（下取整到score MMA的$128 \times 128$维度，论文Sec 4.2明确指定）与其G个query heads打包
+1. 将$\lceil 128/G \rceil$个query positions（下取整到score MMA的$128 \times 128$维度，论文Sec 4.2明确指定）与其$G$个query heads打包
 2. 同一KV head下，这些queries共享相同的选中blocks（因为KV-outer迭代，每个tile的gathered queries天然共享KV operands）
 3. 利用tensor core的batched matrix multiply能力
 
