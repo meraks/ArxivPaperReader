@@ -7,13 +7,13 @@
 - arXiv ID：2606.17952
 - 发表/提交日期：2026-06-16
 - 会议：ICML 2026
-- 官方代码：https://github.com/dlcuda/SoftMoE
+- 官方代码：[SoftMoE](https://github.com/dlcuda/SoftMoE)
 
 ---
 
 ## Ch1: 论文概述与核心贡献
 
-Mixture-of-Experts (MoE) 架构通过条件计算（conditional computation）突破密集模型（dense transformer）的扩展瓶颈：在固定推理成本下，仅激活小部分专家网络处理每个输入，从而大幅扩展模型总参数量。标准稀疏 MoE 采用 hard top-k 路由机制，对每个 token 选择得分最高的 k 个专家，其余专家完全不参与计算。这种离散选择算子虽然保持了因果性、兼容自回归语言模型，但其根本缺陷在于不可微性。
+Mixture-of-Experts (MoE) 架构通过条件计算（conditional computation）突破密集模型（dense transformer）的扩展瓶颈：在固定推理成本下，仅激活小部分专家网络处理每个输入，从而大幅扩展模型总参数量。标准Sparse MoE 采用 hard top-k 路由机制，对每个 token 选择得分最高的 k 个专家，其余专家完全不参与计算。这种离散选择算子虽然保持了因果性、兼容自回归语言模型，但其根本缺陷在于不可微性。
 
 Hard top-k 路由的不可微性导致三个深层问题：(1) 梯度无法流经专家选择过程，路由器只能通过选择之前的 softmax surrogate gradient 训练；(2) 每层激活的专家数量必须预先固定，无法根据输入难度自适应调整计算分配；(3) 全局计算容量静态僵化，难以在层间动态重分配资源。这使得 MoE 在面对复杂输入时仍需强制激活固定数量专家，造成计算资源浪费。
 
@@ -21,18 +21,19 @@ SoftMoE 通过可微软路由机制解决上述问题。其核心创新在于将
 
 SoftMoE 的第二项贡献是可学习的全局约束专家预算。传统 MoE 在每层固定 $k$ 个专家，而 SoftMoE 参数化每层平均活跃专家数 $k_l$，施加全局预算约束 $\sum_l k_l = K$（$k_l \geq 1$）。通过 softmax reparameterization，$k_l$ 在训练中与模型参数联合优化，层间形成竞争关系：增加某层专家分配需在其他层补偿。实验显示，模型学习到高度非均匀的分配策略，后 3 层吸收约 50% 总预算，与前层形成鲜明对比。
 
-实验在 GPT-2 架构（10 层、32 专家/层、每专家 5M 参数 → 总计 1.63B）上进行，使用 OWT (~9B tokens) 和 C4 (~206B tokens) 数据集。SoftMoE 在语言建模和下游任务（PIQA, HellaSwag, ARC-E）上匹配或超越 Sparse MoE 性能，同时激活更少专家。在 OWT 数据集上，SoftMoE* ($k=1.5$, $\alpha=2$) 达到 Loss 2.78，超越 Sparse MoE ($k=2$) 的 2.79；在 $\leq 2$ 专家/层预算下，训练阶段平均活跃专家数减少 17%（C4）至 24%（OWT）。在 OWT 上，SoftMoE (含 learned allocation, $k=2$, $\alpha=2$) 进一步将 loss 降至 2.74，并在 ARC-E 上达到最强 38.27%。非均匀层间分配在训练前 25k 步内快速收敛，展现出高效的计算资源利用。
+实验在 GPT-2 架构（10 层、32 专家/层、每专家 5M 参数 → 总计 1.63B）上进行，使用 OWT (~9B tokens) 和 C4 (~206B tokens) 数据集。SoftMoE 在语言建模和下游任务（PIQA, HellaSwag, ARC-E）上匹配或超越 Sparse MoE 性能，同时激活更少专家。在 OWT 数据集上，SoftMoE\* ($k=1.5$, $\alpha=2$) 达到 Loss 2.78，超越 Sparse MoE ($k=2$) 的 2.79；在 $\leq 2$ 专家/层预算下，训练阶段平均活跃专家数减少 17%（C4）至 24%（OWT）。在 OWT 上，SoftMoE (含 learned allocation, $k=2$, $\alpha=2$) 进一步将 loss 降至 2.74，并在 ARC-E 上达到最强 38.27%。非均匀层间分配在训练前 25k 步内快速收敛，展现出高效的计算资源利用。
 
-*Table: SoftMoE vs Sparse MoE 核心区别*
 
-| **特性** | **Sparse MoE** | **SoftMoE** |
-|---------|--------------|-------------|
-| **路由机制** | Hard top-k（离散选择） | Soft top-k + truncation（可微） |
-| **每层激活专家数** | 固定 k | 输入依赖的变量（均值 k_l） |
-| **层间分配** | 均匀（每层 k） | 可学习（非均匀，受全局预算约束） |
-| **梯度流** | 仅通过 softmax surrogate | 完整流经路由决策 |
-| **计算效率** | 强制激活固定数量专家 | 自适应激活，平均更少专家 |
-| **因果性** | 保持 | 保持 |
+**Table: SoftMoE vs 标准Sparse MoE 核心区别**
+
+| **特性**      | **标准Sparse MoE**      | **SoftMoE**                 |
+| ----------- | --------------------- | --------------------------- |
+| **路由机制**    | Hard top-k（离散选择）      | Soft top-k + truncation（可微） |
+| **每层激活专家数** | 固定 $k$                | 输入依赖的变量（均值 $k_l$）           |
+| **层间分配**    | 均匀（每层 $k$）            | 可学习（非均匀，受全局预算约束）            |
+| **梯度流**     | 仅通过 softmax surrogate | 完整流经路由决策                    |
+| **计算效率**    | 强制激活固定数量专家            | 自适应激活，平均更少专家                |
+| **因果性**     | 保持                    | 保持                          |
 
 ---
 
@@ -72,11 +73,11 @@ $$G(x) = \text{TopK}(p, k)$$
 
 $$y = \sum_{i=1}^{n} G_i(x) \cdot p_i \cdot E_i(x)$$
 
-其中E_i(x)是第i个专家网络的输出。
+其中$E_i(x)$是第$i$个专家网络的输出。
 
 **不可微性问题**：TopK 操作引入的离散性导致梯度无法流经选择过程。尽管 gate 网络 $W_g$ 通过 TopK 之前的 softmax 接收 surrogate 梯度，但真正的选择决策（即哪些专家被激活）无法通过端到端反向传播优化。这导致两个限制：
 
-1. **固定专家数量**：每个token必须激活恰好k个专家，无法根据输入难度或重要性自适应调整
+1. **固定专家数量**：每个token必须激活恰好$k$个专家，无法根据输入难度或重要性自适应调整
 2. **次优路由**：gate网络只能间接优化选择，无法直接基于下游任务损失优化专家分配
 
 从cardinality约束角度理解，TopK等价于求解：
@@ -95,11 +96,11 @@ TopK 问题可重新表述为 order statistics 问题：寻找阈值 $\tilde{x}$
 
 $$r_{(k)} \geq \tilde{x} > r_{(k+1)}$$
 
-LapSum通过引入Laplace分布的累积分布函数（CDF）F_Lap将此连续化。LapSum的核心方程定义为：
+LapSum通过引入Laplace分布的累积分布函数（CDF）$F_{Lap}$将此连续化。LapSum的核心方程定义为：
 
 $$\text{LapSum}(x) = \sum_{i=1}^{n} F_{\text{Lap}}(r_i - x) = k$$
 
-其中F_Lap是Laplace CDF：
+其中$F_{Lap}$是Laplace CDF (标准形式Laplace CDF，$\mu=0,b=1$时定义)：
 
 $$F_{\text{Lap}}(z) = \begin{cases}
 \frac{1}{2} \exp(z) & \text{if } z \leq 0 \\
@@ -122,15 +123,15 @@ $$\tilde{p}_i = F_{\text{Lap}}(r_i - \tilde{x})$$
 
 ### 3.2.3 与softmax的对比
 
-| 特性 | Softmax | LapSum (SoftTopK) |
-|------|---------|-------------------|
-| 输出维度 | 与输入相同 | 与输入相同 |
-| 输出范围 | [0,1]，但无明确上界 | [0,1]，每个元素有界 |
-| 输出和 | 恒为1（概率分布） | 恒为k（cardinality） |
-| 梯度特性 | 输入可微，k不可微 | 输入和k都可微 |
-| 解释 | 归一化为概率分布 | soft mask满足基数约束 |
+| 特性   | Softmax      | LapSum (SoftTopK)  |
+| ---- | ------------ | ------------------ |
+| 输出维度 | 与输入相同        | 与输入相同              |
+| 输出范围 | [0,1]，但无明确上界 | [0,1]，每个元素有界       |
+| 输出和  | 恒为1（概率分布）    | 恒为$k$（cardinality） |
+| 梯度特性 | 输入可微，$k$不可微  | 输入和$k$都可微          |
+| 解释   | 归一化为概率分布     | soft mask满足基数约束    |
 
-LapSum可视为softmax的推广：当k=1时，LapSum退化为类似softmax的软分配；但当k>1时，LapSum明确控制"激活强度"总量而非概率归一化。
+LapSum可视为softmax的推广：当$k=1$时，LapSum退化为类似softmax的软分配；但当$k>1$时，LapSum明确控制"激活强度"总量而非概率归一化。
 
 ### 3.2.4 计算复杂度
 
@@ -306,7 +307,7 @@ Layer L: SoftTopK(r, k_L)
 
 ### 4.3.3 整体效率
 
-尽管LapSum引入per-token开销，但通过减少活跃专家总数（例如SoftMoE*以更少专家达到同等性能），整体计算仍可能更低。关键收益在于：
+尽管LapSum引入per-token开销，但通过减少活跃专家总数（例如SoftMoE\*以更少专家达到同等性能），整体计算仍可能更低。关键收益在于：
 
 1. **更高效容量利用**：预算分配到真正需要的层
 2. **稀疏性保持**：截断确保实际激活专家数接近 $k_l$
@@ -378,42 +379,42 @@ Zero-shot下游任务评估：
 - **HellaSwag**: 常识句子补全
 - **ARC-E (Abstraction and Reasoning Corpus, Easy)**: 抽象推理
 
-## 5.2 SoftMoE* vs Sparse MoE: 效率与性能权衡
+## 5.2 SoftMoE\* vs Sparse MoE: 效率与性能权衡
 
-本节分析不含learned allocation的SoftMoE*与标准Sparse MoE的对比，核心观察是SoftMoE*能够以更少活跃专家实现更低的语言建模loss。
+本节分析不含learned allocation的SoftMoE\*与标准Sparse MoE的对比，核心观察是SoftMoE\*能够以更少活跃专家实现更低的语言建模loss。
 
 ### 5.2.1 OWT数据集结果
 
-在OWT (~9B tokens)上，SoftMoE*在低预算配置下显著优于Sparse MoE：
+在OWT (~9B tokens)上，SoftMoE\*在低预算配置下显著优于标准Sparse MoE：
 
-| 模型配置 | Loss | Train-AE | Infer-AE | Active-Params |
-|---------|------|----------|----------|---------------|
-| SoftMoE* (k=1.5, α=2) | 2.78 | 1.53 | 1.73 | 143.66M |
-| Sparse MoE (k=2) | 2.79 | 2 | 2 | 156.94M |
+| 模型配置                 | Loss | Train-AE | Infer-AE | Active-Params |
+| -------------------- | ---- | -------- | -------- | ------------- |
+| SoftMoE\* (k=1.5, α=2) | 2.78 | 1.53     | 1.73     | 143.66M       |
+| 标准Sparse MoE (k=2)     | 2.79 | 2        | 2        | 156.94M       |
 
 核心发现：
-- SoftMoE* (k=1.5) loss (2.78) 低于 Sparse MoE (k=2) loss (2.79)
-- SoftMoE*训练时平均激活1.53个专家，相比Sparse MoE的2个专家减少24%
+- SoftMoE\* (k=1.5) loss (2.78) 低于 Sparse MoE (k=2) loss (2.79)
+- SoftMoE\*训练时平均激活1.53个专家，相比Sparse MoE的2个专家减少24%
 - 推理时平均激活1.73个专家，相比Sparse MoE减少13%
 - 活跃参数量更少 (143.66M vs 156.94M)
 
 ### 5.2.2 高预算配置（OWT）
 
-当允许更高专家预算时，SoftMoE* 的 gap 更明显：
+当允许更高专家预算时，SoftMoE的 gap 更明显：
 
-| 模型配置 | Loss | Train-AE | Infer-AE | Active-Params |
-|---------|------|----------|----------|---------------|
-| SoftMoE* (k=1, α=4) | 2.70 | 3.64 | 3.73 | 242.06M |
-| Sparse MoE (k=4) | 2.75 | 4 | 4 | 255.34M |
+| 模型配置               | Loss | Train-AE | Infer-AE | Active-Params |
+| ------------------ | ---- | -------- | -------- | ------------- |
+| SoftMoE\* (k=1, α=4) | 2.70 | 3.64 | 3.73 | 242.06M |
+| Sparse MoE (k=4)   | 2.75 | 4 | 4 | 255.34M |
 
 关键观察：
-- SoftMoE* loss (2.70) 显著低于 Sparse MoE (k=4) loss (2.75)
+- SoftMoE\* loss (2.70) 显著低于 Sparse MoE (k=4) loss (2.75)
 - 训练时平均激活3.64个专家，相比Sparse MoE的4个专家减少9%
 - 性能提升来源：soft routing允许模型根据token难度自适应调整活跃专家数量，而非强制固定k
 
 ### 5.2.3 自适应激活模式
 
-Figure 4展示了SoftMoE*训练过程中活跃专家数的演化：
+Figure 4展示了SoftMoE\*训练过程中活跃专家数的演化：
 
 - **训练早期**: 活跃专家数波动较大，模型探索不同分配策略
 - **训练中期**: 活跃专家数收敛到稳定分布，平均接近k
@@ -423,14 +424,14 @@ Figure 4展示了SoftMoE*训练过程中活跃专家数的演化：
 
 ### 5.2.4 效率来源分析
 
-SoftMoE*的效率增益源自differentiability带来的两个优势：
+SoftMoE\*的效率增益源自differentiability带来的两个优势：
 
 1. **Input-dependent sparsity**: 截断机制允许"简单"token激活更少专家，"困难"token激活更多专家
 2. **Gradient-based routing**: Gate网络直接基于任务损失优化，避免surrogate梯度
 
 ## 5.3 学习层间分配的实验结果
 
-本节分析含learned allocation的SoftMoE (记为SoftMoE (alloc.)) 与SoftMoE*的对比。
+本节分析含learned allocation的SoftMoE (记为SoftMoE (alloc.)) 与SoftMoE\*的对比。
 
 ### 5.3.1 非均匀分配现象
 
@@ -460,18 +461,18 @@ C4数据集上的完整对比 (Table 1):
 |---------|------|----------|------|----------|-------|
 | Sparse MoE (k=1) | 2.27 | 1 | 69.75 | 43.14 | 42.50 |
 | Sparse MoE (k=2) | 2.24 | 2 | 71.98 | 45.41 | 40.74 |
-| SoftMoE* (k=1.5, α=2) | 2.23 | 1.65 | 71.06 | 45.49 | 39.15 |
+| SoftMoE\* (k=1.5, α=2) | 2.23 | 1.65 | 71.06 | 45.49 | 39.15 |
 | Sparse MoE (k=3) | 2.22 | 3 | 71.60 | 46.36 | 42.50 |
 | SoftMoE (k=1.5, α=2, alloc.) | 2.22 | 1.96 | 71.38 | 46.79 | 43.39 |
 | Sparse MoE (k=4) | 2.20 | 4 | 71.60 | 47.23 | 43.56 |
-| SoftMoE* (k=1, α=4) | 2.19 | 3.60 | 72.91 | 48.48 | 43.21 |
-| SoftMoE* (k=2, α=2) | 2.21 | 2.91 | 71.60 | 48.05 | 42.86 |
+| SoftMoE\* (k=1, α=4) | 2.19 | 3.60 | 72.91 | 48.48 | 43.21 |
+| SoftMoE\* (k=2, α=2) | 2.21 | 2.91 | 71.60 | 48.05 | 42.86 |
 | SoftMoE (k=2, α=2, alloc.) | 2.20 | 3.35 | 72.03 | 47.48 | 42.15 |
 
 观察：
-- C4 上最优 loss 配置为 SoftMoE* ($k=1$, $\alpha=4$)，loss 2.19，同时在 PIQA (72.91%) 和 HellaSwag (48.48%) 上也达到最优
+- C4 上最优 loss 配置为 SoftMoE\* ($k=1$, $\alpha=4$)，loss 2.19，同时在 PIQA (72.91%) 和 HellaSwag (48.48%) 上也达到最优
 - Learned allocation 的主要 trade-off：SoftMoE ($k=2$, $\alpha=2$) 的 ARC-E (42.15%) 略低于 Sparse MoE ($k=4$) 的 43.56%，但 SoftMoE ($k=1.5$, $\alpha=2$, alloc.) 的 ARC-E (43.39%) 接近 Sparse MoE 最佳
-- 在 $\leq 2$ 专家/层预算下，SoftMoE* 相比 Sparse MoE 减少约 17% 活跃专家数（Train-AE 1.65 vs 2）
+- 在 $\leq 2$ 专家/层预算下，SoftMoE\* 相比 Sparse MoE 减少约 17% 活跃专家数（Train-AE 1.65 vs 2）
 
 ### 5.3.4 层间异质性的理论解释
 
@@ -491,14 +492,14 @@ HellaSwag评估常识推理和句子补全能力。Table 1显示，在HellaSwag�
 
 | SoftMoE配置 | HellaSwag (%) | Sparse MoE配置 | HellaSwag (%) |
 |------------|---------------|---------------|---------------|
-| SoftMoE* (k=1, α=4) | 33.68 | Sparse MoE (k=4) | 32.36 |
-| SoftMoE* (k=2, α=2) | 32.50 | Sparse MoE (k=2) | 31.50 |
+| SoftMoE\* (k=1, α=4) | 33.68 | Sparse MoE (k=4) | 32.36 |
+| SoftMoE\* (k=2, α=2) | 32.50 | Sparse MoE (k=2) | 31.50 |
 
 **C4 预训练：**
 
 | SoftMoE配置 | HellaSwag (%) | Sparse MoE配置 | HellaSwag (%) |
 |------------|---------------|---------------|---------------|
-| SoftMoE* (k=1, α=4) | 48.48 | Sparse MoE (k=4) | 47.23 |
+| SoftMoE\* (k=1, α=4) | 48.48 | Sparse MoE (k=4) | 47.23 |
 | SoftMoE (k=2, α=2) | 47.48 | Sparse MoE (k=2) | 45.41 |
 
 关键发现：在HellaSwag上，soft routing在所有配置中一致优于Sparse MoE，支持"soft routing提升表征质量"的假设。
@@ -511,17 +512,17 @@ PIQA评估物理交互常识推理：
 
 | SoftMoE配置 | PIQA (%) | Sparse MoE配置 | PIQA (%) |
 |------------|---------|---------------|---------|
-| SoftMoE* (k=1, α=4) | 63.93 | Sparse MoE (k=4) | 63.87 |
-| SoftMoE* (k=2, α=2) | 63.82 | Sparse MoE (k=2) | 62.40 |
+| SoftMoE\* (k=1, α=4) | 63.93 | Sparse MoE (k=4) | 63.87 |
+| SoftMoE\* (k=2, α=2) | 63.82 | Sparse MoE (k=2) | 62.40 |
 
 **C4 预训练：**
 
 | SoftMoE配置 | PIQA (%) | Sparse MoE配置 | PIQA (%) |
 |------------|---------|---------------|---------|
-| SoftMoE* (k=1, α=4) | 72.91 | Sparse MoE (k=4) | 71.60 |
+| SoftMoE\* (k=1, α=4) | 72.91 | Sparse MoE (k=4) | 71.60 |
 | SoftMoE (k=2, α=2) | 72.03 | Sparse MoE (k=2) | 71.98 |
 
-在C4上，SoftMoE* ($k=1$, $\alpha=4$) 达到最优 72.91%，相比 Sparse MoE ($k=4$) 的 71.60% 提升 1.31 个百分点。OWT 上 soft routing 也 consistently 优于或匹配 Sparse MoE。
+在C4上，SoftMoE\* ($k=1$, $\alpha=4$) 达到最优 72.91%，相比 Sparse MoE ($k=4$) 的 71.60% 提升 1.31 个百分点。OWT 上 soft routing 也 consistently 优于或匹配 Sparse MoE。
 
 ### 5.4.3 ARC-E
 
@@ -532,14 +533,14 @@ ARC-E评估抽象推理能力：
 | SoftMoE配置 | ARC-E (%) | Sparse MoE配置 | ARC-E (%) |
 |------------|----------|---------------|----------|
 | SoftMoE (k=2, α=2, alloc.) | 38.27 | Sparse MoE (k=4) | 36.68 |
-| SoftMoE* (k=2, α=2) | 37.21 | Sparse MoE (k=2) | 34.74 |
+| SoftMoE\* (k=2, α=2) | 37.21 | Sparse MoE (k=2) | 34.74 |
 
 **C4 预训练：**
 
 | SoftMoE配置 | ARC-E (%) | Sparse MoE配置 | ARC-E (%) |
 |------------|----------|---------------|----------|
 | SoftMoE (k=1.5, α=2, alloc.) | 43.39 | Sparse MoE (k=4) | 43.56 |
-| SoftMoE* (k=1, α=4) | 43.21 | Sparse MoE (k=2) | 40.74 |
+| SoftMoE\* (k=1, α=4) | 43.21 | Sparse MoE (k=2) | 40.74 |
 
 OWT 上 SoftMoE（含 learned allocation，$k=2$, $\alpha=2$）达到最强 38.27%，相比 Sparse MoE ($k=4$) 的 36.68% 提升 1.59 个百分点。C4 上 Sparse MoE ($k=4$) 以 43.56% 略优于 SoftMoE 的最佳配置 43.39%，但 gap 很小 ($<0.2\%$)。ARC-E 因评估集较小，方差较高。
 
@@ -547,7 +548,7 @@ OWT 上 SoftMoE（含 learned allocation，$k=2$, $\alpha=2$）达到最强 38.2
 
 综合Table 1数据，观察：
 
-- **最佳预训练 loss 配置通常对应较强下游表现**：OWT 上 SoftMoE* ($k=1$, $\alpha=4$) loss 最低 (2.70)；同数据集上 ARC-E 最高 (38.27%) 来自 SoftMoE ($k=2$, $\alpha=2$，含 learned allocation)
+- **最佳预训练 loss 配置通常对应较强下游表现**：OWT 上 SoftMoE\* ($k=1$, $\alpha=4$) loss 最低 (2.70)；同数据集上 ARC-E 最高 (38.27%) 来自 SoftMoE ($k=2$, $\alpha=2$，含 learned allocation)
 - **Soft routing的优势在下游任务更明显**: 尽管loss提升可能仅为0.01-0.02，下游任务提升可达1-2个百分点
 
 这表明soft routing不仅优化perplexity，更提升表征的迁移能力。
@@ -699,7 +700,7 @@ SoftMoE提出基于LapSum的differentiable top-k routing，替代标准Sparse Mo
 3. **效率提升**: 在语言建模（C4, OWT）和下游任务（PIQA, HellaSwag, ARC-E）上，SoftMoE以更少活跃专家匹配或超越Sparse MoE
 
 实验发现：
-- SoftMoE* 相比 Sparse MoE，在 OWT（$k=1.5$, $\alpha=2$ vs $k=2$）上以更低 loss（2.78 vs 2.79）达到更优效率；训练阶段 Train-AE 减少 24%，推理 Infer-AE 减少 13%
+- SoftMoE\* 相比 Sparse MoE，在 OWT（$k=1.5$, $\alpha=2$ vs $k=2$）上以更低 loss（2.78 vs 2.79）达到更优效率；训练阶段 Train-AE 减少 24%，推理 Infer-AE 减少 13%
 - Learnable allocation呈现高度非均匀分布：最后3层吸收约50%总预算
 - Soft routing在HellaSwag上一致优于hard routing，PIQA上也多数配置更优；ARC-E因评估集较小方差较高，但SoftMoE在OWT预训练上达到最强ARC-E
 
