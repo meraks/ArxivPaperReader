@@ -1685,11 +1685,11 @@ $$
 
 RoPE 的多频率设计天然支持**多尺度建模**：
 
-| 频率类型 | θ 值（近似） | 依赖类型 | 典型距离 |
-|----------|-------------|----------|----------|
-| 高频 | ~10000⁰ | 短程语法 | 1-5 tokens |
-| 中频 | ~10000⁻² | 中程语义 | 5-20 tokens |
-| 低频 | ~10000⁻⁶ | 长程连贯 | 20+ tokens |
+| 频率类型 | θ 值（近似）  | 依赖类型 | 典型距离        |
+| ---- | -------- | ---- | ----------- |
+| 高频   | ~10000⁰  | 短程语法 | 1-5 tokens  |
+| 中频   | ~10000⁻² | 中程语义 | 5-20 tokens |
+| 低频   | ~10000⁻⁶ | 长程连贯 | 20+ tokens  |
 
 **设计优势**：
 - 不同频率成分自动捕获不同尺度的模式
@@ -1774,7 +1774,11 @@ RoPE 提出后（2021 年），已成为大语言模型位置编码的主流选�
 
 ### 6.1 PyTorch 教学实现：Educational Implementation
 
-> **注意**：以下代码为教学简化版实现，基于论文算法描述编写，并非 labml.ai 官方源码。与 labml.ai 实际实现的差异包括：① labml 使用 `(seq_len, batch_size, n_heads, d)` 数据格式（此处用 `(batch, seq, heads, d)`）；② labml 在 `MultiHeadAttention` 模块中管理 `rope_percentage`（此处内嵌在 `RotaryPositionalEmbeddings` 中）；③ labml 缓存名为 `cos_cached`/`sin_cached` 且在 `_build_cache(x)` 中按输入动态构建（此处 `__init__` 中预构建固定 `max_seq_len`）。仅用于教学目的，不可直接用于训练。
+> **注意**：以下代码为教学简化版实现，基于论文算法描述编写，并非 labml.ai 官方源码。与 labml.ai 实际实现的差异包括：
+> ① labml 使用 `(seq_len, batch_size, n_heads, d)` 数据格式（此处用 `(batch, seq, heads, d)`）；
+> ② labml 在 `MultiHeadAttention` 模块中管理 `rope_percentage`（此处内嵌在 `RotaryPositionalEmbeddings` 中）；
+> ③ labml 缓存名为 `cos_cached`/`sin_cached` 且在 `_build_cache(x)` 中按输入动态构建（此处 `__init__` 中预构建固定 `max_seq_len`）。
+> 仅用于教学目的，不可直接用于训练。
 
 #### 6.1.1 完整代码概览
 
@@ -1789,94 +1793,46 @@ from typing import Optional
 class RotaryPositionalEmbeddings(nn.Module):
     """
     RoPE 位置编码模块
-    
-    核心思想：
-    1. 预计算 cos(mΘ) 和 sin(mΘ)（缓存在 self.cache 中）
-    2. 应用旋转公式：x ⊙ cos(mΘ) + rotate_half(x) ⊙ sin(mΘ)
-    3. 支持可选的部分应用（rope_percentage 参数）
     """
     
     def __init__(self, d: int, max_seq_len: int = 2048, base: int = 10000):
-        """
-        初始化 RoPE 模块
-        
-        Args:
-            d: 模型维度（必须为偶数）
-            max_seq_len: 最大序列长度（用于预计算缓存）
-            base: 频率基数（默认 10000，对应 θ_i = base^{-2(i-1)/d}）
-        """
         super().__init__()
         
-        # 检查维度是否为偶数
         if d % 2 != 0:
             raise ValueError(f"维度 d 必须为偶数，但得到 {d}")
         
         self.d = d
         self.base = base
+        self.max_seq_len = max_seq_len
         
-        # 预计算 cos 和 sin 缓存（见 _build_cache 方法）
-        self.cache = self._build_cache(max_seq_len)
+        # 预计算缓存并注册为 buffer，随模型设备自动迁移
+        cos, sin = self._build_cache(max_seq_len)
+        self.register_buffer('cos_cached', cos)
+        self.register_buffer('sin_cached', sin)
     
-    def _build_cache(self, seq_len: int) -> dict:
-        """
-        构建 cos 和 sin 的缓存
-        
-        关键洞察：
-        - cos(mΘ) 和 sin(mΘ) 只依赖于位置 m 和频率 Θ
-        - 预计算后，forward 时只需查表，避免重复计算
-        - 缓存形状：(seq_len, d/2)
-        
-        Args:
-            seq_len: 最大序列长度
-        
-        Returns:
-            包含 'cos' 和 'sin' 键的字典
-        """
-        # 计算频率 Θ = (θ₁, θ₂, ..., θ_{d/2})
-        # θ_i = base^{-2(i-1)/d}
+    def _build_cache(self, seq_len: int) -> tuple[torch.Tensor, torch.Tensor]:
+        """构建 cos/sin 缓存，形状 (seq_len, d)"""
+        # 计算频率 θ
         i = torch.arange(0, self.d // 2, dtype=torch.float32)
-        Θ = 1.0 / (self.base ** (2 * i / self.d))  # 形状: (d/2,)
+        theta = 1.0 / (self.base ** (2 * i / self.d))  # (d/2,)
         
-        # 计算每个位置的旋转角度 mΘ
-        # m 的形状: (seq_len, 1), Θ 的形状: (d/2,)
-        # mΘ 的形状: (seq_len, d/2)
+        # 计算每个位置的旋转角度 mθ
         m = torch.arange(seq_len, dtype=torch.float32).unsqueeze(1)  # (seq_len, 1)
-        mΘ = m * Θ.unsqueeze(0)  # (seq_len, d/2)
+        m_theta = m * theta.unsqueeze(0)  # (seq_len, d/2)
         
-        # 计算 cos(mΘ) 和 sin(mΘ)
-        cos = torch.cos(mΘ)  # (seq_len, d/2)
-        sin = torch.sin(mΘ)  # (seq_len, d/2)
+        # 扩展为 d 维（前后两半共用同一组频率）
+        cos = torch.cos(m_theta)  # (seq_len, d/2)
+        sin = torch.sin(m_theta)  # (seq_len, d/2)
+        cos = torch.cat([cos, cos], dim=-1)  # (seq_len, d)
+        sin = torch.cat([sin, sin], dim=-1)  # (seq_len, d)
         
-        return {'cos': cos, 'sin': sin}
+        return cos, sin
     
     def _neg_half(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        旋转辅助函数：将向量的后半部分取负并移到前半部分
-
-        数学原理（两半交换配对）：
-        - 将向量 x 分成两半 x₁ = x[..., :d/2], x₂ = x[..., d/2:]
-        - 返回 [-x₂, x₁]，使 (x[i], x[i+d/2]) 构成一个旋转对
-        - RoPE 核心公式：rotated = x ⊙ cos + rotate_half(x) ⊙ sin
-          其中 rotated[i]    = x[i]·cos[i] - x[i+d/2]·sin[i]
-                rotated[i+d/2] = x[i+d/2]·cos[i] + x[i]·sin[i]
-        - 等价于对每个 2D 子空间 [x[i], x[i+d/2]]^T 应用旋转矩阵 [[cosθ, -sinθ], [sinθ, cosθ]]
-
-        注：论文公式 (3.4.2) 使用相邻交换 [-x₂, x₁, -x₄, x₃, ...]（每个旋转对由相邻两维构成），
-        本实现使用两半交换（旋转对由相隔 d/2 的维度构成），两者数学等价，仅维度配对约定不同。
-        
-        Args:
-            x: 输入张量，形状 (..., d)
-        
-        Returns:
-            旋转后的张量，形状 (..., d)
-        """
-        # 将 x 分为两半：x₁ = x[..., :d/2], x₂ = x[..., d/2:]
-        # 返回 [-x₂, x₁]
+        """旋转辅助函数：[-x2, x1]"""
         d = x.shape[-1]
-        x1 = x[..., :d // 2]  # 前半部分 (..., d/2)
-        x2 = x[..., d // 2:]  # 后半部分 (..., d/2)
-        
-        # 拼接 [-x₂, x₁]
+        x1 = x[..., :d // 2]
+        x2 = x[..., d // 2:]
         return torch.cat([-x2, x1], dim=-1)
     
     def forward(
@@ -1886,40 +1842,38 @@ class RotaryPositionalEmbeddings(nn.Module):
         rope_percentage: float = 1.0,
     ) -> torch.Tensor:
         """
-        前向传播：应用 RoPE 旋转
-        
-        核心公式：
-        RoPE(x, m) = x ⊙ cos(mΘ) + rotate_half(x) ⊙ sin(mΘ)
-        
         Args:
             x: 输入张量，形状 (batch_size, seq_len, num_heads, d)
-            offset: 位置偏移（用于生成时的增量推理）
-            rope_percentage: 应用 RoPE 的维度比例（默认 1.0，即所有维度）
-        
-        Returns:
-            旋转后的张量，形状与 x 相同
+            offset: 位置偏移
+            rope_percentage: 应用 RoPE 的维度比例
         """
-        # 获取序列长度
         seq_len = x.shape[1]
+        total_len = offset + seq_len
         
-        # 从缓存中获取 cos 和 sin
-        # offset 用于支持增量生成（见 6.3 节）
-        cos = self.cache['cos'][offset:offset + seq_len]  # (seq_len, d/2)
-        sin = self.cache['sin'][offset:offset + seq_len]  # (seq_len, d/2)
+        # 动态扩展缓存：长度不足时重建
+        if total_len > self.max_seq_len:
+            new_max = max(total_len, self.max_seq_len * 2)
+            new_cos, new_sin = self._build_cache(new_max)
+            # 保持与原缓存相同设备
+            new_cos = new_cos.to(self.cos_cached.device)
+            new_sin = new_sin.to(self.sin_cached.device)
+            self.cos_cached = new_cos
+            self.sin_cached = new_sin
+            self.max_seq_len = new_max
         
-        # 将 (seq_len, d/2) 扩展为 (seq_len, d)
-        # cos 原始：[c₁, c₂, ..., c_{d/2}]
-        # 用 cat 重复得到：[c₁, c₂, ..., c_{d/2}, c₁, c₂, ..., c_{d/2}]
-        # 这样前半每维度 i 用频率 θ_i 旋转原始值 x_i，后半用 θ_{i-d/2} 旋转 _neg_half(x)_i
-        cos = torch.cat([cos, cos], dim=-1)  # (seq_len, d)
-        sin = torch.cat([sin, sin], dim=-1)  # (seq_len, d)
+        # 截取对应位置的 cos/sin
+        cos = self.cos_cached[offset:offset + seq_len]  # (seq_len, d)
+        sin = self.sin_cached[offset:offset + seq_len]  # (seq_len, d)
         
-        # 应用 RoPE 公式
-        # x 的形状: (batch_size, seq_len, num_heads, d)
-        # cos/sin 的形状: (seq_len, d)
-        # 广播后: (batch_size, seq_len, num_heads, d)
+        # 关键修正：扩展维度以适配 (B, S, H, D) 的广播
+        # 形状变为 (1, seq_len, 1, d)，分别适配 batch 和 head 维度
+        cos = cos.unsqueeze(0).unsqueeze(2)
+        sin = sin.unsqueeze(0).unsqueeze(2)
+        
+        # 应用 RoPE
         if rope_percentage < 1.0:
             d_rope = int(self.d * rope_percentage)
+            d_rope = d_rope - d_rope % 2  # 保证为偶数
             # 只对前 d_rope 维应用 RoPE
             x_rope = x[..., :d_rope]
             x_pass = x[..., d_rope:]
@@ -1927,8 +1881,6 @@ class RotaryPositionalEmbeddings(nn.Module):
             rotated = torch.cat([rotated_rope, x_pass], dim=-1)
         else:
             rotated = x * cos + self._neg_half(x) * sin
-
-        # 已在上方处理 rope_percentage < 1.0 的情况
         
         return rotated
 ```
@@ -1954,17 +1906,17 @@ cos = torch.cat([cos, cos], dim=-1)
 
 **目的**：将 (seq_len, d/2) 扩展为 (seq_len, d)
 
-**原始 cos**：[c₁, c₂, c₃, ..., c_{d/2}]（d/2 个值）
+**原始 cos**：$[c_{1}, c_{2}, c_{3}, ..., c_{d/2}]$（d/2 个值）
 
-**扩展后 cos**：[c₁, c₂, ..., c_{d/2}, c₁, c₂, ..., c_{d/2}]（d 个值）
+**扩展后 cos**：$[c_{1}, c_{2}, ..., c_{d/2}, c_{1}, c_{2}, ..., c_{d/2}]$（d 个值）
 
 **原因**：
-- 配合 `_neg_half` 的半交换操作，前半部分用 x ⊙ cos 得到 `x_i * cosθ_i`，后半部分用 -x_{i+d/2} ⊙ sin 得到旋转的交叉项
-- 例如 d=4：[c₁, c₂, c₁, c₂] 配合 `_neg_half([x₁,x₂,x₃,x₄]) = [-x₃,-x₄,x₁,x₂]`
-  - dim 0: x₁cosθ₁ + (-x₃)sinθ₁ → 第 1 个 2D 旋转块分量一
-  - dim 1: x₂cosθ₂ + (-x₄)sinθ₂ → 第 2 个 2D 旋转块分量一
-  - dim 2: x₃cosθ₁ + x₁sinθ₁ → 第 1 个 2D 旋转块分量二
-  - dim 3: x₄cosθ₂ + x₂sinθ₂ → 第 2 个 2D 旋转块分量二
+- 配合 `_neg_half` 的半交换操作，前半部分用 $x ⊙ cos$得到 $x_i * cosθ_i$，后半部分用 $-x_{i+d/2} ⊙ sin$ 得到旋转的交叉项
+- 例如 d=4：$[c_{1}, c_{2}, c_{1}, c_{2}]$ 配合 _neg_half($[x_{1},x_{2},x_{3},x_{4}]$) = $[-x_{3},-x_{4},x_{1},x_{2}]$
+  - dim 0: $x_{1}cosθ_{1} + (-x_{3})sin\theta_{1}$ → 第 1 个 2D 旋转块分量一
+  - dim 1: $x_{2}cosθ_{2} + (-x_{4})sinθ_{2}$ → 第 2 个 2D 旋转块分量一
+  - dim 2: $x_{3}cosθ_{1} + x_{1}sinθ_{1}$ → 第 1 个 2D 旋转块分量二
+  - dim 3: $x_{4}cosθ_{2} + x_{2}sinθ_{2}$ → 第 2 个 2D 旋转块分量二
 - 这种半交换方式将维度 0 和 2 配对为一个 2D 旋转、维度 1 和 3 配对为另一个 2D 旋转
 
 **技巧 3：rotate_half 的高效实现**
@@ -1977,17 +1929,17 @@ def _neg_half(self, x: torch.Tensor) -> torch.Tensor:
 ```
 
 **对应数学公式**：
-rotate_half([x₁, x₂, x₃, x₄, ...]) = [-x_{d/2+1}, -x_{d/2+2}, ..., -x_d, x₁, x₂, ..., x_{d/2}]
+rotate_half($[x_{1}, x_{2}, x_{3}, x_{4}, ...]$) = $[-x_{d/2+1}, -x_{d/2+2}, ..., -x_d, x_{1}, x_{2}, ..., x_{d/2}]$
 
 **示例**（d=4）：
-- 输入：x = [x₁, x₂, x₃, x₄]
-- x1 = [x₁, x₂]
-- x2 = [x₃, x₄]
-- 输出：[-x₃, -x₄, x₁, x₂]
+- 输入：x = $[x_{1}, x_{2}, x_{3}, x_{4}]$
+- x1 = $[x_{1}, x_{2}]$
+- x2 = $[x_{3}, x_{4}]$
+- 输出：$[-x_{3}, -x_{4}, x_{1}, x_{2}]$
 
 **几何意义**：
-- 2D 旋转中，需要 [-x₂, x₁] 而非 [x₁, x₂]
-- 这对应于旋转矩阵的第二列：[-sin θ, cos θ]
+- 2D 旋转中，需要 $[-x_{2}, x_{1}]$而非 $[x_{1}, x_{2}]$
+- 这对应于旋转矩阵的第二列：$[-sin θ, cos θ]$
 
 ### 6.2 与 Multi-Head Attention 集成
 
