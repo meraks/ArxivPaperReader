@@ -6,8 +6,6 @@
 - arXiv ID：2606.09828
 - 发表/提交日期：2026-06-10
 - 官方代码：microsoft/LatentSpatialMemory（MIT License，code coming soon）
-- 代码发现方式：PDF扫描确认 + web_search验证 → 仓库标题/arXiv ID匹配 ✅
-- CodeGraph分析：跳过（仓库仅含README/assets，无源代码）
 
 ---
 

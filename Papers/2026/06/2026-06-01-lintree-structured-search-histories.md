@@ -675,8 +675,3 @@ LinTree的独特定位：**既保留了LLM内部推理的完整上下文优势�
 7. **Self-Evaluation Guided Beam Search** (Xie et al., EMNLP 2023) — 束搜索解码与LLM自我评估的结合
 8. **Chain-of-Thought Prompting** (Wei et al., NeurIPS 2022) — LLM推理的奠基性工作
 
----
-
-*报告完成于 2026年6月2日*
-
----

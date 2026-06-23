@@ -5,10 +5,8 @@
 - 作者：Zhenghao Xing, Ruiyang Xu, Yuxuan Wang, Jinzheng He, Ziyang Ma, Qize Yang, Yunfei Chu, Jin Xu, Junyang Lin, Chi-Wing Fu, Pheng-Ann Heng（CUHK, SJTU, Qwen 团队/阿里巴巴, NTU）
 - arXiv ID：2606.19341
 - 发表/提交日期：2026-06（ICML 2026）
-- 官方代码：https://github.com/harryhsing/OmniAgent
-- 模型权重：https://huggingface.co/harryhsing/OmniAgent-SFT-7B, https://huggingface.co/harryhsing/OmniAgent-RL-7B
-- 代码发现方式：PDF扫描 + web_search
-- CodeGraph分析：跳过（仓库为训练/评估框架配置而非算法库）
+- 官方代码：[OmniAgent](https://github.com/harryhsing/OmniAgent)
+- 模型权重：[OmniAgent-SFT-7B](https://huggingface.co/harryhsing/OmniAgent-SFT-7B), [OmniAgent-RL-7B](https://huggingface.co/harryhsing/OmniAgent-RL-7B)
 
 ---
 
@@ -468,8 +466,3 @@ gradient_accumulation: 4
 **教育与分析**：
 - 教学视频知识点提取
 - 体育视频战术分析
-
----
-
-**报告撰写日期**：2026-06-23
-**基于 arXiv:2606.19341 v1**

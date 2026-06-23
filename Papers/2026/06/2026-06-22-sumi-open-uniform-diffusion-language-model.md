@@ -6,10 +6,8 @@
 - **机构**：东北大学 (Tohoku University)
 - **arXiv ID**：2606.19005
 - **发布日期**：2026-06-18
-- **官方代码**：https://github.com/tohoku-nlp/sumi
-- **HuggingFace**：https://huggingface.co/tohoku-nlp/sumi-7b
-- **代码发现方式**：PDF扫描 / GitHub README
-- **CodeGraph分析**：跳过（仓库为评估框架，核心模型在transformers中）
+- **官方代码**：[sumi](https://github.com/tohoku-nlp/sumi)
+- **HuggingFace**：[sumi-7b](https://huggingface.co/tohoku-nlp/sumi-7b)
 
 ---
 
@@ -75,12 +73,12 @@ Sumi 从零开始预训练（而非从 AR 模型适配）提供了干净的基�
 
 ### 2.4 相关工作定位
 
-| 工作 | 类型 | 规模 | 从零预训练？ | 开源？ |
-|------|------|------|:----------:|:-----:|
-| LLaDA | Masked Diffusion | 8B / 2T | ✅ | ✅ |
-| DiffusionGemma | Uniform Diffusion (adapted) | 7B / - | ❌ (从 AR 适配) | ✅ |
-| Small UDLMs | Uniform Diffusion | ≤1.7B / ≤1T | ✅ | 部分 |
-| **Sumi (本文)** | **Uniform Diffusion** | **7B / 1.5T** | **✅** | **✅ 完整** |
+| 工作             | 类型                          | 规模            |   从零预训练？    |   开源？    |
+| -------------- | --------------------------- | ------------- | :---------: | :------: |
+| LLaDA          | Masked Diffusion            | 8B / 2T       |      ✅      |    ✅     |
+| DiffusionGemma | Uniform Diffusion (adapted) | 7B / -        | ❌ (从 AR 适配) |    ✅     |
+| Small UDLMs    | Uniform Diffusion           | ≤1.7B / ≤1T   |      ✅      |    部分    |
+| **Sumi (本文)**  | **Uniform Diffusion**       | **7B / 1.5T** |    **✅**    | **✅ 完整** |
 
 ---
 
@@ -117,10 +115,10 @@ Sumi 全部使用标准 Transformer 块，没有引入特殊模块如 MoE、线�
 
 Sumi 的数学基础是广义插值离散扩散 (Generalized Interpolating Discrete Diffusion, GIDD) 框架。与将连续扩散直接离散化的方法不同，GIDD 直接在离散 token 空间上定义扩散过程。
 
-对于数据分布 $$q(x_0)$$，GIDD 通过以下过程建模：
+对于数据分布 $q(x_0)$，GIDD 通过以下过程建模：
 
-1. **前向过程**：从均匀噪声分布采样，逐步向数据 $$x_0$$ 添加噪声
-2. **反向过程**：学习去噪网络 $$p_\theta(x_{t-1}|x_t)$$ 逐步恢复干净数据
+1. **前向过程**：从均匀噪声分布采样，逐步向数据 $x_0$ 添加噪声
+2. **反向过程**：学习去噪网络 $p_\theta(x_{t-1}|x_t)$ 逐步恢复干净数据
 
 Sumi 的关键改进是 **SNR-reparameterized ELBO**——将 GIDD 的证据下界重新参数化为信噪比 (Signal-to-Noise Ratio) 的函数。这一重参数化使得：
 - 噪声调度 (noise schedule) 与模型优化解耦
@@ -223,8 +221,6 @@ Sumi 的预训练数据全部来自 **llm-jp-corpus-v4** 和 **v4.1** ——日�
 - en_megamath-web-pro-max-oss：公开数学语料
 
 论文提供了完整的数据混合规格（Figure 1），社区可以完全复现训练数据的组成。
-
----
 
 ---
 

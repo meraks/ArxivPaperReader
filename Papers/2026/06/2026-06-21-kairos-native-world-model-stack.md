@@ -5,8 +5,8 @@
 - 作者：Kairos Team, Fei Wang, Shan You, Qiming Zhang, Tao Huang, Zuoyi Fu, Zhisheng Zheng, Yunlong Xi, Feng Lv, Xiaoming Wu, Zeyu Liu, Cong Wan, Pu Li, Ruiqing Yang, Xiaoou Li, Wei Wang, Kangkang Zhu, Yuwei Zhang, Shi Fu, Zheng Zhang, Xiaoning Wu, Xuzeng Fan, Dacheng Tao, Xiaogang Wang
 - arXiv ID：2606.16533
 - 提交日期：2026-06-15
-- 官方代码：https://github.com/kairos-agi/kairos-sensenova (Apache 2.0)
-- HuggingFace：https://huggingface.co/kairos-agi
+- 官方代码：[kairos-sensenova](https://github.com/kairos-agi/kairos-sensenova) (Apache 2.0)
+- HuggingFace：[kairos-agi](https://huggingface.co/kairos-agi)
 - 模型参数：4B
 
 ---

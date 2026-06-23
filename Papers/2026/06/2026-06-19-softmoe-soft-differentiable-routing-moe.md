@@ -8,8 +8,6 @@
 - 发表/提交日期：2026-06-16
 - 会议：ICML 2026
 - 官方代码：https://github.com/dlcuda/SoftMoE
-- 代码发现方式：PDF扫描
-- CodeGraph分析：跳过（仓库基于Megatron-LM补丁）
 
 ---
 
