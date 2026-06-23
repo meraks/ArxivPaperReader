@@ -358,7 +358,7 @@ $$
 
 注意力分数计算时考虑四项组合：
 
-$$\text{score}(m, n) = q_m^{\text{content}} \cdot k_n^{\text{content}} + q_m^{\text{content}} \cdot k_n^{\text{position}} + q_m^{\text{position}} \cdot k_n^{\text{content}} + q_m^{\text{position}} \cdot k_n^{\text{position}} \tag{20}\label{DeBERTa}$$
+$$\text{score}(m, n) = q_m^{\text{content}} \cdot k_n^{\text{content}} + q_m^{\text{content}} \cdot k_n^{\text{position}} + q_m^{\text{position}} \cdot k_n^{\text{content}} + q_m^{\text{position}} \cdot k_n^{\text{position}} \tag{20}$$
 
 **突破点**：内容和位置的完全解耦，让模型能更精细地控制"什么内容+什么位置"的组合。
 
@@ -398,7 +398,7 @@ graph LR
 - Shaw: $q_m k_n^T + b_{m-n}$
 - Transformer-XL: $(q_m + u)^T (k_n + v)^T + q_m^T r_{i-j}$
 - T5 Bias: $q_m (k_n + b_{m-n})^T$
-- DeBERTa: 四项全是加法组合，$式\ref{DeBERTa}$
+- DeBERTa: 四项全是加法组合，公式(20)
 
 #### 2.5.2 加法的根本问题
 
