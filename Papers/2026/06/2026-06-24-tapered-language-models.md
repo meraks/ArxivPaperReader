@@ -4,7 +4,6 @@
 - arXiv ID：2606.23670
 - 发表/提交日期：2026-06-22
 - 官方代码：无官方实现
-- 代码发现方式：web_search 未找到
 
 ---
 
@@ -17,7 +16,7 @@ Tapered Language Models (TLMs) 提出一个简单但被长期忽视的架构设�
 ### 核心贡献
 
 1. **非均匀层贡献的实证发现**：通过控制实验证明层贡献存在显著不对称性——后期层主要"完善"残差流而非"变换"残差流
-2. **TLM设计原则**：提出MLP宽度单调递减的通用架构原则，形式化定义为 d_C(l) 单调递减且均值等于基线
+2. **TLM设计原则**：提出MLP宽度单调递减的通用架构原则，形式化定义为 $d_C(l)$ 单调递减且均值等于基线
 3. **跨架构/跨规模验证**：在4种架构（Transformer、Gated Attention、Hope-attention、Titans）和3种规模（440M、760M、1.3B）上一致改进，最佳配置（Cosine 1.5/0.5）在440M Transformer上达到14.44 ppl，较uniform基线（16.28 ppl）降低1.84点
 
 ---
@@ -57,24 +56,24 @@ Tapered Language Models (TLMs) 提出一个简单但被长期忽视的架构设�
 
 TLM的核心是单调递减的容量分配：设 d_C(l) 为深度 l 处组件 C 的维度控制参数量，则满足：
 
-1. **单调性约束**：d_C(l+1) ≤ d_C(l) 对所有 l ∈ [0, L-1] 成立
-2. **参数守恒**：(1/L)∑_l d_C(l) = d_baseline
+1. **单调性约束**：$d_C(l+1) ≤ d_C(l)$ 对所有 $l ∈ [0, L-1]$ 成立
+2. **参数守恒**：$(1/L)\sum_l d_C(l) = d_{baseline}$
 
-其中 d_baseline 为均匀基线的维度。
+其中 $d_{baseline}$ 为均匀基线的维度。
 
 ### MLP作为优选组件的原因
 
 MLP是Tapering的理想实施对象：
 
 - **参数占比**：在所有现代LM家族中，MLP参数占总参数量的60-80%
-- **变化轴清晰**：MLP宽度（d_ff）为单维控制参数，不影响其他超参数
+- **变化轴清晰**：MLP宽度（$d_{ff}$）为单维控制参数，不影响其他超参数
 - **通用性**：跨架构一致存在（Transformer的FFN、循环模型的投影层、记忆模型的混合器）
 
 ### 三种衰减调度
 
 论文比较了三种单调递减调度：
 
-1. **Linear（恒定衰减率）**：d_ff(l) = d_start - (d_start-d_end)·l/(L-1)
+1. **Linear（恒定衰减率）**：$d_{ff}(l) = d_{start} - (d_{start}-d_{end})·l/(L-1)$
 2. **Cosine（两端软平台，最佳）**：
    $$d_{\text{ff}}(l) = d_{\text{end}} + \frac{d_{\text{start}} - d_{\text{end}}}{2} \left(1 + \cos\left(\frac{\pi l}{L-1}\right)\right)$$
 3. **Sigmoid（窄过渡带）**：基于Sigmoid函数的平滑衰减
@@ -83,7 +82,7 @@ Cosine调度因在两端提供软平台（避免过窄或过宽的极端层）�
 
 ### 参数保存机制
 
-平均 d_ff 等于基线维度，因此总参数量和FLOPs保持不变：
+平均 $d_{ff}$ 等于基线维度，因此总参数量和FLOPs保持不变：
 
 $$\frac{1}{L}\sum_{l=0}^{L-1} d_{\text{ff}}(l) = d_{\text{baseline}}$$
 
@@ -145,7 +144,7 @@ MLP输出与残差流方向的角度分析揭示分层功能的转变：
 
 ### U型最优现象
 
-d_end 不能过小（后期层容量不足）也不能过大（无有效tapering），1.5/0.5比率在所有实验中达到最优。当 d_end > 0.5d_baseline 时（过渡锥形）仍优于uniform基线，表明tapering的收益对参数选择鲁棒。
+$d_{end}$ 不能过小（后期层容量不足）也不能过大（无有效tapering），1.5/0.5比率在所有实验中达到最优。当 $d_{end} > 0.5d_{baseline}$ 时（过渡锥形）仍优于uniform基线，表明tapering的收益对参数选择鲁棒。
 
 ---
 
