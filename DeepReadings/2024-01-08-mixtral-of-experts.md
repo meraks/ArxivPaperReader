@@ -18,7 +18,7 @@ Mixtral 8x7B是Mistral AI发布的稀疏混合专家（SMoE）语言模型，Apa
 
 $$y = \sum_{i \in \text{top-2}} \text{softmax}(\text{gate}(x))_i \cdot \text{FFN}_i(x)$$
 
-总参数46.7B，活跃仅12.9B/token。在多数benchmark上超越Llama 2 70B（推理快6×），匹配GPT-3.5。
+总参数46.7B，活跃仅12.9B/token。在多数benchmark上超越Llama 2 70B，匹配GPT-3.5。
 
 ---
 
@@ -26,7 +26,7 @@ $$y = \sum_{i \in \text{top-2}} \text{softmax}(\text{gate}(x))_i \cdot \text{FFN
 
 密集LLM的问题：参数量与推理成本线性增长。Llama 2 70B全量推理需140GB+显存。
 
-SMoE历史：Shazeer (2017) 提出条件计算。GLaM (2022) 证明SMoE可在等FLOPs下优于密集模型。但MoE面临：专家退化、负载不均衡、通信开销。
+SMoE历史：Shazeer et al. (2017) 提出稀疏门控MoE（Sparsely-Gated MoE）。GLaM (2022) 证明SMoE可在等FLOPs下优于密集模型。但MoE面临：专家退化、负载不均衡、通信开销。
 
 Mixtral的定位：首个高质量、开放权重的SMoE模型，Apache 2.0许可，直接用top-2路由简化训练。
 
@@ -47,13 +47,13 @@ Sliding Window Attention: $O(L \cdot w)$ w=4096窗口，优于标准注意力的
 
 | Benchmark | Mixtral 8x7B | Llama 2 70B | GPT-3.5 |
 |-----------|-------------|-------------|---------|
-| MMLU | 70.6 | 68.9 | 70.0 |
-| HellaSwag | 86.7 | 85.3 | 85.5 |
-| MBPP | 56.8 | 49.8 | 52.8 |
-| GSM8K | 62.0 | 56.6 | 57.1 |
-| MT-Bench (Instruct) | 8.30 | 6.75 | 7.94 |
+| MMLU | 70.6 | 69.9 | 70.0 |
+| HellaSwag | 86.7 | 87.1 | 85.5 |
+| MBPP | 60.7 | 49.8 | 52.2 |
+| GSM8K | 59.7 | 56.5 | 57.1 |
+| MT-Bench (Instruct) | 8.30 | 6.86 | 8.32 |
 
-Mixtral在代码/数学上优势明显（MBPP +7pp vs Llama 2 70B）。推理速度6×快于Llama 2 70B。
+Mixtral在代码/数学上优势明显（MBPP +10.9pp vs Llama 2 70B）。活跃参数量仅12.9B（约为Llama 2 70B的1/5），实现更高效推理。
 
 ---
 
@@ -87,7 +87,7 @@ class MoEFFN(nn.Module):
         out = torch.zeros_like(x)
         for i, expert in enumerate(self.experts):
             mask = (top_idx == i).any(-1)
-            out[mask] += top_w[mask][:, (top_idx[mask]==i).float()] * expert(x[mask])
+            out[mask] += (top_w[mask] * (top_idx[mask] == i).float()).sum(-1, keepdim=True) * expert(x[mask])
         return out
 ```
 
