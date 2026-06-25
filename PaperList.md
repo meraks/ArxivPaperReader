@@ -6,6 +6,7 @@
 |------|------|----------|----------|
 | 2001.08361 | Scaling Laws for Neural Language Models | Jared Kaplan, Sam McCandlish, Tom Henighan, Tom B. Brown et al. (OpenAI) | [DeepReadings](DeepReadings/2020-01-23-scaling-laws-neural-language-models.md) |
 | 2104.09864 | RoFormer: Enhanced Transformer with Rotary Position Embedding | Jianlin Su, Yu Lu, Shengfeng Pan, Ahmed Murtadha, Bo Wen, Yunfeng Liu | [DeepReadings](DeepReadings/2021-04-20-roformer-rope.md) |
+| 2106.09685 | LoRA: Low-Rank Adaptation of Large Language Models | Edward Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, Weizhu Chen (Microsoft) | [DeepReadings](DeepReadings/2021-06-17-lora-low-rank-adaptation.md) |
 | 2201.11903 | Chain-of-Thought Prompting Elicits Reasoning in Large Language Models | Jason Wei, Xuezhi Wang, Dale Schuurmans, Maarten Bosma, Brian Ichter, Fei Xia, Ed H. Chi, Quoc V. Le, Denny Zhou (Google) | [DeepReadings](DeepReadings/2022-01-28-chain-of-thought-prompting-elicits-reasoning.md) |
 | 2203.02155 | InstructGPT (Training language models to follow instructions with human feedback) | Long Ouyang, Jeff Wu et al. (OpenAI) | [DeepReadings](DeepReadings/2022-03-04-instructgpt.md) |
 | 2203.15556 | Training Compute-Optimal Large Language Models (Chinchilla) | Jordan Hoffmann, Sebastian Borgeaud, Arthur Mensch et al. (Google DeepMind) | [DeepReadings](DeepReadings/2022-03-29-chinchilla.md) |
