@@ -53,4 +53,5 @@
 | 2606.19341 | Native Active Perception as Reasoning for Omni-Modal Understanding (OmniAgent) | Zhenghao Xing, Ruiyang Xu, Yuxuan Wang et al. (CUHK, Qwen Team) | [Papers](Papers/2026/06/2026-06-23-native-active-perception-omni-modal-understanding.md) |
 | 2606.20381 | Rethinking Shrinkage Bias in LLM FP4 Pretraining: Geometric Origin, Systemic Impact, and UFP4 Recipe | Qian Zhao, Kunlong Chen, Changxin Tian et al. (Ant Group) | [Papers](Papers/2026/06/2026-06-20-ufp4-shrinkage-bias-fp4-pretraining.md) |
 | 2606.23670 | Tapered Language Models | Reza Bayat, Ali Behrouz, Aaron Courville (Mila, Cornell University, UdeM) | [Papers](Papers/2026/06/2026-06-24-tapered-language-models.md) |
+| 2606.24855 | OpenThoughts-Agent: Data Recipes for Agentic Models | Negin Raoof, Richard Zhuang, Marianna Nezhurina, Etash Guha et al. (Stanford, UC Berkeley) | [Papers](Papers/2026/06/2026-06-25-openthoughts-agent-data-recipes-agentic-models.md) |
 | HF: deepseek-ai/DeepSeek-V4-Flash | DeepSeek-V4 Technical Report: Towards Million-Token Efficient Context for Agent AI | DeepSeek Team | [DeepReadings](DeepReadings/2026-05-06-deepseek-v4-technical-report.md) |
