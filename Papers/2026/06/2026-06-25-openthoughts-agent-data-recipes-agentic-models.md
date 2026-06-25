@@ -51,7 +51,7 @@ OT-Agent 构建于前期 OpenThoughts 推理数据工作 [16] 的洞察之上，
 
 OpenThinker-Agent-32B（Qwen3-32B + 100K OpenThoughts-Agent-v2 SFT 数据）在 7 个 agentic benchmark 上与最强开放数据对照模型 Nemotron-Terminal-32B（训练量 264K）的对比如下（均为 Qwen3-32B 基座）：
 
-| Benchmark | OpenThinkerAgent-32B (100K) | Nemotron-Terminal-32B (264K) | Δ (pp) |
+| Benchmark | OpenThinker-Agent-32B (100K) | Nemotron-Terminal-32B (264K) | Δ (pp) |
 |---|---|---|---|
 | SWE-Bench Verified | 54.0 | 41.9 | +12.1 |
 | Terminal-Bench 2.0 | 26.2 | 25.1 | +1.1 |
@@ -320,9 +320,9 @@ def filter_rollouts(rollouts, min_turns: int = 5):
 | 阶段 | unique 任务数 |
 |------|--------------|
 | 原始种子集 | 997 |
-| 合成增强后 | ~21K |
+| 合成增强后 | ~21K 表面形式 |
 
-（来源：§4；Tezos 数据集经合成增强从 997 个任务扩展到 21K unique tasks）
+（来源：§4；Tezos 数据集经合成增强从 997 个任务扩展到 ~21K 表面形式）
 
 **核心结果**：合成增强**突破了多样性瓶颈**，使缩放曲线在 31.6K 之后恢复**单调提升**，一路延伸至 **100K**（来源：§4）。
 
