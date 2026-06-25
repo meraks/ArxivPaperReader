@@ -1,4 +1,4 @@
-# OpenThoughts-Agent: Data Recipes for Agentic Models 
+# OpenThoughts-Agent: Data Recipes for Agentic Models
 
 ## 论文元数据
 - 标题: OpenThoughts-Agent: Data Recipes for Agentic Models
@@ -49,7 +49,7 @@ OT-Agent 构建于前期 OpenThoughts 推理数据工作 [16] 的洞察之上，
 
 ### 1.5 最终性能：OpenThinker-Agent-32B
 
-OpenThinker-Agent-32B（Qwen3-32B + 100K OpenThoughts-Agent-v2 SFT 数据）在 7 个 agentic benchmark 上与最强开放数据对照模型 Nemotron-Terminal-32B（训练量 264K）的对比如下（均为 Qwen3-32B 基座）：
+OpenThinker-Agent-32B（Qwen3-32B + 100K OpenThoughts-Agent-v2 SFT 数据）在 7 个 agentic benchmark 上与最强开放数据对照模型 Nemotron-Terminal-32B（训练量 264K [35]）的对比如下（均为 Qwen3-32B 基座）。注：264K 训练数据量来自 Nemotron-Terminal 论文 [35]，非本文直接报告。
 
 | Benchmark | OpenThinker-Agent-32B (100K) | Nemotron-Terminal-32B (264K) | Δ (pp) |
 |---|---|---|---|
@@ -62,7 +62,9 @@ OpenThinker-Agent-32B（Qwen3-32B + 100K OpenThoughts-Agent-v2 SFT 数据）在 
 | FinanceAgent-Terminal | 44.0 | 40.7 | +3.3 |
 | **Average (7 benchmarks)** | **44.8** | **40.9** | **+3.9** |
 
-OpenThinker-Agent-32B 在 SWE-Bench Verified、Terminal-Bench 2.0 上为最优，平均领先 3.9 pp，且所用训练数据量不足对照模型的一半。需诚实指出：并非在每个 benchmark 上都最优——MedAgentBench 上落后 Nemotron-Terminal-32B 14.8 pp，论文强调的是平均性能与在 SWE/terminal 核心 benchmark 上的优势及对 OOD benchmark 的泛化。表中其他开放数据模型平均分分布在 22.8（Qwen3-32B 基座）至 34.7 之间。
+（注：SWE-Bench Verified、Terminal-Bench 2.0、平均分为论文正文明确报告的精确值；其余 5 个 OOD benchmark 的精确数字来自论文主表格 Table LABEL:tab:ot_agent_main_table1，因论文正文仅提及 "outperforms prior work on further agentic benchmarks" 而未逐一列出数字，此处数字以论文 PDF 表格为准。）
+
+OpenThinker-Agent-32B 在 SWE-Bench Verified、Terminal-Bench 2.0 上为最优，平均领先 3.9 pp。需诚实指出：并非在每个 benchmark 上都最优——MedAgentBench 上落后 Nemotron-Terminal-32B 14.8 pp，论文强调的是平均性能与在 SWE/terminal 核心 benchmark 上的优势及对 OOD benchmark 的泛化。表中其他开放数据模型平均分分布在 22.8（Qwen3-32B 基座）至 34.7 之间。
 
 ### 1.6 8B 规模的 SFT+RL 组合
 
@@ -84,7 +86,7 @@ LLM 评估在过去五年快速演进：从 GPT-3 时代以 MMLU 等多选题、
 |---|---|---|---|
 | SWE-Smith [47] | SFT | Scaling data for software engineering agents | SWE-Bench |
 | SERA [38] | SFT | Soft-verified efficient repository agents（≤47K examples） | SWE-Bench（依赖 SWE-agent） |
-| Nemotron-Terminal [35] | SFT | On data engineering for scaling LLM terminal capabilities（264K） | Terminal |
+| Nemotron-Terminal [35] | SFT | On data engineering for scaling LLM terminal capabilities（264K*） | Terminal |
 | OpenSWE / davinci-env [11] | SFT | Open SWE environment synthesis at scale | SWE-Bench |
 | R2EGym [21] | RL | Procedural environments + hybrid verifiers for SWE agents | SWE |
 | DeepSWE [27] | RL | Training a SOTA coding agent from scratch by scaling RL | SWE-Bench |
@@ -92,6 +94,8 @@ LLM 评估在过去五年快速演进：从 GPT-3 时代以 MMLU 等多选题、
 | CoderForge [3] | SFT | Open dataset for training efficient agents | 通用 agent |
 | Tmax [20] | SFT | A simple recipe for terminal agents | Terminal |
 | OpenHands [44] | 框架 | 开放平台，将 AI 作为通用软件 agent | 基础设施 |
+
+*264K 训练数据量来自 Nemotron-Terminal 论文 [35] 本身，非本论文直接报告。
 
 ### 2.3 核心问题：单一 benchmark 与 SFT/RL 割裂
 
@@ -172,7 +176,6 @@ $$
 
 ---
 
-✅ Task 1 完成，共 174 行
 ## Ch3: SFT 数据管线六阶段详解
 
 OT-Agent 将 SFT 数据生产组织为六个串行、可独立消融的阶段：**Task Sourcing（任务来源）→ Task Mixing（任务混合）→ Task Augmentation（任务增强）→ Task Filtering（任务过滤）→ Teacher Model（教师模型）→ Filtering Agent Rollouts（agent 轨迹过滤）**（来源：§3）。整个 §3 共开展 **100+ 次受控消融实验**（来源：摘要、§3）：每次实验固定其余阶段与评估协议，仅替换当前阶段的一个设计选择，从而隔离出该设计变量对下游 agent 能力的因果影响。下游评估在多个 agentic benchmark（SWE-Bench、Terminal-Bench、OT-TBLite 等）上进行，并汇总为"平均准确率"与跨配置的 normalized（归一化）分。
@@ -213,7 +216,7 @@ Task Mixing 决定如何从已筛选的任务来源中按比例抽样组成训�
 | Top-1 | 16.65 | −0.57 |
 | Top-4 | 18.19 | +0.49 |
 
-Top-4 相对 Top-1 的 normalized 提升为 $$+0.49 - (-0.57) = +1.06$$（来源：§3.2，由表中 normalized 列直接相减得到）。
+Top-4 相对 Top-1 的 normalized 提升为 $+0.49 - (-0.57) = +1.06$（来源：§3.2，由表中 normalized 列直接相减得到）。
 
 **机制**：多源混合提升了任务分布的多样性，降低对单一任务族的过拟合，因而在跨 benchmark 平均上更稳健。这与 §3.1 揭示的"任务类型↔能力"对应关系互为印证——只有覆盖多个任务族，才能同时支撑 SWE-Bench 与 Terminal-Bench 两类能力。
 
@@ -251,7 +254,7 @@ Teacher Model 决定由哪个模型执行 agentic rollout、产出训练轨迹�
 | 2 | Kimi K2.5 | 次优 |
 | 3（最弱） | GPT-5.3-Codex | 最强候选却为最差教师 |
 
-**核心发现**：$$\text{GLM-4.7-AWQ} > \text{Kimi K2.5} > \text{GPT-5.3-Codex}$$（来源：§3.5）。
+**核心发现**：$\text{GLM-4.7-AWQ} > \text{Kimi K2.5} > \text{GPT-5.3-Codex}$（来源：§3.5）。
 
 - 作为最强候选的 **GPT-5.3-Codex** 反而是最差教师，导致 Terminal-Bench 上约 **~5%** 的下降（来源：§3.5，近似值）；
 - 核心结论：**最强模型 ≠ 最佳教师**。
@@ -442,19 +445,20 @@ OT-Agent-32B 以 §3 最优配方 + §4 合成增强组装的 100K 训练集微�
 |-----------|:------------:|:---------------------:|
 | SWE-Bench Verified (full) | **54.0%** | 41.9% |
 | Terminal-Bench 2.0 | **26.2%** | 25.1% |
-| Aider Polyglot | improved | — |
-| BFCL-Parity | improved | — |
-| GAIA-127 | improved | — |
-| FinanceAgent-Terminal | improved | — |
+| Aider Polyglot | **32.4%** | 24.9% |
+| BFCL-Parity | **85.9%** | 69.1% |
+| MedAgentBench | 47.8% | **62.6%** |
+| GAIA-127 | **23.6%** | 22.3% |
+| FinanceAgent-Terminal | **44.0%** | 40.7% |
 | **7-benchmark 平均** | **44.8%** | 40.9% |
 
-（来源：摘要、§6。SWE-Bench Verified(full) 54.0% vs 41.9%、Terminal-Bench 2.0 26.2% vs 25.1%、7-benchmark 平均 44.8% vs 40.9% 为精确值；Aider Polyglot / BFCL-Parity / GAIA-127 / FinanceAgent-Terminal 论文仅报告 "improved"，未给出精确数字，Nemotron 对应列以 "—" 标注未报告。）
+（来源：摘要、§6、论文主表格 Table LABEL:tab:ot_agent_main_table1。SWE-Bench Verified 54.0% vs 41.9%、Terminal-Bench 2.0 26.2% vs 25.1%、7-benchmark 平均 44.8% vs 40.9% 为论文正文明确报告的精确值；其余 5 个 OOD benchmark 的精确数字来自论文主表格，论文正文仅提及 "outperforms prior work on further agentic benchmarks" 而未逐一列出。）
 
 由精确列可直接推得三项差值（仅基于上表已有数字，不引入额外数据）：
 
-- SWE-Bench Verified(full)：$$54.0\% - 41.9\% = +12.1 \text{ pp}$$
-- Terminal-Bench 2.0：$$26.2\% - 25.1\% = +1.1 \text{ pp}$$
-- 7-benchmark 平均：$$44.8\% - 40.9\% = +3.9 \text{ pp}$$（来源：摘要，论文直接给出 +3.9 pp）
+- SWE-Bench Verified(full)：$54.0\% - 41.9\% = +12.1 \text{ pp}$
+- Terminal-Bench 2.0：$26.2\% - 25.1\% = +1.1 \text{ pp}$
+- 7-benchmark 平均：$44.8\% - 40.9\% = +3.9 \text{ pp}$（来源：摘要，论文直接给出 +3.9 pp）
 
 ### 6.2 关键分析
 
@@ -462,7 +466,7 @@ OT-Agent-32B 以 §3 最优配方 + §4 合成增强组装的 100K 训练集微�
 
 **跨场景泛化而非单 benchmark 优化**。对比已有开放工作（SWE-Smith、SERA、Nemotron-Terminal）均"针对单一 benchmark"（来源：摘要、§1、§2），OT-Agent 的贡献在于同时在 7 个异构 benchmark（代码修复、终端操作、函数调用、通用 agent、金融 agent 等）上取得综合领先，平均 **+3.9 pp** 的提升是在**跨任务族**意义上成立的，而非在某一 benchmark 上过拟合刷分。
 
-**评估的开放性与局限**。7 个 benchmark 中有 4 个（Aider Polyglot、BFCL-Parity、GAIA-127、FinanceAgent-Terminal）仅报告 "improved" 而无精确数字（来源：§6），这意味着 OT-Agent-32B 的综合优势 **44.8%** 这一精确平均，部分依赖论文对该平均的内部计算，单点精确数字未完全公开——这是结果透明度上的一处可改进点（见 Ch7）。
+**评估的开放性与局限**。7 个 benchmark 中有 5 个 OOD benchmark 的精确数字来自论文主表格而非正文（来源：§6、Table LABEL:tab:ot_agent_main_table1），论文正文仅提及 "outperforms prior work on further agentic benchmarks" 而未逐一列出。这意味着 OT-Agent-32B 的综合优势 **44.8%** 这一精确平均，部分依赖论文对该平均的内部计算，单点精确数字的正文引用透明度可进一步提升（见 Ch7）。
 
 ---
 
@@ -472,7 +476,7 @@ OT-Agent-32B 以 §3 最优配方 + §4 合成增强组装的 100K 训练集微�
 
 **1. RL 实验规模受限于 8B**。RL 部分仅在 8B 规模开展（来源：§5），主因是计算约束；**32B 的完整 RL 训练属未来工作（future work）**。因此 §6 报告的 32B 最优结果（44.8%）实际为 **SFT-only** 产物，SFT+RL 在 32B 上的上限尚未被测出——OT-Agent-32B 的最终能力天花板可能高于当前报告值。
 
-**2. 部分 benchmark 未报告精确数字**。7 个 benchmark 中有 4 个仅以 "improved" 呈现（来源：§6），限制了第三方对 OT-Agent-32B 逐项能力的精确复核，以及与后续工作的逐点比较。
+**2. 部分 benchmark 精确数字仅在表格中呈现**。7 个 benchmark 中有 5 个 OOD benchmark 的精确数字仅在论文主表格（Table LABEL:tab:ot_agent_main_table1）中给出，论文正文仅提及 "outperforms prior work on further agentic benchmarks" 而未逐一列出（来源：§6），限制了正文层面的逐项复核透明度。
 
 **3. 合成增强的泛化性仅经单源验证**。合成增强（§4.2）只在 **StackExchange-Tezos** 一个数据源上做了 997 → ~21K 的完整验证（来源：§4），其在其他任务族（编程类、其他 infra 类）上能否同样突破多样性瓶颈，尚未经系统消融——"多样性缩放"作为核心机制的普适性有待更广验证。
 
@@ -587,3 +591,32 @@ python eval/local/run_eval.py
 **工程化要点小结**：仓库把论文的六阶段配方实现为 YAML 驱动、入口统一的可复现流水线，训练侧复用 LLaMA Factory，评估侧复用 Ray+vLLM+Harbor，数据侧全量开放于 HuggingFace——这与论文"完全开放（fully open）"的定位一致：配方、数据、模型三者均可独立获取与重组。
 
 ---
+
+## 参考文献（本文引用的论文原参考文献编号）
+
+
+1. **[1]** Ahmadian et al., "Back to basics: Revisiting REINFORCE-style optimization for learning from human feedback in LLMs," ACL 2024.
+2. **[2]** Aider, "O1 tops aider's new polyglot leaderboard," 2024. (Aider Polyglot benchmark)
+3. **[3]** Ariyak et al., "CoderForge-Preview: SOTA open dataset for training efficient agents," 2026.
+4. **[6]** Bigeard et al., "Finance agent benchmark: Benchmarking LLMs on real-world financial research tasks," 2025.
+5. **[9]** Daytona Platforms, Inc., "Daytona: Secure and elastic infrastructure for running AI-generated code," 2026.
+6. **[11]** Fu et al., "davinci-env: OpenSWE environment synthesis at scale," 2026.
+7. **[13]** Gandhi et al., "Endless terminals: Scaling RL environments for terminal agents," 2026.
+8. **[16]** Guha et al., "OpenThoughts: Data recipes for reasoning models," 2025.
+9. **[18]** Harbor Framework Team, "Harbor: A framework for evaluating and optimizing agents and models in container environments," 2026.
+10. **[20]** Ivison et al., "TMAX: A simple recipe for terminal agents," 2026.
+11. **[21]** Jain et al., "R2E-Gym: Procedural environments and hybrid verifiers for scaling open-weights SWE agents," 2025.
+12. **[22]** Jiang et al., "MedAgentBench: A virtual EHR environment to benchmark medical LLM agents," NEJM AI, 2025.
+13. **[23]** Jimenez et al., "SWE-bench: Can language models resolve real-world GitHub issues?," 2024.
+14. **[27]** Luo et al., "DeepSWE: Training a state-of-the-art coding agent from scratch by scaling RL," 2025.
+15. **[28]** Merrill et al., "Terminal-Bench: Benchmarking agents on hard, realistic tasks in command line interfaces," 2026.
+16. **[29]** Mialon et al., "GAIA: A benchmark for general AI assistants," ICLR 2023.
+17. **[33]** Patil et al., "The Berkeley Function Calling Leaderboard (BFCL): From tool use to agentic evaluation of large language models," ICML 2025.
+18. **[35]** Pi et al., "On data engineering for scaling LLM terminal capabilities," 2026. (Nemotron-Terminal)
+19. **[36]** Qwen Team, "Qwen3.5: Towards native multimodal agents," 2026.
+20. **[37]** Raoof et al., "Evalchemy," 2025.
+21. **[38]** Shen et al., "SERA: Soft-verified efficient repository agents," 2026.
+22. **[41]** GLM Team, "GLM-4 technical report," 2025. (GLM-4.7-AWQ)
+23. **[44]** Wang et al., "OpenHands: An open platform for AI software developers as generalist agents," ICLR 2025.
+24. **[45]** Yang et al., "Qwen3 technical report," 2025.
+25. **[47]** Yang et al., "SWE-Smith: Scaling data for software engineering agents," 2025.
