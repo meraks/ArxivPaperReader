@@ -1,12 +1,11 @@
 # OpenThoughts-Agent: Data Recipes for Agentic Models
 
 ## 论文元数据
-- 标题: OpenThoughts-Agent: Data Recipes for Agentic Models
-- 作者: Negin Raoof, Richard Zhuang, Marianna Nezhurina, Etash Guha et al. (Stanford, UC Berkeley, UT Austin, NYU, JSC, LAION, Open-Sci Collective)
-- arXiv ID: 2606.24855
-- 发表/提交日期: 2026-06-24
-- 官方代码: https://github.com/open-thoughts/OpenThoughts-Agent
-- 代码发现方式: web_search + 论文引用 openthoughts.ai
+> 标题: OpenThoughts-Agent: Data Recipes for Agentic Models
+> 作者: Negin Raoof, Richard Zhuang, Marianna Nezhurina, Etash Guha et al. (Stanford, UC Berkeley, UT Austin, NYU, JSC, LAION, Open-Sci Collective)
+> arXiv ID: 2606.24855
+> 发表/提交日期: 2026-06-24
+> 官方代码: [OpenThoughts-Agent](https://github.com/open-thoughts/OpenThoughts-Agent)
 
 ---
 
