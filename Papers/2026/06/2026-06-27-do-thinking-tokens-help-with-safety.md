@@ -92,7 +92,7 @@ prefill 阶段 readout 同步显示：信号在 prompt 处理过程中一直很�
 
 ### 3.3 文本基线无效：信号藏在 hidden representation 中
 
-为排除"可读性来自 token 本身"的解释，论文构造文本基线：对第一个 token 的可见字符串做 TF-IDF 特征，再训练相同 probe。该基线在所有模型与所有数据集上均接近 chance 水平（AUROC ~0.50，BAcc ~0.50–0.59）。
+为排除"可读性来自 token 本身"的解释，论文构造文本基线：对第一个 token 的可见字符串做 TF-IDF 特征，再训练相同 probe。该基线在 Qwen3-8B 和 Olmo-3-7B-Think 上严格接近 chance（AUROC 0.492–0.502，BAcc 0.500–0.502），Phi-4-Reasoning 略高（Harmful AUROC 0.561），GPT-OSS-20B 更高（Harmful AUROC 0.678，BAcc 0.671），但整体仍远低于 representation probe 的 0.84–0.95 AUROC。
 
 判别能力既不在 token 文本里，也不依赖思考内容，而完整地编码在 prefill 末端形成的 hidden representation 中。这是后续两项发现的基础：既然结局已被"写入"表示，思考阶段对结局的改变空间被严重压缩。
 
