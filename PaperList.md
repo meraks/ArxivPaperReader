@@ -59,4 +59,5 @@
 | 2606.24855 | OpenThoughts-Agent: Data Recipes for Agentic Models | Negin Raoof, Richard Zhuang, Marianna Nezhurina, Etash Guha et al. (Stanford, UC Berkeley) | [Papers](Papers/2026/06/2026-06-25-openthoughts-agent-data-recipes-agentic-models.md) |
 | 2606.25013 | Do Thinking Tokens Help with Safety? | Narutatsu Ri, Abhishek Panigrahi, Sanjeev Arora (Princeton University) | [Papers](Papers/2026/06/2026-06-27-do-thinking-tokens-help-with-safety.md) |
 | 2606.25331 | Improved Large Language Diffusion Models (iLLaDA) | Shen Nie, Qiyang Min, Shaoxuan Xu et al. (Renmin University, ByteDance Seed) | [Papers](Papers/2026/06/2026-06-26-illaDA-improved-large-language-diffusion-models.md) |
+| 2606.27326 | Hallucination in World Models is Predictable and Preventable | Nicklas Hansen, Xiaolong Wang (UC San Diego) | [Papers](Papers/2026/06/2026-06-28-hallucination-in-world-models-predictable-preventable.md) |
 | HF: deepseek-ai/DeepSeek-V4-Flash | DeepSeek-V4 Technical Report: Towards Million-Token Efficient Context for Agent AI | DeepSeek Team | [DeepReadings](DeepReadings/2026-05-06-deepseek-v4-technical-report.md) |
