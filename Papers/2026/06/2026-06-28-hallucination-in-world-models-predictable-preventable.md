@@ -260,7 +260,7 @@ Discussion 部分回答"为何不同数据源信息量不同"：世界建模需�
 
 ## 第6章：代码实现详解
 
-> 本章依据论文官方仓库 https://github.com/nicklashansen.com/mmbench2 的 README 结构梳理（仓库结构与训练流程信息来自研究材料的 README 摘要）。论文 PDF 附录 F（Implementation Details）提供了与代码对应的实现细节，已在第 3 章给出。**下列代码片段为概念示意，旨在把论文公式落到可读伪代码，并非从官方源码逐行复制——请勿当作官方实现引用。**
+> 本章依据论文官方仓库 https://github.com/nicklashansen/mmbench2 的 README 结构梳理（仓库结构与训练流程信息来自研究材料的 README 摘要）。论文 PDF 附录 F（Implementation Details）提供了与代码对应的实现细节，已在第 3 章给出。**下列代码片段为概念示意，旨在把论文公式落到可读伪代码，并非从官方源码逐行复制——请勿当作官方实现引用。**
 
 ### 6.1 仓库结构
 
