@@ -17,6 +17,7 @@
 | 2309.00267 | RLAIF: Reinforcement Learning from AI Feedback | Harrison Lee et al. (Google DeepMind) | [DeepReadings](DeepReadings/2023-09-01-rlaif.md) |
 | 2312.00752 | Mamba: Linear-Time Sequence Modeling with Selective State Spaces | Albert Gu, Tri Dao | [DeepReadings](DeepReadings/2023-12-01-mamba-linear-time-sequence-modeling-selective-state-spaces.md) |
 | 2401.04088 | Mixtral of Experts | Albert Q. Jiang et al. (Mistral AI) | [DeepReadings](DeepReadings/2024-01-08-mixtral-of-experts.md) |
+| 2501.12948 | DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning | DeepSeek-AI (Daya Guo, Dejian Yang, Haowei Zhang et al.) | [DeepReadings](DeepReadings/2025-01-22-deepseek-r1-incentivizing-reasoning-via-rl.md) |
 | 2603.20397 | KV Cache Optimization Strategies for Scalable and Efficient LLM Inference | Y. Xu, N. K. Khaira, T. Singh | [DeepReadings](DeepReadings/2026-03-13-kv-cache-optimization-survey.md) |
 | 2605.22763 | Advancing Mathematics Research with AI-Driven Formal Proof Search | George Tsoukalas, Anton Kovsharov, Sergey Shirobokov et al. | [Papers](Papers/2026/05/2026-05-25-advancing-mathematics-research-ai-formal-proof-search.md) |
 | 2605.22791 | Gated DeltaNet-2: Decoupling Erase and Write in Linear Attention | Ali Hatamizadeh, Yejin Choi, Jan Kautz | [Papers](Papers/2026/05/2026-05-24-gated-deltanet-2-linear-attention.md) |
