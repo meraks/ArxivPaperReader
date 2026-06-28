@@ -7,7 +7,6 @@
 - 发表/提交日期：2026-06-23
 - 发表/会议：ICML 2026 AI4GOOD Workshop (Oral)
 - 官方代码：github.com/narutatsuri/lrm_safety_deliberation
-- 代码发现方式：PDF原文
 
 ---
 
@@ -56,7 +55,7 @@
 
 ## Ch3: 核心发现一：安全决策在可见思考前已高度可读
 
-### 3.1 Fisher 判别 J(t) 的 U 形（refusal valley）
+### 3.1 Fisher 判别 $J(t)$ 的 U 形（refusal valley）
 
 论文沿 thinking 位置 $t$ 计算拒绝类与配合类 hidden state 的 Fisher 判别度 $J(t)$，即两类均值差的平方除以两类方差之和：
 

@@ -6,8 +6,7 @@
 - 作者：Shen Nie, Qiyang Min, Shaoxuan Xu et al. (Renmin University of China, ByteDance Seed)
 - arXiv ID：2606.25331
 - 提交日期：2026-06-24
-- 官方代码：https://github.com/ML-GSAI/LLaDA
-- 代码发现方式：来自论文原文
+- 官方代码：[iLLaDA](https://github.com/ML-GSAI/LLaDA)
 
 ---
 

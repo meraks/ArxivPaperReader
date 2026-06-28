@@ -5,7 +5,7 @@
 - 作者：Nicklas Hansen, Xiaolong Wang (UC San Diego)
 - arXiv ID：2606.27326
 - 发表/提交日期：2026-06-25
-- 官方代码：https://github.com/nicklashansen/mmbench2
+- 官方代码：[MMBench2](https://github.com/nicklashansen/mmbench2)
 - 代码发现方式：PDF / 网页检索
 
 ---
@@ -32,7 +32,7 @@
 4. **覆盖感知训练（coverage-aware training）**：单一重采样配方在三个预测器上同时降低幻觉，并以零额外成本提升 rollout 保真度。
 5. **定向数据收集框架**：将预测器用作好奇心奖励，使预训练的 350M 世界模型仅用 50 条真实环境轨迹即可适应完全未见的环境。
 
-整套工作同时发布了数据集、训练/评估代码、模型 checkpoint 以及一个用于开放式交互的浏览器界面（Webpage: https://nicklashansen.com/mmbench2）。
+整套工作同时发布了数据集、训练/评估代码、模型 checkpoint 以及一个用于开放式交互的浏览器界面（Webpage: [mmbench2](https://nicklashansen.com/mmbench2)）。
 
 ---
 
@@ -377,4 +377,4 @@ Conclusion 指出：幻觉**首要是一个数据覆盖问题**，三预测器�
 
 ---
 
-*本报告所有数值均取自论文 PDF 原文（arXiv:2606.27326）及其 Table 1/2/3/7/11/12 与正文、附录 F；代码为概念示意而非官方源码，已逐段标注 ⚠️。*
+*本报告所有数值均取自论文 PDF 原文（arXiv:2606.27326）及其 Table 1/2/3/7/11/12 与正文、附录 F；代码为概念示意而非官方源码。*

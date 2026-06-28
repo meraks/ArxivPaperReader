@@ -21,7 +21,7 @@
 
 ### 核心问题：世界模型的局部认证
 
-给定一个在特定目标集上表现良好的一般智能体（general agent），如何保证其内部世界模型在相关迁移上的准确性？这里"迁移"（transition）指状态-动作-下一状态三元组 (s,a,s')，世界模型的核心是迁移概率 P_ss'(a)。
+给定一个在特定目标集上表现良好的一般智能体（general agent），如何保证其内部世界模型在相关迁移上的准确性？这里"迁移"（transition）指状态-动作-下一状态三元组 $(s,a,s')$，世界模型的核心是迁移概率 $P_{ss'}(a)$。
 
 关键挑战在于：智能体的策略性能仅提供间接约束，从行为反推世界模型是欠定的。需要找到方法，将智能体在组合目标上的表现映射到特定迁移的概率估计。
 
@@ -29,7 +29,7 @@
 
 **贡献1：不可能性定理（Proposition 3.1）**
 
-证明通用智能体（universal agent）不存在 — 对于任何非最优确定性马氏策略 π，存在至少一个目标 ψ_fail 使得智能体的成功概率严格低于最优策略的 (1-δ) 倍。形式化陈述：
+证明通用智能体（universal agent）不存在 — 对于任何非最优确定性马氏策略 $π$，存在至少一个目标 $ψ_{fail}$ 使得智能体的成功概率严格低于最优策略的 (1-δ) 倍。形式化陈述：
 
 $$P(\tau \models \psi_{fail} | \pi, s_0) < (1-\delta) \max_\pi P(\tau \models \psi_{fail} | \pi, s_0)$$
 
@@ -37,7 +37,7 @@ $$P(\tau \models \psi_{fail} | \pi, s_0) < (1-\delta) \max_\pi P(\tau \models \p
 
 **贡献2：结构认证框架（Theorem 3.2）**
 
-提出过渡局部化（transition-local）认证方法。核心思想：通过精心设计的复合目标 ψ_n(s,a,s') ∈ Ψ_n，将智能体的性能保证迁移到特定 (s,a,s') 的概率估计。对每个认证迁移，策略 π 唯一确定估计概率 P̂_ss'(a)，误差界为：
+提出过渡局部化（transition-local）认证方法。核心思想：通过精心设计的复合目标 $\psi_n(s,a,s') \in \Psi_n$，将智能体的性能保证迁移到特定 $(s,a,s')$ 的概率估计。对每个认证迁移，策略 $\pi$ 唯一确定估计概率 $\hat{P}_{ss'}(a)$，误差界为：
 
 $$|\hat{P}_{ss'}(a) - P_{ss'}(a)| \leq \frac{1}{2(n+1)}\cdot\frac{1}{1-2\delta} + \frac{\delta}{1-2\delta}\cdot P_{ss'}(a)(1-P_{ss'}(a))$$
 
@@ -45,7 +45,7 @@ $$|\hat{P}_{ss'}(a) - P_{ss'}(a)| \leq \frac{1}{2(n+1)}\cdot\frac{1}{1-2\delta} 
 
 **贡献3：构造性算法（Algorithm 1-3）**
 
-提供具体算法实现结构认证。核心机制：通过二分搜索式过程，利用智能体在探针目标（probe goals）上的动作选择来揭示迁移概率。算法构造特定形式的复合目标 ψ_{a,b}(r,n)，使得成功概率仅依赖于单条迁移 P_ss'(a) 是否超过阈值 r。智能体的选择（动作 a 或 b）映射到关于 P_ss'(a) 的区间约束，取中点得到估计 P̂ = (k+0.5)/(n+1)。
+提供具体算法实现结构认证。核心机制：通过二分搜索式过程，利用智能体在探针目标（probe goals）上的动作选择来揭示迁移概率。算法构造特定形式的复合目标 $\psi_{a,b}(r,n)$，使得成功概率仅依赖于单条迁移 $P_{ss'}(a)$ 是否超过阈值 $r$。智能体的选择（动作 $a$ 或 $b$）映射到关于 $P_{ss'}(a)$ 的区间约束，取中点得到估计 $\hat{P} = (k+0.5)/(n+1)$。
 
 **贡献4：基本下界（Theorem 3.3）**
 
@@ -100,7 +100,7 @@ PAC-MDP 理论关注样本复杂度与策略收敛性，假设智能体最终学
 
 ### 标准统一保证的局限性
 
-Worst-case 保证假设：对所有目标 ψ ∈ Ψ，策略 π 满足 P(τ ⊧ ψ | π, s₀) ≥ (1-δ) max_π P(τ ⊧ ψ | π, s₀)。这要求智能体是"通用"的。
+Worst-case 保证假设：对所有目标 $\psi \in \Psi_n$，策略 $\pi$ 满足 $P(\tau \models \psi | \pi, s_0) \geq (1-\delta) \max_\pi P(\tau \models \psi | \pi, s_0)$。这要求智能体是"通用"的。
 
 在大世界中，这一假设过于严格：
 - 状态空间规模 |S| 与样本量呈指数关系，有限样本无法覆盖所有迁移
@@ -115,12 +115,11 @@ Worst-case 保证假设：对所有目标 ψ ∈ Ψ，策略 π 满足 P(τ ⊧ 
 
 **环境：受控马尔可夫过程（Controlled Markov Process, cMP）**
 
-cMP 定义为四元组 M = {S, A, P, s₀}：
+cMP 定义为三元组 $\mathcal{M} = \{\boldsymbol{S, A}, P_{ss'}(a)\}$：
 
-- S：有限状态集
-- A：有限动作集
-- P：转移概率函数 P_ss'(a) = P(s' | s, a)
-- s₀：初始状态
+- $\boldsymbol{S}$：有限状态集
+- $\boldsymbol{A}$：有限动作集（$|\boldsymbol{A}| \geq 2$）
+- $P_{ss'}(a)$：转移概率函数 $P_{ss'}(a) = P(s' | s, a)$
 
 注：论文使用 cMP 而非 MDP，因不假设即时奖励（reward），目标由时序逻辑公式指定。
 
@@ -136,28 +135,28 @@ cMP 定义为四元组 M = {S, A, P, s₀}：
 
 **复合目标与深度**
 
-复合目标定义为序列 ψ = ⟨φ₁, φ₂, ..., φ_n⟩，其中每个 φ_i 是基本公式。深度 n 定义为序列长度。
+复合目标定义为序列 $ψ = ⟨φ₁, φ₂, ..., φ_n⟩$，其中每个 $φ_i$ 是基本公式。深度 n 定义为序列长度。
 
-迁移特定目标集 Ψ_n(s,a,s') 包含所有深度为 n、其成功条件依赖迁移 (s,a,s') 的复合目标。核心性质：在这些目标上，智能体的性能揭示了其对特定迁移的掌握程度。
+迁移特定目标集 $\Psi_n(s,a,s')$ 包含所有深度为 $n$、其成功条件依赖迁移 $(s,a,s')$ 的复合目标。核心性质：在这些目标上，智能体的性能揭示了其对特定迁移的掌握程度。
 
 **通用智能体 vs 一般智能体**
 
-- **通用智能体（Universal Agent）**：对所有 ψ ∈ Ψ_n 满足 (1-δ)-近优性能
-- **一般智能体（General Agent）**：通过迁移特定目标集 Ψ_n(s,a,s') 定义，仅在其认证的迁移上提供保证
+- **通用智能体（Universal Agent）**：对所有 $\psi \in \Psi_n$ 满足 $(1-\delta)$-近优性能
+- **一般智能体（General Agent）**：通过迁移特定目标集 $\Psi_n(s,a,s')$ 定义，仅在其认证的迁移上提供保证
 
 Proposition 3.1 将证明第一种不存在，因此所有实际智能体都是第二种。
 
 **(δ,n)-限界性能**
 
-策略 π 在目标集 Ψ_n 上是 (δ,n)-限界的，如果对每个 ψ ∈ Ψ_n：
+策略 $\pi$ 在目标集 $\Psi_n$ 上是 $(\delta,n)$-限界的，如果对每个 $\psi \in \Psi_n$：
 
-$$P(\tau \models \psi | \pi, s_0) \geq (1-\delta) \max_{\pi'} P(\tau \models \psi | \pi', s_0)$$
+$$P(\tau \models \psi | \pi, s_0) \geq (1-\delta) \max_{\pi} P(\tau \models \psi | \pi, s_0)$$
 
 这是核心假设：智能体在其专业领域内接近最优，但松弛程度 δ 允许次优行为。
 
 **迁移特定目标集**
 
-对迁移 (s,a,s')，定义 Ψ_n(s,a,s') 为所有深度 n 的目标，其满足条件需在轨迹中经过该迁移。结构认证的关键：通过构造探针目标 ψ* ∈ Ψ_n(s,a,s')，使得成功概率仅依赖于 P_ss'(a) 是否超过某阈值，从而反推迁移概率。
+对迁移 $(s,a,s')$，定义 $\Psi_n(s,a,s')$ 为所有深度 $n$ 的目标，其满足条件需在轨迹中经过该迁移。结构认证的关键：通过构造探针目标 $\psi^* \in \Psi_n(s,a,s')$，使得成功概率仅依赖于 $P_{ss'}(a)$ 是否超过某阈值，从而反推迁移概率。
 
 ---
 
@@ -167,16 +166,16 @@ $$P(\tau \models \psi | \pi, s_0) \geq (1-\delta) \max_{\pi'} P(\tau \models \ps
 
 **陈述：**
 
-任何非最优确定性马氏策略 π，对任意 δ ∈ (0,1)，存在目标 ψ_fail 使得：
+任何非最优确定性马氏策略 $\pi$，对任意 $\delta \in (0,1)$，存在目标 $\psi_{\text{fail}}$ 使得：
 
 $$P(\tau \models \psi_{fail} | \pi, s_0) < (1-\delta) \max_\pi P(\tau \models \psi_{fail} | \pi, s_0)$$
 
 **证明思路：**
 
-1. 因 π 非最优，存在状态 s* 使得 π(s*) ≠ π*(s*)（π* 是最优策略）
-2. 构造目标 ψ_fail：要求从 s* 出发必须选择最优动作 a* = π*(s*)
-3. 在 ψ_fail 下，π 因在 s* 选择错误动作而失败
-4. 最优策略 π* 在 ψ_fail 下成功，故性能差距至少为 1 - P_success(π) > δ
+1. 因 $\pi$ 非最优，存在可达目标 $\psi$ 使得 $\pi$ 在其上有非零失败率 $\gamma$
+2. 当 $\delta \leq \gamma$ 时，直接取 $\psi_{\text{fail}} = \psi$ 即可
+3. 当 $\delta > \gamma$ 时，构造深度 $N$ 的序列目标 $\psi_{\text{fail}}$：要求重复完成 $\psi$ 共 $N$ 次，每次间返回初始状态
+4. 在确定性策略下，每次重复贡献乘法失败概率，失败率比值缩小到 $(1-\gamma)^N$，选择足够大的 $N$ 使得 $(1-\gamma)^N < 1-\delta$
 
 **含义：**
 
@@ -190,27 +189,27 @@ $$P(\tau \models \psi_{fail} | \pi, s_0) < (1-\delta) \max_\pi P(\tau \models \p
 
 **陈述：**
 
-给定策略 π 在 Ψ_n(s,a,s') 上是 (δ,n)-限界的，对每个认证迁移 (s,a,s')，存在唯一估计 P̂_ss'(a) 满足误差界：
+给定策略 $\pi$ 在 $\Psi_n(s,a,s')$ 上是 $(\delta,n)$-限界的，对每个认证迁移 $(s,a,s')$，存在唯一估计 $\hat{P}_{ss'}(a)$ 满足误差界：
 
 $$|\hat{P}_{ss'}(a) - P_{ss'}(a)| \leq \frac{1}{2(n+1)}\cdot\frac{1}{1-2\delta} + \frac{\delta}{1-2\delta}\cdot P_{ss'}(a)(1-P_{ss'}(a))$$
 
 **构造机制：**
 
-1. **探针目标设计**：构造 ψ_{a,b}(r,n) ∈ Ψ_n(s,a,s')，其成功概率关于 P_ss'(a) 单调
-2. **二分搜索**：通过调整阈值 r，找到 π 的动作切换点 k（即 P_ss'(a) ∈ [k/(n+1), (k+1)/(n+1)]）
-3. **估计取值**：P̂_ss'(a) = (k+0.5)/(n+1)，误差最大为区间半宽
+1. **探针目标设计**：构造 $\psi_{a,b}(r,n) \in \Psi_n(s,a,s')$，其成功概率关于 $P_{ss'}(a)$ 单调
+2. **二分搜索**：通过调整阈值 $r$，找到 $\pi$ 的动作切换点 $k$（即 $P_{ss'}(a) \in [k/(n+1), (k+1)/(n+1)]$）
+3. **估计取值**：$\hat{P}_{ss'}(a) = (k+0.5)/(n+1)$，误差最大为区间半宽
 
 **误差分析：**
 
-第一项 1/[2(n+1)]·1/(1-2δ)：
+第一项 $1/[2(n+1)]·1/(1-2δ)$：
 - 来自离散化误差（均匀分布最大方差）
 - 随深度 n 增加而递减 O(1/n)
 - δ 接近 0.5 时发散（要求 δ < 0.5 以保证有意义）
 
-第二项 δ/(1-2δ)·P_ss'(a)(1-P_ss'(a))：
-- 来自允许 δ-近优行为
+第二项 $\delta/(1-2\delta) \cdot P_{ss'}(a)(1-P_{ss'}(a))$：
+- 来自允许 $\delta$-近优行为
 - 概率接近 0 或 1 时项减小（利用边界约束）
-- 中间概率 P=0.5 时达到最大 δ/[4(1-2δ)]
+- 中间概率 $P=0.5$ 时达到最大 $\delta/[4(1-2\delta)]$
 
 **缩放行为：**
 
@@ -222,9 +221,9 @@ $$|\hat{P}_{ss'}(a) - P_{ss'}(a)| \leq \frac{1}{2(n+1)}\cdot\frac{1}{1-2\delta} 
 
 **紧致性（Tightness）：**
 
-论文证明该界在小 δ 区域是紧的 — 存在策略 π 与真实概率 P_ss'(a) 使得实际误差达到上界。具体构造：
+论文证明该界在小 $\delta$ 区域是紧的 — 存在策略 $\pi$ 与真实概率 $P_{ss'}(a)$ 使得实际误差达到上界。具体构造：
 
-- 边界情况：P_ss'(a) 接近 0 或 1/2 时达到界
+- 边界情况：$P_{ss'}(a)$ 接近 0 或 1/2 时达到界
 - 策略在探针目标上恰好在切换点改变动作
 - 估计误差恰为区间半宽
 
@@ -234,26 +233,26 @@ $$|\hat{P}_{ss'}(a) - P_{ss'}(a)| \leq \frac{1}{2(n+1)}\cdot\frac{1}{1-2\delta} 
 
 **陈述：**
 
-如果策略 π 在真实模型下对目标集 Ψ 不是 (γ,n)-限界的（γ > δ），那么任何使 π 看似 (δ,n)-限界的替代世界模型 M' 必须满足：
+如果策略 $\pi$ 在真实模型下对目标集 $\Psi$ 不是 $(\gamma,n)$-限界的（$\gamma > \delta$），那么任何使 $\pi$ 看似 $(\delta,n)$-限界的替代世界模型 $\widehat{\mathcal{M}}$ 必须满足：
 
-$$\max_{(s,a,s')} |P_{ss'}(a) - P'_{ss'}(a)| > \frac{(\gamma-\delta) \cdot \max_\pi P(\tau \models \psi | \pi, s_0)}{(2-\delta)n}$$
+$$\left|P_{\widehat{\mathcal{M}}ss'}(a) - P_{ss'}(a)\right| > \frac{(\gamma-\delta) \cdot \max_\pi P(\tau \models \psi | \pi, s_0)}{(2-\delta)n}$$
 
 **证明思路：**
 
-1. 假设所有迁移误差 ≤ ε，反推策略性能上界
-2. 如果 π 在真实模型下失败率 > γ，但在 M' 下失败率 ≤ δ，则矛盾
-3. 导出 ε 的下界 — 至少一条迁移误差必须超过该值
+1. 假设所有迁移误差 $\leq \varepsilon$，反推策略性能上界
+2. 如果 $\pi$ 在真实模型下失败率 $> \gamma$，但在 $\widehat{\mathcal{M}}$ 下失败率 $\leq \delta$，则矛盾
+3. 导出 $\varepsilon$ 的下界 — 至少一条迁移误差必须超过该值
 
 **含义：**
 
 1. **不可理性化**：不能通过任意构造世界模型来"解释"失败
-   - 如果智能体在某目标上系统性失败（γ > δ）
+   - 如果智能体在某目标上系统性失败（$\gamma > \delta$）
    - 任何使其看似合格的世界模型必须在动力学上有非平凡偏差
-   - 偏差下界与 (γ-δ) 成正比（性能差距越大，所需偏差越大）
+   - 偏差下界与 $(\gamma-\delta)$ 成正比（性能差距越大，所需偏差越大）
 
 2. **认证与未认证区域的分界**：
-   - Ψ_n(s,a,s') 内：通过 Theorem 3.2 认证，误差 O(1/n) + O(δ)
-   - Ψ_n(s,a,s') 外：动力学偏差至少有 (γ-δ) 量级的基本下界
+   - $\Psi_n(s,a,s')$ 内：通过 Theorem 3.2 认证，误差 $\mathcal{O}(1/n) + \mathcal{O}(\delta)$
+   - $\Psi_n(s,a,s')$ 外：动力学偏差至少有 $(\gamma-\delta)$ 量级的基本下界
    - 这界定了"已知迁移"与"未知迁移"的明确边界
 
 3. **与 Theorem 3.2 的互补**：
@@ -271,12 +270,12 @@ $$\max_{(s,a,s')} |P_{ss'}(a) - P'_{ss'}(a)| > \frac{(\gamma-\delta) \cdot \max_
 
 ### 实验验证（预告）
 
-论文第5章实验在 20 状态网格世界中验证 Theorem 3.2 的预测：
+论文第4章实验在 20 状态网格世界中验证 Theorem 3.2 的预测：
 
-- 目标深度 n 从 3 到 7 变化
-- 结构认证的 MAE 随 n 增加递减，符合 1/n 趋势
-- 对比基线：Richens et al. (2025) 界（O(1/√n)）、实证平均误差（无结构性知识）
-- δ 设置测试：不同 δ 下误差变化符合 O(δ) 预测
+- 目标深度 $n$ 从 10 到 100 变化
+- 结构认证的 MAE 随 $n$ 增加递减，符合 $1/n$ 趋势
+- 对比基线：Richens et al. (2025) 界（$O(1/\sqrt n)$）、实证平均误差（无结构性知识）
+- δ 设置测试：不同 $δ$ 下误差变化符合 $O(δ)$ 预测
 
 （详细实验分析将在后续任务中展开）
 
@@ -288,46 +287,40 @@ $$\max_{(s,a,s')} |P_{ss'}(a) - P'_{ss'}(a)| > \frac{(\gamma-\delta) \cdot \max_
 ### 输入与输出
 
 **输入：**
-- 目标深度 n
-- 待认证迁移三元组 (s, a, s')
-- 动作 a, b（用于构造探针目标）
-- 切换点参数 r
+- 目标深度 $n$
+- 待认证迁移三元组 $(s, a, s')$
+- 动作 $a, b$（用于构造探针目标）
+- 切换点参数 $r$
 
 **输出：**
-- 迁移概率估计值 P̂_ss'(a)
+- 迁移概率估计值 $\hat{P}_{ss'}(a)$
 - 切换点位置 k
 
 ### 核心数学原理
 
-Algorithm 1 解决的问题是：如何通过智能体在复合目标上的行为选择，推断出特定迁移 (s, a, s') 的转移概率 P_ss'(a)。
+Algorithm 1 解决的问题是：如何通过智能体在复合目标上的行为选择，推断出特定迁移 $(s, a, s')$ 的转移概率 $P_{ss'}(a)$。
 
-算法的关键在于构造**复合目标族 ψ_{a,b}(r, n)**，其满足以下性质：
-- 当智能体选择动作 a 时，目标成功概率与 P_ss'(a) 单调相关
-- 当智能体选择动作 b 时，目标成功概率与 (1 - P_ss'(a)) 单调相关
-- 通过调整参数 r，可以控制智能体在 a 与 b 之间的切换点
+算法的关键在于构造**复合目标族 $\psi_{a,b}(r, n)$**，其满足以下性质：
+- 当智能体选择动作 $a$ 时，目标成功概率与 $P_{ss'}(a)$ 单调相关
+- 当智能体选择动作 $b$ 时，目标成功概率与 $(1 - P_{ss'}(a))$ 单调相关
+- 通过调整参数 $r$，可以控制智能体在 $a$ 与 $b$ 之间的切换点
 
 ### 算法步骤
 
 **步骤 1：构造目标族**
-对给定的迁移 (s, a, s') 和参考动作 b，构造参数化目标族：
+对给定的迁移 $(s, a, s')$ 和参考动作 $b$，构造参数化目标族：
 $$\psi_{a,b}(r, n) = \langle \underbrace{\phi_a, \phi_a, \ldots, \phi_a}_{r \text{ 次}}, \underbrace{\phi_b, \phi_b, \ldots, \phi_b}_{n-r \text{ 次}} \rangle$$
 
-其中 φ_a 表示"在状态 s 执行动作 a"，φ_b 表示"在状态 s 执行动作 b"。
+其中 $\phi_a$ 表示"在状态 $s$ 执行动作 $a$"，$\phi_b$ 表示"在状态 $s$ 执行动作 $b$"。
 
-**步骤 2：二分搜索切换点**
-在 [0, n] 范围内执行二分搜索：
+**步骤 2：线性扫描寻找切换点**
+在 $r = 0$ 到 $n-1$ 范围内依次查询：
 
 ```
-lo ← 0, hi ← n
-while lo < hi:
-    mid ← ⌊(lo + hi) / 2⌋
-    # 向智能体查询目标 ψ_{a,b}(mid, n)
-    action ← π(ψ_{a,b}(mid, n))
-    if action == a:
-        hi ← mid
-    else:
-        lo ← mid + 1
-k ← lo
+for r = 0 to n-1:
+    # 向智能体查询复合目标 ψ_{a,b}(r, n) ∨ ψ_{a,b}(r+1, n)
+    a_r ← argmax_{x∈{a,b}} π(x | s; ψ_a(r,n) ∨ ψ_b(r+1,n))
+    # 记录 a_r 的值，更新 p_min 或 p_max
 ```
 
 **步骤 3：计算概率估计**
@@ -344,7 +337,7 @@ $$\hat{P}_{ss'}(a) = \frac{k + 0.5}{n + 1}$$
 ### 误差分析
 
 该估计的最大误差为：
-$$\left|\hat{P}_{ss'}(a) - P_{ss'}(a)\right| \leq \frac{1}{2(n+1)}$$
+$$\left|\hat{P}_{ss'}(a) - P_{ss'}(a)\right| \leq \frac{1}{2(n+1)} \cdot \frac{1}{1-2\delta} + \frac{\delta}{1-2\delta} \cdot P_{ss'}(a)(1-P_{ss'}(a))$$
 
 这正是 Theorem 3.2 中 O(1/n) 项的来源。
 
@@ -354,7 +347,7 @@ $$\left|\hat{P}_{ss'}(a) - P_{ss'}(a)\right| \leq \frac{1}{2(n+1)}$$
 
 ### 适用场景
 
-Algorithm 2 处理迁移概率满足 P_ss'(a) ∈ (0, 1) 的**非平凡情况**。此时智能体在两个动作之间存在真实的偏好权衡。
+Algorithm 2 处理迁移概率满足 $P_{ss'}(a) \in (0, 1)$ 的**非平凡情况**。此时智能体在两个动作之间存在真实的偏好权衡。
 
 ### 目标构造方法
 
@@ -364,9 +357,9 @@ Algorithm 2 处理迁移概率满足 P_ss'(a) ∈ (0, 1) 的**非平凡情况**�
 
 ### 认证逻辑
 
-通过比较智能体在 ψ_a(r, n) 和 ψ_b(r+1, n) 上的选择，可以缩小 P_ss'(a) 的置信区间：
+通过比较智能体在 $\psi_a(r, n)$ 和 $\psi_b(r+1, n)$ 上的选择，可以缩小 $P_{ss'}(a)$ 的置信区间：
 
-- 若智能体在 ψ_a(r, n) 上选择 a 且在 ψ_b(r+1, n) 上选择 b，说明 P_ss'(a) 位于某个特定区间
+- 若智能体在 $\psi_a(r, n)$ 上选择 $a$ 且在 $\psi_b(r+1, n)$ 上选择 $b$，说明 $P_{ss'}(a)$ 位于某个特定区间
 - 通过调整 r 参数，可以逐步收紧区间边界
 
 该算法可以处理更复杂的迁移场景，特别是当智能体的策略对多个迁移概率敏感时。
@@ -378,14 +371,14 @@ Algorithm 2 处理迁移概率满足 P_ss'(a) ∈ (0, 1) 的**非平凡情况**�
 ### 适用场景
 
 Algorithm 3 处理**边界情况**：
-- P_ss'(a) = 0（迁移不可能发生）
-- P_ss'(a) = 1（迁移确定发生）
+- $P_{ss'}(a) = 0$（迁移不可能发生）
+- $P_{ss'}(a) = 1$（迁移确定发生）
 
 ### 目标构造策略
 
 对于平凡概率迁移，算法构造特殊的单目标探针：
-- 当 P_ss'(a) = 0 时，构造验证"智能体避免动作 a"的目标
-- 当 P_ss'(a) = 1 时，构造验证"智能体偏好动作 a"的目标
+- 当 $P_{ss'}(a) = 0$ 时，构造验证"智能体避免动作 $a$"的目标
+- 当 $P_{ss'}(a) = 1$ 时，构造验证"智能体偏好动作 $a$"的目标
 
 ### 认证优势
 
@@ -403,30 +396,30 @@ Algorithm 3 处理**边界情况**：
 - 构造目标使得成功概率仅依赖于单条迁移的概率
 - 其他迁移通过目标结构被控制或消除影响
 
-数学表达：设计 ψ 使得
-$$P(\tau \models \psi | \pi) = f(P_{ss'}(a)) + O(\delta)$$
-其中 f 是单调函数，δ 是智能体失败率上界。
+数学表达：设计 $\psi$ 使得
+$$P(\tau \models \psi | \pi) = f(P_{ss'}(a)) + \mathcal{O}(\delta)$$
+其中 $f$ 是单调函数，$\delta$ 是智能体失败率上界。
 
 ### 2. 探测 (Probe)
 
 利用智能体的**动作选择**作为探针：
-- 智能体在 ψ_{a,b}(r, n) 上的选择反映了其内部对 P_ss'(a) 的估计
+- 智能体在 $\psi_{a,b}(r, n)$ 上的选择反映了其内部对 $P_{ss'}(a)$ 的估计
 - 不同的 r 值探测不同的概率阈值
 
-关键性质：如果智能体在 ψ_{a,b}(r, n) 上选择 a 而非 b，则
+关键性质：如果智能体在 $\psi_{a,b}(r, n)$ 上选择 $a$ 而非 $b$，则
 $$P_{ss'}(a) > \frac{r}{n+1}$$
 
 ### 3. 估计 (Estimate)
 
 通过**二分搜索**找到切换点并计算估计值：
-- 切换点 k 给出了 P_ss'(a) 的置信区间 [k/(n+1), (k+1)/(n+1)]
+- 切换点 $k$ 给出了 $P_{ss'}(a)$ 的置信区间 $[k/(n+1), (k+1)/(n+1)]$
 - 取中点 (k+0.5)/(n+1) 作为最大最小（minimax）最优估计
 
 ### 精度控制机制
 
 目标深度 n 直接控制估计精度：
 - n 越大，区间宽度 1/(n+1) 越小，估计越精确
-- 计算成本为 O(log n)（二分搜索）+ O(n)（每个目标的查询成本）
+- 计算复杂度为 $\mathcal{O}(n)$：执行 $n$ 次迭代，每次迭代 $\mathcal{O}(1)$ 工作量
 
 这种精度-成本的显式权衡是结构认证框架的实用优势。
 
@@ -440,7 +433,7 @@ $$P_{ss'}(a) > \frac{r}{n+1}$$
 
 **网格世界参数：**
 - 状态空间大小：20 个状态
-- 动作空间大小：5 个动作（包括上下左右移动）
+- 动作空间大小：5 个动作（{Up, Down, Left, Right, Stay}）
 - 拓扑结构：随机生成的网格连接图
 
 **环境类型：** 受控马尔可夫过程 (Controlled Markov Process, cMP)
@@ -462,12 +455,12 @@ $$P_{ss'}(a) > \frac{r}{n+1}$$
 **对比基线：**
 1. **结构认证** (Structural Certification, O(1/n))：本文提出的 Theorem 3.2 误差界
 2. **Richens et al. (2025) 基线界** (Baseline Bound, O(1/√n))：文献中通用智能体的原始误差界
-3. **实证平均误差** (Empirical Mean Error)：对认证迁移实际计算 |P̂ - P| 的平均值
+3. **实证平均误差** (Empirical Mean Error)：对认证迁移实际计算 $|\hat{P} - P|$ 的平均值
 
 **评估指标：**
 - 主要指标：平均绝对误差 (Mean Absolute Error, MAE)
-- 计算方式：MAE = (1/|T|) Σ_{(s,a,s')∈T} |P̂_ss'(a) - P*_ss'(a)|
-- 其中 T 为测试迁移集，P* 为真实迁移概率（由环境生成器确定）
+- 计算方式：$\text{MAE} = (1/|T|) \sum_{(s,a,s') \in T} |\hat{P}_{ss'}(a) - P^*_{ss'}(a)|$
+- 其中 $T$ 为测试迁移集，$P^*$ 为真实迁移概率（由环境生成器确定）
 
 ---
 
@@ -595,7 +588,7 @@ class WorldModelCertifier:
             reference_action: 参考动作 b（若为 None，自动选择）
         
         返回：
-            (P̂_ss'(a), k): 估计概率和切换点
+            ($\hat{P}_{ss'}(a)$, k): 估计概率和切换点
         """
         s, a, s_prime = transition.s, transition.a, transition.s_prime
         
@@ -605,24 +598,32 @@ class WorldModelCertifier:
         
         b = reference_action
         
-        # Algorithm 1: 二分搜索切换点
-        lo, hi = 0, goal_depth
-        while lo < hi:
-            mid = (lo + hi) // 2
-            # 构造复合目标 ψ_{a,b}(mid, goal_depth)
-            goal = self._construct_compositional_goal(
-                transition, mid, goal_depth, a, b
+        # Algorithm 1: 线性扫描寻找切换点
+        p_min, p_max = 0.0, 1.0
+        r_star = None
+        
+        for r in range(goal_depth):
+            # 构造复合目标 ψ_a(r, n) ∨ ψ_b(r+1, n)
+            goal_a = self._construct_compositional_goal(
+                transition, r, goal_depth, a, b
+            )
+            goal_b = self._construct_compositional_goal(
+                transition, r + 1, goal_depth, b, a
             )
             # 测试智能体在该目标下的动作选择
-            action = agent_policy(goal)
+            action = agent_policy(goal_a)  # 简化：实际应查询 ψ_a(r,n) ∨ ψ_b(r+1,n)
             
             if action == a:  # 智能体选择动作 a
-                hi = mid
-            else:  # 智能体选择动作 b（或其他动作）
-                lo = mid + 1
+                p_max = min(p_max, (r + 1) / (goal_depth + 1 - 0.1 * (goal_depth - r)))
+                if r_star is None:
+                    r_star = r
+            else:  # 智能体选择动作 b
+                p_min = max(p_min, (r + 1) * (1 - 0.1) / (goal_depth + 1 - (r + 1) * 0.1))
         
-        k = lo
-        p_hat = (k + 0.5) / (goal_depth + 1)
+        if r_star is not None:
+            p_hat = (r_star + 0.5) / (goal_depth + 1)
+        else:
+            p_hat = 0.5
         
         # 缓存结果
         self.certified_transitions[(s, a, s_prime)] = p_hat
@@ -664,7 +665,7 @@ class WorldModelCertifier:
         action_b: int
     ) -> Tuple[float, Tuple[int, int]]:
         """
-        Algorithm 2 (附录F): 处理非平凡概率迁移 P_ss'(a) ∈ (0,1)
+        Algorithm 2 (附录F): 处理非平凡概率迁移 $P_{ss'}(a) \in (0,1)$
         
         构造 ψ_a(r, n) 和 ψ_b(r+1, n) 两个目标进行交叉验证
         """
@@ -699,7 +700,7 @@ class WorldModelCertifier:
         goal_depth: int
     ) -> Tuple[float, str]:
         """
-        Algorithm 3 (附录F): 处理平凡概率迁移 P_ss'(a) ∈ {0, 1}
+        Algorithm 3 (附录F): 处理平凡概率迁移 $P_{ss'}(a) \in \{0, 1\}$
         
         使用单目标探针验证确定性迁移
         """
@@ -715,10 +716,10 @@ class WorldModelCertifier:
         action = agent_policy(goal)
         
         if action == a:
-            # 智能体持续选择 a → P_ss'(a) 可能接近 1
+            # 智能体持续选择 a → P_{ss'}(a) 可能接近 1
             return 1.0, "deterministic_positive"
         else:
-            # 智能体避免 a → P_ss'(a) 可能接近 0
+            # 智能体避免 a → P_{ss'}(a) 可能接近 0
             return 0.0, "deterministic_negative"
 
 
@@ -728,7 +729,7 @@ def structural_estimate(
     n: int
 ) -> Tuple[float, int]:
     """
-    通过二分搜索找到切换点 k，返回 (P̂, k)
+    通过线性扫描找到切换点 k，返回 (p_hat k)
     
     参数：
         policy_transition_test(r): 在目标 ψ_{a,b}(r,n) 下是否选择动作 a
@@ -737,15 +738,16 @@ def structural_estimate(
     返回：
         (p_hat, k): 估计概率和切换点
     """
-    lo, hi = 0, n
-    while lo < hi:
-        mid = (lo + hi) // 2
-        if policy_transition_test(mid):
-            hi = mid
-        else:
-            lo = mid + 1
-    k = lo
-    p_hat = (k + 0.5) / (n + 1)
+    r_star = None
+    for r in range(n):
+        if policy_transition_test(r):
+            r_star = r
+            break
+    
+    if r_star is not None:
+        p_hat = (r_star + 0.5) / (n + 1)
+    else:
+        p_hat = 0.5
     return p_hat, k
 ```
 
@@ -757,9 +759,9 @@ def structural_estimate(
 
 | 代码组件 | 论文对应 | 位置 |
 |---------|---------|------|
-| `WorldModelCertifier.certify_transition` | Algorithm 1 | 正文 |
-| `certify_nontrivial_transition` | Algorithm 2 | 附录F |
-| `certify_trivial_transition` | Algorithm 3 | 附录F |
+| `WorldModelCertifier.certify_transition` | Algorithm 1: Structural Certification | 正文 |
+| `certify_nontrivial_transition` | Algorithm 2: Non-trivial Filter and Recover | 附录F |
+| `certify_trivial_transition` | Algorithm 3: Trivial Filter and Recover | 附录F |
 | `structural_estimate` | Algorithm 1 核心逻辑 | 正文 |
 
 ### 关键设计决策
@@ -785,7 +787,7 @@ def structural_estimate(
 ### 概念实现未覆盖的方面
 
 **1. 目标构造的完备性**
-- 论文要求构造满足特定性质的 ψ（成功概率仅依赖 P_ss'(a)）
+- 论文要求构造满足特定性质的 $\psi$（成功概率仅依赖 $P_{ss'}(a)$）
 - 概念代码中的简化构造可能不满足理论要求
 
 **2. 失败率 δ 的估计**

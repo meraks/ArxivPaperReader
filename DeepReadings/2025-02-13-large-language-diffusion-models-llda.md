@@ -39,7 +39,7 @@ LLaDA 8B Base 在多个标准 benchmark 上达到了与同规模 AR 模型可比
 
 ### 1.2 反向推理能力
 
-LLaDA 在需要"逆向"理解的任务上展现出超越主流 AR 模型的潜力。在 reversal poem completion(反向诗歌补全)任务上,LLaDA 8B 取得 45.6% 的准确率,显著高于 GPT-4o 的 34.3%。这一对比直接体现了双向 diffusion 建模对 reversal curse 的天然缓解(详见第2章)。
+LLaDA 在需要"逆向"理解的任务上展现出超越主流 AR 模型的潜力。在 reversal poem completion(反向诗歌补全)任务上——该任务使用 496 对中文名句,要求模型给定一句诗后生成下一句(forward)或上一句(reversal),zero-shot 评估——LLaDA 8B 取得 45.6% 的准确率,显著高于 GPT-4o 的 34.3%。这一对比直接体现了双向 diffusion 建模对 reversal curse 的天然缓解(详见第2章)。
 
 ### 1.3 开源
 
@@ -75,13 +75,13 @@ LLaDA 把离散文本建模为一个 masked diffusion 过程。给定原始序�
 
 LLaDA 的训练损失为:
 
-$$\mathcal{L}(\theta)=-\mathbb{E}_{t, x_0, x_t}\left[\frac{1}{t}\cdot\frac{1}{L}\sum_{i=1}^{L}\mathbf{1}\bigl[x_i^t=M\bigr]\,\log p_\theta(x_i^0 \mid x_t)\right]$$
+$$\mathcal{L}(\theta)=-\mathbb{E}_{t, x_0, x_t}\left[\frac{1}{t}\sum_{i=1}^{L}\mathbf{1}\bigl[x_i^t=M\bigr]\,\log p_\theta(x_i^0 \mid x_t)\right]$$
 
-其中 $\mathbf{1}[x_i^t=M]$ 指示位置 $i$ 在 $x_t$ 中是否被 mask,内层求和再除以序列长度 $L$,得到对所有被 mask 位置对数似然的平均。其中最关键的设计是 $\frac{1}{t}$ 加权:它并非任意选取的经验项,而是 negative log-likelihood 的一个上界(upper bound),从理论上保证了以 masked diffusion 的方式执行 MLE 的合法性。这一权重正是 LLaDA 核心论断的数学落点——能力来自 MLE 原则(Eq.1),而非 AR 形式(Eq.2)。
+其中 $\mathbf{1}[x_i^t=M]$ 指示位置 $i$ 在 $x_t$ 中是否被 mask。其中最关键的设计是 $\frac{1}{t}$ 加权:它并非任意选取的经验项,而是 negative log-likelihood 的一个上界(upper bound),从理论上保证了以 masked diffusion 的方式执行 MLE 的合法性。这一权重正是 LLaDA 核心论断的数学落点——能力来自 MLE 原则(Eq.1),而非 AR 形式(Eq.2)。
 
 ### 2.6 模型架构
 
-LLaDA 的 backbone 是一个 standard Transformer,但移除了 causal mask,改用 bidirectional attention。模型提供 1B 与 8B 两种规模,其骨干配置包含 32 层、hidden dimension 4096、32 个 attention heads,激活函数采用 SwiGLU,位置编码采用 RoPE。
+LLaDA 的 backbone 是一个 standard Transformer,但移除了 causal mask,改用 bidirectional attention。模型提供 1B 与 8B 两种规模。8B 版本配置包含 32 层、hidden dimension 4096、32 个 attention heads,FFN dimension 为 12288,激活函数采用 SwiGLU,位置编码采用 RoPE。1B 版本则为 22 层、hidden dimension 2048、FFN dimension 5634、Key/Value heads 仅 4 个(总计 1.49B 参数)。两者架构并不相同。
 
 ---
 ## 第3章 训练
@@ -115,9 +115,9 @@ LLaDA-8B 的具体配置如下:
 
 LLaDA 的预训练采用掩码预测 (masked prediction) 目标。给定输入序列,随机掩码部分 token,模型在双向注意力下预测被掩码的 token:
 
-$$\mathcal{L}_{\text{PT}} = \mathbb{E}\left[ \sum_{i \in \mathcal{M}} -\log p_\theta(x_i \mid x_{\setminus \mathcal{M}}) \right]$$
+$$\mathcal{L}_{\text{PT}} = -\mathbb{E}_{t,x_0,x_t}\left[\frac{1}{t}\sum_{i=1}^{L}\mathbf{1}[x_t^i=M]\log p_\theta(x_0^i \mid x_t)\right]$$
 
-其中 $\mathcal{M}$ 为被掩码的位置集合,$x_{\setminus \mathcal{M}}$ 为未被掩码的上下文。
+其中 $\mathbf{1}[x_t^i=M]$ 指示位置 $i$ 在 $x_t$ 中是否被掩码,$\frac{1}{t}$ 加权是保证 MLE 合法性的关键(详见 2.5 节)。
 
 预训练的计算开销与超参数如下:
 
@@ -136,7 +136,7 @@ SFT 数据集共 4.5M 条样本,其来源构成为:
 
 SFT 的掩码策略与预训练不同:**prompt 部分保持未掩码 (unmasked),仅对 response 部分的 token 进行掩码**。这使得模型在微调时学习如何在给定完整 prompt 的条件下生成回答:
 
-$$\mathcal{L}_{\text{SFT}} = \mathbb{E}\left[ \sum_{i \in \mathcal{M}_{\text{resp}}} -\log p_\theta(x_i \mid x_{\text{prompt}},\, x_{\text{resp}\setminus \mathcal{M}}) \right]$$
+$$\mathcal{L}_{\text{SFT}} = -\mathbb{E}_{t, p_0, r_0, r_t}\left[\frac{1}{t}\sum_{i=1}^{L'}\mathbf{1}[r_t^i=M]\log p_\theta(r_0^i \mid p_0,\, r_t)\right]$$
 
 SFT 超参数:
 
@@ -178,9 +178,9 @@ LLaDA 的一个重要优势是**无需重新训练 (no retraining needed)** 即�
 
 对于对数似然 (log-likelihood) 的评估,LLaDA 采用蒙特卡洛 (Monte Carlo, MC) 估计 (Eq.6),通过对 $l$ 个 token 进行均匀掩码 (uniform masking) 采样来近似:
 
-$$\log p_\theta(x) \approx \frac{1}{N}\sum_{n=1}^{N} \sum_{l=1}^{L} \log p_\theta\!\left(x_{\mathbf{m}^{(l)}_n} \mid x_{\setminus \mathbf{m}^{(l)}_n}\right), \quad \mathbf{m}^{(l)} \sim \text{Uniform}(l\ \text{tokens})$$
+$$-\log p_\theta(x_0) \approx \frac{L}{l}\sum_{i=1}^{L}\mathbf{1}[x_l^i=M]\log p_\theta(x_0^i \mid x_l), \quad l \sim \text{Uniform}\{1,2,\dots,L\}$$
 
-其中 $\mathbf{m}^{(l)}$ 表示对 $l$ 个 token 的均匀随机掩码,$N$ 为 MC 采样次数。
+其中 $l$ 从 $\{1,2,\dots,L\}$ 中均匀采样,$x_l$ 通过对 $x_0$ 均匀随机掩码 $l$ 个 token 得到,$L$ 为序列长度。$\frac{L}{l}$ 因子用于补偿不同掩码比例下的期望偏差。
 
 ---
 
@@ -242,7 +242,7 @@ $$\log p_\theta(x) \approx \frac{1}{N}\sum_{n=1}^{N} \sum_{l=1}^{L} \log p_\thet
 ### 5.4 可扩展性
 
 - LLaDA 可扩展至 $10^{23}$ FLOPs 的计算规模,在 6 项任务上匹配自回归基线 (ARM baselines)。
-- 1B 模型与 8B 模型采用**完全相同的架构** (architecture identical),便于在不同规模间直接比较。
+- 在 1B 规模上,LLaDA 与 ARM 采用**完全相同的架构**,便于直接比较;8B 规模因资源限制未构建相同架构的 ARM 基线。
 - 随着模型规模增大,LLaDA 与 ARM 的性能差距逐渐缩小 (gap narrows with scale),表明 masked diffusion 路线具有良好的 scaling 特性。
 
 ### 5.5 案例分析
@@ -281,4 +281,3 @@ LLaDA 在以下实际场景中进行了案例分析:
 
 双向注意力 (bidirectional attention) 在**训练阶段具有更高的显存开销 (memory cost)**:由于无法像 ARM 那样借助因果掩码进行高效的 KV cache 与梯度重计算优化,双向模型的训练对大规模工程实现提出了更高要求。
 
----

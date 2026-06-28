@@ -43,12 +43,13 @@ DeepSeek-R1 由 DeepSeek-AI 团队于 2025 年 1 月发布，正式发表于 Nat
 
 两个模型代表了"纯 RL 验证"与"工程化交付"两种不同目标：
 
-| 维度 | DeepSeek-R1-Zero | DeepSeek-R1 |
-|------|------------------|-------------|
-| 训练路线 | 纯 RL（无 SFT） | 冷启动 SFT + 推理 RL + 拒绝采样 SFT + 对齐 RL |
-| 设计目标 | 验证"纯 RL 可激发推理"的假设 | 兼顾性能与可读性，作为正式交付模型 |
-| 推理行为 | 自发涌现，但可读性差、语言混合 | 推理清晰，含 summary 段落，语言一致 |
-| AIME 2024 pass@1 | 71.0%（cons@64: 86.7%） | 79.8% |
+| 维度               | DeepSeek-R1-Zero      | DeepSeek-R1                        |
+| ---------------- | --------------------- | ---------------------------------- |
+| 训练路线             | 纯 RL（无 SFT）           | 冷启动 SFT + 推理 RL + 拒绝采样 SFT + 对齐 RL |
+| 设计目标             | 验证"纯 RL 可激发推理"的假设     | 兼顾性能与可读性，作为正式交付模型                  |
+| 推理行为             | 自发涌现，但可读性差、语言混合       | 推理清晰，含 summary 段落，语言一致             |
+| AIME 2024 pass@1 | 71.0%（cons@64: 86.7%） | 79.8%                              |
+| CodeForces Elo | 1444                              | 2029                              |
 
 R1-Zero 是论文的方法论基石，证明假设成立；R1 则是在此基础上的工程改进，解决 R1-Zero 的可读性与稳定性问题。
 
@@ -81,7 +82,7 @@ DeepSeek-R1 在主表（Table 8 / Nature 主表）上与 o1-1217、GPT-4o 的对
 
 ### 1.5 蒸馏模型的关键成就
 
-论文发布六个蒸馏模型，覆盖 Qwen（1.5B/7B/14B/32B）与 Llama（8B/70B）两种基座。蒸馏采用纯 SFT，使用 R1 生成的推理样本，无需额外 RL。
+论文发布六个蒸馏模型，覆盖 Qwen2.5（1.5B/7B/14B/32B）与 Llama3（8B/70B）两种基座。蒸馏采用纯 SFT，使用 R1 生成的推理样本，无需额外 RL。
 
 蒸馏模型在 AIME 2024 与 MATH-500 等基准上的表现：
 
@@ -177,15 +178,15 @@ CoT prompting 的核心思想：在推理时引导模型生成中间推理步骤
 
 虽然 R1-Zero 验证了纯 RL 的可行性，但其输出存在可读性差、语言混合等工程缺陷。R1 通过多阶段流水线解决这些问题。两者的设计思路对比：
 
-| 设计维度 | DeepSeek-R1-Zero | DeepSeek-R1 |
-|----------|------------------|-------------|
-| 起点 | DeepSeek-V3-Base（无 SFT） | DeepSeek-V3-Base + 冷启动 SFT |
-| 冷启动数据 | 无 | 数千条长 CoT（few-shot + 直接生成 + 后处理） |
-| 推理奖励 | 准确率 + 格式 | 准确率 + 格式 + 语言一致性奖励 |
-| 多阶段流水线 | 单阶段 RL | 冷启动 SFT → 推理 RL → 拒绝采样 SFT → 对齐 RL |
-| 可读性处理 | 无（输出混乱） | 加入 summary 段落；语言一致性奖励约束输出语言 |
-| 输出格式 | `<think>...</think><answer>...</answer>` | `|special_token|<reasoning>|special_token|<summary>` |
-| 最终目标 | 验证假设 | 工程化交付 |
+| 设计维度   | DeepSeek-R1-Zero                         | DeepSeek-R1                              |
+| ------ | ---------------------------------------- | ---------------------------------------- |
+| 起点     | DeepSeek-V3-Base（无 SFT）                  | DeepSeek-V3-Base + 冷启动 SFT               |
+| 冷启动数据  | 无                                        | 数千条长 CoT（few-shot + 直接生成 + 后处理）          |
+| 推理奖励   | 准确率 + 格式                                 | 准确率 + 格式 + 语言一致性奖励                       |
+| 多阶段流水线 | 单阶段 RL                                   | 冷启动 SFT → 推理 RL → 拒绝采样 SFT → 对齐 RL       |
+| 可读性处理  | 无（输出混乱）                                  | 加入 summary 段落；语言一致性奖励约束输出语言              |
+| 输出格式   | `<think>...</think><answer>...</answer>` | `<think>...</think><answer>...</answer>` |
+| 最终目标   | 验证假设                                     | 工程化交付                                    |
 
 R1 在 R1-Zero 的基础上引入了**两阶段 RL + 两阶段 SFT** 的流水线，核心改进是：
 
@@ -226,7 +227,7 @@ GRPO 的核心改进是：**移除 critic 模型**，改用一组（group）采�
 GRPO 的目标函数（对每个问题 $q$ 采样 $G$ 个输出 $\{o_1,\dots,o_G\}$）：
 
 $$
-J_{\text{GRPO}}(\theta)=\mathbb{E}\!\left[\frac{1}{G}\sum_{i=1}^{G}\Big(\min\!\Big(\frac{\pi_\theta}{\pi_{\theta_{\text{old}}}}\cdot A_i,\;\text{clip}\Big(\frac{\pi_\theta}{\pi_{\theta_{\text{old}}}},1-\varepsilon,1+\varepsilon\Big)\cdot A_i\Big)-\beta\,\mathbb{D}_{\text{KL}}\!\big(\pi_\theta\;\|\;\pi_{\text{ref}}\big)\right]
+J_{\text{GRPO}}(\theta)=\mathbb{E}_{q\sim P(Q),\,\{o_i\}_{i=1}^{G}\sim \pi_{\theta_{\text{old}}}}\!\left[\frac{1}{G}\sum_{i=1}^{G}\left(\min\!\left(\frac{\pi_\theta(o_i\mid q)}{\pi_{\theta_{\text{old}}}(o_i\mid q)}A_i,\;\text{clip}\!\left(\frac{\pi_\theta(o_i\mid q)}{\pi_{\theta_{\text{old}}}(o_i\mid q)},1-\varepsilon,1+\varepsilon\right)A_i\right)-\beta\,D_{\mathrm{KL}}\!\left(\pi_\theta\|\pi_{\text{ref}}\right)\right)\right]
 $$
 
 其中优势函数由组内分数归一化得到：
@@ -303,7 +304,7 @@ R1-Zero 在训练过程中展现出令人瞩目的**自演化（self-evolution�
 #### 3.4.1 性能跃升
 
 - **AIME 2024**（美国数学邀请赛）：pass@1 准确率从 **15.6% 提升至 71.0%**。
-- 使用 majority voting 的 cons@64（64 个采样取多数）达到 **86.7%**，逼近顶尖闭源模型水平。
+- 使用 majority voting 的 cons@64（64 个采样取多数）达到 **86.7%**，论文称其匹配 OpenAI-o1-0912 的水平（o1-0912 在 AIME 2024 上 cons@64 为 83.3%）。
 
 #### 3.4.2 思考长度自然增长
 
@@ -366,12 +367,13 @@ R1-Zero 在训练过程中展现出令人瞩目的**自演化（self-evolution�
 针对 R1-Zero 的中英文混用问题，引入一项**语言一致性奖励**：
 
 - 在 CoT 中统计**目标语言（如中文或英文）词汇占比**，占比越高奖励越高。
-- 最终奖励变为：
-  $$\text{Reward}=\text{准确率奖励}+\text{语言一致性奖励}$$
+- 更贴近原文的写法是将奖励拆分为：
+  $$\text{Reward}=\text{Reward}_{\text{reasoning}}+\text{Reward}_{\text{general}}+\text{Reward}_{\text{language}}$$
+  其中 $\text{Reward}_{\text{general}}=\text{Reward}_{\text{RM}}+\text{Reward}_{\text{format}}$。
 
 #### 4.2.2 效果
 
-通过显式奖励"语言纯净度"，缓解了语言混合问题，使 CoT 在单一语言内展开，显著提升可读性与下游可用性。这一阶段确保模型在保持（甚至增强）推理能力的同时，输出质量符合人类预期。
+通过显式奖励"语言纯净度"，缓解了语言混合问题，使 CoT 在单一语言内展开，显著提升可读性与下游可用性。这一阶段确保模型在保持（甚至增强）推理能力的同时，输出质量更符合人类预期。
 
 ---
 
@@ -398,19 +400,19 @@ RL 收敛后，模型的推理能力已很强，但仅靠 RL 还不足以让模�
 
 ### 4.4 对齐 RL（第二阶段 RL）
 
-最后阶段将模型对齐到人类偏好，确保安全、有用。
+最后阶段将模型对齐到人类偏好，确保更有用且更无害（helpful and harmless）。
 
 #### 4.4.1 数据与奖励
 
 - 数据为**混合推理数据 + 通用数据**，覆盖模型全部预期使用场景。
-- 使用**有用性（helpfulness）与安全性（safety）奖励模型**作为奖励来源。
+- 使用**有用性（helpfulness）与无害性（harmlessness）奖励模型**作为奖励来源。
 
 #### 4.4.2 训练细节
 
-- 共进行 **1.7k 步 GRPO**。
+- 共进行约 **1.7k 步 GRPO**（原文附录提供具体训练配置）。
 - 在**最后 400 步**引入**偏好奖励（preference reward）**，即结合偏好数据（如 RLHF 中的对比样本）做对齐。
 
-通过这一两段式（先纯奖励、后偏好奖励）的对齐策略，模型在保持强推理能力的同时获得良好的可用性与安全性，最终成为公开发布的 DeepSeek-R1。
+通过这一两段式（先纯奖励、后偏好奖励）的对齐策略，模型在保持强推理能力的同时获得良好的可用性与无害性，最终成为公开发布的 DeepSeek-R1。
 
 ---
 
@@ -420,7 +422,7 @@ RL 收敛后，模型的推理能力已很强，但仅靠 RL 还不足以让模�
 |------|------------------|-------------|
 | **SFT** | ❌ 无（纯 RL） | ✅ 两阶段（冷启动 + 拒绝采样） |
 | **RL** | 单阶段 GRPO | 两阶段（推理 RL + 对齐 RL） |
-| **奖励** | 准确率 + 格式 | 准确率 + 语言一致性 → 有用性/安全性 |
+| **奖励** | 准确率 + 格式 | 准确率 + 语言一致性 → 有用性/无害性 |
 | **角色** | 验证性研究：证明纯 RL 可激发推理 | 产品级模型：兼顾能力、可读性、对齐 |
 | **局限** | 可读性差、中英混用 | 通过流水线逐一解决 |
 
@@ -443,7 +445,7 @@ $$\mathcal{L}_{\text{distill}} = -\sum_{t=1}^{T} \log p_\theta\!\left(y_t \mid y
 
 ### 5.3 蒸馏结果
 
-下表展示了蒸馏后的 Qwen 与 Llama 系列模型在四个 benchmark 上的 pass@1 表现：
+下表展示了蒸馏后的 Qwen2.5 与 Llama3 系列模型在四个 benchmark 上的 pass@1 表现：
 
 | Model | AIME 2024 pass@1 | MATH-500 pass@1 | GPQA Diamond pass@1 | LiveCodeBench pass@1 |
 |-------|-----------------|-----------------|---------------------|---------------------|
@@ -459,7 +461,7 @@ $$\mathcal{L}_{\text{distill}} = -\sum_{t=1}^{T} \log p_\theta\!\left(y_t \mid y
 | Model | AIME 2024 pass@1 | MATH-500 pass@1 | GPQA Diamond pass@1 | LiveCodeBench pass@1 |
 |-------|-----------------|-----------------|---------------------|---------------------|
 | o1-mini | 63.6 | 90.0 | 60.0 | 53.8 |
-| QwQ-32B-Preview | 44.0 | 90.6 | 54.5 | 41.9 |
+| QwQ-32B-Preview | 50.0 | 90.6 | 54.5 | 41.9 |
 
 ### 5.4 分析
 
@@ -532,5 +534,3 @@ $$\mathcal{L}_{\text{distill}} = -\sum_{t=1}^{T} \log p_\theta\!\left(y_t \mid y
 6. **神经奖励模型是开放方向。** 当前依赖 rule-based reward 的范式存在上述局限，论文指出**引入或改进 neural reward model** 是未来重要的研究方向，有望将推理训练扩展到更广泛的任务类型。
 
 7. **社区复现。** 与此相关，HuggingFace 社区已发起 Open-R1（huggingface/open-r1）项目，致力于对 DeepSeek-R1 的训练流程进行公开复现，推动开放研究。
-
----
