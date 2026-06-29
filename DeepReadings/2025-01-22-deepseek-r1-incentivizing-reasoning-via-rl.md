@@ -4,16 +4,16 @@
 
 ## 论文元数据信息块
 
-| 项目 | 内容 |
-|------|------|
-| 标题 | DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning |
-| 作者 | DeepSeek-AI（Daya Guo, Dejian Yang, Haowei Zhang, Junxiao Song, Ruoyu Zhang et al.） |
-| 机构 | DeepSeek |
-| arXiv ID | 2501.12948 |
-| 发表期刊 | Nature, volume 645, pages 633–638（2025） |
-| 提交日期 | 2025-01-22 |
-| 官方代码 | https://github.com/deepseek-ai/deepseek-r1（MIT License） |
-| 基座模型 | DeepSeek-V3-Base（671B 参数，37B 激活，128K 上下文） |
+| 项目       | 内容                                                                                 |
+| -------- | ---------------------------------------------------------------------------------- |
+| 标题       | DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning |
+| 作者       | DeepSeek-AI（Daya Guo, Dejian Yang, Haowei Zhang, Junxiao Song, Ruoyu Zhang et al.） |
+| 机构       | DeepSeek                                                                           |
+| arXiv ID | 2501.12948                                                                         |
+| 发表期刊     | Nature, volume 645, pages 633–638（2025）                                            |
+| 提交日期     | 2025-01-22                                                                         |
+| 官方代码     | [DeepSeek-R1](https://github.com/deepseek-ai/deepseek-r1)（MIT License）             |
+| 基座模型     | DeepSeek-V3-Base（671B 参数，37B 激活，128K 上下文）                                          |
 
 ---
 
@@ -191,7 +191,7 @@ CoT prompting 的核心思想：在推理时引导模型生成中间推理步骤
 R1 在 R1-Zero 的基础上引入了**两阶段 RL + 两阶段 SFT** 的流水线，核心改进是：
 
 - **冷启动 SFT**：用数千条高质量长 CoT 初始化，避免 R1-Zero 冷启动阶段的输出混乱
-- **语言一致性奖励**：奖励 = 准确率奖励 + 语言一致性奖励，后者为目标语言词在 CoT 中的比例，缓解语言混合问题
+- **语言一致性奖励**：奖励 = 准确率奖励 + 格式奖励 + 语言一致性奖励，后者为目标语言词在 CoT 中的比例，缓解语言混合问题
 - **拒绝采样 SFT**：从 RL 模型采样 ~600k 推理样本 + ~200k 非推理样本，用 DeepSeek-V3 作为生成式奖励模型筛选
 - **对齐 RL**：在推理数据外加入通用数据（helpfulness + harmlessness），最后 400 步引入偏好奖励
 
@@ -367,9 +367,12 @@ R1-Zero 在训练过程中展现出令人瞩目的**自演化（self-evolution�
 针对 R1-Zero 的中英文混用问题，引入一项**语言一致性奖励**：
 
 - 在 CoT 中统计**目标语言（如中文或英文）词汇占比**，占比越高奖励越高。
-- 更贴近原文的写法是将奖励拆分为：
+- 第一 RL 阶段对推理数据的奖励为：
+  $$\text{Reward}=\text{准确率奖励}+\text{格式奖励}+\text{语言一致性奖励}$$
+  论文将语言一致性奖励直接叠加到最终奖励之上（"directly adding it to the final reward"）。
+- 后续第二 RL 阶段（对齐 RL，见 4.4 节）扩充为更通用的形式：
   $$\text{Reward}=\text{Reward}_{\text{reasoning}}+\text{Reward}_{\text{general}}+\text{Reward}_{\text{language}}$$
-  其中 $\text{Reward}_{\text{general}}=\text{Reward}_{\text{RM}}+\text{Reward}_{\text{format}}$。
+  其中 $\text{Reward}_{\text{reasoning}}=\text{Reward}_{\text{rule}}$（规则奖励），$\text{Reward}_{\text{general}}=\text{Reward}_{\text{RM}}+\text{Reward}_{\text{format}}$（引入奖励模型处理通用数据）。
 
 #### 4.2.2 效果
 
@@ -422,7 +425,7 @@ RL 收敛后，模型的推理能力已很强，但仅靠 RL 还不足以让模�
 |------|------------------|-------------|
 | **SFT** | ❌ 无（纯 RL） | ✅ 两阶段（冷启动 + 拒绝采样） |
 | **RL** | 单阶段 GRPO | 两阶段（推理 RL + 对齐 RL） |
-| **奖励** | 准确率 + 格式 | 准确率 + 语言一致性 → 有用性/无害性 |
+| **奖励** | 准确率 + 格式 | 准确率 + 格式 + 语言一致性（推理 RL）→ 有用性/无害性 RM（对齐 RL） |
 | **角色** | 验证性研究：证明纯 RL 可激发推理 | 产品级模型：兼顾能力、可读性、对齐 |
 | **局限** | 可读性差、中英混用 | 通过流水线逐一解决 |
 
@@ -447,14 +450,14 @@ $$\mathcal{L}_{\text{distill}} = -\sum_{t=1}^{T} \log p_\theta\!\left(y_t \mid y
 
 下表展示了蒸馏后的 Qwen2.5 与 Llama3 系列模型在四个 benchmark 上的 pass@1 表现：
 
-| Model | AIME 2024 pass@1 | MATH-500 pass@1 | GPQA Diamond pass@1 | LiveCodeBench pass@1 |
-|-------|-----------------|-----------------|---------------------|---------------------|
-| Distill-Qwen-1.5B | 28.9 | 83.9 | 33.8 | 16.9 |
-| Distill-Qwen-7B | 55.5 | 92.8 | 49.1 | 37.6 |
-| Distill-Qwen-14B | 69.7 | 93.9 | 59.1 | 53.1 |
-| Distill-Qwen-32B | 72.6 | 94.3 | 62.1 | 57.2 |
-| Distill-Llama-8B | 50.4 | 89.1 | 49.0 | 39.6 |
-| Distill-Llama-70B | 70.0 | 94.5 | 65.2 | 57.5 |
+| Model             | AIME 2024 pass@1 | MATH-500 pass@1 | GPQA Diamond pass@1 | LiveCodeBench pass@1 |
+| ----------------- | ---------------- | --------------- | ------------------- | -------------------- |
+| Distill-Qwen-1.5B | 28.9             | 83.9            | 33.8                | 16.9                 |
+| Distill-Qwen-7B   | 55.5             | 92.8            | 49.1                | 37.6                 |
+| Distill-Qwen-14B  | 69.7             | 93.9            | 59.1                | 53.1                 |
+| Distill-Qwen-32B  | 72.6             | 94.3            | 62.1                | 57.2                 |
+| Distill-Llama-8B  | 50.4             | 89.1            | 49.0                | 39.6                 |
+| Distill-Llama-70B | 70.0             | 94.5            | 65.2                | 57.5                 |
 
 作为参照，o1-mini 与 QwQ-32B-Preview 在同一组 benchmark 上的成绩如下：
 

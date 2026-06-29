@@ -12,7 +12,7 @@
 
 ## 第1章：论文概述与核心贡献
 
-现代生成式世界模型（generative world model）能够渲染高度逼真、动作可控的未来帧序列。论文从摘要即点明这类模型的一个核心缺陷：rollout **视觉上流畅（visually fluent）却偏离真实动力学（drift from ground-truth dynamics）**。作者将这种失败命名为 **hallucination（幻觉）**——该术语借自语言模型文献 [Ji et al., 2023; Huang et al., 2025]，但论文强调在世界模型中后果更为严重：幻觉轨迹会被直接喂给下游规划器与策略 [Schrittwieser et al., 2020; Hafner et al., 2023]，因此 rollout 期间的静默幻觉会直接转化为控制阶段的静默错误决策。
+现代生成式世界模型（generative world model）能够渲染高度逼真、动作可控的未来帧序列。论文从摘要即点明这类模型的一个核心缺陷：rollout **视觉上流畅（visually fluent）却偏离真实动力学（drift from ground-truth dynamics）**。作者将这种失败命名为 **hallucination（幻觉）**——该术语借自语言模型文献 \[Ji et al., 2023; Huang et al., 2025\]，但论文强调在世界模型中后果更为严重：幻觉轨迹会被直接喂给下游规划器与策略 \[Schrittwieser et al., 2020; Hafner et al., 2023\]，因此 rollout 期间的静默幻觉会直接转化为控制阶段的静默错误决策。
 
 ### 1.1 核心论点
 
@@ -20,7 +20,7 @@
 
 > Hallucination in world models is **inherently a data coverage issue**, and the same signals used to detect it can also be used for mitigation.
 
-这与主流直觉形成对照——一种自然解读把幻觉视作**架构问题**，认为靠更大骨干网络与更多训练算力即可解决 [Hoffmann et al., 2022]。论文反驳这一观点：幻觉**集中在状态-动作空间的低覆盖区域** [Levine et al., 2020; Gadre et al., 2023]，因而（1）可由运行时可得的轻量信号预测，（2）可通过调整训练数据的采样而非改造架构来预防。实验进一步揭示：**单一根源——覆盖缺口——解释了模型流水线每个阶段**（tokenizer、动作条件、多步 rollout）的失败，并以三种不同的失效模式呈现（Figure 1）。
+这与主流直觉形成对照——一种自然解读把幻觉视作**架构问题**，认为靠更大骨干网络与更多训练算力即可解决 \[Hoffmann et al., 2022\]。论文反驳这一观点：幻觉**集中在状态-动作空间的低覆盖区域** \[Levine et al., 2020; Gadre et al., 2023\]，因而（1）可由运行时可得的轻量信号预测，（2）可通过调整训练数据的采样而非改造架构来预防。实验进一步揭示：**单一根源——覆盖缺口——解释了模型流水线每个阶段**（tokenizer、动作条件、多步 rollout）的失败，并以三种不同的失效模式呈现（Figure 1）。
 
 ### 1.2 主要贡献清单
 
@@ -40,11 +40,11 @@
 
 ### 2.1 现代生成式世界模型的能力现状
 
-相关工作章节（Appendix A）梳理了世界模型的两条脉络。一是抽象 latent 动力学模型 [Ha and Schmidhuber, 2018; Hafner et al., 2020, 2023; Hansen et al., 2022, 2024]；二是渲染完整像素观测的高容量生成模型 [Micheli et al., 2023; Alonso et al., 2024; Valevski et al., 2024]。近作进一步将规模推向异构视频语料 [Bruce et al., 2024; NVIDIA, 2025; Wan et al., 2025] 与实时可玩的神经环境 [Quevedo et al., 2024; Rami, 2024; Parker-Holder et al., 2025]。本文的 350M 模型直接基于 **Dreamer 4** [Hafner et al., 2025]——一种集成 tokenizer+dynamics、强动作条件化的架构，但作者强调其提出的信号与干预手段**本质上是模型无关的**，原则上适用于任何现代生成式世界模型。
+相关工作章节（Appendix A）梳理了世界模型的两条脉络。一是抽象 latent 动力学模型 \[Ha and Schmidhuber, 2018; Hafner et al., 2020, 2023; Hansen et al., 2022, 2024\]；二是渲染完整像素观测的高容量生成模型 \[Micheli et al., 2023; Alonso et al., 2024; Valevski et al., 2024\]。近作进一步将规模推向异构视频语料 \[Bruce et al., 2024; NVIDIA, 2025; Wan et al., 2025\] 与实时可玩的神经环境 \[Quevedo et al., 2024; Rami, 2024; Parker-Holder et al., 2025\]。本文的 350M 模型直接基于 **Dreamer 4** \[Hafner et al., 2025\]——一种集成 tokenizer+dynamics、强动作条件化的架构，但作者强调其提出的信号与干预手段**本质上是模型无关的**，原则上适用于任何现代生成式世界模型。
 
 ### 2.2 幻觉问题的严重性与研究空白
 
-幻觉已在语言模型 [Ji et al., 2023; Huang et al., 2025]、图像 [Li et al., 2023] 与视频生成 [Huang et al., 2024] 中被广泛研究。但论文指出一个被忽视的问题：**自回归世界模型会在 rollout 的哪个位置、为何失败，目前所知甚少**。Introduction 将此归因于理解幻觉所需的三类资源缺一不可、而现有任一基准都不具备：
+幻觉已在语言模型 \[Ji et al., 2023; Huang et al., 2025\]、图像 \[Li et al., 2023\] 与视频生成 \[Huang et al., 2024\] 中被广泛研究。但论文指出一个被忽视的问题：**自回归世界模型会在 rollout 的哪个位置、为何失败，目前所知甚少**。Introduction 将此归因于理解幻觉所需的三类资源缺一不可、而现有任一基准都不具备：
 
 - 对训练语料的完全控制；
 - 跨越多任务、多领域的行为多样化数据；
@@ -56,9 +56,9 @@
 
 论文从两条相邻文献归纳出"现有方法为何不足"：
 
-**不确定性估计文献**通过 deep ensembles [Lakshminarayanan et al., 2017]、MC dropout [Gal and Ghahramani, 2016]、post-hoc OOD 检测器 [Lee et al., 2018; Liu et al., 2020]，以及离线 model-based RL 中基于不确定性的惩罚策略 [Yu et al., 2020; Kidambi et al., 2020] 来刻画不确定性；Plan2Explore [Sekar et al., 2020] 等工作用 ensemble disagreement 作为单任务 RL 的探索信号。相比之下，本文的预测器**直接派生自现有世界模型、针对生成式世界模型会幻觉的三个阶段**（encoder、dynamics、decoder），既不需要辅助网络也不需要标签。
+**不确定性估计文献**通过 deep ensembles \[Lakshminarayanan et al., 2017\]、MC dropout \[Gal and Ghahramani, 2016\]、post-hoc OOD 检测器 \[Lee et al., 2018; Liu et al., 2020\]，以及离线 model-based RL 中基于不确定性的惩罚策略 \[Yu et al., 2020; Kidambi et al., 2020\] 来刻画不确定性；Plan2Explore \[Sekar et al., 2020\] 等工作用 ensemble disagreement 作为单任务 RL 的探索信号。相比之下，本文的预测器**直接派生自现有世界模型、针对生成式世界模型会幻觉的三个阶段**（encoder、dynamics、decoder），既不需要辅助网络也不需要标签。
 
-**覆盖感知训练与数据收集文献**认为数据规模与组成是生成模型性能的一阶杠杆 [Hoffmann et al., 2022; Gadre et al., 2023]；离线 RL 中数据覆盖已被证明约束策略改进 [Levine et al., 2020; Kumar et al., 2020]，催生了 ExoRL、RLUnplugged、V-D4RL 等精选数据集；好奇心驱动探索 [Pathak et al., 2017, 2019; Burda et al., 2019] 是其在线对应物。本文将好奇心机制从"驱动单任务策略探索"改造为"为生成式世界建模收集数据"，并以两种互补方式落地：均匀任务重采样，以及把预测器用作好奇心奖励。
+**覆盖感知训练与数据收集文献**认为数据规模与组成是生成模型性能的一阶杠杆 \[Hoffmann et al., 2022; Gadre et al., 2023\]；离线 RL 中数据覆盖已被证明约束策略改进 \[Levine et al., 2020; Kumar et al., 2020\]，催生了 ExoRL、RLUnplugged、V-D4RL 等精选数据集；好奇心驱动探索 \[Pathak et al., 2017, 2019; Burda et al., 2019\] 是其在线对应物。本文将好奇心机制从"驱动单任务策略探索"改造为"为生成式世界建模收集数据"，并以两种互补方式落地：均匀任务重采样，以及把预测器用作好奇心奖励。
 
 ---
 
@@ -66,7 +66,7 @@
 
 ### 3.1 MMBench2 数据集
 
-MMBench2 在 MMBench [Hansen et al., 2026]（200 任务在线 RL 基准，提供 4k 专家演示与 live 环境）之上扩展，提供 65,600 条轨迹、427 小时 224×224、15fps 视频（合计 23M 帧），跨 210 个连续控制任务、10 个领域。其与既有数据集的差异（Table 4）在于**同时**满足：ground-truth 动作与奖励标签、每个任务均有 live 模拟器、混合质量行为、跨任务领域与具身的广覆盖。
+MMBench2 在 MMBench \[Hansen et al., 2026\]（200 任务在线 RL 基准，提供 4k 专家演示与 live 环境）之上扩展，提供 65,600 条轨迹、427 小时 224×224、15fps 视频（合计 23M 帧），跨 210 个连续控制任务、10 个领域。其与既有数据集的差异（Table 4）在于**同时**满足：ground-truth 动作与奖励标签、每个任务均有 live 模拟器、混合质量行为、跨任务领域与具身的广覆盖。
 
 **任务构成**。10 个领域为：DMControl、DMControl Extended、Meta-World、ManiSkill3、MuJoCo、MiniArcade、Box2D、RoboDesk、OGBench、Continuous Atari（CALE）。Table 5 给出每个领域的任务数、动作维度区间、回合长度区间与奖励形式：
 
@@ -103,13 +103,13 @@ MMBench2 在 MMBench [Hansen et al., 2026]（200 任务在线 RL 基准，提供
 
 模型遵循 Dreamer 4 的两阶段范式：先训练 video tokenizer（基于掩码自编码），再在冻结 tokenizer 产出的空间 latent token 上训练基于 block-causal Transformer、用 shortcut flow-matching 训练的 dynamics 模型。总参数 350M，由三部分构成。
 
-**Tokenizer（2×50M ≈ 100M）**。非对称 encoder–decoder Transformer。Encoder 对 224×224 帧以 stride 14 做 patchify（每帧 256 个 patch token），前置 64 个可学习 latent query，将 latent 流投影到 **tanh 限制的 64 维 bottleneck**，得到每帧 code $z \in [-1,1]^{64\times 64}$（即 4,096 维 latent/帧）。Decoder 仅依据 latent code 重建图像。训练目标为掩码重建 [He et al., 2022]：每帧从 $U(0,0.9)$ 采样被掩码 patch 比例并替换为可学习 mask token，损失（pixel MSE + LPIPS [Zhang et al., 2018]）仅在掩码位置计算。Table 12 的超参数：embedding dim 512、heads 8、depth 12、MLP ratio 4、latent 数 64、bottleneck dim 64、MAE keep range [0.1, 1.0]、LPIPS 权重 0.2。Encoder 与 Decoder 各 50M 参数。
+**Tokenizer（2×50M ≈ 100M）**。非对称 encoder–decoder Transformer。Encoder 对 224×224 帧以 stride 14 做 patchify（每帧 256 个 patch token），前置 64 个可学习 latent query，将 latent 流投影到 **tanh 限制的 64 维 bottleneck**，得到每帧 code $z \in [-1,1]^{64\times 64}$（即 4,096 维 latent/帧）。Decoder 仅依据 latent code 重建图像。训练目标为掩码重建 \[He et al., 2022\]：每帧从 $U(0,0.9)$ 采样被掩码 patch 比例并替换为可学习 mask token，损失（pixel MSE + LPIPS \[Zhang et al., 2018\]）仅在掩码位置计算。Table 12 的超参数：embedding dim 512、heads 8、depth 12、MLP ratio 4、latent 数 64、bottleneck dim 64、MAE keep range \[0.1, 1.0\]、LPIPS 权重 0.2。Encoder 与 Decoder 各 50M 参数。
 
-**Dynamics model（~230M，含预测头共 250M）**。block-causal Transformer，每个 timestep 的输入序列为 `[ACTION×1, SHORTCUT×1, SPATIAL×32, REGISTER×4, AGENT×4]`：action token 由 16 维 padded action 经 2 层 MLP 得到；shortcut-conditioning token 拼接离散化噪声水平 σ 与步长 $d=1/2^{step}$ 两路嵌入；spatial token 是经 factor k=2 空间打包后的 latent（(64,64)→(32,128)，把空间轴注意力成本减半、通道维翻倍，decode 时做逆解包）；register token [Darcet et al., 2024] 为 4 个可学习 "sink" token；agent token 由逐任务 CLIP 嵌入广播到时间轴初始化，作为 reward/BC 头的读出。Table 12：embedding dim 1024、heads 8、depth 16、MLP ratio 4、self-consistency fraction 0.25、context corruption τ_ctx=0.1。模型以 shortcut flow-matching [Frans et al., 2025] 训练，下一帧采样**最少 4 个 Euler 子步**即可完成（实现配置见 §3.3）。
+**Dynamics model（~230M，含预测头共 250M）**。block-causal Transformer，每个 timestep 的输入序列为 `[ACTION×1, SHORTCUT×1, SPATIAL×32, REGISTER×4, AGENT×4]`：action token 由 16 维 padded action 经 2 层 MLP 得到；shortcut-conditioning token 拼接离散化噪声水平 σ 与步长 $d=1/2^{step}$ 两路嵌入；spatial token 是经 factor k=2 空间打包后的 latent（(64,64)→(32,128)，把空间轴注意力成本减半、通道维翻倍，decode 时做逆解包）；register token \[Darcet et al., 2024\] 为 4 个可学习 "sink" token；agent token 由逐任务 CLIP 嵌入广播到时间轴初始化，作为 reward/BC 头的读出。Table 12：embedding dim 1024、heads 8、depth 16、MLP ratio 4、self-consistency fraction 0.25、context corruption τ_ctx=0.1。模型以 shortcut flow-matching \[Frans et al., 2025\] 训练，下一帧采样**最少 4 个 Euler 子步**即可完成（实现配置见 §3.3）。
 
 **Heads（~20M）**。Reward predictor：经 agent token 的 attention pooling 读出，预测 L=8 多步 symlog two-hot 分布，255 个 bin，范围 [−10,10]，梯度回传穿过 dynamics 模型。BC policy：确定性高斯策略（对角协方差），MSE 损失预测 16 维 ground-truth 动作——这是对 Dreamer 4（仅考虑离散动作）的偏离。两个头都以 CLIP-ViT/B 嵌入（openai/clip-vit-base-patch32，512 维）的逐任务语言指令为条件。
 
-**Block-causal 层与注意力设计**。每层由空间自注意力（per-frame token 序列）、因果时间自注意力（沿时间轴）与 SiLU-gated MLP（ratio 4）组成；注意力使用 RoPE [Su et al., 2024]、QK-normalization [Henry et al., 2020]、RMSNorm [Zhang and Sennrich, 2019] 预归一化且归一化层无 bias。Tokenizer 中采用 modality-aware mask：encoder 中 latent query 可见所有 token、patch query 仅在图像模态内自注意；decoder 中方向反转。Dynamics 中 action/shortcut/spatial/register token 互相可见，而 agent token 非对称隔离（agent query 可见一切，非 agent query 看不到 agent 的 key）。
+**Block-causal 层与注意力设计**。每层由空间自注意力（per-frame token 序列）、因果时间自注意力（沿时间轴）与 SiLU-gated MLP（ratio 4）组成；注意力使用 RoPE \[Su et al., 2024\]、QK-normalization \[Henry et al., 2020\]、RMSNorm \[Zhang and Sennrich, 2019\] 预归一化且归一化层无 bias。Tokenizer 中采用 modality-aware mask：encoder 中 latent query 可见所有 token、patch query 仅在图像模态内自注意；decoder 中方向反转。Dynamics 中 action/shortcut/spatial/register token 互相可见，而 agent token 非对称隔离（agent query 可见一切，非 agent query 看不到 agent 的 key）。
 
 ### 3.3 训练配置
 
@@ -260,7 +260,7 @@ Discussion 部分回答"为何不同数据源信息量不同"：世界建模需�
 
 ## 第6章：代码实现详解
 
-> 本章依据论文官方仓库 https://github.com/nicklashansen/mmbench2 的 README 结构梳理（仓库结构与训练流程信息来自研究材料的 README 摘要）。论文 PDF 附录 F（Implementation Details）提供了与代码对应的实现细节，已在第 3 章给出。**下列代码片段为概念示意，旨在把论文公式落到可读伪代码，并非从官方源码逐行复制——请勿当作官方实现引用。**
+> 本章依据论文官方仓库 [MMBench2](https://github.com/nicklashansen/mmbench2) 的 README 结构梳理（仓库结构与训练流程信息来自研究材料的 README 摘要）。论文 PDF 附录 F（Implementation Details）提供了与代码对应的实现细节，已在第 3 章给出。**下列代码片段为概念示意，旨在把论文公式落到可读伪代码，并非从官方源码逐行复制——请勿当作官方实现引用。**
 
 ### 6.1 仓库结构
 
@@ -344,7 +344,7 @@ def shortcut_euler_sample(x_hat1_fn, sigma, d=0.125, K=8):
 
 1. **阶段一 tokenizer 预训练**：`train_tokenizer.py`，全训练语料，MAE+LPIPS、各损失项 running-RMS 归一化、300k 步 / 14 GPU days、有效 batch 96。
 2. **阶段二 dynamics 预训练**：`train_dynamics.py`，冻结 tokenizer，shortcut flow-matching（self-consistency fraction 0.25）、context T=24、180k 步 / 24 GPU days、有效 batch 512。
-3. **中期训练/微调**：覆盖感知训练（跨任务均匀采样）把 tokenizer、dynamics 各延长 30k 步；reward/BC 头在预训练后初始化（reward 梯度回传穿过 dynamics，L=8 symlog two-hot，255 bin，[−10,10]；BC 确定性高斯 + MSE）。
+3. **中期训练/微调**：覆盖感知训练（跨任务均匀采样）把 tokenizer、dynamics 各延长 30k 步；reward/BC 头在预训练后初始化（reward 梯度回传穿过 dynamics，L=8 symlog two-hot，255 bin，\[−10,10\]；BC 确定性高斯 + MSE）。
 4. **定向数据收集**：`curiosity.py` 以 $u_{\mathrm{norm},r}$ 为目标、CEM（H=32、每 16 步重规划）规划候选轨迹并在 live 环境执行，每任务 50 回合。
 
 ### 6.4 运行交互式界面
@@ -367,14 +367,107 @@ def shortcut_euler_sample(x_hat1_fn, sigma, d=0.125, K=8):
 
 Conclusion 指出：幻觉**首要是一个数据覆盖问题**，三预测器以 ρ≈−0.80 追踪 rollout ΔPSNR，并衍生两条互补配方（覆盖感知采样同时降低三类失效；把预测器用作好奇心奖励使预训练模型迁移到完全未见任务）。Discussion 进一步抛出"如何更好评估世界模型"的开放问题——下游任务目标导向、分布窄，意味着某些行为比其他行为更值得建模，评估口径需重新审视。
 
-### 7.3 延伸阅读（基于论文参考文献）
+### 7.3 完整参考文献
 
-- **世界模型主线**：Dreamer 系列 [Hafner et al., 2020, 2023, 2025]、TD-MPC2 [Hansen et al., 2024]、MMBench [Hansen et al., 2026]；像素级生成世界模型 DIAMOND [Alonso et al., 2024]、GameNGen [Valevski et al., 2024]、IRIS [Micheli et al., 2023]；Genie 系列 [Bruce et al., 2024; Parker-Holder et al., 2025]。
-- **幻觉与不确定性**：LLM 幻觉综述 [Ji et al., 2023; Huang et al., 2025]、图像/视频幻觉 [Li et al., 2023; Huang et al., 2024]；不确定性估计 deep ensembles [Lakshminarayanan et al., 2017]、MC dropout [Gal and Ghahramani, 2016]、OOD 检测 [Lee et al., 2018; Liu et al., 2020]。
-- **覆盖与探索**：离线 RL 数据覆盖 [Levine et al., 2020; Kumar et al., 2020]、DataComp [Gadre et al., 2023]、计算最优 [Hoffmann et al., 2022]；好奇心探索 [Pathak et al., 2017, 2019; Burda et al., 2019]、Plan2Explore [Sekar et al., 2020]。
-- **生成式视频/世界模型骨干**：shortcut models [Frans et al., 2025]、Cosmos [NVIDIA, 2025]、Wan [Wan et al., 2025]、MAE [He et al., 2022]、registers [Darcet et al., 2024]、RoPE [Su et al., 2024]、RMSNorm [Zhang and Sennrich, 2019]、LPIPS [Zhang et al., 2018]、CLIP [Radford et al., 2021]。
-- **数据集与基准**：RLUnplugged、V-D4RL、ExoRL、Atari DQN-Replay、RoboNet、BridgeDataV2、DROID、OpenX-Embodiment、VPT、NitroGen。
+> 以下为论文完整参考文献列表，按原文顺序排列。
+
+1. Rishabh Agarwal, Dale Schuurmans, and Mohammad Norouzi. An optimistic perspective on offline reinforcement learning. In *International Conference on Machine Learning*, pages 104–114. PMLR, 2020.
+2. Eloi Alonso, Adam Jelley, Vincent Micheli, Anssi Kanervisto, Amos Storkey, Tim Pearce, and François Fleuret. Diffusion for world modeling: Visual details matter in atari. In *Thirty-eighth Conference on Neural Information Processing Systems*, 2024.
+3. Bowen Baker, Ilge Akkaya, Peter Zhokov, Joost Huizinga, Jie Tang, Adrien Ecoffet, Brandon Houghton, Raul Sampedro, and Jeff Clune. Video pretraining (VPT): Learning to act by watching unlabeled online videos. *Advances in Neural Information Processing Systems*, 35:24639–24654, 2022.
+4. Greg Brockman, Vicki Cheung, Ludwig Pettersson, Jonas Schneider, John Schulman, Jie Tang, and Wojciech Zaremba. OpenAI Gym, 2016.
+5. Jake Bruce, Michael D Dennis, Ashley Edwards, Jack Parker-Holder, Yuge Shi, Edward Hughes, Matthew Lai, Aditi Mavalankar, Richie Steigerwald, Chris Apps, et al. Genie: Generative interactive environments. In *Forty-first International Conference on Machine Learning*, 2024.
+6. Yuri Burda, Harrison Edwards, Amos Storkey, and Oleg Klimov. Exploration by random network distillation. In *International Conference on Learning Representations (ICLR)*, 2019.
+7. Kurtland Chua, Roberto Calandra, Rowan McAllister, and Sergey Levine. Deep reinforcement learning in a handful of trials using probabilistic dynamics models. In *NeurIPS*, 2018.
+8. Timothée Darcet, Maxime Oquab, Julien Mairal, and Piotr Bojanowski. Vision transformers need registers. In *International Conference on Learning Representations (ICLR)*, 2024.
+9. Sudeep Dasari, Frederik Ebert, Stephen Tian, Suraj Nair, Bernadette Bucher, Karl Schmeckpeper, Siddharth Singh, Sergey Levine, and Chelsea Finn. RoboNet: Large-scale multi-robot learning. In *Conference on Robot Learning*, pages 885–897. PMLR, 2019.
+10. Jesse Farebrother and Pablo Samuel Castro. CALE: Continuous arcade learning environment. *Advances in Neural Information Processing Systems*, 37:134927–134946, 2024.
+11. Kevin Frans, Danijar Hafner, Sergey Levine, and Pieter Abbeel. One step diffusion via shortcut models. In *The Thirteenth International Conference on Learning Representations*, 2025.
+12. Samir Yitzhak Gadre, Gabriel Ilharco, Alex Fang, Jonathan Hayase, Georgios Smyrnis, Thao Nguyen, Ryan Marten, Mitchell Wortsman, Dhruba Ghosh, Jieyu Zhang, et al. DataComp: In search of the next generation of multimodal datasets. *Advances in Neural Information Processing Systems*, 36:27092–27112, 2023.
+13. Yarin Gal and Zoubin Ghahramani. Dropout as a Bayesian approximation: Representing model uncertainty in deep learning. In *Proceedings of the 33rd International Conference on Machine Learning (ICML)*, volume 48, pages 1050–1059, 2016.
+14. Caglar Gulcehre, Ziyu Wang, Alexander Novikov, Thomas Paine, Sergio Gómez, Konrad Zolna, Rishabh Agarwal, Josh S. Merel, Daniel J. Mankowitz, Cosmin Paduraru, Gabriel Dulac-Arnold, Jerry Li, Mohammad Norouzi, Matthew Hoffman, Nicolas Heess, and Nando de Freitas. RL Unplugged: A suite of benchmarks for offline reinforcement learning. In *Advances in Neural Information Processing Systems (NeurIPS)*, 2020.
+15. David Ha and Jürgen Schmidhuber. Recurrent world models facilitate policy evolution. In *Advances in Neural Information Processing Systems 31*, pages 2451–2463. Curran Associates, Inc., 2018.
+16. Danijar Hafner, Timothy P. Lillicrap, Jimmy Ba, and Mohammad Norouzi. Dream to control: Learning behaviors by latent imagination. *ArXiv*, abs/1912.01603, 2020.
+17. Danijar Hafner, Jurgis Pasukonis, Jimmy Ba, and Timothy Lillicrap. Mastering diverse domains through world models. *arXiv preprint arXiv:2301.04104*, 2023.
+18. Danijar Hafner, Wilson Yan, and Timothy Lillicrap. Training agents inside of scalable world models. *arXiv preprint arXiv:2509.24527*, 2025.
+19. Nicklas Hansen, Xiaolong Wang, and Hao Su. Temporal difference learning for model predictive control. In *International Conference on Machine Learning*, 2022.
+20. Nicklas Hansen, Hao Su, and Xiaolong Wang. TD-MPC2: Scalable, robust world models for continuous control. In *International Conference on Learning Representations (ICLR)*, 2024.
+21. Nicklas Hansen, Hao Su, and Xiaolong Wang. Learning massively multitask world models for continuous control. In *International Conference on Learning Representations (ICLR)*, 2026.
+22. Kaiming He, Xinlei Chen, Saining Xie, Yanghao Li, Piotr Dollár, and Ross Girshick. Masked autoencoders are scalable vision learners. In *Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition*, pages 16000–16009, 2022.
+23. Alex Henry, Prudhvi Raj Dachapally, Shubham Shantaram Pawar, and Yuxuan Chen. Query-key normalization for transformers. In *Findings of the Association for Computational Linguistics: EMNLP 2020*, pages 4246–4253, 2020.
+24. Jordan Hoffmann, Sebastian Borgeaud, Arthur Mensch, Elena Buchatskaya, Trevor Cai, Eliza Rutherford, DDL Casas, Lisa Anne Hendricks, Johannes Welbl, Aidan Clark, et al. Training compute-optimal large language models. *arXiv preprint arXiv:2203.15556*, 10, 2022.
+25. Lei Huang, Weijiang Yu, Weitao Ma, Weihong Zhong, Zhangyin Feng, Haotian Wang, Qianglong Chen, Weihua Peng, Xiaocheng Feng, Bing Qin, and Ting Liu. A survey on hallucination in large language models: Principles, taxonomy, challenges, and open questions. *ACM Transactions on Information Systems*, 43(2):1–55, 2025. doi: 10.1145/3703155.
+26. Ziqi Huang, Yinan He, Jiashuo Yu, Fan Zhang, Chenyang Si, Yuming Jiang, Yuanhan Zhang, Tianxing Wu, Qingyang Jin, Nattapol Chanpaisit, Yaohui Wang, Xinyuan Chen, Limin Wang, Dahua Lin, Yu Qiao, and Ziwei Liu. VBench: Comprehensive benchmark suite for video generative models. In *Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)*, 2024.
+27. Michael Janner, Justin Fu, Marvin Zhang, and Sergey Levine. When to trust your model: Model-based policy optimization. *ArXiv*, abs/1906.08253, 2019.
+28. Ziwei Ji, Nayeon Lee, Rita Frieske, Tiezheng Yu, Dan Su, Yan Xu, Etsuko Ishii, Yejin Bang, Andrea Madotto, and Pascale Fung. Survey of hallucination in natural language generation. *ACM Computing Surveys*, 55(12):1–38, 2023. doi: 10.1145/3571730.
+29. Harini Kannan, Danijar Hafner, Chelsea Finn, and Dumitru Erhan. RoboDesk: A multi-task reinforcement learning benchmark. <https://github.com/google-research/robodesk>, 2021.
+30. Alexander Khazatsky, Karl Pertsch, Suraj Nair, et al. DROID: A large-scale in-the-wild robot manipulation dataset. 2024.
+31. Rahul Kidambi, Aravind Rajeswaran, Praneeth Netrapalli, and Thorsten Joachims. MOREL: Model-based offline reinforcement learning. *Advances in Neural Information Processing Systems*, 33:21810–21823, 2020.
+32. Aviral Kumar, Aurick Zhou, George Tucker, and Sergey Levine. Conservative Q-learning for offline reinforcement learning. In *Advances in Neural Information Processing Systems (NeurIPS)*, 2020.
+33. Balaji Lakshminarayanan, Alexander Pritzel, and Charles Blundell. Simple and scalable predictive uncertainty estimation using deep ensembles. In *Advances in Neural Information Processing Systems (NeurIPS)*, 2017.
+34. Kimin Lee, Kibok Lee, Honglak Lee, and Jinwoo Shin. A simple unified framework for detecting out-of-distribution samples and adversarial attacks. In *Advances in Neural Information Processing Systems (NeurIPS)*, 2018.
+35. Sergey Levine, Aviral Kumar, George Tucker, and Justin Fu. Offline reinforcement learning: Tutorial, review, and perspectives on open problems. *arXiv preprint arXiv:2005.01643*, 2020.
+36. Yifan Li, Yifan Du, Kun Zhou, Jinpeng Wang, Wayne Xin Zhao, and Ji-Rong Wen. Evaluating object hallucination in large vision-language models. In *Proceedings of the 2023 Conference on Empirical Methods in Natural Language Processing (EMNLP)*, 2023.
+37. Weitang Liu, Xiaoyun Wang, John D. Owens, and Yixuan Li. Energy-based out-of-distribution detection. In *Advances in Neural Information Processing Systems (NeurIPS)*, 2020.
+38. Cong Lu, Philip J. Ball, Tim G. J. Rudner, Jack Parker-Holder, Michael A. Osborne, and Yee Whye Teh. Challenges and opportunities in offline reinforcement learning from visual observations. *Transactions on Machine Learning Research*, 2023.
+39. Loïc Magne, Anas Awadalla, Guanzhi Wang, Yinzhen Xu, Joshua Belofsky, Fengyuan Hu, Joohwan Kim, Ludwig Schmidt, Georgia Gkioxari, Jan Kautz, Yisong Yue, Yejin Choi, Yuke Zhu, and Linxi "Jim" Fan. NitroGen: An open foundation model for generalist gaming agents, 2026.
+40. Vincent Micheli, Eloi Alonso, and François Fleuret. Transformers are sample-efficient world models. In *The Eleventh International Conference on Learning Representations*, 2023.
+41. NVIDIA. Cosmos world foundation model platform for physical AI. *arXiv preprint arXiv:2501.03575*, 2025.
+42. Open X-Embodiment Collaboration. Open X-Embodiment: Robotic learning datasets and RT-X models. <https://arxiv.org/abs/2310.08864>, 2023.
+43. Seohong Park, Kevin Frans, Benjamin Eysenbach, and Sergey Levine. OGBench: Benchmarking offline goal-conditioned RL. In *International Conference on Learning Representations (ICLR)*, 2025.
+44. Jack Parker-Holder, Shlomi Fruchter, and Google DeepMind. Genie 3: A new frontier for world models. *Google DeepMind Blog*, August 2025.
+45. Deepak Pathak, Pulkit Agrawal, Alexei A Efros, and Trevor Darrell. Curiosity-driven exploration by self-supervised prediction. In *International Conference on Machine Learning*, pages 2778–2787. PMLR, 2017.
+46. Deepak Pathak, Dhiraj Gandhi, and Abhinav Gupta. Self-supervised exploration via disagreement. In *Proceedings of the 36th International Conference on Machine Learning (ICML)*, 2019.
+47. Julian Quevedo, Quinn McIntyre, Spruce Campbell, Xinlei Chen, Robert Wachen, Decart, and Etched. Oasis: A universe in a transformer. Decart, October 2024.
+48. Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, et al. Learning transferable visual models from natural language supervision. In *International Conference on Machine Learning*, pages 8748–8763. PMLR, 2021.
+49. Rami. Lucid v1: A world model that does go brrr on consumer hardware. Substack, November 2024.
+50. Julian Schrittwieser, Ioannis Antonoglou, Thomas Hubert, Karen Simonyan, Laurent Sifre, Simon Schmitt, Arthur Guez, Edward Lockhart, Demis Hassabis, Thore Graepel, et al. Mastering Atari, Go, Chess and Shogi by planning with a learned model. *Nature*, 588(7839):604–609, 2020.
+51. Ramanan Sekar, Oleh Rybkin, Kostas Daniilidis, Pieter Abbeel, Danijar Hafner, and Deepak Pathak. Planning to explore via self-supervised world models. In *Proceedings of the 37th International Conference on Machine Learning*, volume 119, pages 8583–8592. PMLR, 2020.
+52. Jianlin Su, Yu Lu, Shengfeng Pan, Ahmed Murtadha, Bo Wen, and Yunfeng Liu. RoFormer: Enhanced transformer with rotary position embedding. *Neurocomputing*, 568:127063, 2024.
+53. Stone Tao, Fanbo Xiang, Arth Shukla, et al. ManiSkill3: GPU parallelized robotics simulation and rendering for generalizable embodied AI. *Robotics: Science and Systems*, 2025.
+54. Yuval Tassa, Yotam Doron, Alistair Muldal, Tom Erez, Yazhe Li, Diego de Las Casas, David Budden, Abbas Abdolmaleki, et al. DeepMind Control Suite. Technical report, DeepMind, 2018.
+55. Emanuel Todorov, Tom Erez, and Yuval Tassa. MuJoCo: A physics engine for model-based control. In *2012 IEEE/RSJ International Conference on Intelligent Robots and Systems*, pages 5026–5033. IEEE, 2012.
+56. Dani Valevski, Yaniv Leviathan, Moab Arar, and Shlomi Fruchter. Diffusion models are real-time game engines, 2024.
+57. Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez, Lukasz Kaiser, and Illia Polosukhin. Attention is all you need. *Advances in Neural Information Processing Systems*, 30, 2017.
+58. Homer Walke, Kevin Black, Abraham Lee, Moo Jin Kim, Max Du, Chongyi Zheng, Tony Zhao, Philippe Hansen-Estruch, Quan Vuong, Andre He, Vivek Myers, Kuan Fang, Chelsea Finn, and Sergey Levine. BridgeData V2: A dataset for robot learning at scale. In *Conference on Robot Learning*, pages 1723–1736. PMLR, 2023.
+59. Team Wan, Ang Wang, Baole Ai, et al. Wan: Open and advanced large-scale video generative models. *arXiv preprint arXiv:2503.20314*, 2025.
+60. Denis Yarats, David Brandfonbrener, Hao Liu, Michael Laskin, Pieter Abbeel, Alessandro Lazaric, and Lerrel Pinto. Don't change the algorithm, change the data: Exploratory data for offline reinforcement learning. In *International Conference on Learning Representations (ICLR)*, 2022.
+61. Tianhe Yu, Deirdre Quillen, Zhanpeng He, Ryan Julian, Karol Hausman, Chelsea Finn, and Sergey Levine. Meta-World: A benchmark and evaluation for multi-task and meta reinforcement learning. In *Conference on Robot Learning*, 2019.
+62. Tianhe Yu, Garrett Thomas, Lantao Yu, Stefano Ermon, James Zou, Sergey Levine, Chelsea Finn, and Tengyu Ma. MOPO: Model-based offline policy optimization. In *Advances in Neural Information Processing Systems (NeurIPS)*, 2020.
+63. Biao Zhang and Rico Sennrich. Root mean square layer normalization. In *Advances in Neural Information Processing Systems (NeurIPS)*, 2019.
+64. Richard Zhang, Phillip Isola, Alexei A Efros, Eli Shechtman, and Oliver Wang. The unreasonable effectiveness of deep features as a perceptual metric. In *Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition*, pages 586–595, 2018.
+
+### 7.4 补充附录：微调任务列表与消融实验
+
+**微调任务列表（Table 6）**。论文在 seen + unseen 共 20 个任务上进行微调实验：
+
+| 类别 | 任务名 | 领域 |
+|------|--------|------|
+| Seen | cup-catch, finger-turn-easy, mw-push, ms-push-cube, lunarlander-hover, og-point-maze, og-point-bottleneck, pygame-point-maze-var1, pygame-pong, pygame-bird-attack | DMControl / Meta-World / ManiSkill / Box2D / OGBench / MiniArcade |
+| Unseen | cup-catch-var1, finger-turn-easy-var1, ms-push-banana, og-point-var1, og-point-var2, pygame-point-maze-var4, pygame-reacher-easy, pygame-dungeon-explorer1, pygame-foraging, pygame-whirlpool | DMControl / ManiSkill / OGBench / MiniArcade |
+
+**专家测试集与人类测试集消融（Table 8/9）**。Table 2 报告的离线指标在专家轨迹与人类数据等量混合的测试集上计算。论文 Table 8（仅专家测试集）与 Table 9（仅人类测试集）的 MPC 性能一致（均为 0.325 for curiosity），表明好奇心策略在两种分布上均有鲁棒表现。
+
+**Reward 微调的影响（Table 11）**。是否在 dynamics 训练中联合训练 reward head（梯度回传至 dynamics）对结果无显著影响：Rollout ΔPSNR 3.01 vs 3.14（无 reward vs 有 reward），表明 reward-free control 即可获得接近的性能。
+
+**完整超参数表（Table 12）**。已整合于 §3.2–§3.3 架构与训练配置部分。
+
+### 7.5 公式与代码校验
+
+> 以下校验基于 PDF 原文逐项比对，确认 MD 文档中的公式和代码正确。
+
+| 公式/代码 | 原文定义 | MD 实现 | 结论 |
+|-----------|---------|---------|------|
+| $u_r = \|\hat{z} - \mathrm{Encode}(\mathrm{Decode}(\hat{z}))\|$ | §4.2 "the latent-space residual of a single decode→encode round-trip" | `tokenizer_round_trip_residual` 计算 `(z_hat - z_re).norm(dim=-1)` | ✅ |
+| $u_f$：相邻 Euler 子步间 $\hat{x}_1$ 变化，后半段取平均 | §4.2 "how much the denoiser's clean-target prediction moves between successive Euler integration substeps, averaged over the second half" | `flow_instability` 取后半段子步的 $\hat{x}_1$ 差值范数平均 | ✅ |
+| $u_s$：跨 $N$ 条独立去噪轨迹的 latent 方差 | §4.2 "inter-seed variance of the next-latent prediction across N independent denoising trajectories" | `inter_seed_variance` 计算 `.var(dim=0).sum(dim=-1)` | ✅ |
+| $u_{\mathrm{norm}} = u / m$，$m$ 为每步 latent RMS 变化量 | §4.2 "per-step RMS change of the latent representation" | `dynamism_normalize` 返回 `u / m` | ✅ |
+| Shortcut Euler: $b = (\hat{x}_1 - z)/(1-\sigma),\; z \leftarrow z + b\cdot d$ | Appendix F "b = (x̂₁ - z)/(1 - σ), z ← z + b·d" | `shortcut_euler_sample` 循环 K=8 次、d=0.125 的 Euler 更新 | ✅ |
+| $d=0.125$, $K=8$ 子步 | Appendix F "step size d=0.125 (i.e., K=8 substeps)" | `d=0.125, K=8` | ✅ |
+| 自洽 bootstrap 比例 $\rho_{\mathrm{self}}=0.25$ | Appendix F "self_consistency_fraction = 0.25" | §3.3 明确记录为 0.25 | ✅ |
+| $k_{\max}=64$ 离散噪声水平 | Appendix F "kmax=64" | §3.3 明确记录 | ✅ |
+
+所有公式和代码均与原文一致，无需修正。
 
 ---
 
-*本报告所有数值均取自论文 PDF 原文（arXiv:2606.27326）及其 Table 1/2/3/7/11/12 与正文、附录 F；代码为概念示意而非官方源码。*
+*本报告所有数值均取自论文 PDF 原文（arXiv:2606.27326）及其 Table 1/2/3/6/7/8/9/10/11/12 与正文、附录 A–F；代码为概念示意而非官方源码。*

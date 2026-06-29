@@ -4,15 +4,15 @@
 
 ## 论文元数据
 
-| 项目 | 内容 |
-|------|------|
-| 标题 | Large Language Diffusion Models (LLaDA) |
-| 作者 | Shen Nie, Fengqi Zhu, Zebin You et al. (Renmin University / Ant Group) |
-| arXiv ID | 2502.09992 |
-| 发表 | NeurIPS 2025 |
-| 提交日期 | 2025-02-14 |
-| 官方代码 | https://github.com/ML-GSAI/LLaDA (MIT License) |
-| 基础架构 | Transformer (bidirectional, no causal mask) |
+| 项目       | 内容                                                                     |
+| -------- | ---------------------------------------------------------------------- |
+| 标题       | Large Language Diffusion Models (LLaDA)                                |
+| 作者       | Shen Nie, Fengqi Zhu, Zebin You et al. (Renmin University / Ant Group) |
+| arXiv ID | 2502.09992                                                             |
+| 发表       | NeurIPS 2025                                                           |
+| 提交日期     | 2025-02-14                                                             |
+| 官方代码     | [LLaDA](https://github.com/ML-GSAI/LLaDA) (MIT License)                |
+| 基础架构     | Transformer (bidirectional, no causal mask)                            |
 
 ---
 
@@ -35,7 +35,7 @@ LLaDA 8B Base 在多个标准 benchmark 上达到了与同规模 AR 模型可比
 | HumanEval | 33.5 |
 | CMMLU | 69.9 |
 
-可以看到,无论是知识综合(MMLU / CMMLU)、数学推理(GSM8K),还是代码生成(HumanEval),diffusion 范式的 LLaDA 都已进入实用区间。这一现象本身就是其核心论断的有力注脚:AR 形式并非 LLM 能力的必要条件。
+可以看到,无论是知识综合(MMLU / CMMLU)、数学推理(GSM8K),还是代码生成(HumanEval),diffusion 范式的 LLaDA 都已进入实用区间。这一现象本身就是其核心论断的有力注脚:自回归形式并非 LLM 能力的必要条件。
 
 ### 1.2 反向推理能力
 
@@ -43,7 +43,7 @@ LLaDA 在需要"逆向"理解的任务上展现出超越主流 AR 模型的潜�
 
 ### 1.3 开源
 
-项目代码已开源,仓库地址为 github.com/ML-GSAI/LLaDA,采用 MIT License。
+项目代码已开源,仓库地址为 [LLaDA](github.com/ML-GSAI/LLaDA)（论文中列出的项目页面为 [LLaDA-demo](ml-gsai.github.io/LLaDA-demo)）,采用 MIT License。
 
 ---
 
@@ -81,7 +81,7 @@ $$\mathcal{L}(\theta)=-\mathbb{E}_{t, x_0, x_t}\left[\frac{1}{t}\sum_{i=1}^{L}\m
 
 ### 2.6 模型架构
 
-LLaDA 的 backbone 是一个 standard Transformer,但移除了 causal mask,改用 bidirectional attention。模型提供 1B 与 8B 两种规模。8B 版本配置包含 32 层、hidden dimension 4096、32 个 attention heads,FFN dimension 为 12288,激活函数采用 SwiGLU,位置编码采用 RoPE。1B 版本则为 22 层、hidden dimension 2048、FFN dimension 5634(总计 1.49B 参数,论文附录记为 1.5B)。两者架构并不相同。需要强调的是,论文(§2.2)明确指出 LLaDA 各规模均使用 **vanilla multi-head attention(MHA)** 而非 grouped query attention(GQA),原因是 LLaDA 与 KV cache 不兼容——因此 LLaDA 的 key/value heads 数等于 query heads 数(采用 GQA 的是用于对照的 ARM 基线,而非 LLaDA 本身)。
+LLaDA 的 backbone 是一个 standard Transformer,但移除了 causal mask,改用 bidirectional attention。模型提供 1B 与 8B 两种规模。8B 版本配置包含 32 层、hidden dimension 4096、32 个 attention heads、32 个 key/value heads（即 vanilla MHA）、FFN dimension 为 12288,激活函数采用 SwiGLU,位置编码采用 RoPE。1B 版本则为 22 层、hidden dimension 2048、32 个 attention heads、**仅 4 个 key/value heads**（即 GQA 而非 vanilla MHA）、FFN dimension 5634(总计 1.49B 参数,论文附录记为 1.5B)。两者架构并不相同。需要强调的是,论文(§2.2)指出 LLaDA 因与 KV cache 不兼容而倾向于使用 vanilla MHA,致使 8B 版本 key/value heads 数等于 query heads 数（32 quary / key / value heads）；但 1B 版本实际采用 GQA（32 query heads / 4 key-value heads）,详见论文 Table 5。
 
 ---
 ## 第3章 训练
@@ -109,7 +109,7 @@ LLaDA-8B 的具体配置如下:
 - Chinese:11%
 - Code:28%
 
-训练序列长度固定为 4096,其中 1% 的数据采用变长训练 (variable-length training),长度在 $[1, 4096]$ 区间内采样。变长数据的引入有助于模型适应不同长度的输入分布。
+训练序列长度固定为 4096,其中 1% 的数据采用变长训练 (variable-length training),长度在 \[1, 4096\] 区间内采样。变长数据的引入有助于模型适应不同长度的输入分布。
 
 ### 3.3 预训练目标与超参数
 
@@ -151,7 +151,7 @@ LLaDA 的推理是一个**离散化的逆过程 (discretized reverse process)**:
 
 ### 4.1 逆向生成过程
 
-推理的初始化为**完全掩码的响应 (fully masked response)**,即响应部分的所有 token 均设为 [MASK]。随后在均匀时间步 (uniform timesteps) 上进行离散化的逆向生成:
+推理的初始化为**完全掩码的响应 (fully masked response)**,即响应部分的所有 token 均设为 $[MASK]$。随后在均匀时间步 (uniform timesteps) 上进行离散化的逆向生成:
 
 $$x_K \sim \text{fully masked}, \quad x_0 = x, \quad p_\theta(x_{k-1} \mid x_k),\ \ k = 1, \dots, K$$
 
@@ -191,13 +191,13 @@ $$-\log p_\theta(x_0) \approx \frac{L}{l}\sum_{i=1}^{L}\mathbf{1}[x_l^i=M]\log p
 
 在基础模型设定下,LLaDA-8B 与 LLaMA3-8B、LLaMA2-7B 在五项任务上的对比如下:
 
-| Task | LLaDA 8B | LLaMA3 8B | LLaMA2 7B |
-|------|----------|-----------|-----------|
-| MMLU (5-shot) | 65.9 | 65.4 | 45.9 |
-| GSM8K (4-shot) | 70.7 | 53.1 | 14.3 |
-| Math (4-shot) | 27.3 | 15.1 | 3.2 |
-| HumanEval (0-shot) | 33.5 | 34.2 | 12.8 |
-| CMMLU (5-shot) | 69.9 | 50.7 | 32.5 |
+| Task               | LLaDA 8B | LLaMA3 8B | LLaMA2 7B |
+| ------------------ | -------- | --------- | --------- |
+| MMLU (5-shot)      | 65.9     | 65.4      | 45.9      |
+| GSM8K (4-shot)     | 70.7     | 53.1      | 14.3      |
+| Math (4-shot)      | 27.3     | 15.1      | 3.2       |
+| HumanEval (0-shot) | 33.5     | 34.2      | 12.8      |
+| CMMLU (5-shot)     | 69.9     | 50.7      | 32.5      |
 
 关键发现:
 
@@ -208,19 +208,19 @@ $$-\log p_\theta(x_0) \approx \frac{L}{l}\sum_{i=1}^{L}\mathbf{1}[x_l^i=M]\log p
 
 ### 5.2 指令模型对比
 
-指令模型的对比均在**仅使用 SFT、不含 RL** 的设定下进行,以保持对比条件可控:
+指令模型的对比均在**仅使用 SFT、不含 RL** 的设定下进行,以保持对比条件可控（以下为论文 Table 2 的纯扩散采样结果；GSM8K 和 Math 在使用 block diffusion 采样时可达 78.6 和 42.2，论文 §3.2 末尾另行报告）:
 
 | Task | LLaDA 8B | LLaMA3 8B | LLaMA2 7B |
 |------|----------|-----------|-----------|
 | MMLU (5-shot) | 65.5 | 68.4 | 44.1 |
 | ARC-C (0-shot) | 88.5 | 82.4 | 57.3 |
-| GSM8K (4-shot) | 78.6 | 78.3 | 29.0 |
+| GSM8K (4-shot) | 69.4 | 78.3 | 29.0 |
 | HumanEval (0-shot) | 47.6 | 59.8 | 16.5 |
 
 关键发现:
 
 - **ARC-C 领先**:88.5 vs 82.4,LLaDA 超过 LLaMA3。
-- **数学持平/略胜**:GSM8K 上 78.6 vs 78.3,LLaDA 略高于 LLaMA3。
+- **数学任务上纯扩散采样落后**：GSM8K 上 69.4 vs 78.3（如改用 block diffusion 则 78.6 vs 78.3，基本持平）。
 - **部分任务落后**:MMLU (65.5 vs 68.4)、HumanEval (47.6 vs 59.8) 等任务上 LLaDA 落后于 LLaMA3。这表明在纯 SFT 设定下,LLaDA 在部分任务上的正向 (forward) 能力仍有提升空间 (详见 6.3)。
 
 ### 5.3 反转推理
