@@ -61,6 +61,8 @@ pnpm-lock.yaml
 
 # Obsidian
 .obsidian/
+TaskNotes/
+Daily/
 
 # Other
 *.sqlite3
