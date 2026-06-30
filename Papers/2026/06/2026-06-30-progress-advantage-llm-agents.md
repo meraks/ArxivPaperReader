@@ -2,17 +2,16 @@
 
 ## 论文信息块
 
-| 字段 | 内容 |
-|------|------|
-| 标题 | Neglected Free Lunch from Post-training: Progress Advantage for LLM Agents |
-| 中文译名 | 被忽视的"免费午餐":面向 LLM 智能体的 Progress Advantage |
-| 作者 | Changdae Oh, Wendi Li, Seongheon Park, Samuel Yeh, Tanwi Mallick, Sharon Li |
-| 机构 | University of Wisconsin–Madison; Argonne National Laboratory |
-| arXiv ID | 2606.26080 |
-| 提交日期 | 2026-06（2026 年 6 月 29 日，星期一） |
-| 官方代码 | https://github.com/deeplearning-wisc/progress-advantage |
-| 项目主页 | changdaeoh.github.io/progress-advantage |
-| 代码发现方式 | 由论文 project page 直接给出,确属作者团队官方仓库 |
+| 字段       | 内容                                                                           |
+| -------- | ---------------------------------------------------------------------------- |
+| 标题       | Neglected Free Lunch from Post-training: Progress Advantage for LLM Agents   |
+| 作者       | Changdae Oh, Wendi Li, Seongheon Park, Samuel Yeh, Tanwi Mallick, Sharon Li  |
+| 机构       | University of Wisconsin–Madison; Argonne National Laboratory                 |
+| arXiv ID | 2606.26080                                                                   |
+| 提交日期     | 2026-06（2026 年 6 月 29 日，星期一）                                                 |
+| 官方代码     | [ProgressAdvantage](https://github.com/deeplearning-wisc/progress-advantage) |
+| 项目主页     | changdaeoh.github.io/progress-advantage                                      |
+
 
 **一句话定位**:本文指出,RL post-training 训练完成的两个产物——RL 策略 $\pi^*$ 与其参考策略 $\pi_{\mathrm{ref}}$——的对数概率比 $\beta\log(\pi^*/\pi_{\mathrm{ref}})$,在一般随机 MDP 下恰好等于最优优势函数(optimal advantage function) $A^*(s,a)$。作者将其命名为 **Progress Advantage**,并证明它是一种"被忽视的免费午餐":免标注、领域无关、是标准 RL post-training 的副产品。
 
