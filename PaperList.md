@@ -67,3 +67,4 @@
 | 2606.27326 | Hallucination in World Models is Predictable and Preventable | Nicklas Hansen, Xiaolong Wang (UC San Diego) | [Papers](Papers/2026/06/2026-06-28-hallucination-in-world-models-predictable-preventable.md) |
 | 2606.27608 | Qwen-Image-2.0-RL Technical Report | Yixian Xu, Kaiyuan Gao, Yuxiang Chen et al. (Qwen Team) | [Papers](Papers/2026/07/2026-07-01-qwen-image-2.0-rl.md) |
 | HF: deepseek-ai/DeepSeek-V4-Flash | DeepSeek-V4 Technical Report: Towards Million-Token Efficient Context for Agent AI | DeepSeek Team | [DeepReadings](DeepReadings/2026-05-06-deepseek-v4-technical-report.md) |
+| HF: deepseek-ai/DeepSeek-V4-Pro-DSpark | DSpark: Confidence-Scheduled Speculative Decoding with Semi-Autoregressive Generation | Xin Cheng, Xingkai Yu, Chenze Shao et al. (Peking Univ + DeepSeek-AI) | [DeepReadings](DeepReadings/2026-07-01-dspark.md) |
