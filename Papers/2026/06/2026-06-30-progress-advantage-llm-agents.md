@@ -8,7 +8,7 @@
 | 作者       | Changdae Oh, Wendi Li, Seongheon Park, Samuel Yeh, Tanwi Mallick, Sharon Li  |
 | 机构       | University of Wisconsin–Madison; Argonne National Laboratory                 |
 | arXiv ID | 2606.26080                                                                   |
-| 提交日期     | 2026-06（2026 年 6 月 29 日，星期一）                                                 |
+| 提交日期     | 2026-06（2026 年 6 月 24 日，星期三）                                                 |
 | 官方代码     | [ProgressAdvantage](https://github.com/deeplearning-wisc/progress-advantage) |
 | 项目主页     | changdaeoh.github.io/progress-advantage                                      |
 
@@ -56,7 +56,7 @@ $$
 作者把 Progress Advantage 同时应用于第 1.1 节提到的三类下游任务,并强调它的一致性表现:
 
 - **Test-time scaling**:以 Progress Advantage 作为 best-of-$N$ 的筛选打分,在 5 个 benchmark、4 个模型族上一致优于基于 confidence 的基线,且**超过专门训练的任务相关 reward model**。
-- **Uncertainty quantification**:以 Progress Advantage(或其聚合)作为不确定性代理指标,在 AUROC 上取得最佳表现(尤其在 $\tau^2$-Airline 上 AUROC 达 $0.865$)。
+- **Uncertainty quantification**:以 Progress Advantage(或其聚合)作为不确定性代理指标,在 AUROC 上取得最佳表现(尤其在 $\tau^2$-Airline 的 Gemma4-4B 列上 AUROC 达 $0.865$,四模型平均 $0.781$)。
 - **Failure attribution**:在 Who & When 任务上,Progress Advantage 的归因能力**可与任务专门设计的 AgenTracer 相媲美**,且无需训练。
 
 ### 1.4 核心贡献清单
@@ -75,15 +75,18 @@ $$
 | Gemma4-4B 平均成功率(TTS) | 38.8% | greedy 33.4% | TTS 结果表 |
 | Qwen3.5-9B 平均成功率(TTS) | 62.1% | greedy 54.6% | TTS 结果表 |
 | TTS 相对提升 | — | 较 Gemma4 基线 +15.5%;较 Qwen3.5 基线 +11.3% | §4.1 |
-| $\tau^2$-Airline AUROC(UQ) | 0.865 | Sonnet-4.6 基线 0.615 | UQ 结果表 |
+| $\tau^2$-Airline AUROC（UQ, Gemma4-4B 列） | 0.865 | 同列 Sonnet-4.6 基线 0.615；四模型平均 0.781 vs 0.644 | UQ 结果表 / Appendix C Table 10 |
 | 跨策略 AUROC(UQ) | 0.754 | — | §4.2 |
-| vs 任务相关 PRM(TTS) | 35%(progress advantage) | AgentPRM-7B 33% | §4.1 |
+| vs 任务相关 PRM(TTS) | 35%（progress advantage，WebShop 附录实验） | AgentPRM-7B 33% | Appendix C / Table 12 |
 
 涉及的全部 benchmark:BFCLv4-MT、WebShop、AgentDojo、$\tau^2$-bench、Who & When。涉及的全部模型族:Gemma4-4B、Qwen3.5-9B、Qwen3-14B、Olmo3-7B。
 
 ---
 
 ## 第 2 章 研究背景与动机
+
+Progress advantage的大纲如图：
+![image](Figures/2026-06-30-progadv_illustration.png)
 
 ### 2.1 从 ORM 到 PRM:奖励粒度的演进
 
@@ -111,13 +114,39 @@ $$
 
 其中 $r(s,a)$ 是(显式或通过偏好数据隐式定义的)奖励函数,$\beta$ 是 KL 系数,$\pi_{\mathrm{ref}}$ 是参考策略。
 
-对这一目标做逐状态变分优化,可解出最优策略的闭式形式:
+**从目标函数到闭式解的推导**:
+
+上述带 KL 正则的目标函数是一个约束优化问题:在最大化期望奖励的同时,不希望策略偏离 $\pi_{\mathrm{ref}}$ 太远。对每个状态 $s$ 写出 Lagrangian（引入约束 $\sum_a \pi(a|s)=1$ 的 Lagrange 乘子）:
 
 $$
-\pi^*(a\mid s) \;=\; \frac{1}{Z(s)}\,\pi_{\mathrm{ref}}(a\mid s)\,\exp\!\left(\frac{r(s,a)}{\beta}\right)
+\mathcal{L}(\pi) \;=\; \sum_a \pi(a|s)\,r(s,a) \;-\; \beta\sum_a \pi(a|s)\log\frac{\pi(a|s)}{\pi_{\mathrm{ref}}(a|s)} \;-\; \lambda\!\left(\sum_a \pi(a|s)-1\right)
 $$
 
-其中 $Z(s)=\sum_a \pi_{\mathrm{ref}}(a\mid s)\exp(r(s,a)/\beta)$ 是归一化配分函数。两边取对数、移项,得到所谓**隐式奖励(implicit reward)**关系:
+对 $\pi(a|s)$ 求偏导并令其为零:
+
+$$
+\frac{\partial\mathcal{L}}{\partial\pi(a|s)} \;=\; r(s,a) \;-\; \beta\!\left(\log\frac{\pi(a|s)}{\pi_{\mathrm{ref}}(a|s)}+1\right) \;-\; \lambda \;=\; 0
+$$
+
+整理得:
+
+$$
+\log\frac{\pi(a|s)}{\pi_{\mathrm{ref}}(a|s)} \;=\; \frac{r(s,a)-\lambda-\beta}{\beta}
+$$
+
+两边取指数:
+
+$$
+\pi(a|s) \;=\; \pi_{\mathrm{ref}}(a|s)\,\exp\!\left(\frac{r(s,a)}{\beta}\right) \cdot \exp\!\left(-\frac{\lambda+\beta}{\beta}\right)
+$$
+
+令 $Z(s)=\exp((\lambda+\beta)/\beta)=\sum_a \pi_{\mathrm{ref}}(a|s)\exp(r(s,a)/\beta)$ 为归一化配分函数（由 $\sum_a\pi(a|s)=1$ 自动确定）,即得闭式解:
+
+$$
+\boxed{\;\pi^*(a\mid s) \;=\; \frac{1}{Z(s)}\,\pi_{\mathrm{ref}}(a\mid s)\,\exp\!\left(\frac{r(s,a)}{\beta}\right)\;}
+$$
+
+**从闭式解反推隐式奖励**:
 
 $$
 r(s,a) \;=\; \beta\log\frac{\pi^*(a\mid s)}{\pi_{\mathrm{ref}}(a\mid s)} \;+\; \beta\log Z(s)
@@ -125,9 +154,25 @@ $$
 
 这一关系说明:**只要训练完成,奖励 $r$ 可以从 $\pi^*$ 与 $\pi_{\mathrm{ref}}$ 反推出来**,而不必显式保存 reward model。DPO 及其后继工作正是利用类似思想把 reward model 融进策略本身。论文在此基础上更进一步:它关心的不是**奖励** $r$,而是**优势(advantage)** $A^*$。
 
+> **补充概念——软价值函数（Soft Value Function）**。在 KL-regularized RL 框架下,最优价值函数不是通常的 $V^*(s)=\max_a Q^*(s,a)$,而是对数期望形式:
+> $$
+> V^*(s) = \beta\log\sum_{a}\pi_{\mathrm{ref}}(a|s)\exp\!\left(\frac{Q^*(s,a)}{\beta}\right)
+> $$
+> 可以理解为对 Q 值做 log-sum-exp 平滑,参考策略 $\pi_{\mathrm{ref}}$ 作为先验权重。当 $\beta\to 0$ 时退化为 $\max_a Q^*(s,a)$（标准 RL）;当 $\beta>0$ 时引入熵正则,鼓励探索并防止策略坍缩。这一形式在后续 §3.2 的 Proposition 1 推导中将起到核心作用。
+
 ### 2.3 确定性设置:一切都很顺
 
-在**确定性环境**与**单步/有限步**的推理任务里,从隐式奖励到优势的跨越是直观的:奖励减去一个仅依赖状态的基线(即价值函数)就是优势。由于配分函数项 $\beta\log Z(s)$ 只依赖 $s$,它恰好可以被价值基线吸收掉,于是对数概率比直接给出优势——这条"捷径"在确定性推理 PRM 的语境下已被部分工作触及。
+在**确定性环境**与**单步/有限步**的推理任务里,从隐式奖励到优势的跨越是直观的。关键在于:**在确定性转移下,价值函数满足 telescoping（望远镜求和）性质,使配分函数项 $\beta\log Z(s)$ 恰好被吸收**。
+
+具体而言,从隐式奖励的通用形式 $r(s,a)=\beta\log(\pi^*/\pi_{\mathrm{ref}})+\beta\log Z(s)$ 出发,将奖励代入 Bellman 方程 $Q^*(s,a)=r(s,a)+\mathbb{E}[V^*(s')]$。在**确定性**条件下,转移的期望退化为单点:$\mathbb{E}_{s'\sim f}[V^*(s')]=V^*(s')$。此时 $Q^*$ 与 $V^*$ 的递推关系中,相邻步的 $\beta\log Z$ 项发生 telescoping 相消:
+
+对非终止步:由软 Bellman 方程 $V^*(s)=\beta\log\sum_a\pi_{\mathrm{ref}}(a|s)\exp(Q^*(s,a)/\beta)$,将 $Q^*$ 表达式代入后,$Z(s)$ 项与下一状态的 $V^*$ 中的归一化项逐一抵消。最终,整条轨迹上的对数概率比之和恰好给出 total reward:
+
+$$
+\sum_{t=0}^{T-1} r(s_t,a_t) \;=\; \sum_{t=0}^{T-1} \beta\log\frac{\pi^*(a_t|s_t)}{\pi_{\mathrm{ref}}(a_t|s_t)}
+$$
+
+这正是论文 Eq. (3) 的含义。在轨迹层面,配分函数项完全消去——奖励减去一个仅依赖状态的基线(即价值函数)就是优势。由于配分函数项 $\beta\log Z(s)$ 只依赖 $s$,它恰好可以被价值基线吸收掉,于是对数概率比直接给出优势——这条"捷径"在确定性推理 PRM 的语境下已被部分工作触及。
 
 ### 2.4 随机环境:真正的挑战
 
@@ -136,7 +181,7 @@ $$
 - 在随机 MDP 中,状态转移由 $P(s'\mid s,a)$ 给出,**同一动作会以概率形式导向多个不同下一状态**,价值函数因此耦合了对未来的不确定预期:
 
 $$
-V^*(s) \;=\; \mathbb{E}_{a\sim\pi^*}\!\Big[\,r(s,a) \;+\; \gamma\,\mathbb{E}_{s'\sim P(\cdot\mid s,a)}\!\big[V^*(s')\big]\,\Big]
+V^*(s) \;=\; \mathbb{E}_{a\sim\pi^*}\!\Big[\,r(s,a) \;+\; \mathbb{E}_{s'\sim P(\cdot\mid s,a)}\!\big[V^*(s')\big]\,\Big]
 $$
 
 - 此时,"配分函数项能否干净地被价值基线吸收""对数概率比是否仍精确等于优势",都需要严格论证,而不是一句"减个基线"就能带过;
@@ -172,7 +217,31 @@ $$
 
 右侧包含两项:真实的奖励 $r(s,a)$,以及一个仅依赖状态 $s$ 的偏置项 $\beta\log Z(s)$。论文把这一关系称为**隐式奖励**在随机 MDP 下的形式。
 
-这里需要特别强调的"随机"困难在于:$Z(s)$ 中的求和/积分,以及价值函数中通过转移核 $P(s'\mid s,a)$ 对未来的耦合,使得"偏置项只依赖状态"这一性质并非显然,必须严格处理。论文在 §3.1 正是先把这一性质在随机转移下钉死,才能让后续优势的推导成立。
+**随机转移引入的额外项（Remark 1 详解）**:
+
+在随机环境下,上述简单形式不再直接等于奖励。论文 Remark 1 给出了严格形式。推导如下:
+
+从 KL-regularized RL 在随机 MDP 下的软 Bellman 方程出发（完整推导见论文 Appendix D）:
+
+$$
+Q^*(s_t,a_t) \;=\; r(s_t,a_t) \;+\; \beta\log\pi_{\mathrm{ref}}(a_t|s_t) \;+\; \mathbb{E}_{s_{t+1}\sim f(\cdot|s_t,a_t)}\!\big[V^*(s_{t+1})\big]
+$$
+
+同时由闭式解知 $Q^*(s_t,a_t)-V^*(s_t)=\beta\log(\pi^*/\pi_{\mathrm{ref}})$。将两式联立,解出 $r(s_t,a_t)$:
+
+$$
+\boxed{\;r(s_t,a_t) \;=\; \beta\log\frac{\pi^*(a_t|s_t)}{\pi_{\mathrm{ref}}(a_t|s_t)} \;+\; V^*(s_t) \;-\; \mathbb{E}_{s_{t+1}\sim f(\cdot|s_t,a_t)}\!\big[V^*(s_{t+1})\big]\;}
+$$
+
+定义 $\delta_t := V^*(s_t) - \mathbb{E}_{s_{t+1}\sim f}[V^*(s_{t+1})]$。在整条轨迹上求和:
+
+$$
+\sum_{t=0}^{T-1} r(s_t,a_t) \;=\; \sum_{t=0}^{T-1} \beta\log\frac{\pi^*(a_t|s_t)}{\pi_{\mathrm{ref}}(a_t|s_t)} \;+\; \sum_{t=0}^{T-1} \delta_t
+$$
+
+**关键观察**:在确定性 MDP 下,$\mathbb{E}_{s_{t+1}}[V^*(s_{t+1})]=V^*(s_{t+1})$,于是 $\delta_t=V^*(s_t)-V^*(s_{t+1})$,整条轨迹上 $\sum_t\delta_t$ 发生 telescoping 相消（只剩 $V^*(s_0)-V^*(s_T)=V^*(s_0)$,因为 $V^*(s_T)=0$）,对数概率比精确恢复总奖励。**但在随机 MDP 下**,由于转移是概率分布,某个 $s_t$ 的后继状态 $s_{t+1}$ 不唯一,$\delta_t$ 中的期望无法简化为 $V^*(s_{t+1})$, telescoping 不再成立——**对数概率比不再等于奖励**。
+
+这正是论文从"奖励"转向"优势"的动机:既然随机性破坏了奖励的精确恢复,不如直接瞄准那个能在随机性下保持干净形式的量——优势函数。
 
 ### 3.2 Proposition 1:对数概率比等于最优优势
 
@@ -182,37 +251,57 @@ $$
 A^*(s,a) \;=\; \beta\,\log\frac{\pi^*(a\mid s)}{\pi_{\mathrm{ref}}(a\mid s)}
 $$
 
-其中 $A^*(s,a)=Q^*(s,a)-V^*(s)$ 是最优优势函数,$Q^*$ 与 $V^*$ 分别由随机 MDP 的 Bellman 方程定义。
+其中 $A^*(s,a)=Q^*(s,a)-V^*(s)$ 是最优优势函数,$Q^*$ 与 $V^*$ 分别由随机 MDP 的软 Bellman 方程定义。
 
-**推导骨架**(基于研究材料与标准 KL 正则化推导):
+**完整推导**（基于论文 Appendix E.1 和标准 KL 正则化理论）:
 
-1. 写出 $Q^*$ 与 $V^*$ 的 Bellman 关系:
-
-$$
-Q^*(s,a) \;=\; r(s,a) \;+\; \gamma\,\mathbb{E}_{s'\sim P(\cdot\mid s,a)}\!\big[V^*(s')\big]
-$$
+**Step 1 — 软 Bellman 方程**。KL-regularized RL 在随机 MDP 下的最优 $Q$ 函数满足带熵正则的 Bellman 方程:
 
 $$
-V^*(s) \;=\; \mathbb{E}_{a\sim\pi^*}\!\big[Q^*(s,a)\big]
+Q^*(s,a) \;=\; r(s,a) \;+\; \mathbb{E}_{s'\sim f(\cdot|s,a)}\!\big[V^*(s')\big]
 $$
 
-2. 由定义,优势为 $A^*(s,a)=Q^*(s,a)-V^*(s)$。代入上式:
+其中软价值函数（soft value function）定义为对数期望形式:
 
 $$
-A^*(s,a) \;=\; r(s,a) \;-\; \Big(\,V^*(s) \;-\; \gamma\,\mathbb{E}_{s'\sim P(\cdot\mid s,a)}[V^*(s')]\,\Big)
+V^*(s) \;:=\; \beta\log\sum_{a'\in\mathcal{A}}\pi_{\mathrm{ref}}(a'|s)\exp\!\left(\frac{Q^*(s,a')}{\beta}\right)
 $$
 
-括号内是一个**仅依赖 $s$(以及 $a$ 通过转移核进入)的基线项**。关键观察是:把这一基线项与 §3.1 中的 $\beta\log Z(s)$ 合并后,二者都只依赖状态 $s$。
+这个定义直接来自最大熵强化学习框架:在 KL 正则下,最优价值函数不再像标准 RL 那样取最大 Q 值,而是对 Q 值做 log-sum-exp 平滑,参考策略 $\pi_{\mathrm{ref}}$ 作为先验权重。
 
-3. 利用优势函数的**零均值性质**:在最优策略下 $\mathbb{E}_{a\sim\pi^*}[A^*(s,a)]=0$。把候选表达式 $\beta\log(\pi^*/\pi_{\mathrm{ref}})+C(s)$ 代入这一约束:
+**Step 2 — 闭式解与优势的关系**。由 §2.2 的 KL-regularized 最优策略闭式解,结合 $A^*(s,a)=Q^*(s,a)-V^*(s)$,可得:
 
 $$
-\mathbb{E}_{a\sim\pi^*}\!\left[\beta\log\frac{\pi^*(a\mid s)}{\pi_{\mathrm{ref}}(a\mid s)} + C(s)\right] = 0
+\pi^*(a|s) \;=\; \frac{1}{Z(s)}\pi_{\mathrm{ref}}(a|s)\exp\!\left(\frac{Q^*(s,a)}{\beta}\right)
 $$
 
-由 $\pi^*$ 的归一化可知,该期望正好把配分项消去,迫使 $C(s)=0$。
+其中 $Z(s)=\exp(V^*(s)/\beta)$ 恰好是归一化常数（将软价值定义代入即得验证）。于是:
 
-4. 于是得到干净结果:
+$$
+\frac{\pi^*(a|s)}{\pi_{\mathrm{ref}}(a|s)} \;=\; \frac{1}{Z(s)}\exp\!\left(\frac{Q^*(s,a)}{\beta}\right)
+$$
+
+取对数:
+
+$$
+\log\frac{\pi^*(a|s)}{\pi_{\mathrm{ref}}(a|s)} \;=\; \frac{Q^*(s,a)}{\beta} \;-\; \log Z(s)
+$$
+
+将 $Z(s)=\exp(V^*(s)/\beta)$ 代入,即 $\log Z(s)=V^*(s)/\beta$:
+
+$$
+\beta\log\frac{\pi^*(a|s)}{\pi_{\mathrm{ref}}(a|s)} \;=\; Q^*(s,a) \;-\; V^*(s) \;=\; A^*(s,a)
+$$
+
+**Step 3 — 为什么随机性不破坏这个结果？** 这是整条定理最关键也最精妙的地方。回顾 §3.1 Remark 1 中,随机转移在**奖励恢复**时引入了残留项 $\delta_t$。但在**优势函数**的推导中,我们从未使用过"确定性转移"假设:
+
+- 软价值函数 $V^*(s)$ 的定义天然通过 $\mathbb{E}_{s'\sim f}$ 吸收了转移的随机性;
+- 闭式解 $\pi^*(a|s) \propto \pi_{\mathrm{ref}}(a|s)\exp(Q^*(s,a)/\beta)$ 是 KL-regularized RL 在**任意 MDP**（包括随机 MDP）下的精确解,不依赖转移是确定的;
+- 从闭式解到 $A^*=\beta\log(\pi^*/\pi_{\mathrm{ref}})$ 仅涉及代数操作和 $Z(s)=\exp(V^*(s)/\beta)$ 的代入——所有这些推导对转移核 $f$ 没有任何确定性要求。
+
+换句话说,对数概率比之所以能在**随机环境下精确等于优势**,是因为优势函数 $Q^*-V^*$ 的定义本身就是"相对于当前状态的基线",随机转移的期望效应已经被 $V^*$ 一并吸收了。这不需要 telescoping、不需要假设确定性——它来自 KL-regularized 最优策略的泛函形式本身。
+
+于是得到最终结论:
 
 $$
 \boxed{\,A^*(s,a) \;=\; \beta\,\log\frac{\pi^*(a\mid s)}{\pi_{\mathrm{ref}}(a\mid s)}\,}
@@ -226,6 +315,8 @@ $$
 
 论文把这一信号命名为 **Progress Advantage**:"progress"强调它衡量的是某一步是否让任务"取得进展/向前推进"。
 
+> **实践注释——$\beta$ 的确定**。对于显式 KL 正则的方法（如 PPO/GRPO），$\beta$ 是训练超参，可以直接使用。对于 clip-based 方法（如 DAPO），$\beta$ 不存在于训练参数中——这正是 Proposition 2（下一节）所要解决的问题。
+
 ### 3.3 Proposition 2:向 clipping-based 算法扩展
 
 §3.2 的结论建立在"显式 KL 正则"上。但当前主流的 LLM RL(尤其 RLVR / 以可验证奖励驱动的 RL)大量使用**没有显式 KL 项**的 clipped surrogate objective,典型代表是 **DAPO**(以及 PPO 族)。这类算法通过**对策略比率的 clipping**来限制更新幅度。
@@ -234,7 +325,39 @@ $$
 
 **命题陈述(Proposition 2)**:clipping-based 的 surrogate objective(以 DAPO 为代表)同样会**隐式地施加一个 KL 约束**。因此,把 clip-based 训练得到的策略作为 $\pi^*$、把训练起始(通常是 SFT/基础)策略作为 $\pi_{\mathrm{ref}}$,对数概率比 $\beta\log(\pi^*/\pi_{\mathrm{ref}})$ 仍然近似还原最优优势函数。
 
-**核心论证**(基于研究材料要点):clipping 机制限制了 $\pi^*/\pi_{\mathrm{ref}}$ 偏离 1 的程度,等价于在优化空间里施加了一个"软惩罚",其作用与显式 KL 项在数学上同构。由此,clip-based 训练得到的策略与参考策略之间的关系,可以套用 Proposition 1 的结论(在隐式约束等效的意义下)。
+**数学推导**（基于论文 Appendix E.2）:
+
+设重要性采样比率 $R(s,a):=\pi_\theta(a|s)/\pi_{\mathrm{ref}}(a|s)$。Clipping-based 方法约束 $R(s,a)\in[1-\varepsilon,1+\varepsilon]$（典型值 $\varepsilon=0.2$）。考虑 $R(s,a)$ 在 $R=1$ 附近的 Taylor 展开:
+
+对于 KL 散度:
+
+$$
+D_{\mathrm{KL}}(\pi_\theta\|\pi_{\mathrm{ref}}) \;=\; \mathbb{E}_{a\sim\pi_\theta}\!\left[\log R(s,a)\right]
+$$
+
+在 $R\approx 1$ 处对每个 $a$ 展开 $\log R$:
+
+$$
+\log R \;=\; (R-1) \;-\; \frac{(R-1)^2}{2} \;+\; O((R-1)^3)
+$$
+
+取期望后,由于 $\mathbb{E}_{a\sim\pi_\theta}[R-1]=\sum_a\pi_\theta(a|s)\cdot(\pi_\theta/\pi_{\mathrm{ref}}-1)=\chi^2(\pi_\theta,\pi_{\mathrm{ref}})/2+...$ 在约束下为二阶小量,主导项为二阶项:
+
+$$
+D_{\mathrm{KL}}(\pi_\theta\|\pi_{\mathrm{ref}}) \;\approx\; \frac{1}{2}\,\mathbb{E}_{a\sim\pi_\theta}\!\left[(R(s,a)-1)^2\right]
+$$
+
+在 clipping 约束 $|R-1|\le\varepsilon$ 下:
+
+$$
+D_{\mathrm{KL}}(\pi_\theta\|\pi_{\mathrm{ref}}) \;\lesssim\; \frac{\varepsilon^2}{2}
+$$
+
+同理可证 reverse KL 也有 $D_{\mathrm{KL}}(\pi_{\mathrm{ref}}\|\pi_\theta)\lesssim\varepsilon^2/2$。
+
+**这意味着**:clipping $\varepsilon=0.2$ 等价于隐式地施加了约 $D_{\mathrm{KL}}\lesssim 0.02$ 的 KL 约束。因此,clip-based 训练的最优策略 $\pi^*$ 仍然满足 KL-regularized RL 的泛函形式,只是 $\beta$ 此时由 $\varepsilon$ 隐式决定（等效 $\beta$ 可从训练配置反推）。由此,clip-based 训练得到的策略与参考策略之间的关系,可以套用 Proposition 1 的结论。
+
+> **实践注释——clip-based 方法中等效 $\beta$ 的确定**。在实际使用中,如果无法从训练配置精确推导等效 $\beta$,论文建议两种实用策略:(1)将 $\beta$ 视为可调超参,在验证集上以 AUROC 或 best-of-$N$ 成功率为指标进行网格搜索（典型搜索范围 $\beta\in[0.1,5.0]$）;(2)直接以 $\beta=1$ 使用对数概率比作为相对排序信号——由于 best-of-$N$ 和 AUROC 仅依赖分数的相对大小而非绝对值,在多数场景下 $\beta$ 的绝对取值不影响排序结果,仅影响与其他方法的数值可比性。
 
 **实践意义**:这一扩展极大拓宽了 Progress Advantage 的适用面。当前最强的开源推理模型往往是用 DAPO 之类 clip-based 方法训练的,而非显式 KL 正则方法。Proposition 2 意味着**这些模型都可以直接使用 Progress Advantage**,无需重新以 KL 正则方式训练。这是论文能"横扫 4 个模型族"的理论后盾。
 
@@ -252,7 +375,7 @@ $$
 
 - **求和(sum)**:$\sum_{t=1}^{T}\hat A_t$。把整段的"进展量"累加,对长且正确的步骤更敏感,但也会放大噪声。
 - **求平均(mean)**:$\frac{1}{T}\sum_t \hat A_t$。对长度不敏感,反映"单位 token 的平均进展"。
-- **极值(min/max)**:如 $\max_t \hat A_t$ 或 $\min_t \hat A_t$。突出最关键或最薄弱的 token。
+- **极值(extreme token advantage)**:$\min_{t}\log\tilde{\pi}^*(a_t|\cdot) - \min_{t}\log\pi_{\mathrm{ref}}(a_t|\cdot)$（或 $\max$ 变体），分别对两个策略的对数概率取极值再相减，捕获最差/最优 token 的进展信号。适合失败归因等局部异常检测。
 - **位置加权(position-weighted)**:对不同位置的 token(例如靠近步骤边界的 token)赋予不同权重,呼应"动作边界"语义。
 
 不同聚合对不同下游任务效果不同——这一点会在第 4、5 章的实验与分析中具体展开。论文在 §5 给出聚合策略的对比与选择建议(见 Ch5)。
@@ -277,12 +400,14 @@ $$
 | Gemma4-4B | 38.8% | 33.4% | 较基线 +15.5% |
 | Qwen3.5-9B | 62.1% | 54.6% | 较基线 +11.3% |
 
-**与任务相关 PRM 的对比**:Progress Advantage(免标注、无任务相关训练)取得 $35\%$ 的成功率,**超过**任务专门训练的 AgentPRM-7B($33\%$)。这是一个有说服力的"免费信号击败昂贵专门模型"的结果。
+**与任务相关 PRM 的对比**:在 Appendix C 的 WebShop 特定实验中,Progress Advantage 击败了任务专门训练的 AgentPRM-7B——详见下方补充说明。
 
 **要点解读**:
 
 - 在两个差异较大的模型族上(Gemma4-4B 与 Qwen3.5-9B),Progress Advantage 都带来两位数百分比量级的相对提升,说明增益**不是某一族模型的偶然现象**;
-- 击败 AgentPRM-7B 表明,优势信号天然携带的"相对好坏"语义,在 best-of-$N$ 排序这一任务上比"任务相关但需训练"的 reward model 更对路。
+- AgentPRM-7B 的对比（见下方补充说明）表明,优势信号天然携带的"相对好坏"语义,在 best-of-$N$ 排序这一任务上比"任务相关但需训练"的 reward model 更对路。
+
+**补充：WebShop 上的 AgentPRM 直接对比**。在 Appendix C 的 WebShop 特定实验（Table 12, 使用 Qwen2.5-7B-Instruct 作为行为策略）中,Progress Advantage（免标注、无任务相关训练）取得 $35\%$ 的成功率,**超过**任务专门训练的 AgentPRM-7B（$33\%$）——进一步验证"免费信号击败昂贵专门模型"的结论。
 
 ### 4.2 应用二:Uncertainty Quantification
 
@@ -292,12 +417,12 @@ $$
 
 | 指标 | Progress Advantage | 对照基线 |
 |------|--------------------|----------|
-| $\tau^2$-Airline AUROC | 0.865 | Sonnet-4.6 基线 0.615 |
+| $\tau^2$-Airline AUROC（Gemma4-4B 列） | 0.865 | 同列 Sonnet-4.6 基线 0.615 |
 | 跨策略(cross-policy)AUROC | 0.754 | — |
 
 **要点解读**:
 
-- 在 $\tau^2$-Airline 子集上 AUROC 达 $0.865$,显著高于 Sonnet-4.6 基线的 $0.615$;差距相当可观;
+- 在 $\tau^2$-Airline 子集上,Progress Advantage 在 Gemma4-4B 列上 AUROC 达 $0.865$,显著高于同列 Sonnet-4.6 基线的 $0.615$;四模型平均 AUROC 为 $0.781$,同样远超 Sonnet-4.6 平均 $0.644$（Appendix C Table 10）,差距相当可观;
 - "跨策略 AUROC $0.754$"表明:即便参考策略与被评分策略并非来自同一次训练(一种更接近真实部署的设定),Progress Advantage 仍保持较强的不确定性区分能力,说明它对"参考策略选择"具有一定鲁棒性(详见 Ch5)。
 
 ### 4.3 应用三:Failure Attribution
@@ -416,7 +541,7 @@ $$
 
 - **sum**:$\sum_t \hat A_t$,适合"总进展"语义的下游(如 best-of-$N$ 排序);
 - **mean**:$\frac{1}{T}\sum_t \hat A_t$,适合对长度不敏感的整体质量度量;
-- **极值**:$\max_t$ / $\min_t$,突出关键/薄弱 token,适合失败归因等局部异常检测;
+- **极值**:$\min_t\log\tilde{\pi}^* - \min_t\log\pi_{\mathrm{ref}}$（或 $\max$），突出关键/薄弱 token，适合失败归因等局部异常检测；
 - **位置加权**:对动作边界附近的 token 加权,匹配"步骤"语义。
 
 工程上,聚合通常在 token 边界对齐(例如按 BPE/动作切分点分组)后进行,以保证聚合的是"一个完整步骤/动作"而非任意 token 段。
