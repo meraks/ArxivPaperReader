@@ -104,9 +104,13 @@ Extended Neural GPU、ByteNet、ConvS2S 采用卷积神经网络构建 encoder-d
 
 ### 2.6 自注意力的已有应用
 
-Self-attention（又称 intra-attention）已在多个任务中成功应用：阅读理解、摘要生成、文本蕴含（textual entailment）。
+Self-attention（又称 intra-attention）已在多个任务中成功应用：阅读理解、摘要生成、文本蕴含（textual entailment）、以及学习任务无关的句子表示（task-independent sentence representations）。
 
-### 2.7 本文定位
+### 2.7 End-to-End Memory Networks
+
+End-to-end memory networks（Sukhbaatar et al., 2015）是另一条减少顺序计算依赖的路线——用循环注意力（recurrent attention）机制取代 sequence-aligned 的循环，在简单语言问答和语言建模任务上表现良好。但该架构仍未完全摆脱循环结构。
+
+### 2.8 本文定位
 
 Transformer 是首个端到端、完全基于自注意力的序列转换模型，将注意力从"对齐辅助工具"提升为唯一的序列建模原语。
 
@@ -284,7 +288,21 @@ PE 的正弦函数**波长**构成一个**几何级数（geometric progression�
 #### 4.6.2 核心结论
 当 $n < d$ 时（典型机器翻译场景），**self-attention 在三者中同时取得最短依赖路径 $O(1)$ 与最高并行度 $O(1)$，且单层计算量反而最小**——这正是 Transformer 选择纯注意力架构、彻底摒弃循环的量化依据。可学习卷积虽并行度也高，但依赖路径为 $O(\log_k n)$，不如自注意力短。
 
-#### 4.6.3 可解释性作为额外优势
+#### 4.6.3 卷积的深层代价与可分离卷积
+
+除 Table 1 的粗粒度对比外，论文进一步分析了卷积的深层代价：
+
+- 单层卷积核 $k < n$ **无法连接所有输入-输出位置对**：要么堆叠 $O(n/k)$ 层连续卷积，要么堆叠 $O(\log_k n)$ 层空洞卷积（dilated convolutions，如 ByteNet），都会拉长最大路径。
+- 卷积层通常比循环层**贵一个 $k$ 因子**。
+- **可分离卷积（separable convolutions，Chollet, 2016）** 可将复杂度大幅压缩至 $O(k \cdot n \cdot d + n \cdot d^2)$。
+
+论文由此导出一个核心等价关系：
+
+> 当 $k = n$ 时，可分离卷积的复杂度恰好**等价于 self-attention 层 + position-wise feed-forward 层的组合**——这正是 Transformer 的设计方案。
+
+这一等价性意味着：Transformer 的「self-attention + FFN」并非随意拼接，而是在计算最优意义下等价于一个**全局感受野的可分离卷积**（$k=n$），同时以 $O(1)$ 路径长度避免了空洞卷积的 $O(\log_k n)$ 深度瓶颈。换言之，Transformer 用**注意力 + 逐位置 MLP** 的组合，在数学上达到了卷积方案在计算效率和全局建模能力上的上限，且路径更短。
+
+#### 4.6.4 可解释性作为额外优势
 除上述三项量化指标外，论文还指出 self-attention 带**可解释性（interpretability）**红利：不同的 attention head 明显在执行**不同的任务**（例如有的头学到了语法依存、有的头关注长距离共指），可以通过可视化注意力分布来检视模型"在看哪里"。这一性质是循环/卷积网络难以提供的。
 
 ---
@@ -618,6 +636,8 @@ def encoder_layer(x, attn_params, ffn_params, h, dropout_p, training):
 
 4. **仅在两类翻译任务 + 一个句法任务上验证**。原文的实证范围限于 WMT'14 EN-DE、EN-FR 与 WSJ 成分句法分析，对图像、音频、视频等非文本模态尚未给出实验（论文结论中作为"未来工作"提及）。
 
+5. **生成本质仍是顺序的**。论文结论中明确指出 "Making generation less sequential is another research goals of ours"——即便训练可并行，推理时的自回归逐 token 生成仍是根本瓶颈。这一论断预见了后来 non-autoregressive generation、speculative decoding 等方向的核心动机。
+
 ### 7.2 后续发展（延伸阅读）
 
 Transformer 的"纯注意力"思想很快被推广到几乎所有模态与范式，代表性脉络如下：
@@ -631,7 +651,29 @@ Transformer 的"纯注意力"思想很快被推广到几乎所有模态与范式
 
 ---
 
-## 第 7 章小结
+## 附录：注意力可视化（Attention Visualizations）
+
+论文附录中给出了三组 Encoder Self-Attention 的可视化案例（Figure 3–5），为 "self-attention 带来可解释性"（§4.6.3）提供直接证据：
+
+### Figure 3：长距离依赖追踪
+
+展示 Encoder 第 5 层（共 6 层）中，多个 attention head 对动词 **"making"** 的注意力分布。许多 head 关注到了 "making" 的远距离依赖——短语 **"making…more difficult"** 的各个成分。不同颜色代表不同的 head，各 head 学到的依赖模式各异。
+
+### Figure 4：指代消解（Anaphora Resolution）
+
+同样来自第 5 层的两个 attention head，展现出明显的**指代消解行为**：
+- 上图：Head 5 的完整注意力分布；
+- 下图：仅展示对 **"its"** 一词，Head 5 和 Head 6 的注意力分布——注意这些 head 对 "its" 的注意力**非常锐利（very sharp）**，精确聚焦于其所指代的名词短语。
+
+### Figure 5：句法/语义结构感知
+
+第 5 层两个不同 head 的注意力分布表现出与**句子结构**高度相关的行为模式——不同 head 明显在执行不同任务（一个关注短语边界，一个关注句法依存）。这直接验证了论文的核心论断："many attention heads exhibit behavior that seems related to the structure of the sentence"。
+
+> 这些可视化构成了对 Multi-Head Attention 设计动机的实证闭环：不仅理论上多头机制允许不同子空间捕捉不同类型的关系（§3.3.3），实际上训练出的模型确实自发涌现了这种分工——有的 head 追踪长距离句法依赖，有的做指代消解，有的感知短语结构。
+
+---
+
+### 本章小结
 
 | 主题 | 要点 |
 |------|------|
