@@ -66,6 +66,7 @@
 | 2606.27288 | When Does Combining Language Models Help? A Co-Failure Ceiling on Routing, Voting, and Mixture-of-Agents Across 67 Frontier Models | Josef Chen (KAIKAKU) | [Papers](Papers/2026/06/2026-06-29-co-failure-ceiling-multi-model-routing.md) |
 | 2606.27326 | Hallucination in World Models is Predictable and Preventable | Nicklas Hansen, Xiaolong Wang (UC San Diego) | [Papers](Papers/2026/06/2026-06-28-hallucination-in-world-models-predictable-preventable.md) |
 | 2606.27608 | Qwen-Image-2.0-RL Technical Report | Yixian Xu, Kaiyuan Gao, Yuxiang Chen et al. (Qwen Team) | [Papers](Papers/2026/07/2026-07-01-qwen-image-2.0-rl.md) |
+| 2606.30534 | Orca: The World is in Your Mind | Yihao Wang, Yuheng Ji, Mingyu Cao et al. (BAAI / Orca Team) | [Papers](Papers/2026/07/2026-07-03-orca-world-foundation-model.md) |
 | 2606.30616 | Scaling the Horizon, Not the Parameters: Reaching Trillion-Parameter Performance with a 35B Agent | Agents-A1 Team, Shanghai Artificial Intelligence Laboratory | [Papers](Papers/2026/07/2026-07-02-agents-a1-scaling-horizon.md) |
 | HF: deepseek-ai/DeepSeek-V4-Flash | DeepSeek-V4 Technical Report: Towards Million-Token Efficient Context for Agent AI | DeepSeek Team | [DeepReadings](DeepReadings/2026-05-06-deepseek-v4-technical-report.md) |
 | HF: deepseek-ai/DeepSeek-V4-Pro-DSpark | DSpark: Confidence-Scheduled Speculative Decoding with Semi-Autoregressive Generation | Xin Cheng, Xingkai Yu, Chenze Shao et al. (Peking Univ + DeepSeek-AI) | [DeepReadings](DeepReadings/2026-07-01-dspark.md) |
