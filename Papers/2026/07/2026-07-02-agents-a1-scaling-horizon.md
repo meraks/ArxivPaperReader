@@ -5,7 +5,7 @@
 > - **作者**: Agents-A1 Team, Shanghai Artificial Intelligence Laboratory (Project Co-lead: Bo Zhang, Lei Bai)
 > - **发表形式**: arXiv:2606.30616, 2026年6月
 > - **核心贡献**: 提出 Agents-A1，一个 35B MoE agentic model，通过 scaling agent horizon 而非参数规模，达到万亿参数模型的性能水平
-> - **开源状态**: ✅ Apache-2.0 开源，模型权重 HuggingFace 可下载，评估代码开源
+> - **开源状态**: 论文提供 Code 与 Model 链接（具体仓库路径/许可未在正文给出，请以原文链接为准）
 
 ## Ch1: 论文概述与核心贡献
 
@@ -15,11 +15,15 @@ Agents-A1 是一个 35B Mixture-of-Experts agentic model，通过**三段式训�
 
 ### 1.2 三大核心创新
 
-1. **知识-动作基础设施（Knowledge-Action Infrastructure）**：构建知识-动作图（KAG），将异构语料分解为原子能力并组织成可验证、可自扩展的训练监督信号。Agentic trajectory 平均长度达 45K tokens，包含证据、动作、观察和验证信号。
+论文正式列举的三项贡献：
 
-2. **领域路由在线蒸馏（Domain-Routed On-Policy Distillation）**：提出 Salient Vocabulary Alignment（SVA）机制，在教师选择的 top-k token 子集上对齐学生分布，并通过 domain-normalized 聚合解决跨领域梯度冲突问题。
+1. **Agents-A1 模型本身**：一个 35B MoE agentic model，在科学与研究的交互式长程能力上可匹敌甚至超越 1T 参数模型。
 
-3. **三段式训练流水线**：全领域 SFT 打基础 → 6 个独立领域教师模型（搜索/科研/工程/指令跟随/工具调用/通用agent）各司其职 → 多教师 OPD 合并为统一可部署模型。
+2. **长程知识-动作基础设施（Knowledge-Action Infrastructure）**：构建知识-动作图（KAG），将异构语料分解为原子能力并组织成可验证、可自扩展的训练监督信号。Agentic trajectory 平均长度达 45K tokens，包含证据、动作、观察和验证信号。
+
+3. **领域路由在线蒸馏（Domain-Routed On-Policy Distillation + SVA）**：提出 Salient Vocabulary Alignment，在教师选择的 top-k token 子集上对齐学生分布，并通过 domain-normalized 聚合解决跨领域推理模式冲突。
+
+> 上述三者通过**三段式训练流水线**组织（论文 §4 / Figure 2，属方法结构而非单独贡献项）：全领域 SFT 打基础 → 6 个领域教师模型（搜索/科研/工程/指令跟随/工具调用/通用 agent）各司其职 → 多教师 OPD 合并为统一可部署模型。
 
 ### 1.3 关键结果速览
 
@@ -27,17 +31,17 @@ Agents-A1 是一个 35B Mixture-of-Experts agentic model，通过**三段式训�
 |---------|:--------------:|:--------------:|:---------:|:--------------:|:------:|
 | **SEAL-0** | **56.4** | 38.7 | 50.5 | 55.0 | 42.3 |
 | **IFBench** | **80.6** | 64.4 | 71.8 | 73.5 | 75.9 |
-| **GAIA** | **96.0** | 78.6 | 80.6 | 98.1 | 87.4 |
+| **GAIA** | 96.0 | 78.6 | 80.6 | 98.1 | 87.4 |
 | **HiPhO** | **46.4** | 37.7 | 41.1 | 38.7 | 43.3 |
 | **FS-Olympiad** | **79.0** | 60.3 | 73.0 | 76.0 | 78.0 |
 | **FS-Research** | **40.0** | 2.9 | 17.9 | 13.3 | 26.7 |
 | **BrowseComp** | 75.5 | 67.9 | 83.2 | 83.4 | 84.4 |
-| **MolBench-Bind** | **56.8** | 48.7 | 21.6 | 37.8 | 62.2 |
+| **MolBench-Bind** | 56.8 | 48.7 | 21.6 | 37.8 | 62.2 |
 | **SciCode** | 44.3 | 35.8 | 53.5 | 50.0 | 56.1 |
 | **HLE w/ tools** | 47.6 | 36.2 | 54.0 | 48.2 | 52.2 |
 | **MLE-Bench-Lite** | 43.9% | 34.9% | 62.1% | 63.6% | 72.7% |
 
-> **粗体**表示 35B 级别最佳，下划线表示全体最佳。Agents-A1 在 SEAL-0、IFBench、GAIA、HiPhO、FS-Olympiad、FS-Research 等多项基准上超过万亿参数模型。
+> **粗体** = 全体最佳（所有对比模型中最高）。Agents-A1 在所列全部基准上均为 35B 级最佳；其中 **SEAL-0、IFBench、HiPhO、FS-Olympiad、FS-Research** 五项为全体最佳（超过所有对比的万亿参数模型）。注：GAIA (96.0) 略低于 DeepSeek-V4-Pro (98.1)，MolBench-Bind (56.8) 低于 GPT-5.5 (62.2)，故二者未加粗。
 
 ### 1.4 论文总览图
 
@@ -50,10 +54,8 @@ Agents-A1 是一个 35B Mixture-of-Experts agentic model，通过**三段式训�
 
 ### 1.5 开源与代码可用性
 
-- **模型权重**：HuggingFace `InternScience/Agents-A1`，Apache-2.0 许可
-- **评估代码**：GitHub 开源
-- **项目页面**：internscience.github.io/Agents-A1/
-- **基座模型**：Qwen3.5-35B-A3B（Qwen 团队）
+- **代码 / 模型**：原文首页提供 `Code` 与 `Model` 链接。常见落地页为 HuggingFace `InternScience/Agents-A1` 与项目页 `internscience.github.io/Agents-A1/`（**注：这些路径/许可未在论文正文中给出，请以原文 Code/Model 链接落地页为准核实**）
+- **基座模型**：Qwen3.5-35B-A3B（Qwen 团队，原文 §4.1 明确）
 
 ## Ch2: 研究背景与动机
 
@@ -79,9 +81,9 @@ Agents-A1 的核心思路是**构建一个可扩展的知识-动作基础设施*
 
 1. **KAG（Knowledge-Action Graph）**：将异构语料分解为原子能力（信息获取、工具调用、可执行迭代、证据验证、约束追踪），构建可验证、可自扩展的监督信号。
 
-6. **领域专门化**：训练 6 个独立领域教师模型，每个专注于一种核心能力。
+2. **领域专门化**：训练 6 个独立领域教师模型，每个专注于一种核心能力。
 
-7. **多教师蒸馏**：通过 domain-routed on-policy distillation 将多个教师的专长合并为一个统一模型，同时解决推理模式冲突问题。
+3. **多教师蒸馏**：通过 domain-routed on-policy distillation 将多个教师的专长合并为一个统一模型，同时解决推理模式冲突问题。
 
 ## Ch3: 知识-动作基础设施（KAG）
 
@@ -133,7 +135,9 @@ $$x = (q, d, \tau, y^*, E_q, V_q), \quad E_q \subseteq C_d, \quad V_q \subseteq 
 
 其中 $q$ 是指令，$d$ 是领域标签，$y^*$ 是目标答案，$\tau$ 是轨迹：
 
-$$\tau = \{(s_1, a_1, o_1, v_1), \dots, (s_T, a_T, o_T, v_T), y\}$$
+$$\tau = [(s_1, a_1, o_1, v_1), \dots, (s_T, a_T, o_T, v_T), y], \quad a_t \in A_d,\ o_t \in O_d,\ v_t \in V_q \cup \{\bot\}$$
+
+其中 $v_t = \bot$ 表示该步无 step-level 验证器触发（$V_q \subseteq V_d$ 为任务级验证器子集）。
 
 Verifier $\pi_V$ 接受 task 的条件是：（i）可验证（存在 $v \in V_q$ 能验证）；（ii）有效（$\tau$ 达到 $v$ 接受的答案）；（iii）过程有信息量（有意义中间决策）；（iv）证据覆盖（$E_q$ 在 $\tau$ 中被实际引用）；（v）无歧义，无 shortcut。
 
@@ -141,18 +145,21 @@ Verifier $\pi_V$ 接受 task 的条件是：（i）可验证（存在 $v \in V_q
 
 ### 3.4 六个领域的数据管道
 
-Agents-A1 覆盖六个异构领域：
+Agents-A1 的 SFT 数据覆盖多个异构领域。原文 Table 2 仅给出各领域的**平均 token 长度**（未给出每领域 trajectory 计数）：
 
-| 领域 | 数据规模 | 平均 token 长度 | 关键数据源 |
-|------|---------|--------------|-----------|
-| 长程搜索（Deep Research） | ~20K | 44K | Wiki corpus + web search |
-| 编码与工程（Coding/Engineering） | ~20K | 48K | Kaggle competitions, MLE-Dojo |
-| 科学推理与研究（Scientific Reasoning） | ~15K | 37K | 数学/物理/化学问题 |
-| 指令跟随（Instruction Following） | 13K+10K | 3K | Nemotron-RL + 自建长上下文 QA |
-| 通用智能体任务（General Agentic） | ~15K | 39K | 多轮对话/规划/决策 |
-| 工具调用（Tool Calling） | ~17K | - | 科学/web/仓库/数据库工具 |
+| 领域 | 平均 token 长度 | 关键数据源 / 规模说明 |
+|------|:--------------:|-----------|
+| 长程搜索（Deep Research） | 44K | Wiki corpus + web search（最大上下文 256K） |
+| 编码与工程（Coding/Engineering） | 48K | 已结束 Kaggle 竞赛 + MLE-Dojo |
+| 科学推理与研究（Scientific Reasoning） | 37K | ~15K 增强科学问题库（Sec 3.3） |
+| 指令跟随（Instruction Following） | 3K | 13K Nemotron-RL + 10K 自建长上下文 QA（Sec 3.4） |
+| 通用智能体任务（General Agentic） | 39K | 多轮对话/规划/决策 |
+| 工具调用（Tool Calling） | — | 科学/web/仓库/数据库工具（Sec 3.5；原文 Table 2 未单列此项） |
+| **总体（Overall）** | **45K** | — |
 
-**SFT 总数据量**：约 100K trajectories，平均 45K tokens。
+> 注：除科学（~15K 问题库）与指令跟随（13K+10K）的语料规模在正文中给出外，其余领域原文未公布 trajectory 计数。工具调用作为独立数据领域在 §3.5 描述，但未计入 Table 2 的 token 长度表。
+
+**SFT 总数据量**：约 100K trajectories，平均 45K tokens（Sec 4.1）。
 
 ### 3.5 关键设计细节
 
@@ -195,11 +202,13 @@ Agents-A1 覆盖六个异构领域：
 
 #### 4.2.1 搜索教师（SFT + RL）
 
+两阶段流水线：**Stage 1 SFT**（在 §3.1 的搜索轨迹上微调，习得基础工具使用与多轮搜索模式）→ **Stage 2 RL**（GRPO，强化多跳搜索推理）。
+
 **算法**：GRPO（Group Relative Policy Optimization）
 
 **工具**：Web Search、Read Page、Code
 
-**训练数据**：约 2,000 精心选择的多跳推理问题，过滤掉模型"总是正确"或"总是错误"的问题。
+**训练数据**：约 2,000 精心选择的多跳推理问题（用 SFT 模型每题尝试 5 次，保留既有正确又有错误轨迹的题目），过滤掉模型"总是正确"或"总是错误"的问题。
 
 **Rollout**：每个 prompt 生成 8 个 rollouts，最多 300 次工具调用
 
@@ -209,7 +218,7 @@ Agents-A1 覆盖六个异构领域：
 - **重复惩罚**：近期重复的 search/read_page 调用施加小惩罚
 - **格式校准奖励**：奖励符合输出格式的答案
 
-**配置**：学习率 $1 \times 10^{-6}$，GRPO clip range $[0.2, 0.28]$，KL 惩罚系数 0.001，熵正则化 0.0001，rollout 温度 1.0。
+**配置**：恒定学习率 $1 \times 10^{-6}$；每步采样 32 个问题 × 8 个 rollout（global batch = 256）；GRPO clip range $[0.2, 0.28]$；KL 惩罚系数 0.001；熵正则化 0.0001；最大响应长度 4,096；最大序列长度 131,072；rollout 温度 1.0。
 
 #### 4.2.2 科学教师（两阶段 SFT）
 
@@ -227,11 +236,17 @@ Agents-A1 覆盖六个异构领域：
 
 **SFT 阶段**：使用 Section 3.5 收集的工具调用数据训练基础能力。
 
-**RL 阶段**：使用 PAPO-style advantage（不对称设计），仅对失败轨迹加入过程奖励：
+**RL 阶段**：奖励包含二值 outcome 奖励 $r_i^{\text{out}} \in \{0,1\}$ 与基于 LLM rubric 的过程评分：
+
+$$r_i^{\text{out}} \in \{0,1\}, \quad r_i^{\text{proc}} = \frac{1}{|\mathcal{R}|} \sum_{j=1}^{|\mathcal{R}|} \mathbb{1}[\mathcal{R}_j \text{ is satisfied}]$$
+
+随后使用 PAPO-style advantage（不对称设计）：成功轨迹已满足全部 rubric，故仅对**失败轨迹**加入过程奖励，避免重复计数：
 
 $$A_i = A_i^{\text{out}} + \lambda_{\text{neg}} \cdot \mathbb{1}[r_i^{\text{out}} = 0] \cdot A_i^{\text{proc}}, \quad \lambda_{\text{neg}} = 0.5$$
 
-仅 64 个 hard tasks 通过 data reuse 实现高效的 RL 提升。
+其中 $A^{\text{out}}$ 在组内有效样本上归一化，$A^{\text{proc}}$ 仅在有效**负样本**上归一化。
+
+通过 data reuse 反复利用同一批高质量数据，每任务期望生成轨迹数约为 $N_{\text{reuse}} \approx \dfrac{R \cdot B \cdot K}{|\mathcal{D}|}$（$R$=rollout 轮数，$B$=batch，$K$=每 prompt 采样数）。仅 64 个 hard tasks 通过此机制实现高效的 RL 提升。
 
 ### 4.3 第三阶段：多教师在线蒸馏（OPD）
 
@@ -328,7 +343,7 @@ $$\mathcal{L}_{\text{MT-SVA}}(\theta'_s) = \frac{1}{|D_B|} \sum_{d \in D_B} \fra
 | Qwen3.5-35B-A3B | 59.8 | 41.4 | 47.4 | 77.0 |
 | Search-enhanced Teacher | **95.1** | **54.1** | **50.3** | **86.0** |
 
-GAIA 提升最大（+25.6），说明 RL 强化搜索工具使用对开放域问答效果显著。
+GAIA 提升最大（59.8 → 95.1，+35.3），说明 RL 强化搜索工具使用对开放域问答效果显著。（注：原文正文此处写作 59.8→85.4 (+25.6)，与其 Table 5 的 95.1 不一致；本表采用 Table 5 数值。）
 
 #### 科学教师（两阶段 SFT）
 
@@ -376,7 +391,7 @@ LongBench V2 +3.4，IFBench +11.8，说明 RL 在强化约束满足和长上下�
 | **τ2-Bench** | 79.8 | 79.0 | 74.5 | 81.9 | 82.2 | 81.6 |
 | **VitaBench** | 38.8 | 35.6 | 23.0 | 35.6 | 49.0 | 45.0 |
 | **MatTools** | 47.1 | 15.9 | 34.1 | 63.8 | 47.1 | 68.8 |
-| **MolBench-Bind** | **56.8** | 48.7 | 51.4 | 21.6 | 37.8 | 62.2 |
+| **MolBench-Bind** | 56.8 | 48.7 | 51.4 | 21.6 | 37.8 | 62.2 |
 
 **下划线** = 35B 最佳，**粗体** = 全体最佳。
 
@@ -388,7 +403,7 @@ LongBench V2 +3.4，IFBench +11.8，说明 RL 在强化约束满足和长上下�
 - **HiPhO (46.4)**：超过所有万亿参数模型，显示其在物理推理方面的优势
 - **FS-O (79.0)**：接近 GPT-5.5 (78.0) 并超过 DSV4-Pro (76.0)
 - **FS-Research (40.0)**：远超所有对比模型（第二名 GPT-5.5 仅 26.7）
-- **MolBench-Bind (56.8)**：超越所有万亿参数模型
+- **MolBench-Bind (56.8)**：超越 Kimi-K2.6 (21.6) 与 DeepSeek-V4-Pro (37.8)，但低于 GPT-5.5 (62.2)
 
 **2. Agents-A1 弱于万亿参数模型的领域**：
 - **BrowseComp (75.5)**：低于 GPT-5.5 (84.4)、DSV4-Pro (83.4)、Kimi-K2.6 (83.2)
@@ -432,6 +447,7 @@ Agents-A1 为 MLE 领域设计了紧凑的工具接口，支持代码编写、�
 | `select_node` | 完整查看一个节点（代码、计划、输出、指标、父链） |
 | `invalidate_node` | 将不可信节点从排序和提交中排除 |
 | `update_answer` | 提交节点为当前候选答案 |
+| `get_current_answer` | 查看当前已提交为答案的节点 |
 | `write_notes` / `read_notes` | 持久化笔记（跨压缩保留决策和假设） |
 | `analyze` | 生成独立的分析子 agent 探索数据和结果 |
 
@@ -445,65 +461,71 @@ import torch
 import torch.nn.functional as F
 
 def salient_vocabulary_alignment(
-    student_logits: torch.Tensor,     # (B, vocab_size) 学生模型 logits
-    teacher_logits: torch.Tensor,     # (B, vocab_size) 路由教师模型 logits
+    student_logits: torch.Tensor,     # (N, vocab_size) 学生模型 logits，每行一个待训练 token 位置
+    teacher_logits: torch.Tensor,     # (N, vocab_size) 路由教师模型 logits
+    sample_ids: torch.Tensor,         # (N,) 每行所属样本 id，用于按样本做 1/|R_i| 归一（Eq 4）
     top_k: int = 128,                 # top-k 有效 token
-    reduction: str = 'mean'
 ) -> torch.Tensor:
     """
     Salient Vocabulary Alignment (SVA) 损失函数
-    
-    论文 Section 2.3.1: 在教师选择的 top-k token 子集上
-    计算学生与教师分布之间的 reverse KL 散度
+
+    论文 Section 2.3.1 / Eq (4):
+        ℓ_SVA^(i) = (1/|R_i|) Σ_{t∈R_i} Σ_{u∈S^(k)} p̄_s'(u)·log[p̄_s'(u)/p̄_t,i(u)]
+    在教师选择的 top-k token 子集上，对每个样本 i 先在其可训练位置 R_i 上取均值，
+    再计算学生与教师分布之间的 reverse KL（student||teacher）。
+    注意：必须按 sample_ids 做逐样本的 1/|R_i| 归一，否则长轨迹会因 token 数多而主导梯度
+    （这正是 Eq 6 域归一化所要避免的长度偏置）。
     """
-    # 1. 计算教师分布并选择 top-k 支持集
-    teacher_probs = F.softmax(teacher_logits, dim=-1)  # (B, V)
-    student_probs = F.softmax(student_logits, dim=-1)   # (B, V)
-    
-    # 2. 获取教师分布下的 top-k token 索引
-    _, topk_indices = torch.topk(teacher_probs, k=top_k, dim=-1)  # (B, k)
-    
-    # 3. 收集在支持集上的分数
-    batch_indices = torch.arange(teacher_probs.size(0)).unsqueeze(1).expand(-1, top_k)
-    # teacher support
-    teacher_support = teacher_probs[batch_indices, topk_indices]  # (B, k)
-    student_support = student_probs[batch_indices, topk_indices]  # (B, k)
-    
-    # 4. 在支持集上重归一化
+    # 1. 计算学生/教师分布
+    teacher_probs = F.softmax(teacher_logits, dim=-1)   # (N, V)
+    student_probs = F.softmax(student_logits, dim=-1)    # (N, V)
+
+    # 2. 取教师分布下的 top-k token 索引（支持集由教师决定）
+    topk_indices = teacher_probs.topk(k=top_k, dim=-1).indices  # (N, k)
+
+    # 3. 在支持集上 gather 两个分布（用 gather 避免 torch.arange 的 device 隐患）
+    teacher_support = teacher_probs.gather(1, topk_indices)  # (N, k)
+    student_support = student_probs.gather(1, topk_indices)  # (N, k)
+
+    # 4. 在支持集上重归一化（Eq 4 的 p̄）
     teacher_norm = teacher_support / teacher_support.sum(dim=-1, keepdim=True)
     student_norm = student_support / student_support.sum(dim=-1, keepdim=True)
-    
-    # 5. Reverse KL: student * log(student / teacher)
-    kl_div = student_norm * (torch.log(student_norm + 1e-10) - torch.log(teacher_norm + 1e-10))
-    loss = kl_div.sum(dim=-1)
-    
-    if reduction == 'mean':
-        return loss.mean()
-    elif reduction == 'sum':
-        return loss.sum()
-    return loss
+
+    # 5. Reverse KL: Σ_u p̄_s'(u)·log[p̄_s'(u)/p̄_t,i(u)]
+    kl_per_pos = student_norm * (
+        torch.log(student_norm.clamp_min(1e-12)) - torch.log(teacher_norm.clamp_min(1e-12))
+    )
+    pos_loss = kl_per_pos.sum(dim=-1)            # (N,) 每个 (样本,位置) 的支持集求和
+
+    # 6. 按样本做 1/|R_i| 平均（Eq 4），再跨样本平均
+    num_samples = int(sample_ids.max().item()) + 1
+    sample_loss = pos_loss.new_zeros(num_samples)
+    sample_count = pos_loss.new_zeros(num_samples)
+    sample_loss.index_add_(0, sample_ids, pos_loss)
+    sample_count.index_add_(0, sample_ids, torch.ones_like(pos_loss))
+    per_sample = sample_loss / sample_count.clamp_min(1.0)   # (num_samples,) = ℓ_SVA^(i)
+    return per_sample.mean()
+
 
 def domain_routed_normalized_loss(
-    losses_per_sample: torch.Tensor,  # (B,) 每个样本的 SVA loss
-    domain_labels: torch.LongTensor,   # (B,) 领域标签
-    num_domains: int = 6
+    losses_per_sample: torch.Tensor,  # (M,) 每个样本的 SVA loss ℓ^(i)（已含 1/|R_i|）
+    sample_domain: torch.Tensor,      # (M,) 每个样本的领域标签 d
 ) -> torch.Tensor:
     """
-    Domain-Routed Normalized Objective
-    
-    论文 Section 2.3.2 公式 (6):
-    L = (1/|D_B|) * sum_d (1/|B_d|) * sum_{i in B_d} l_i
+    Domain-Routed Normalized Objective（论文 Section 2.3.2 / Eq 6）
+        L = (1/|D_B|)·Σ_{d∈D_B} (1/|B_d|)·Σ_{i∈B_d} ℓ^(i)
+    其中 D_B = {d : |B_d| > 0}，即 mini-batch 中出现的领域集合
+    （仅按“是否出现”判定，无 < num_domains 上界过滤，否则 1-indexed 标签会静默丢弃合法域）。
     """
-    unique_domains = domain_labels.unique()
-    active_domains = unique_domains[unique_domains < num_domains]
-    
-    total_loss = 0.0
+    if losses_per_sample.numel() == 0:                 # 空集保护，避免除零
+        return losses_per_sample.new_zeros(())
+
+    active_domains = sample_domain.unique()            # = D_B
+    total = losses_per_sample.new_zeros(())
     for d in active_domains:
-        mask = domain_labels == d
-        domain_loss = losses_per_sample[mask].mean()
-        total_loss = total_loss + domain_loss
-    
-    return total_loss / len(active_domains)
+        mask = sample_domain == d
+        total = total + losses_per_sample[mask].mean()  # (1/|B_d|)·Σ_{i∈B_d}
+    return total / active_domains.numel()               # (1/|D_B|)
 ```
 
 ### 6.3 模型架构概览
@@ -526,7 +548,7 @@ def domain_routed_normalized_loss(
 
 4. **基础原子能力不足**：论文指出，规划前先推理、行动前先反思、长上下文中总结关键信息、识别重要历史信息等原子能力对长程任务至关重要，但目前这些能力主要来自 Qwen3.5 的初始能力而非专门训练。
 
-5. **评估环境不一致**：τ2-Bench 的 Qwen3.5-35B-A3B 官方结果 (81.2) 与复现结果 (32.5) 差距巨大，表明评估框架版本依赖性强。
+5. **评估环境不一致**：τ2-Bench 的 Qwen3.5-35B-A3B 官方结果 (81.2) 与复现结果差距巨大（Table 4 单元格与 Table 8 脚注为 32.5/32.53，Table 4 脚注另记 33.0——原文自身不一致），表明评估框架版本依赖性强。
 
 ### 7.2 关键启示
 
