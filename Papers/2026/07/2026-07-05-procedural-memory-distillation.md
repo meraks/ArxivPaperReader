@@ -1,18 +1,17 @@
----
 # Procedural Memory Distillation: Online Reflection for Self-Improving Language Models
 
 **论文信息**
-- **标题**: Procedural Memory Distillation: Online Reflection for Self-Improving Language Models
-- **作者**: Ye Liu, Srijan Bansal, Bo Pang, Yang Li, Zeyu Leo Liu, Yifei Ming, Zixuan Ke, Shafiq Joty, Semih Yavuz
-- **机构**: Salesforce AI Research
-- **发表**: arXiv:2607.01480, 2026年7月
-- **代码**: 未公开
+> **标题**: Procedural Memory Distillation: Online Reflection for Self-Improving Language Models
+> **作者**: Ye Liu, Srijan Bansal, Bo Pang, Yang Li, Zeyu Leo Liu, Yifei Ming, Zixuan Ke, Shafiq Joty, Semih Yavuz
+> **机构**: Salesforce AI Research
+> **发表**: arXiv:2607.01480, 2026年7月
+> **代码**: 未公开
 
 ## Ch1 论文概述
 
 ### 核心问题
 
-在 RLVR（Reinforcement Learning with Verifiable Rewards）和偏好优化训练中，当前的主流方法（PPO、DPO、GRPO、SDPO 等）均以**单 episode 为单位**进行学习：模型生成一个 rollout → 获得奖励/反馈 → 更新策略 → 丢弃经验。这种设计忽略了训练过程中的一个重要事实：模型会在多个 epoch 中反复遇到相同或相似的问题，而跨 episode 的累积信号（哪些策略持续有效、哪些失败模式反复出现）被白白浪费。
+ 在 RLVR（Reinforcement Learning with Verifiable Rewards）和偏好优化训练中，当前的主流方法（PPO、DPO、GRPO、SDPO 等）均以**单 episode 为单位**进行学习：模型生成一个 rollout → 获得奖励/反馈 → 更新策略 → 丢弃经验。这种设计忽略了训练过程中的一个重要事实：模型会在多个 epoch 中反复遇到相同或相似的问题，而跨 episode 的累积信号（哪些策略持续有效、哪些失败模式反复出现）被白白浪费。
 
 ### 核心贡献
 

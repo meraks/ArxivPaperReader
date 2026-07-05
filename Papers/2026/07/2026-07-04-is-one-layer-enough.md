@@ -1,4 +1,5 @@
----
+
+
 # 训练一个Transformer层即可匹配全参数RL训练：层贡献视角的RL后训练研究
 
 > **论文标题**: Is One Layer Enough? Training A Single Transformer Layer Can Match Full-Parameter RL Training  
@@ -6,8 +7,6 @@
 > **发表**: arXiv:2607.01232, 2026年7月  
 > **分类**: cs.LG, cs.CL  
 > **代码**: 未公开  
-
----
 
 ## 1. 速览
 
@@ -21,9 +20,11 @@
 |------|-----------|---------|---------|
 | Base模型数学平均 | 44.1% | 52.2% | 58.0% |
 | 全参数RL训练 | 50.8% | 63.0% | 66.4% |
-| 最佳单层训练 | 51.8%（Layer 10） | 64.3%（Layer 15） | 67.1%（Layer 16） |
+| 最佳单层训练 | 51.8%（Layer 10） | 64.3%（Layer 15/16） | 67.1%（Layer 16） |
 | **最佳引导策略** | **53.7%** | **65.9%** | **69.1%** |
 | 全参数vs引导增益 | +43%额外相对增益 | +27%额外相对增益 | +32%额外相对增益 |
+
+> 注：Qwen3-4B 和 Qwen3-8B 的全参数RL值（63.0%、66.4%）为 Section 4 中 3 次独立运行的均值，与 Table 2 单次运行值（63.7%、66.5%）略有差异。原文在 Figure 1 标题中对此有说明。最佳引导策略对应 Selective Training（1.7B: Boost B10; 4B: Only B5; 8B: Only B10）。
 
 ### 主要贡献
 
@@ -78,7 +79,7 @@ $$
 策略通过裁剪代理目标函数更新：
 
 $$
-\mathcal{L}_{\text{GRPO}}(\theta) = \mathbb{E}_{x,\{y_i\}}\left[\frac{1}{G}\sum_{i=1}^G \min\left(\rho_i \hat{A}_i, \text{clip}(\rho_i, 1-\epsilon, 1+\epsilon) \hat{A}_i\right)\right]
+\mathcal{L}_{\text{GRPO}}(\theta) = \mathbb{E}_{x,\{y_i\}}\left[\frac{1}{G}\sum_{i=1}^G \left(\min\left(\rho_i \hat{A}_i, \text{clip}(\rho_i, 1-\epsilon, 1+\epsilon) \hat{A}_i\right) - \beta\,\mathbb{D}_{\mathrm{KL}}\!\left[\pi_{\theta} \,\|\, \pi_{\text{ref}}\right]\right)\right]
 $$
 
 ### 3.2 单层训练框架
@@ -156,6 +157,8 @@ Figure 1展示了所有7个模型的Layer Contribution曲线。尽管模型规�
 | Layer 1（低贡献） | 59.7% | 51.4% | 34.3% | 63.0% | 52.1% | 0.20 | 0.20 |
 | Layer 32（低贡献） | 60.3% | 39.1% | 33.5% | 58.0% | 47.8% | 0.27 | 0.27 |
 
+> 注：表中所选低贡献层数据来自全文附录（Appendix C）的逐层完整结果。原文 Table 2 中仅展示了部分代表性层。Layer 0 在 8B 上甚至出现负贡献（C=-0.51），即单独训练该层会导致性能低于 Base 模型。
+
 关键观察：
 1. **Layer 14/15/16超越全参数训练**：数学C达到1.03–1.07，总C达到1.07–1.30
 2. **收益超出数学域**：中层不仅在训练域（数学）表现优异，在代码、语言等OOD任务上也普遍提升
@@ -205,7 +208,7 @@ Qwen3（RoPE+Transformer++）和Qwen2.5（RoPE+Transformer）虽然架构细节�
 |---------|---------|----------------|
 | 全参数Full RL | 36层 | 66.4% |
 | 仅训练Top-10贡献层 | 10层 | **69.1%** |
-| 仅训练中间5层 | 5层 | 68.0% |
+| 仅训练中间5层 | 5层 | 68.2% |
 
 训练参数减少72–86%，计算量大幅降低。
 
@@ -215,13 +218,13 @@ Qwen3（RoPE+Transformer++）和Qwen2.5（RoPE+Transformer）虽然架构细节�
 
 ### 5.3 层集成（Layer Ensemble）
 
-在不同层上独立训练多个模型，通过majority voting集成。不同层学习到互补的推理策略（平均Jaccard相似度仅为34.1%），集成可覆盖更多场景。
+在不同层上独立训练多个模型，通过majority voting集成。不同层学习到互补的推理策略（平均Jaccard相似度仅为34.1%），集成可覆盖更多场景。在OlympiadBench上，7层集成达到33.6%，超越最佳单层（28.3%）和全参数基线（26.9%）。
 
-| 方法 | Qwen3-1.7B数学平均 |
-|------|------------------|
-| 全参数Full RL | 50.8% |
-| 最佳单层 | 51.8% |
-| 7-layer ensemble | **52.5%** |
+| 方法 | Qwen3-1.7B OlympiadBench |
+|------|--------------------------|
+| 全参数Full RL | 26.9% |
+| 最佳单层 | 28.3% |
+| 7-layer ensemble | **33.6%** |
 
 ### 5.4 无扫描启发式策略
 
@@ -230,6 +233,8 @@ Qwen3（RoPE+Transformer++）和Qwen2.5（RoPE+Transformer）虽然架构细节�
 ---
 
 ## 6. 深入分析
+
+> **注**：以下 6.1–6.2 为评论者基于论文结果和相关文献的分析解读，其中部分推测（如分工理论、瓶颈效应等）并非论文本身的明确结论。论文在总结中明确指出中间层为何对 RL 适应至关重要这一理论问题仍为开放问题（"a deeper theoretical understanding of why middle layers are disproportionately important for RL adaptation remains an open question"）。
 
 ### 6.1 为什么RL收益集中在中间层？
 
@@ -309,10 +314,12 @@ Qwen3（RoPE+Transformer++）和Qwen2.5（RoPE+Transformer）虽然架构细节�
 | 最佳单层 | 51.8% | 64.3% | 67.1% |
 | Selective Training | 53.7% | 65.9% (Only B5) | 69.1% (Only B10) |
 | Boosted LR (B10) | 53.7% | 64.4% | — |
-| Mid-5 Heuristic | 51.4% | 65.5% | 68.0% |
-| Layer Ensemble (7层 voting) | 52.5% | — | — |
+| Mid-5 Heuristic | 51.4% | 65.5% | 68.2% |
+| Layer Ensemble (7层 voting) | 33.6%† | — | — |
 
 所有策略均超越或持平全参数RL训练。在Qwen3-8B上，Selective Training (Only B10) 达到69.1%，比全参数66.4%高出+2.7pp，对应32%的相对增益提升。
+
+> † Layer Ensemble 为 OlympiadBench 上的结果（非数学平均），原文仅在该基准上报告了 ensemble 实验。全参数RL 和最佳单层在 OlympiadBench 上的对应值分别为 26.9% 和 28.3%。另注：Section 1 中 Qwen3-4B 和 Qwen3-8B 的全参数RL值（63.0%、66.4%）为 Section 4 中 3 次运行均值，与 Table 2 单次运行值（63.7%、66.5%）略有差异，原文 Figure 1 标题中对此有说明。
 
 ---
 
