@@ -1,5 +1,12 @@
 # Morphing into Hybrid Attention Models：FlashMorph 方法与实验分析
 
+> **论文标题**: Morphing into Hybrid Attention Models  
+> **作者**: Disen Lan (Fudan University), Jianbin Zheng, Yuxi Ren, Xin Xia, Xuanda Wang, Xuefeng Xiao (ByteDance Seed), Xipeng Qiu† (Fudan University), Yu Cheng† (The Chinese University of Hong Kong)  
+> **发表**: arXiv:2606.30562, 2026年6月  
+> **分类**: cs.CL  
+> **代码**: https://github.com/LanDisen/FlashMorph  
+> **许可**: arXiv.org perpetual non-exclusive license
+
 ## Ch1 论文概述与核心贡献
 
 ### 1.1 背景与问题
