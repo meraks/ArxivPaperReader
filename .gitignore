@@ -74,3 +74,6 @@ Daily/
 
 # Claude
 .claude
+
+# Misc
+.mcu_common
