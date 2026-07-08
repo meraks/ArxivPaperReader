@@ -37,26 +37,9 @@ Reinforcement Learning with Verifiable Rewards (RLVR) 已成为提升 LLM 推理
 4. **顺序组合能力**：不同 RL 训练过程学习到的不同能力，可以通过 Direct-OPD 顺序组合到同一个学生模型中
 5. **理论分析与条件刻画**：阐明了 Direct-OPD 何时有效——低 token 重叠即可传递、短视界训练泛化到长 rollout、KL 系数对转移信号可靠性的影响
 
-### 1.5 图表总览
+![Figure 1: Direct-OPD transfers the effect of small-model RL rather than imitating the small model. (a) Starting from R1-Distill-7B, vanilla OPD toward the post-RL JustRL-1.5B teacher degrades performance, whereas Direct-OPD transfers the JustRL-1.5B − R1-Distill-1.5B policy shift and improves the student. (b) The same policy shift improves Qwen3-1.7B, Qwen3-4B, and R1-Distill-7B on AIME 2024, including students whose initial accuracy already exceeds the post-RL teacher.](Figures/2026-07-08-Direct-OPD-vs-vanilla-OPD-comparison.png)
 
-| 图表 | 类型 | 内容 |
-|------|------|------|
-| Figure 1 | 对比图 | Vanilla OPD vs Direct-OPD 的直观对比 |
-| Figure 2 | 柱状图 | 两个教师对的 Direct-OPD 转移准确率 |
-| Figure 3 | 折线图 | 弱到强 vs 直接 RL 的匹配步数对比 |
-| Figure 4 | 折线图 | 顺序组合（JustRL → QuestA）的轨迹 |
-| Figure 5 | 图表 | 师生 top-k 重叠分析（§4.1） |
-| Figure 6 | 图表 | 熵诊断 |
-| Figure 7 | 图表 | 响应长度扫描 |
-| Figure 8 | 图表 | 短视界训练泛化（§4.2） |
-| Figure 9 | 图表 | KL 系数扫描（§4.3） |
-| Table 1 | 结果表 | 不同师生对的分数汇总（Figure 2 对应） |
-| 顺序组合表 | 结果表 | 顺序组合分数汇总（论文 Figure 4） |
-| Table 2 | 设置表 | 评估协议 |
-| Table 3 | 超参表 | Direct-OPD 训练超参数 |
-| Table 4 | 超参表 | RL 训练超参数 |
-
-### 1.6 开源/代码/数据状态
+### 1.5 开源/代码/数据状态
 
 - **代码**：[GitHub](https://github.com/BytedTsinghua-SIA/Direct-OPD) — 基于 verl 框架实现
 - **模型**：计划上传至 HuggingFace
@@ -229,6 +212,8 @@ Direct-OPD 基于 verl 框架实现，实际部署时有以下关键调参要点
 | **R1-Distill-7B** | 56.7% | — | 40.5% | — |
 | + Direct-OPD | **63.1%** | **+6.4** | **48.8%** | **+8.3** |
 
+![Figure 2 (左): R1-Distill-1.5B → JustRL-1.5B transfer into R1-Distill-7B, Qwen3-1.7B, and Qwen3-4B, evaluated on AIME 2024 and AIME 2025.](Figures/2026-07-08-JustRL-transfer-results.png)
+
 **QuestA 策略转移结果：**
 
 | 模型 | AIME 2024 | 提升 | AIME 2025 | 提升 |
@@ -239,6 +224,8 @@ Direct-OPD 基于 verl 框架实现，实际部署时有以下关键调参要点
 | + Direct-OPD | **59.0%** | **+9.9** | **43.1%** | **+6.3** |
 | **R1-Distill-7B** | 56.3% | — | 39.5% | — |
 | + Direct-OPD | **61.2%** | **+4.9** | **44.0%** | **+4.5** |
+
+![Figure 2 (右): Nemotron-1.5B → QuestA-Nemotron-1.5B transfer into R1-Distill-7B and Qwen3-1.7B on AIME 2024.](Figures/2026-07-08-QuestA-transfer-results.png)
 
 **关键发现：**
 1. **跨上限改善**：Qwen3-4B 初始 72.5% 已高于 JustRL 教师 51.3%，但 Direct-OPD 仍将其提升至 77.6%（+5.1）
@@ -261,6 +248,8 @@ Direct-OPD 基于 verl 框架实现，实际部署时有以下关键调参要点
 | 1.5B RL (1500 步) + Direct-OPD | ~160 h × 32 A100 | ~4 h × 8 A100 | ~160 h × 32 A100 + 少量 |
 | **相对节省** | | | **~50%+** |
 
+![Figure 3: Running RL on a small model and transferring its policy shift with Direct-OPD beats running RL directly on the large target. Left: AIME 2025 accuracy against total GPU-hours. Middle: Direct-OPD transfer trajectories into R1-Distill-7B from five small-teacher checkpoints. Right: Qwen3 non-thinking models.](Figures/2026-07-08-weak-to-strong-vs-direct-RL.png)
+
 **非思考模型验证。** 在 Qwen3-1.7B-nonthinking 上运行 100 步 RL，转移给 Qwen3-4B-nonthinking 后达到与直接 4B RL 相同的 AIME 2024 水平（68.0%），验证了该方法在非思考模型上的泛化性。
 
 ### 3.3 顺序组合：多教师策略偏移的累积
@@ -274,6 +263,8 @@ Direct-OPD 基于 verl 框架实现，实际部署时有以下关键调参要点
 | 第二段（QuestA） | **63.8% (+15.5)** | **46.8% (+10.0)** |
 
 **结论**：不同 RL 训练运行可以学到不同能力，Direct-OPD 可将这些能力顺序组合到同一个学生模型中。最终 AIME 2024 63.8% 高于任一单独转移的终点。
+
+![Figure 4: Sequential policy-shift transfer into Qwen3-1.7B on AIME 2024. Left: the AIME 2024 trajectory after aligning the second stage to global steps 300–600. Right: endpoint scores on AIME 2024/2025.](Figures/2026-07-08-sequential-composition.png)
 
 ### 3.4 实验结果核心讨论
 
@@ -302,13 +293,21 @@ $$
 - 在跨模式转移中（师生推理模式不同），与 post-RL 教师的重叠保持低位，与教师参考也无明显上升
 - **Direct-OPD 的增益不能通过逐步模仿任一教师检查点来解释**，而是通过利用 RL 诱导方向在学生自己的访问状态上传递信号
 
+![Figure 5: Teacher–student top-k overlap during Direct-OPD training. Left: R1-Distill-1.5B → JustRL-1.5B. Right: Nemotron-1.5B → QuestA-Nemotron-1.5B. Solid curves: overlap with post-RL teacher; dashed: with teacher reference.](Figures/2026-07-08-topk-overlap-aligned.png)
+
+![Figure 5 (右): Cross-pattern transfer top-k overlap.](Figures/2026-07-08-topk-overlap-cross-pattern.png)
+
 **熵诊断**：验证了 actor 熵没有坍塌——信号来自有意义的策略调整而非退化。
+
+![Figure 6: Entropy diagnostics for R1-Distill-1.5B → JustRL-1.5B policy-shift transfer. Top: Qwen3-1.7B. Bottom: R1-Distill-7B.](Figures/2026-07-08-entropy-diagnostics-JustRL.png)
 
 ### 4.2 短视界训练泛化到长行为
 
 Direct-OPD 训练使用短响应长度（2k tokens），但推理时生成长度可达 31k tokens。
 
 **问题**：2k 训练是否只改变受监督的短前缀？
+
+![Figure 7: Response-length sweep for R1-Distill-1.5B → JustRL-1.5B transfer with fixed KL=1. Average of AIME 2024/2025 validation accuracy during training.](Figures/2026-07-08-response-length-sweep.png)
 
 **诊断**：在固定长 rollout 上，计算学生行为向 JustRL 方向相对 R1-Distill-1.5B 偏移的累积量：
 
@@ -318,6 +317,8 @@ $$
 
 **发现**：40 步的 2k 训练后，actor 在远超 2k 的长 rollout 上仍向教师偏移方向移动。6k 训练移动更大但验证反而更差（45.6 vs 48.8），说明长前缀上的教师偏移可能不可靠。
 
+![Figure 8: Short-horizon Direct-OPD training changes behavior beyond the supervised prefix. Left: 64 per-rollout trajectories for untrained Qwen3-1.7B. Middle: mean G_T for base and 2k/4k/6k-trained actors. Right: AIME validation at 40-step checkpoint — 2k validates best.](Figures/2026-07-08-short-horizon-generalization.png)
+
 ### 4.3 KL 控制教师偏移奖励的可靠性
 
 教师/参考 log-ratio 作为稠密奖励仅在学生访问的状态上教师偏移有意义的条件下可靠。
@@ -325,6 +326,8 @@ $$
 **固定 KL 扫描**：不同教师-学生对偏好不同的最优 KL 值。大的正平均奖励可能与更差的验证相关——稠密奖励不应被独立最大化。
 
 **自适应 KL 的效果**：经过初始校正阶段后，自适应 KL 将平均教师偏移奖励拉向零附近。这表示学生停留在教师/参考比较有信息量的区域，而非漂移到两者支持集之外的噪声区域。
+
+![Figure 9: The best KL coefficient is pair-dependent, and adaptive KL pulls the mean teacher-shift reward toward a balanced regime. Top: AIME validation accuracy; bottom: mean teacher-shift reward.](Figures/2026-07-08-KL-coefficient-sweep.png)
 
 ### 4.4 训练的稳定性与收敛性分析
 
@@ -400,3 +403,13 @@ Direct-OPD 从根本上改变了小模型 RL 的语义——从「最终产品�
 ### 6.4 对 OPD 社区的影响
 
 Direct-OPD 揭示了 OPD 中一个重要但被忽视的自由度：**传递的信号不必是教师的完整输出分布**。检查点对中的差分信息已经包含了 RL 的核心学习成果，而丢弃教师的基线偏好（pre-RL 分布）恰恰移除了弱教师的能力瓶颈。这意味着 OPD 研究社区的关注点可能从「如何更好地匹配教师」转向「如何从教师轨迹中提取更有信息量的子信号」。
+
+---
+
+## 附录：补充图表
+
+![Figure 10: Entropy diagnostics for QuestA-Nemotron into Qwen3-1.7B. Together with Figure 6, shows the non-collapse pattern is not specific to JustRL.](Figures/2026-07-08-entropy-diagnostics-QuestA.png)
+
+![Figure 11: Sequential policy-shift transfer into Qwen3-1.7B on AIME 2025. QuestA-Nemotron stage aligned after JustRL stage using global steps 300–600.](Figures/2026-07-08-sequential-composition-AIME2025.png)
+
+![Figure 12: QuestA transfer curves on AIME 2025 for the cross-pattern transfer setting.](Figures/2026-07-08-QuestA-transfer-curves-AIME2025.png)
