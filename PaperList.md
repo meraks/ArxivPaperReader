@@ -1,6 +1,10 @@
 # Paper List
 
-本文件收录仓库中所有已阅读/归档的论文，按 arXiv/HuggingFace 编号排列。
+本文件收录仓库中所有已阅读/归档的论文，按文件夹分组排列。
+
+---
+
+## DeepReadings
 
 | 编号 | 标题 | 主要作者 | 仓库链接 |
 |------|------|----------|----------|
@@ -21,6 +25,18 @@
 | 2501.12948 | DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning | DeepSeek-AI (Daya Guo, Dejian Yang, Haowei Zhang et al.) | [DeepReadings](DeepReadings/2025-01-22-deepseek-r1-incentivizing-reasoning-via-rl.md) |
 | 2502.09992 | Large Language Diffusion Models (LLaDA) | Shen Nie, Fengqi Zhu, Zebin You et al. (Renmin Univ. / Ant Group) | [DeepReadings](DeepReadings/2025-02-13-large-language-diffusion-models-llda.md) |
 | 2603.20397 | KV Cache Optimization Strategies for Scalable and Efficient LLM Inference | Y. Xu, N. K. Khaira, T. Singh | [DeepReadings](DeepReadings/2026-03-13-kv-cache-optimization-survey.md) |
+| 2605.30343 | Unlocking the Working Memory of Large Language Models for Latent Reasoning (RiM) | Lukas Aichberger, Sepp Hochreiter (JKU) | [DeepReadings](DeepReadings/2026-05-28-unlocking-working-memory-llm-latent-reasoning-rim.md) |
+| 2606.03841 | EvoDS: Self-Evolving Autonomous Data Science Agent | Zherui Yang, Fan Liu, Yansong Ning, Hao Liu (HKUST Guangzhou) | [DeepReadings](DeepReadings/2026-06-04-evods-self-evolving-data-science-agent.md) |
+| 2606.09659 | Latent Context Language Models (LCLMs): End-to-End Context Compression at Scale | Ang Li, Sean McLeish et al. (NYU, Modal, Meta FAIR) | [DeepReadings](DeepReadings/2026-06-11-lclm-end-to-end-context-compression.md) |
+| HF: deepseek-ai/DeepSeek-V4-Flash | DeepSeek-V4 Technical Report: Towards Million-Token Efficient Context for Agent AI | DeepSeek Team | [DeepReadings](DeepReadings/2026-05-06-deepseek-v4-technical-report.md) |
+| HF: deepseek-ai/DeepSeek-V4-Pro-DSpark | DSpark: Confidence-Scheduled Speculative Decoding with Semi-Autoregressive Generation | Xin Cheng, Xingkai Yu, Chenze Shao et al. (Peking Univ + DeepSeek-AI) | [DeepReadings](DeepReadings/2026-07-01-dspark.md) |
+
+---
+
+## Papers/2026/05
+
+| 编号 | 标题 | 主要作者 | 仓库链接 |
+|------|------|----------|----------|
 | 2605.22763 | Advancing Mathematics Research with AI-Driven Formal Proof Search | George Tsoukalas, Anton Kovsharov, Sergey Shirobokov et al. | [Papers](Papers/2026/05/2026-05-25-advancing-mathematics-research-ai-formal-proof-search.md) |
 | 2605.22791 | Gated DeltaNet-2: Decoupling Erase and Write in Linear Attention | Ali Hatamizadeh, Yejin Choi, Jan Kautz | [Papers](Papers/2026/05/2026-05-24-gated-deltanet-2-linear-attention.md) |
 | 2605.22794 | MOSS: Self-Evolution through Source-Level Rewriting in Autonomous Agent Systems | Qianshu Cai, Yonggang Zhang, Xianzhang Jia, Wei Xue, Jun Song, Xinmei Tian, Yike Guo | [Papers](Papers/2026/05/2026-05-22-moss-self-evolution-source-level-rewriting.md) |
@@ -29,12 +45,17 @@
 | 2605.27355 | Alignment Tampering: How RLHF Can Be Exploited to Amplify Misalignment | Hahm et al. | [Papers](Papers/2026/05/2026-05-27-alignment-tampering-rlhf-bias-amplification.md) |
 | 2605.27358 | MobileMoE: Scaling On-Device Mixture of Experts | Yanbei Chen et al. (Meta AI) | [Papers](Papers/2026/05/2026-05-29-mobilemoe.md) |
 | 2605.28699 | TRACER: Turn-level Regret Matching with Inner Reinforcement Credit for Cooperative Multi-LLM Reasoning | Chusen Li et al. | [Papers](Papers/2026/05/2026-05-28-tracer-turn-level-regret-matching-multi-llm-reasoning.md) |
-| 2605.30343 | Unlocking the Working Memory of Large Language Models for Latent Reasoning (RiM) | Lukas Aichberger, Sepp Hochreiter (JKU) | [DeepReadings](DeepReadings/2026-05-28-unlocking-working-memory-llm-latent-reasoning-rim.md) |
 | 2605.30348 | LLMSurgeon: Diagnosing Data Mixture of Large Language Models | Yaxin Luo, Jiacheng Cui, Xiaohan Zhao, Xinyi et al. | [Papers](Papers/2026/05/2026-05-31-llmsurgeon.md) |
+
+---
+
+## Papers/2026/06
+
+| 编号 | 标题 | 主要作者 | 仓库链接 |
+|------|------|----------|----------|
 | 2605.31492 | LinTree: Improving LLM Reasoning with Explicitly Structured Search Histories | Liwei Kang (NUS), Yee Whye Teh (Oxford), Wee Sun Lee (NUS) | [Papers](Papers/2026/06/2026-06-01-lintree-structured-search-histories.md) |
 | 2605.31558 | Positional versus Symbolic Attention Heads: Learning Dynamics, RoPE Geometry, and Length Generalization | Felipe Urrutia, Juan José Alegría, Cinthia Sanchez Macias, Jorge Salas, Cristian B. Calderon et al. | [Papers](Papers/2026/06/2026-06-02-positional-vs-symbolic-attention-heads.md) |
 | 2605.31559 | Functional Attention: From Pairwise Affinities to Functional Correspondences | Jiefang Xiao, Maolin Gao, Simon Weber, Guandao Yang, Daniel Cremers | [Papers](Papers/2026/06/2026-06-03-functional-attention.md) |
-| 2606.03841 | EvoDS: Self-Evolving Autonomous Data Science Agent | Zherui Yang, Fan Liu, Yansong Ning, Hao Liu (HKUST Guangzhou) | [DeepReadings](DeepReadings/2026-06-04-evods-self-evolving-data-science-agent.md) |
 | 2606.05080 | AutoLab: Can Frontier Models Solve Long-Horizon Autonomous Research & Engineering Tasks? | Zhangchen Xu, Junda Chen, Yue Huang, Dongfu Jiang et al. | [Papers](Papers/2026/06/2026-06-04-autolab.md) |
 | 2606.05158 | StreamMA: Streaming Communication in Multi-Agent Reasoning | Zhen Yang, Xiaogang Xu, Wen Wang, Cong Chen, Xander Xu, Ying-Cong Chen (HKUST(GZ), Alibaba, ZJU, HKUST) | [Papers](Papers/2026/06/2026-06-08-streamma-multi-agent-reasoning.md) |
 | 2606.06036 | Memory is Reconstructed, Not Retrieved: Graph Memory for LLM Agents | Shuo Ji, Yibo Li, Bryan Hooi (NUS) | [Papers](Papers/2026/06/2026-06-17-mragent-active-memory-reconstruction.md) |
@@ -45,7 +66,6 @@
 | 2606.06741 | OpenSkill: Open-World Self-Evolution for LLM Agents | Zhiling Yan et al. | [Papers](Papers/2026/06/2026-06-09-openskill-self-evolution.md) |
 | 2606.07404 | Reversible Foundations: Training a 120B Sparse MoE through State-Preserving Scaling | Rohan Shravan (The School of AI) | [Papers](Papers/2026/06/2026-06-10-reversible-foundations-120b-moe.md) |
 | 2606.09079 | FlashMemory-DeepSeek-V4: Lightning Index Ultra-Long Context via Lookahead Sparse Attention | Yan Wang, Qifan Zhang et al. (Tencent) | [Papers](Papers/2026/06/2026-06-12-flashmemory-deepseek-v4.md) |
-| 2606.09659 | Latent Context Language Models (LCLMs): End-to-End Context Compression at Scale | Ang Li, Sean McLeish et al. (NYU, Modal, Meta FAIR) | [DeepReadings](DeepReadings/2026-06-11-lclm-end-to-end-context-compression.md) |
 | 2606.09828 | Latent Spatial Memory for Video World Models (Mirage) | Weijie Wang, Haoyu Zhao et al. (Microsoft Research, ZJU) | [Papers](Papers/2026/06/2026-06-11-latent-spatial-memory-video-world-models.md) |
 | 2606.10768 | N-GRPO: Embedding-Level Neighbor Mixing for Enhanced Policy Optimization | Xukun Zhu, Hang Yu, Peng Di, Linchao Zhu (ZJU, Ant Group) | [Papers](Papers/2026/06/2026-06-15-n-grpo.md) |
 | 2606.13392 | MiniMax Sparse Attention (MSA): Blockwise Sparse Attention for Ultra-Long-Context LLMs | Xunhao Lai et al. (MiniMax, PKU, NVIDIA, ZJU, HUST) | [Papers](Papers/2026/06/2026-06-16-minimax-sparse-attention.md) |
@@ -65,15 +85,20 @@
 | 2606.26080 | Neglected Free Lunch from Post-training: Progress Advantage for LLM Agents | Changdae Oh, Wendi Li, Seongheon Park, Samuel Yeh, Tanwi Mallick, Sharon Li (UW-Madison, Argonne) | [Papers](Papers/2026/06/2026-06-30-progress-advantage-llm-agents.md) |
 | 2606.27288 | When Does Combining Language Models Help? A Co-Failure Ceiling on Routing, Voting, and Mixture-of-Agents Across 67 Frontier Models | Josef Chen (KAIKAKU) | [Papers](Papers/2026/06/2026-06-29-co-failure-ceiling-multi-model-routing.md) |
 | 2606.27326 | Hallucination in World Models is Predictable and Preventable | Nicklas Hansen, Xiaolong Wang (UC San Diego) | [Papers](Papers/2026/06/2026-06-28-hallucination-in-world-models-predictable-preventable.md) |
+
+---
+
+## Papers/2026/07
+
+| 编号 | 标题 | 主要作者 | 仓库链接 |
+|------|------|----------|----------|
 | 2606.27608 | Qwen-Image-2.0-RL Technical Report | Yixian Xu, Kaiyuan Gao, Yuxiang Chen et al. (Qwen Team) | [Papers](Papers/2026/07/2026-07-01-qwen-image-2.0-rl.md) |
 | 2606.30534 | Orca: The World is in Your Mind | Yihao Wang, Yuheng Ji, Mingyu Cao et al. (BAAI / Orca Team) | [Papers](Papers/2026/07/2026-07-03-orca-world-foundation-model.md) |
 | 2606.30562 | Morphing into Hybrid Attention Models (FlashMorph) | Disen Lan, Jianbin Zheng, Yuxi Ren et al. (ByteDance Seed, Fudan Univ., CUHK) | [Papers](Papers/2026/07/2026-07-06-flashmorph-hybrid-attention.md) |
 | 2606.30616 | Scaling the Horizon, Not the Parameters: Reaching Trillion-Parameter Performance with a 35B Agent | Agents-A1 Team, Shanghai Artificial Intelligence Laboratory | [Papers](Papers/2026/07/2026-07-02-agents-a1-scaling-horizon.md) |
 | 2607.01232 | Is One Layer Enough? Training A Single Transformer Layer Can Match Full-Parameter RL Training | Zijian Zhang, Rizhen Hu, Athanasios Glentis, Dawei Li, Chung-Yiu Yau, Hongzhou Lin, Mingyi Hong (UMN, PKU, Amazon) | [Papers](Papers/2026/07/2026-07-04-is-one-layer-enough.md) |
 | 2607.01480 | Procedural Memory Distillation: Online Reflection for Self-Improving Language Models | Ye Liu, Srijan Bansal, Bo Pang, Yang Li et al. (Salesforce AI Research) | [Papers](Papers/2026/07/2026-07-05-procedural-memory-distillation.md) |
-| HF: 2607.01224 | AutoMem: Automated Learning of Memory as a Cognitive Skill | Shengguang Wu, Hao Zhu, Yuhui Zhang, Xiaohan Wang, Serena Yeung-Levy (Stanford University) | [Papers](Papers/2026/07/2026-07-07-automem-automated-learning-memory-cognitive-skill.md) |
-| 2607.05394 | Weak-to-Strong Generalization via Direct On-Policy Distillation | Shiyuan Feng, Huan-ang Gao, Haohan Chi et al. (Tsinghua AIR, ByteDance Seed) | [Papers](Papers/2026/07/2026-07-08-weak-to-strong-generalization-direct-on-policy-distillation.md) |
 | 2607.02770 | Gemma 4 Technical Report | Gemma Team, Google DeepMind | [Papers](Papers/2026/07/2026-07-09-gemma-4-technical-report.md) |
+| 2607.05394 | Weak-to-Strong Generalization via Direct On-Policy Distillation | Shiyuan Feng, Huan-ang Gao, Haohan Chi et al. (Tsinghua AIR, ByteDance Seed) | [Papers](Papers/2026/07/2026-07-08-weak-to-strong-generalization-direct-on-policy-distillation.md) |
 | 2607.05722 | Nemotron-Labs-Diffusion: A Tri-Mode Language Model Unifying Autoregressive, Diffusion, and Self-Speculation Decoding | NVIDIA Research | [Papers](Papers/2026/07/2026-07-10-nemotron-labs-diffusion-tri-mode-lm.md) |
-| HF: deepseek-ai/DeepSeek-V4-Flash | DeepSeek-V4 Technical Report: Towards Million-Token Efficient Context for Agent AI | DeepSeek Team | [DeepReadings](DeepReadings/2026-05-06-deepseek-v4-technical-report.md) |
-| HF: deepseek-ai/DeepSeek-V4-Pro-DSpark | DSpark: Confidence-Scheduled Speculative Decoding with Semi-Autoregressive Generation | Xin Cheng, Xingkai Yu, Chenze Shao et al. (Peking Univ + DeepSeek-AI) | [DeepReadings](DeepReadings/2026-07-01-dspark.md) |
+| HF: 2607.01224 | AutoMem: Automated Learning of Memory as a Cognitive Skill | Shengguang Wu, Hao Zhu, Yuhui Zhang, Xiaohan Wang, Serena Yeung-Levy (Stanford University) | [Papers](Papers/2026/07/2026-07-07-automem-automated-learning-memory-cognitive-skill.md) |
