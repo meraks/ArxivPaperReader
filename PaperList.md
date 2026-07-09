@@ -74,5 +74,6 @@
 | HF: 2607.01224 | AutoMem: Automated Learning of Memory as a Cognitive Skill | Shengguang Wu, Hao Zhu, Yuhui Zhang, Xiaohan Wang, Serena Yeung-Levy (Stanford University) | [Papers](Papers/2026/07/2026-07-07-automem-automated-learning-memory-cognitive-skill.md) |
 | 2607.05394 | Weak-to-Strong Generalization via Direct On-Policy Distillation | Shiyuan Feng, Huan-ang Gao, Haohan Chi et al. (Tsinghua AIR, ByteDance Seed) | [Papers](Papers/2026/07/2026-07-08-weak-to-strong-generalization-direct-on-policy-distillation.md) |
 | 2607.02770 | Gemma 4 Technical Report | Gemma Team, Google DeepMind | [Papers](Papers/2026/07/2026-07-09-gemma-4-technical-report.md) |
+| 2607.05722 | Nemotron-Labs-Diffusion: A Tri-Mode Language Model Unifying Autoregressive, Diffusion, and Self-Speculation Decoding | NVIDIA Research | [Papers](Papers/2026/07/2026-07-10-nemotron-labs-diffusion-tri-mode-lm.md) |
 | HF: deepseek-ai/DeepSeek-V4-Flash | DeepSeek-V4 Technical Report: Towards Million-Token Efficient Context for Agent AI | DeepSeek Team | [DeepReadings](DeepReadings/2026-05-06-deepseek-v4-technical-report.md) |
 | HF: deepseek-ai/DeepSeek-V4-Pro-DSpark | DSpark: Confidence-Scheduled Speculative Decoding with Semi-Autoregressive Generation | Xin Cheng, Xingkai Yu, Chenze Shao et al. (Peking Univ + DeepSeek-AI) | [DeepReadings](DeepReadings/2026-07-01-dspark.md) |
