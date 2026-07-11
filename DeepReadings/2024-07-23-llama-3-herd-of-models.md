@@ -249,6 +249,14 @@ $$N^{\star}(C) = 0.29 \times C^{0.53}$$
 
 其中 $N^{\star}$ 为最优参数量，$C$ 为算力预算（FLOPs）。指数 **0.53 略大于 0.5**，意味着最优参数量随算力**略超线性**于 $\sqrt{C}$ 增长。
 
+![Figure 3: 最优 token 数与计算预算的关系](Figures/2024-07-23-llama-3-herd-of-models-fig3.png)
+
+*图3：拟合曲线 $N^{\star}(C) = 0.29 \times C^{0.53}$ 与实际 IsoFLOPs 最优点的对比。外推至 $3.8 \times 10^{25}$ FLOPs 时，预测最优模型为 402B 参数 / 16.55T tokens，与最终 405B 的选择高度吻合。*
+
+![Figure 4: ARC Challenge 的 Scaling Law 预测](Figures/2024-07-23-llama-3-herd-of-models-fig4.png)
+
+*图4：两阶段预测法的实测验证。左图展示了 NLL 与训练 FLOPs 的线性相关性，右图通过 sigmoid 映射将 NLL 转换为准确率预测。红色虚线为外推至 405B 规模的预测值，实际性能略高于预测，验证了方法论的保守性。*
+
 **外推到旗舰规模：**
 
 - 将公式外推到 **3.8×10²⁵ FLOPs** → 预测最优为 **402B 参数 / 16.55T tokens**。
