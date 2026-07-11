@@ -13,6 +13,20 @@
 
 Llama 3 是 Meta AI 发布的一组 **dense Transformer** 大语言模型家族（**非 MoE**），覆盖 **8B / 70B / 405B** 三个参数规模，同时发布了安全护栏模型 **Llama Guard 3**。其核心主张是：在开源权重的前提下，通过 **数据、规模、工程简洁性** 三条路径，把能力推到可与闭源顶尖模型（GPT-4o、Claude 3.5 Sonnet）正面竞争的水平。
 
+### 论文图表概览
+
+| 编号 | 内容 |
+|------|------|
+| **Figure 1** | Llama 3 整体架构与训练流程（预训练 → 后训练 → 多模态扩展） |
+| **Figure 2** | Scaling Law IsoFLOPs 曲线（6×10¹⁸ 至 10²² FLOPs） |
+| **Figure 3** | 计算最优模型 token 数与 FLOPs 的关系拟合曲线 |
+| **Figure 4** | Scaling Law 对 ARC Challenge 的预测（两阶段方法验证） |
+| **Figure 5** | 4D 并行策略示意图（TP → CP → PP → DP 分组） |
+| **Table 1** | Llama 3 模型家族概览（10 个模型变体） |
+| **Table 2** | 关键 Benchmark 对比（8B/70B/405B vs GPT-4/Claude） |
+| **Table 3** | 模型超参数配置（8B/70B/405B） |
+| **Table 4** | 405B 预训练 Scaling 配置与 MFU |
+
 ### 1.2 模型家族（Table 1）
 
 | Model | Finetuned | Multilingual | Long context | Tool use | Release |
