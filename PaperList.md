@@ -105,3 +105,4 @@
 | 2607.05722 | Nemotron-Labs-Diffusion: A Tri-Mode Language Model Unifying Autoregressive, Diffusion, and Self-Speculation Decoding | NVIDIA Research | [Papers](Papers/2026/07/2026-07-10-nemotron-labs-diffusion-tri-mode-lm.md) |
 | 2607.07740 | Jet-Long: Efficient Long-Context Extension with Dynamic Bifocal RoPE | Haozhan Tang, Zerui Wang, Yuxian Gu, Song Han, Han Cai (NVIDIA) | [Papers](Papers/2026/07/2026-07-11-jet-long-dynamic-bifocal-rope.md) |
 | HF: 2607.01224 | AutoMem: Automated Learning of Memory as a Cognitive Skill | Shengguang Wu, Hao Zhu, Yuhui Zhang, Xiaohan Wang, Serena Yeung-Levy (Stanford University) | [Papers](Papers/2026/07/2026-07-07-automem-automated-learning-memory-cognitive-skill.md) |
+| HF: 2607.07953 | Linear Attention Architectures: Mechanisms, Trade-offs, and Cross-Layer Routing | Tommaso Cerruti et al. (ETH Zurich) | [Papers](Papers/2026/07/2026-07-12-linear-attention-architectures-cross-layer-routing.md) |
