@@ -101,4 +101,5 @@
 | 2607.02770 | Gemma 4 Technical Report | Gemma Team, Google DeepMind | [Papers](Papers/2026/07/2026-07-09-gemma-4-technical-report.md) |
 | 2607.05394 | Weak-to-Strong Generalization via Direct On-Policy Distillation | Shiyuan Feng, Huan-ang Gao, Haohan Chi et al. (Tsinghua AIR, ByteDance Seed) | [Papers](Papers/2026/07/2026-07-08-weak-to-strong-generalization-direct-on-policy-distillation.md) |
 | 2607.05722 | Nemotron-Labs-Diffusion: A Tri-Mode Language Model Unifying Autoregressive, Diffusion, and Self-Speculation Decoding | NVIDIA Research | [Papers](Papers/2026/07/2026-07-10-nemotron-labs-diffusion-tri-mode-lm.md) |
+| 2607.07740 | Jet-Long: Efficient Long-Context Extension with Dynamic Bifocal RoPE | Haozhan Tang, Zerui Wang, Yuxian Gu, Song Han, Han Cai (NVIDIA) | [Papers](Papers/2026/07/2026-07-11-jet-long-dynamic-bifocal-rope.md) |
 | HF: 2607.01224 | AutoMem: Automated Learning of Memory as a Cognitive Skill | Shengguang Wu, Hao Zhu, Yuhui Zhang, Xiaohan Wang, Serena Yeung-Levy (Stanford University) | [Papers](Papers/2026/07/2026-07-07-automem-automated-learning-memory-cognitive-skill.md) |
