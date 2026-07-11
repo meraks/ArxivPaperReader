@@ -21,11 +21,16 @@ Llama 3 是 Meta AI 发布的一组 **dense Transformer** 大语言模型家族�
 | **Figure 2** | Scaling Law IsoFLOPs 曲线（6×10¹⁸ 至 10²² FLOPs） |
 | **Figure 3** | 计算最优模型 token 数与 FLOPs 的关系拟合曲线 |
 | **Figure 4** | Scaling Law 对 ARC Challenge 的预测（两阶段方法验证） |
-| **Figure 5** | 4D 并行策略示意图（TP → CP → PP → DP 分组） |
 | **Table 1** | Llama 3 模型家族概览（10 个模型变体） |
 | **Table 2** | 关键 Benchmark 对比（8B/70B/405B vs GPT-4/Claude） |
 | **Table 3** | 模型超参数配置（8B/70B/405B） |
 | **Table 4** | 405B 预训练 Scaling 配置与 MFU |
+
+Llama 3 采用标准的 Dense Transformer 架构，整体训练流程分为预训练、后训练和多模态扩展三阶段（图1）。
+
+![Figure 1: Llama 3 整体架构与训练流程（预训练 → 后训练 → 多模态扩展）](Figures/2024-07-23-llama-3-herd-of-models-fig1.png)
+
+*图1：Llama 3 的三阶段训练流水线。预训练阶段在 15.6T tokens 上训练 405B 参数模型，后训练阶段通过 SFT+RS+DPO 多轮迭代对齐人类偏好，多模态阶段通过 freeze-LLM + train-adapter 范式扩展图像/视频/语音理解能力。*
 
 ### 1.2 模型家族（Table 1）
 
@@ -236,6 +241,10 @@ Llama 3 采用**两阶段方法论**将"损失"与"下游能力"挂钩：
 
 **计算最优公式：**
 
+![Figure 2: Scaling Law IsoFLOPs 曲线](Figures/2024-07-23-llama-3-herd-of-models-fig2.png)
+
+*图2：6×10¹⁸ 至 10²² FLOPs 下的 IsoFLOPs 曲线。每条抛物线代表一个固定算力预算，其最低点即该算力下的计算最优模型。随算力增加,曲线在最小值附近变平坦,说明旗舰模型对规模-token 权衡的敏感性降低。*
+
 $$N^{\star}(C) = 0.29 \times C^{0.53}$$
 
 其中 $N^{\star}$ 为最优参数量，$C$ 为算力预算（FLOPs）。指数 **0.53 略大于 0.5**，意味着最优参数量随算力**略超线性**于 $\sqrt{C}$ 增长。
@@ -266,6 +275,10 @@ $$N^{\star}(C) = 0.29 \times C^{0.53}$$
 - **Tectonic 分布式文件系统**：**240 PB** 容量，跨 **7,500 台服务器**，持续吞吐 **2 TB/s**。
 
 **并行策略 —— 4D 并行：**
+
+![Figure 5: 4D 并行策略示意](Figures/2024-07-23-llama-3-herd-of-models-fig5.png)
+
+*图5：4D 并行分组排序 TP→CP→PP→DP 示意。GPU 按 [TP, CP, PP, DP] 顺序分组成四维网格：TP 在 NVLink 域内、CP 处理序列切片、PP 跨层流水、DP 全集群数据并行。最内层 TP 要求最高带宽，最外层 DP 容忍高延迟。*
 
 $$\text{TP} \rightarrow \text{CP} \rightarrow \text{PP} \rightarrow \text{DP (FSDP)}$$
 
