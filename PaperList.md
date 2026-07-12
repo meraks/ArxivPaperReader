@@ -24,6 +24,7 @@
 | 2312.00752 | Mamba: Linear-Time Sequence Modeling with Selective State Spaces | Albert Gu, Tri Dao | [DeepReadings](DeepReadings/2023-12-01-mamba-linear-time-sequence-modeling-selective-state-spaces.md) |
 | 2401.04088 | Mixtral of Experts | Albert Q. Jiang et al. (Mistral AI) | [DeepReadings](DeepReadings/2024-01-08-mixtral-of-experts.md) |
 | 2407.21783 | The Llama 3 Herd of Models | Llama Team, AI @ Meta (400+ authors) | [DeepReadings](DeepReadings/2024-07-23-llama-3-herd-of-models.md) |
+| 2505.09388 | Qwen3 Technical Report | Qwen Team, Alibaba (An Yang et al.) | [DeepReadings](DeepReadings/2025-05-14-qwen3-technical-report.md) |
 | 2501.12948 | DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning | DeepSeek-AI (Daya Guo, Dejian Yang, Haowei Zhang et al.) | [DeepReadings](DeepReadings/2025-01-22-deepseek-r1-incentivizing-reasoning-via-rl.md) |
 | 2502.09992 | Large Language Diffusion Models (LLaDA) | Shen Nie, Fengqi Zhu, Zebin You et al. (Renmin Univ. / Ant Group) | [DeepReadings](DeepReadings/2025-02-13-large-language-diffusion-models-llda.md) |
 | 2603.20397 | KV Cache Optimization Strategies for Scalable and Efficient LLM Inference | Y. Xu, N. K. Khaira, T. Singh | [DeepReadings](DeepReadings/2026-03-13-kv-cache-optimization-survey.md) |
