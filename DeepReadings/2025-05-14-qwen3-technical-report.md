@@ -1,6 +1,10 @@
 # Qwen3 Technical Report 技术报告解读
 
-> **论文**：Qwen3 Technical Report · **作者**：Qwen Team, Alibaba (An Yang et al.) · **arXiv**：2505.09388 · **日期**：2025-05-14 · **许可**：Apache 2.0
+> **论文**：Qwen3 Technical Report 
+> **作者**：Qwen Team, Alibaba (An Yang et al.)
+> **arXiv**：2505.09388 
+> **日期**：2025-05-14 
+> **许可**：Apache 2.0
 
 ---
 
@@ -164,6 +168,7 @@ Qwen3 系统性地利用 Qwen2.5 系列模型来"制造"高质量数据，而非
 - **30T+ tokens** 被进行多维度标注（annotation），维度包括：
   - **教育价值（educational value）**
   - **领域（domain）**
+  - **专业/学科（fields）**
   - **安全（safety）**
 - **Instance-level 数据配比优化**：传统做法是按数据源（source-level）调整配比，Qwen3 进一步下沉到**单条样本（instance）粒度**进行配比控制，使数据组合更精细、更可控。这是相比 source-level mixing 的一项方法学升级。
 
@@ -191,7 +196,7 @@ Qwen3 将预训练拆为三个阶段（S1 → S2 → S3），形成"广度优先
 - 规模最小（数百B tokens），但 **context 扩展到 32K**。
 - 关键技术组合：
   - **RoPE ABF（Attention Base Frequency）**：将 base frequency 从 **10K 提升到 1M**，以支持更长的位置编码。
-  - **YARN**（Yet another RoPE extensioN）+ **DCA（Dual Chunk Attention）**：进一步将推理长度扩展约 **4 倍**。
+  - **YARN**（Yet another RoPE extensioN）+ **DCA（Dual Chunk Attention）**：进一步将上下文长度扩展约 **4 倍**。
 - 这使得模型在训练时用 32K，但推理时可以处理显著更长的序列。
 
 > **设计直觉**：三阶段是典型的"先宽后深再长"课程。S1 打基础，S2 针对性增强最难的能力（推理），S3 专门解决长上下文外推——把外推难题隔离到最后一个小阶段单独攻克，避免拖累主训练。
@@ -224,7 +229,7 @@ Qwen3 利用 **scaling laws** 来**外推预测**大规模模型的超参数（�
 
 - **筛选复杂推理问题**：从大规模题库中挑选难度高、适合长链推理（long Chain-of-Thought）的题目。
 - **用 QwQ-32B 生成候选推理过程**：QwQ-32B（Qwen 的推理模型）作为"教师"，为这些问题生成长 CoT 解答。
-- **6 轮过滤（6 rounds of filtering）**：对生成结果进行多轮严格筛选，剔除错误、低质量、不规范的推理轨迹，只保留高质量的长 CoT 数据。
+- **6 项过滤标准（单次筛选）**：对生成结果按 6 条严格标准进行筛选——(1) 最终答案错误，(2) 内容大量重复，(3) 无推理猜测，(4) think/summary 内容不一致，(5) 语言混杂或风格突变，(6) 疑似与验证集重复——只保留高质量的长 CoT 数据。
 - 用这些高质量数据对 base model 做 SFT，得到具备初步推理能力的 cold-start checkpoint。
 
 #### Stage 2 — Reasoning RL（推理强化学习）
@@ -250,14 +255,7 @@ Qwen3 利用 **scaling laws** 来**外推预测**大规模模型的超参数（�
 
 **目的**：在保持推理能力的同时，全面提升模型在各类通用任务上的表现。
 
-- 对**多个通用 domain** 施加 RL，覆盖：
-  - **Coding**（编程）
-  - **Math**（数学）
-  - **Instruction-following**（指令遵循）
-  - **Multilingual**（多语言）
-  - **Creative writing**（创意写作）
-  - **QA**（问答）
-  - **Role-playing**（角色扮演）
+- 论文 Introduction 提到后训练为四阶段流程，最后一步是对多个通用 domain 施加 RL，但正文未就 Stage 4 单独展开。Stage 3 的 SFT 数据已覆盖 **coding、math、instruction-following、multilingual、creative writing、QA、role-playing** 等领域，Stage 4 应在此基础上进一步用 RL 增强。
 - 这一阶段确保模型不仅是"理科强"，而是全面的、可日常使用的助手。
 
 > **管线整体逻辑**：Stage 1 给模型"装上"推理引擎 → Stage 2 把推理引擎"调到最强" → Stage 3 把推理与对话"融合可控" → Stage 4 把整体能力"补全打磨"。四个阶段层层递进，最终得到一个既能深度思考、又能轻量对话的统一模型。
@@ -347,7 +345,7 @@ Qwen3-235B-A22B 是 MoE 架构旗舰模型，总参数 235B、激活参数 22B�
 
 **核心结论**：
 
-- **效率优势突出**：Qwen3-235B-A22B 仅用 DeepSeek-V3（671B/37B）约 **1/3 的总参数**（235B vs 671B）和约 **2/3 的激活参数**（22B vs 37B），却在 15 项 benchmark 中的 **14 项超越 DeepSeek-V3 Base**。这一"以小博大"的结果是 Qwen3 架构与训练策略有效性的最强证据。
+- **效率优势突出**：Qwen3-235B-A22B 仅用 DeepSeek-V3（671B/37B）约 **1/3 的总参数**（235B vs 671B）和约 **3/5 的激活参数**（22B vs 37B），却在 15 项 benchmark 中的 **14 项超越 DeepSeek-V3 Base**。这一"以小博大"的结果是 Qwen3 架构与训练策略有效性的最强证据。
 - **数学与代码提升最为显著**：MATH 提升 **+9.22**（71.84 vs 62.62）、MMLU-Pro 提升 **+8.34**（68.18 vs 59.84）、EvalPlus 提升 **+13.85**（77.60 vs 63.75）。这类需要深度推理的 benchmark 受益于更大的 token 规模与更高质量的数据配比。
 - **唯一的短板：INCLUDE**：这是唯一一项 Qwen3-235B 落后于 DeepSeek-V3 的 benchmark（73.46 vs 75.17）。INCLUDE 是多语言覆盖广度评测，提示 Qwen3 在部分低资源语言上仍有提升空间，这也呼应了第 8 章关于多语言能力持续优化的讨论。
 
