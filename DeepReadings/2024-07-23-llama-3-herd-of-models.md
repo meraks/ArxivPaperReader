@@ -173,16 +173,16 @@ Llama 3 采用标准的 Dense Transformer 架构，整体训练流程分为预�
 
 ### 3.1 架构超参数（Table 3）
 
-| Hyperparameter | 8B | 70B | 405B |
-|:--------------|:---:|:---:|:----:|
-| Layers | 32 | 80 | 126 |
-| Model Dimension | 4,096 | 8,192 | 16,384 |
-| FFN Dimension | 14,336 | 28,672 | 53,248 |
-| Attention Heads | 32 | 64 | 128 |
-| Key/Value Heads | 8 | 8 | 8 |
-| Peak LR | 3×10⁻⁴ | 1.5×10⁻⁴ | 8×10⁻⁵ |
-| Activation | SwiGLU | SwiGLU | SwiGLU |
-| Vocab Size | 128,000 | 128,000 | 128,000 |
+| Hyperparameter        |        8B        |       70B        |       405B       |
+| :-------------------- | :--------------: | :--------------: | :--------------: |
+| Layers                |        32        |        80        |       126        |
+| Model Dimension       |      4,096       |      8,192       |      16,384      |
+| FFN Dimension         |      14,336      |      28,672      |      53,248      |
+| Attention Heads       |        32        |        64        |       128        |
+| Key/Value Heads       |        8         |        8         |        8         |
+| Peak LR               |      3×10⁻⁴      |     1.5×10⁻⁴     |      8×10⁻⁵      |
+| Activation            |      SwiGLU      |      SwiGLU      |      SwiGLU      |
+| Vocab Size            |     128,000      |     128,000      |     128,000      |
 | Positional Embeddings | RoPE (θ=500,000) | RoPE (θ=500,000) | RoPE (θ=500,000) |
 
 从 Table 3 可读出规模演化的规律：
@@ -305,7 +305,7 @@ $$\text{TP} \rightarrow \text{CP} \rightarrow \text{PP} \rightarrow \text{DP (FS
   - **FP32 reduce-scatter**（FSDP 的参数聚合用高精度）。
   - 即在 BF16 计算的同时，关键累加与通信环节回退到 FP32，防止大规模训练中的精度漂移和发散。
 
-> **工程启示**：Llama 3 的基础设施章节实质上是一份"**如何在万卡规模上稳定跑通 BF16 训练**"的工程指南 —— 核心矛盾是**算力利用率（MFU）**与**数值稳定性**之间的权衡，而 **4D 并行的拓扑感知编排 + 关键路径 FP32** 是其解法。
+> **工程启示**：Llama 3 的基础设施章节实质上是一份"**如何在万卡规模上稳定跑通 BF16 训练**"的工程指南 —— 核心矛盾是 **算力利用率（MFU）** 与 **数值稳定性** 之间的权衡，而 **4D 并行的拓扑感知编排 + 关键路径 FP32** 是其解法。
 
 ---
 
