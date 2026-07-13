@@ -131,7 +131,7 @@ BERT 基于 multi-layer bidirectional Transformer encoder 构建而成,其基本
 
 其中 BERT_BASE 与 GPT 拥有相同的 model size,这一设定意在保证二者之间的公平比较。
 
-BERT 与 GPT 在架构上最核心的差异在于 attention 的方向性。BERT 采用 **bidirectional** self-attention,即每个 token 可以同时 attend 到其左右两侧的全部 context;而 GPT 采用 constrained self-attention,仅允许 left-to-right 方向,即每个 token 只能 attend 到其左侧的 tokens。正是这一双向性使 BERT 能够获得真正融合了完整上下文的 context-aware representations。
+BERT 与 GPT 在架构上最核心的差异在于 attention 的方向性。BERT 采用 **bidirectional** self-attention,即每个 token 可以同时 attend 到其左右两侧的全部 context;而 GPT 采用 causal self-attention,仅允许 left-to-right 方向,即每个 token 只能 attend 到其左侧的 tokens。正是这一双向性使 BERT 能够获得真正融合了完整上下文的 context-aware representations。
 
 ### 3.2 Input representation — 输入表示
 
@@ -232,32 +232,27 @@ NSP 是一个 binary classification 任务:给定 sentence pair (A, B),判断 se
 
 ### 4.4 Training details — 训练细节
 
-#### 主要超参数
+#### 预训练超参数 （Appendix A.2）
 
 | 超参数 | 取值 |
 |--------|------|
 | Batch size | 256 sequences |
-| Tokens / batch | 128,000(对应 1M steps) |
-| Training steps | 1,000,000 |
-| Optimizer | Adam |
+| Tokens / batch | 128,000 (256 × 512) |
+| Training steps | 1,000,000（约 40 epochs） |
+| Optimizer | Adam ($\beta_1=0.9$, $\beta_2=0.999$, L2 weight decay=0.01) |
 | Learning rate | 1e-4 |
-| $\beta_1$ | 0.9 |
-| $\beta_2$ | 0.999 |
-| L2 weight decay | 0.01 |
 | Learning rate warmup | 前 10,000 steps |
 | Warmup 后调度 | Linear decay |
-| Dropout | 0.1(all layers) |
+| Dropout | 0.1（所有层） |
 | Activation | GELU (Gaussian Error Linear Unit) |
+
+> 注：使用 4 Cloud TPUs（16 TPU chips），BERT_BASE 预训练耗时约 4 天。
 
 #### 训练损失
 
 总训练损失为 MLM loss 与 NSP loss 之和:
 
 $$\mathcal{L} = \mathcal{L}_{\text{MLM}} + \mathcal{L}_{\text{NSP}}$$
-
-#### 预训练成本
-
-整个预训练过程耗时约 4 天,使用 4 Cloud TPUs(共 16 TPU chips)。
 
 ---
 
@@ -269,9 +264,14 @@ $$\mathcal{L} = \mathcal{L}_{\text{MLM}} + \mathcal{L}_{\text{NSP}}$$
 
 #### Fine-tuning 设置
 
-- **Batch size**: 32
-- **Epochs**: 3
-- **Learning rate**: 从 `{5e-5, 4e-5, 3e-5, 2e-5}` 中基于 Dev set 选择
+所有 GLUE 任务的 fine-tuning 超参数搜索范围（Appendix A.3）：
+
+- **Batch size**: `{16, 32}` 中基于 Dev set 选择
+- **Epochs**: `{2, 3, 4}` 中基于 Dev set 选择
+- **Learning rate**: `{5e-5, 3e-5, 2e-5}` 中基于 Dev set 选择
+- **Dropout**: 始终固定为 0.1
+
+其余超参数与预训练保持一致。论文建议直接对上述组合做网格搜索，选择在开发集上表现最优的模型。
 
 对于单句分类任务,取 [CLS] token 的最终隐藏向量 $C \in \mathbb{R}^H$,通过分类层 $W \in \mathbb{R}^{K \times H}$($K$ 为类别数)计算类别概率。BERT_LARGE 在小规模数据集上偶尔出现不稳定现象,此时采用 random restarts 策略。
 
@@ -321,14 +321,24 @@ Human: Test EM 86.9, F1 89.5。
 | System | Accuracy |
 |--------|:--------:|
 | OpenAI GPT | 75.0% |
-| Human | 81.7% |
-| BERT_LARGE | 86.3% |
+| BERT_BASE (Dev) | 81.6% |
+| BERT_LARGE (Dev) | 86.6% |
+| Human (expert)† | 85.0% |
+| Human (5 annotations)† | 88.0% |
+| **BERT_LARGE (Test)** | **86.3%** |
+
+† 人类基线来自原始 SWAG 论文，基于 100 个样本评估。
 
 Fine-tuning: 3 epochs, lr=2e-5, batch size=16。
 
 ### 5.5 NER (CoNLL 2003)
 
-BERT_LARGE: F1 96.4(与 SOTA 持平)。
+| System | Dev F1 | Test F1 |
+|--------|:------:|:-------:|
+| BERT_BASE (fine-tuned) | 96.4 | 92.4 |
+| BERT_LARGE (fine-tuned) | 96.6 | 92.8 |
+
+BERT_LARGE 在 NER 任务上"与 SOTA 方法相比具有竞争力"（performs competitively with state-of-the-art methods）。
 
 ---
 
@@ -336,26 +346,45 @@ BERT_LARGE: F1 96.4(与 SOTA 持平)。
 
 ### 6.1 Pre-training 任务的影响
 
-| Task | Dev | Test |
-|------|:---:|:---:|
-| BERT_BASE | 84.4 | 85.8 |
-| No NSP | 83.9 | 84.9 |
-| LTR + BiLSTM | 84.0 | 84.9 |
-| LTR + BiLSTM + NSP | 84.1 | 84.9 |
+Table 5 在 5 个任务上对四种预训练配置进行了 Dev Set 消融比较：
 
-**MLM 是实现真正双向表示的关键**,LTR+BiLSTM 无法弥补差距。
+| System | MNLI-m (Acc) | QNLI (Acc) | MRPC (F1) | SST-2 (Acc) | SQuAD (F1) |
+|--------|:------------:|:----------:|:---------:|:-----------:|:----------:|
+| BERT_BASE | 84.4 | 88.4 | 86.7 | 92.7 | 88.5 |
+| No NSP | 83.9 | 84.9 | 86.5 | 92.6 | 87.9 |
+| LTR & No NSP | 82.1 | 84.3 | 77.5 | 92.1 | 77.8 |
+| + BiLSTM | 82.1 | 84.1 | 75.7 | 91.6 | 84.9 |
+
+> 注："LTR & No NSP" 为仅使用 left-to-right（无 mask）的 LM 且不加 NSP；"+ BiLSTM" 在此之上叠加随机初始化的 BiLSTM。两者均未使用 MLM。
+
+**关键结论：**
+
+- **MLM 缺失导致 SQuAD 大幅退化**——LTR & No NSP 在 SQuAD 上从 88.5 降至 77.8（-10.7），即使加 BiLSTM 也仅恢复至 84.9，说明双向上下文对 span 预测任务至关重要。
+- BiLSTM 在 SQuAD 上有一定补偿作用（77.8 → 84.9），但在 GLUE 任务上反而损害性能（如 MRPC 从 77.5 降至 75.7），表现不一致。
 
 ### 6.2 Model Size 的影响
 
-| Layers (L) | Hidden size (H) | Parameters |
-|:----------:|:---------------:|:----------:|
-| 12 | 256 | 15.8M |
-| 12 | 512 | 42.3M |
-| 24 | 512 | 105.6M |
-| 24 | 768 | 194.6M |
-| 24 | 1024 | 340M |
+本节探讨模型规模对 fine-tuning 任务精度的影响。论文训练了多种不同层数、隐藏维度、注意力头数的 BERT 变体，其余超参数和训练流程保持一致。Table 6 报告了 5 次随机 restarts fine-tuning 的平均 Dev Set 准确率：
 
-模型规模增大显著提升准确率,尤其在小数据集任务(CoLA、RTE、MRPC)上。
+| `#L` | `#H` | `#A` | LM (ppl) | MNLI-m | MRPC | SST-2 |
+| :--: | :--: | :--: | :------: | :----: | :--: | :---: |
+|  3   | 768  |  12  |   5.84   |  77.9  | 79.8 | 88.4  |
+|  6   | 768  |  3   |   5.24   |  80.6  | 82.2 | 90.7  |
+|  6   | 768  |  12  |   4.68   |  81.9  | 84.8 | 91.3  |
+|  12  | 768  |  12  |   3.99   |  84.4  | 86.7 | 92.9  |
+|  12  | 1024 |  16  |   3.54   |  85.7  | 86.9 | 93.3  |
+|  24  | 1024 |  16  |   3.23   |  86.6  | 87.8 | 93.7  |
+
+> **表注：** 
+> `#L` = 层数；`#H` = 隐藏维度；`#A` = 注意力头数；
+> LM (ppl) = held-out 训练数据上的 Masked LM perplexity（越低越好）；
+> MNLI-m、MRPC、SST-2 为三个 GLUE 任务的 Dev Set 准确率（5 次随机 restarts 均值，%）。
+
+**关键发现：**
+
+- 更大的模型在所有四个数据集上都带来了严格的准确率提升，即便对于仅有 3,600 条标注训练样本且与预训练任务差异较大的 **MRPC** 也是如此。
+- 论文认为这是首次令人信服地证明：在充分预训练的前提下，将模型扩展到极限规模同样能为**极小规模的下游任务**带来显著收益。此前 Peters et al. (2018b) 将 bi-LM 从 2 层扩至 4 层、Melamud et al. (2016) 将隐藏维度从 200 增至 600 时均未得出明确的正向结论——论文推测这是因为他们采用了 feature-based 方法；而 fine-tuning 方式使下游任务能直接受益于更大、更具表达力的预训练表示。
+- 同时论文指出，相比于已有文献中最大的 Transformer 模型（如 Vaswani et al. 的 100M 参数 encoder，或 Al-Rfou et al. 的 235M 参数模型），BERT_BASE（110M）和 BERT_LARGE（340M）的规模在当时已属极端。
 
 ### 6.3 Feature-based Approach
 
@@ -367,14 +396,14 @@ BERT_LARGE: F1 96.4(与 SOTA 持平)。
 
 ### 6.4 MLM Masking 策略消融
 
-| Mask | Same | Rnd | MNLI | NER Fine-tune | NER Feature |
-|:----:|:----:|:---:|:----:|:-------------:|:-----------:|
-| 80% | 10% | 10% | 84.2 | 95.4 | 94.9 |
-| 100% | 0% | 0% | 84.3 | 94.9 | 94.0 |
-| 80% | 0% | 20% | 84.1 | 95.2 | 94.6 |
-| 80% | 20% | 0% | 84.4 | 95.2 | 94.7 |
-| 0% | 20% | 80% | 83.7 | 94.8 | 94.6 |
-| 0% | 0% | 100% | 83.6 | 94.9 | 94.6 |
+| Mask | Same | Random | MNLI | NER Fine-tune | NER Feature |
+| :--: | :--: | :----: | :--: | :-----------: | :---------: |
+| 80%  | 10%  |  10%   | 84.2 |     95.4      |    94.9     |
+| 100% |  0%  |   0%   | 84.3 |     94.9      |    94.0     |
+| 80%  |  0%  |  20%   | 84.1 |     95.2      |    94.6     |
+| 80%  | 20%  |   0%   | 84.4 |     95.2      |    94.7     |
+|  0%  | 20%  |  80%   | 83.7 |     94.8      |    94.6     |
+|  0%  |  0%  |  100%  | 83.6 |     94.9      |    94.6     |
 
 ---
 
