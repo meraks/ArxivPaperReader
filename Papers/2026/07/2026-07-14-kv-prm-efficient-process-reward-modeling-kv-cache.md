@@ -1,19 +1,19 @@
 # KV-PRM: Efficient Process Reward Modeling via KV-Cache Transfer for Multi-Agent Test-Time Scaling
 
-- **论文标题**：KV-PRM: Efficient Process Reward Modeling via KV-Cache Transfer for Multi-Agent Test-Time Scaling（KV-PRM：基于 KV-Cache 迁移的高效过程奖励建模用于多 Agent 测试时扩展）
-- **作者**：Peng Kuang, Haibo Jin, Xiaoyu Han, Xiaopeng Yuan, Ye Yu, Haohan Wang（University of Illinois Urbana-Champaign）；Yanli Wang（Imperial College London）；Kaidi Xu（City University of Hong Kong）
-- **arXiv ID**：2607.09153
-- **发表时间**：2026-07-10
-- **许可协议**：CC BY 4.0
-- **代码开源**：❌ 未提供（论文及 arXiv 页面均未附代码，参考文献 [28] 仅引用了通用 Generative PRM 实现 `RLHFlow/RLHF-Reward-Modeling`，非 KV-PRM 官方代码）
-- **实验模型**：Qwen3-0.6B / 4B / 8B（thinking mode 关闭），LoRA（$r=256$, $\alpha=32$）
-- **Benchmark**：MATH, GSM8K, AIME 2024, AIME 2025
-- **搜索算法**：Beam Search, MCTS, Weighted Voting
-- **核心效率指标**：FLOPs $\sim 5{,}000\times$ 减少，延迟 $15\times \sim 37\times$ 降低，内存 $34.2\times$ 减少
+> **论文**：KV-PRM: Efficient Process Reward Modeling via KV-Cache Transfer for Multi-Agent Test-Time Scaling
+> **作者**：Peng Kuang, Haibo Jin, Xiaoyu Han, Xiaopeng Yuan, Ye Yu, Haohan Wang (UIUC); Yanli Wang (Imperial College London); Kaidi Xu (City University of Hong Kong)
+> **arXiv ID**：2607.09153
+> **发表时间**：2026-07-10
+> **许可协议**：CC BY 4.0
+> **代码开源**：❌ 未提供
+> **实验模型**：Qwen3-0.6B / 4B / 8B（thinking mode 关闭）
+> **Benchmark**：MATH, GSM8K, AIME 2024, AIME 2025
+> **搜索算法**：Beam Search, MCTS, Weighted Voting
+> **核心效率指标**：FLOPs ~5,000× 减少, 延迟 15×~37× 降低, 内存 34.2× 减少
 
 ---
 
-## 第一章 论文概述与核心贡献
+## 第 1 章 论文概述与核心贡献
 
 ### 1.1 问题
 
@@ -39,9 +39,24 @@ Process Reward Model (PRM) 在引导 test-time scaling (TTS) 搜索时，传统 
 
 在 MAS 轨迹 $L \approx 5000$ 时，单次 KV-PRM 评分仅需 4.6ms（8B 模型），而 Text-PRM 需 172.0ms。
 
+### 论文图表总览
+
+| 编号 | 内容 | 章节 |
+|------|------|------|
+| **Figure 1** | Text-PRM vs KV-PRM 架构对比 | 第 3 章 |
+| **Figure 2** | 更小 Text-PRM 对比 + Verify Token 数量消融 | 第 5 章 |
+| **Figure 3** | 延迟与内存实测对比 | 第 5 章 |
+| **Table 1** | Sequential MAS 主结果（MATH + AIME 2024） | 第 5 章 |
+| **Table 2** | Sequential MAS 主结果（GSM8K + AIME 2025） | 第 5 章 |
+| **Table 3** | Hierarchical MAS 结果 | 第 5 章 |
+| **Table 4** | KV Steering 结果（无搜索） | 第 6 章 |
+| **Table 5** | 训练超参数 | 附录 A |
+
+KV-PRM 核心创新在于用 $O(dL)$ 的验证成本（单 verify token 前向传播）取代传统 Text-PRM 的 $O(dL^2)$（完整轨迹重编码），实现三个数量级的 FLOPs 降低，同时保持或超越评分质量。
+
 ---
 
-## 第二章 预备知识与符号
+## 第 2 章 预备知识与符号
 
 ### 2.1 多 Agent 推理系统
 
@@ -67,7 +82,7 @@ $$F_{\text{forward}}(L) = N_L \cdot \big(\underbrace{c_{\text{attn}} \cdot d \cd
 
 ---
 
-## 第三章 理论基础
+## 第 3 章 理论基础
 
 ![Figure 1: Text-PRM vs KV-PRM 架构对比](Figures/2026-07-14-kv-prm-fig1-architecture.png)
 
@@ -123,7 +138,7 @@ $$\frac{\Delta I_k}{F_{\text{readout}}(k, L) - F_{\text{readout}}(k-1, L)} = O\l
 
 ---
 
-## 第四章 KV-PRM 算法设计
+## 第 4 章 KV-PRM 算法设计
 
 ### 4.1 架构：基于 KV-Cache Transfer 的评分
 
@@ -172,7 +187,7 @@ $$\mathcal{L}_{\text{KV}} = \text{MSE}\left(P(+), \frac{y+1}{2}\right) \tag{11}$
 
 ---
 
-## 第五章 实验评估
+## 第 5 章 实验评估
 
 ### 5.1 实验设置
 
@@ -271,7 +286,7 @@ MATH 上增益温和（+0.5 ~ +0.8pp），AIME 上增益显著（最高 +6.7pp�
 
 ---
 
-## 第六章 KV Steering 与更广泛应用
+## 第 6 章 KV Steering 与更广泛应用
 
 ### 6.1 方法
 
@@ -309,7 +324,7 @@ KV-PRM 的评分函数 $f_{\theta+\Delta\theta}$ 对 KV cache 可微——这一
 
 ---
 
-## 第七章 相关工作
+## 第 7 章 相关工作
 
 ### 7.1 Process Reward Models
 
@@ -329,7 +344,7 @@ PRM 为数学推理提供步骤级监督，由 Lightman et al. (2023) 开创性�
 
 ---
 
-## 第八章 局限性与结论
+## 第 8 章 局限性与结论
 
 ### 8.1 总结
 
