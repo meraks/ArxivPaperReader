@@ -1,9 +1,11 @@
 # Qwen3 Technical Report 技术报告解读
 
-> **论文**：Qwen3 Technical Report · **作者**：Qwen Team, Alibaba (An Yang et al.) · **arXiv**：2505.09388 · **日期**：2025-05-14 · **许可**：Apache 2.0
->
+> **论文**：Qwen3 Technical Report 
+> **作者**：Qwen Team, Alibaba (An Yang et al.) 
+> **arXiv**：2505.09388 
+> **日期**：2025-05-14 
+> **许可**：Apache 2.0
 > **代码仓库**：https://github.com/QwenLM/Qwen3（Apache 2.0, 26.7k Stars）
->
 > **模型系列**：6 Dense (0.6B~32B) + 2 MoE (30B-A3B, 235B-A22B)
 
 ---
