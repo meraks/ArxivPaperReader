@@ -230,7 +230,7 @@ $$
 主要发现：
 
 1. **Qwen2.5-Coder 系列一致性提升**：固定后训练管线为 R2E-Gym，FA-FIM 在 7B 和 14B 上均提升 SWE-Bench-Verified 约 +3 pp，说明结构性先验在该家族内未被更大检查点吸收
-2. **跨管线迁移**：R2E-Gym +5.30 vs SWE-Smith +2.80（Verified），表明 mid-training 不限于单一后训练分布
+2. **跨管线迁移**：R2E-Gym +2.80 vs SWE-Smith +5.30（Verified），表明 mid-training 不限于单一后训练分布
 3. **非 Qwen2.5 基座迁移**：Qwen3-8B + SWE-Lego 提升 +3.20/+5.40，验证方法与具体基座无关
 
 ### 4.2 能力保持与跨域迁移
