@@ -30,16 +30,14 @@
 
 ### 1.4 论文图表总览
 
-| 编号 | 内容 | 章节 |
+| 编号 | 内容 | 原文章节 |
 |------|------|------|
-| **Figure 1** | Agent loop 与函数调用站点的结构同构性 | 第 3 章 |
-| **Figure 2** | 函数感知 FIM 目标选择管线 | 第 3 章 |
-| **Figure 5** | 按 gold-patch 形状分层的 pass rate | 第 5 章 |
-| **Figure 6** | 失败模式分解（no-patch / localization / other） | 第 5 章 |
-| **Table 1** | SWE-Bench 主实验结果 | 第 4 章 |
-| **Table 2** | 能力保持与跨域迁移 | 第 4 章 |
-| **Table 3** | 消融实验 | 第 5 章 |
-| **Table 4** | 行为分析（恢复率、编辑次数、步数） | 第 5 章 |
+| **Figure 1** | Left: coding agent step and function call site are structurally similar. Middle: FA-FIM mid-training pipeline. Right: consistent gains on SWE-Bench. | Introduction |
+| **Figure 2** | Function-aware FIM target selection on a small calculator example. (a) PDG. (b) Stacked bars for H=0.40 and I=0.48. | §2.3 |
+| **Table 1** | Main results on coding agent benchmarks. | §3.2 |
+| **Table 2** | Capability preservation and cross-domain transfer at 14B with R2E-Gym. | §3.3 |
+| **Table 3** | Ablations on the 7B model: (A) CoT source, (B) selection algorithm, (C) mask granularity. | §3.4 |
+| **Table 4** | Headline trajectory metrics on SWE-Bench-Verified (recovery rate, edits, steps, pass rate). | §4.1 |
 
 ### 1.5 贡献总结
 
@@ -96,6 +94,10 @@ pre-call code (绑定参数) → call → return value → downstream usage (消
 ```
 
 训练模型从调用者上下文和下游使用情况**双向推理**被调用函数的行为，正是 Agent 需要的能力——在给定历史记录和工具返回值后预测后续行为。
+
+![Figure 1](Figures/2026-07-17-function-aware-fim-mid-training-1.png)
+
+> **Figure 1 — 左：** 函数调用站点与编码 Agent 的单步操作在结构上相似，分解为相同的四个阶段：上下文（context）、调用/动作（call/action）、返回/观察（return/observation）、延续（continuation）。**中：** 我们通过函数感知 FIM mid-training 利用这一类比——从程序依赖图中使用复杂度（H）和可推断性（I）评分选出函数 B，随后以 FIM 格式将周围文件组织为 prompt，对模型进行 mid-training 使其填补 B 的函数体及 CoT 推理过程。**右：** Mid-training 在 Qwen2.5-Coder-Instruct（7B、14B）和 Qwen3（8B）上均带来一致提升，SWE-Bench-Verified 以实心柱表示，SWE-Bench-Lite 以斜线柱表示。
 
 ## 第 3 章 方法
 
@@ -172,6 +174,10 @@ $$
 现实中的代码补丁经常跨越多个相关函数。扩展为遮蔽 $k=2$ 或 $k=3$ 个结构相连的函数的 **groups**。组评分 $\text{FIM}(G)$ 综合耦合项、组级调和平均乘积和难度惩罚，$\hat{I}(G)$ 在联合遮蔽下重新计算（防止组内引用虚增分数）。
 
 涵盖 8 种拓扑模式：caller-callee、co-callee、sibling-coupled、mutual-call、call-chain、hub、fan-in、class-triad。
+
+![Figure 2](Figures/2026-07-17-function-aware-fim-mid-training-2.png)
+
+> **Figure 2 — 函数感知 FIM 目标选择在小型计算器示例上的演示。（a）** 从 AST 解析出的程序依赖图：实线箭头为调用边（call edges），虚线为同一类方法间的兄弟边（sibling edges）。**（b）** 堆叠柱状图分解 `Calculator.total` 的复杂度评分 H=0.40（公式 1；含代码行数 LoC、圈复杂度 CC、嵌套深度 depth）和可推断性评分 I=0.48（公式 2；含五项上下文信号），最终 FIM ≈ 0.22 ≥ τ = 0.08。
 
 ### 3.3 思维链（CoT）增强
 
