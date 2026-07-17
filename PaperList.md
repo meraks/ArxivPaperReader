@@ -113,3 +113,4 @@
 | HF: 2607.01224 | AutoMem: Automated Learning of Memory as a Cognitive Skill | Shengguang Wu, Hao Zhu, Yuhui Zhang, Xiaohan Wang, Serena Yeung-Levy (Stanford University) | [Papers](Papers/2026/07/2026-07-07-automem-automated-learning-memory-cognitive-skill.md) |
 | HF: 2607.07953 | Linear Attention Architectures: Mechanisms, Trade-offs, and Cross-Layer Routing | Tommaso Cerruti et al. (ETH Zurich) | [Papers](Papers/2026/07/2026-07-12-linear-attention-architectures-cross-layer-routing.md) |
 | HF: 2607.13125 | Boogu-Image-0.1: Boosting Open-Source Unified Multimodal Understanding and Generation | Boogu Team | [Papers](Papers/2026/07/2026-07-17-boogu-image-0.1.md) |
+| HF: 2607.13921 | Generative Compilation: On-the-Fly Compiler Feedback as AI Generates Code | Niels Mündler-Sasahara, Hristo Venev, Dawn Song, Martin Vechev, Jingxuan He (ETH Zurich / UC Berkeley) | [Papers](Papers/2026/07/2026-07-18-generative-compilation.md) |
