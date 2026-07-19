@@ -10,6 +10,7 @@
 |------|------|----------|----------|
 | 1706.03762 | Attention Is All You Need | Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin (Google Brain/Google Research) | [DeepReadings](DeepReadings/2017-06-12-attention-is-all-you-need.md) |
 | 1810.04805 | BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding | Jacob Devlin, Ming-Wei Chang, Kenton Lee, Kristina Toutanova (Google AI Language) | [DeepReadings](DeepReadings/2018-10-11-bert-pre-training-deep-bidirectional-transformers.md) |
+| 1907.11692 | RoBERTa: A Robustly Optimized BERT Pretraining Approach | Yinhan Liu, Myle Ott et al. (Facebook AI) | [DeepReadings](DeepReadings/2019-07-26-roberta.md) |
 | 2001.08361 | Scaling Laws for Neural Language Models | Jared Kaplan, Sam McCandlish, Tom Henighan, Tom B. Brown et al. (OpenAI) | [DeepReadings](DeepReadings/2020-01-23-scaling-laws-neural-language-models.md) |
 | 2104.09864 | RoFormer: Enhanced Transformer with Rotary Position Embedding | Jianlin Su, Yu Lu, Shengfeng Pan, Ahmed Murtadha, Bo Wen, Yunfeng Liu | [DeepReadings](DeepReadings/2021-04-20-roformer-rope.md) |
 | 2106.09685 | LoRA: Low-Rank Adaptation of Large Language Models | Edward Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, Weizhu Chen (Microsoft) | [DeepReadings](DeepReadings/2021-06-17-lora-low-rank-adaptation.md) |
