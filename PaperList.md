@@ -117,3 +117,4 @@
 | HF: 2607.07953 | Linear Attention Architectures: Mechanisms, Trade-offs, and Cross-Layer Routing | Tommaso Cerruti et al. (ETH Zurich) | [Papers](Papers/2026/07/2026-07-12-linear-attention-architectures-cross-layer-routing.md) |
 | HF: 2607.13125 | Boogu-Image-0.1: Boosting Open-Source Unified Multimodal Understanding and Generation | Boogu Team | [Papers](Papers/2026/07/2026-07-17-boogu-image-0.1.md) |
 | HF: 2607.13921 | Generative Compilation: On-the-Fly Compiler Feedback as AI Generates Code | Niels Mündler-Sasahara, Hristo Venev, Dawn Song, Martin Vechev, Jingxuan He (ETH Zurich / UC Berkeley) | [Papers](Papers/2026/07/2026-07-18-generative-compilation.md) |
+| HF: 2607.14431 | Smarter and Cheaper at Once: Byte-Exact KV-Cache Grafting Turns a Frozen Small Model into a Verified-Knowledge Flywheel | Sietse Schelpe (Corbenic AI) | [Papers](Papers/2026/07/2026-07-21-byte-exact-kv-cache-grafting.md) |
