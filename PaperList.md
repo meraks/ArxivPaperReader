@@ -34,6 +34,7 @@
 | 2606.09659 | Latent Context Language Models (LCLMs): End-to-End Context Compression at Scale | Ang Li, Sean McLeish et al. (NYU, Modal, Meta FAIR) | [DeepReadings](DeepReadings/2026-06-11-lclm-end-to-end-context-compression.md) |
 | HF: deepseek-ai/DeepSeek-V4-Flash | DeepSeek-V4 Technical Report: Towards Million-Token Efficient Context for Agent AI | DeepSeek Team | [DeepReadings](DeepReadings/2026-05-06-deepseek-v4-technical-report.md) |
 | HF: deepseek-ai/DeepSeek-V4-Pro-DSpark | DSpark: Confidence-Scheduled Speculative Decoding with Semi-Autoregressive Generation | Xin Cheng, Xingkai Yu, Chenze Shao et al. (Peking Univ + DeepSeek-AI) | [DeepReadings](DeepReadings/2026-07-01-dspark.md) |
+| 2607.12463 | Function-Aware Fill-in-the-Middle as Mid-Training for Coding Agent Foundation Models | TIGER Lab, University of Waterloo | [DeepReadings](DeepReadings/2026-07-17-function-aware-fim-mid-training.md) |
 
 ---
 
@@ -89,7 +90,6 @@
 | 2606.26080 | Neglected Free Lunch from Post-training: Progress Advantage for LLM Agents | Changdae Oh, Wendi Li, Seongheon Park, Samuel Yeh, Tanwi Mallick, Sharon Li (UW-Madison, Argonne) | [Papers](Papers/2026/06/2026-06-30-progress-advantage-llm-agents.md) |
 | 2606.27288 | When Does Combining Language Models Help? A Co-Failure Ceiling on Routing, Voting, and Mixture-of-Agents Across 67 Frontier Models | Josef Chen (KAIKAKU) | [Papers](Papers/2026/06/2026-06-29-co-failure-ceiling-multi-model-routing.md) |
 | 2606.27326 | Hallucination in World Models is Predictable and Preventable | Nicklas Hansen, Xiaolong Wang (UC San Diego) | [Papers](Papers/2026/06/2026-06-28-hallucination-in-world-models-predictable-preventable.md) |
-| 2607.12463 | Function-Aware Fill-in-the-Middle as Mid-Training for Coding Agent Foundation Models | TIGER Lab, University of Waterloo | [DeepReadings](DeepReadings/2026-07-17-function-aware-fim-mid-training.md) |
 
 ---
 
@@ -118,3 +118,4 @@
 | HF: 2607.13125 | Boogu-Image-0.1: Boosting Open-Source Unified Multimodal Understanding and Generation | Boogu Team | [Papers](Papers/2026/07/2026-07-17-boogu-image-0.1.md) |
 | HF: 2607.13921 | Generative Compilation: On-the-Fly Compiler Feedback as AI Generates Code | Niels Mündler-Sasahara, Hristo Venev, Dawn Song, Martin Vechev, Jingxuan He (ETH Zurich / UC Berkeley) | [Papers](Papers/2026/07/2026-07-18-generative-compilation.md) |
 | HF: 2607.14431 | Smarter and Cheaper at Once: Byte-Exact KV-Cache Grafting Turns a Frozen Small Model into a Verified-Knowledge Flywheel | Sietse Schelpe (Corbenic AI) | [Papers](Papers/2026/07/2026-07-21-byte-exact-kv-cache-grafting.md) |
+| 2607.16097 (HF) | Understanding Reasoning from Pretraining to Post-Training | Jingyan Shen, Ang Li, Salman Rahman, Yifan Sun, Micah Goldblum et al. (NYU / Modal Labs / UCLA / UIUC / Columbia) | [Papers](Papers/2026/07/2026-07-22-understanding-reasoning-pretraining-post-training.md) |
