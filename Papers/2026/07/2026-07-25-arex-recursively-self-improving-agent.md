@@ -39,7 +39,7 @@ AREX 提出了一种**递归自我改进**（Recursively Self-Improving, RSI）�
 
 ### 1.3 关键结果速览
 
-- AREX-Base 在 **BrowseComp** 上达 82.5%，超越 Qwen3.5-397B（78.6%），与 DeepSeek-V4-Pro（83.4%）和 Gemini-3.1-Pro（85.9%）差距在 3 pp 以内
+- AREX-Base 在 **BrowseComp** 上达 82.5%，超越 Qwen3.5-397B（78.6%），与 DeepSeek-V4-Pro（83.4%）差距在 1 pp 以内，与 Gemini-3.1-Pro（85.9%）差距约 3.4 pp
 - **GAIA** 达 85.4%，超越 Kimi-K2.6（80.6%）和 Qwen3.5-397B（83.5%），与 Gemini-3.1-Pro（80.6%）拉开差距
 - **WideSearch-en** 达 82.0%，为所有评估模型中的最佳结果
 - **DeepSearchQA** 达 89.9%，超越 GPT-5.4（88.5%）和 DeepSeek-V4-Pro（88.7%）
