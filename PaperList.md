@@ -114,6 +114,7 @@
 | 2607.14952 | LongStraw: Long-Context RL Beyond 2M Tokens under a Fixed GPU Budget | Changhai Zhou, Kieran Liu et al. (MindLab, Fudan University) | [Papers](Papers/2026/07/2026-07-20-longstraw-long-context-rl.md) |
 | 2607.15200 | Mask-Aware Policy Gradients for Diffusion Language Models | Haran Raajesh, Kulin Shah, Adam Klivans, Philipp Krähenbühl (UT Austin) | [Papers](Papers/2026/07/2026-07-19-mask-aware-policy-gradients.md) |
 | 2607.21461 | AREX: Towards a Recursively Self-Improving Agent for Deep Research | Shuqi Lu, Chaofan Li, Kun Luo et al. (BAAI) | [Papers](Papers/2026/07/2026-07-25-arex-recursively-self-improving-agent.md) |
+| 2607.21557 | OpenForge RL: Train Harness-native Agents in Any Environment | Paul Furgale, Severin Klingler, James Nolan et al. (Microsoft) | [Papers](Papers/2026/07/2026-07-26-openforge-rl-train-harness-native-agents.md) |
 | HF: 2607.01224 | AutoMem: Automated Learning of Memory as a Cognitive Skill | Shengguang Wu, Hao Zhu, Yuhui Zhang, Xiaohan Wang, Serena Yeung-Levy (Stanford University) | [Papers](Papers/2026/07/2026-07-07-automem-automated-learning-memory-cognitive-skill.md) |
 | HF: 2607.07953 | Linear Attention Architectures: Mechanisms, Trade-offs, and Cross-Layer Routing | Tommaso Cerruti et al. (ETH Zurich) | [Papers](Papers/2026/07/2026-07-12-linear-attention-architectures-cross-layer-routing.md) |
 | HF: 2607.13125 | Boogu-Image-0.1: Boosting Open-Source Unified Multimodal Understanding and Generation | Boogu Team | [Papers](Papers/2026/07/2026-07-17-boogu-image-0.1.md) |
