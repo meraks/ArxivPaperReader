@@ -42,13 +42,14 @@ Kimi K3 是 Moonshot AI 发布的一个 2.8T 参数、104B 激活参数的混合
 |------|:----------:|:----------------:|
 | GPQA Diamond | **93.5%** | 领先 Opus 4.8 (+2.5pp) |
 | DeepSWE | **67.5%** | 与 GPT-5.5 持平，落后 Fable 5 (-2.5pp) |
-| BrowseComp | **91.2%** | **最优**（领先 GPT-5.6 Sol +0.8pp） |
+| BrowseComp | **91.2%**¹ | **最优**（领先 GPT-5.6 Sol +0.8pp） |
 | FrontierSWE | **81.2%** | **领先 Opus 4.8 (+14.5pp)** |
 | GDPval-AA v2 (Elo) | 1686 | 第三，低于 Fable 5 (1747) 和 GPT-5.6 Sol (1736) |
 | SWE-Marathon | **42.0%** | **最优**（领先 Fable 5 +7pp） |
 | Art Analysis 智能指数 v4.1 | 57.1 (#4/580) | 第三（Fable 5: 59.9, GPT-5.6 Sol: 58.9） |
 | Vals AI Index | **74.7% (#2/39)** | 落后 Fable 5 (-0.4pp) |
 | WebDev Arena (Elo) | **1,678 (#1/99)** | **最优**（首个在该排行榜登顶的开源模型） |
+> **¹**：BrowseComp 91.2% 采用上下文压缩策略（300K token 触发）。在全 1M token 上下文且无上下文管理的情况下，Kimi K3 得分为 90.4%（与 GPT-5.6 Sol 持平）。
 
 ## 第 2 章 研究背景与动机
 
@@ -162,7 +163,7 @@ KDA、AttnRes、Stable LatentMoE 的组合带来 Kimi K3 约 **2.5× 的规模�
 - **原生多模态**：语言与视觉从训练伊始即联合优化（非后期对齐），视觉与文本 token 在同一下一个 token 预测目标中交错。
 - **优化器**：Per-Head Muon + K2 的 weight-clipping + Quantile Balancing（MoE 负载均衡）。
 - **学习率**：Cosine 调度，1% 线性预热，weight decay = 0.1。
-- **上下文扩展**：四阶段课程——8K → 64K（预训练）→ 256K → 1M（冷却阶段）。由于 KDA 使用 NoPE，无需修改位置编码即可直接外推到 1M token 上下文。
+- **上下文扩展**：四阶段课程——8K → 64K（预训练）→ 256K → 1M（冷却阶段）。由于混合注意力中的 MLA 层使用 NoPE（位置信息由 KDA 层通过循环衰减隐式编码），无需修改位置编码即可直接外推到 1M token 上下文。
 
 ### 4.4 后训练：三阶段范式
 
@@ -255,7 +256,7 @@ Kimi K3 在最大推理强度（max effort）下，温度 1.0，在包含推理�
 | **视觉** | | | | | | |
 | OmniDocBench | **91.1** | 89.8 | 85.8 | 87.9 | 89.4 | — |
 | PerceptionBench | 58.5 | 57.2 | 59.7 | 47.2 | 55.8 | — |
-| CharXiv (RQ) w/ tool | **91.2** | 88.0 | 90.4 | 84.4 | 89.0 | — |
+| CharXiv (RQ) w/ tool | **91.3** | 93.5 | 89.1 | 89.9 | 89.0 | — |
 
 Kimi K3 在编码和 Agent 基准上表现尤为突出：BrowseComp（91.2%）、DeepSearchQA（95.0% F1）、SWE-Marathon（42.0%）、MCPMark-Verified（94.5%）、AutomationBench（30.8%）均取得最优结果。在推理与知识领域，GPQA Diamond（93.5%）与 Frontier 持平，但研究级推理（HLE-Full, CritPt）仍有差距。视觉方面，OmniDocBench（91.1%）领先所有对比模型，Python 工具增强让 Math-Vision 达到 97.8%。
 
