@@ -38,10 +38,10 @@ Mage-VL 提出了一种 codec-native（编解码原生的）流式多模态基�
 ### 1.3 关键结果速览
 
 - **图像理解**：Mage-VL-4B 在 DocVQA (95.14%) 和 ChartQA (84.88%) 上超越同参数规模 Qwen3-VL-4B (94.69%/83.96%)，在 CV-Bench-3D (94.75%) 上大幅领先（Qwen3-VL-4B: 92.30%）
-- **视频理解**：在 LongVideoBench (61.3% vs 57.7%)、MLVU (68.7% vs 61.5%)、VideoMME (64.0% vs 59.7%) 上全面超越 Qwen3-VL-4B
+- **视频理解**：在 LongVideoBench (61.3% vs 57.7%)、MLVU (68.7% vs 61.5%)、VideoMME (64.0% vs 59.7%) 上大幅领先 Qwen3-VL-4B（MV-Bench 65.1% vs 66.7% 略低）
 - **空间推理**：在 VSI-Bench (64.3% vs 53.3%)、EmbSpatial (82.67% vs 77.50%) 上显著领先同参数模型
 - **效率**：codec 流式 tokenization 实现最高 3.5× 的 wall-clock 推理加速
-- **跨参数级竞争力**：4B 参数全面超越 Phi-4-reasoning-vision（15B，3.75× 参数）
+- **跨参数级竞争力**：4B 参数在绝大多数基准上超越 Phi-4-reasoning-vision（15B，3.75× 参数），仅在 AI2D、CharXiv-Reason 等少数基准上略低
 
 ## 第 2 章 研究背景与动机
 
@@ -95,7 +95,7 @@ Mage-ViT 采用 **Codec-ViT 架构**，由三个核心组件构成：
 | OV-Encoder | ViT-L/14 | 85.48 | 99.06 | 80.60 | 94.79 | 84.54 |
 | **Mage-ViT** | ViT-L/16 | 85.96 | **99.33** | 82.01 | 95.60 | 85.69 |
 
-Mage-ViT 在 CIFAR-10 上取得最高（99.33%），ImageNet-1K 上紧追 SigLIP2（85.69% vs 85.92%）。注意 MoonViT（Kimi-VL 编码器）预训练于 10B 图像-文本对但性能显著低于 Mage-ViT。
+Mage-ViT 在 CIFAR-10 上取得最高（99.33%），ImageNet-1K 上紧追 SigLIP2（85.69% vs 85.92%）。SigLIP2 预训练于超 10B 图像-文本对，而 MoonViT（Kimi-VL 编码器）性能显著低于 Mage-ViT。
 
 **视频基准（注意探针）**：
 
@@ -168,7 +168,7 @@ $$
 | OV-Encoder | ViT-L/14 | 85.48 | 99.06 | 80.60 | 94.79 | 84.54 |
 | **Mage-ViT** | ViT-L/16 | 85.96 | **99.33** | 82.01 | 95.60 | 85.69 |
 
-Mage-ViT 在 CIFAR-10 上取得最高（99.33%），ImageNet-1K 上紧追 SigLIP2（85.69% vs 85.92%）。注意 MoonViT（Kimi-VL 编码器）预训练于 10B 图像-文本对但性能显著低于 Mage-ViT。
+Mage-ViT 在 CIFAR-10 上取得最高（99.33%），ImageNet-1K 上紧追 SigLIP2（85.69% vs 85.92%）。SigLIP2 预训练于超 10B 图像-文本对，而 MoonViT（Kimi-VL 编码器）性能显著低于 Mage-ViT。
 
 **视频基准（注意探针）**：
 
@@ -211,7 +211,7 @@ Mage-ViT 在 CIFAR-10 上取得最高（99.33%），ImageNet-1K 上紧追 SigLIP
 | CrossPoint | **80.00** | 26.90 | 12.20 | 47.73 |
 | MMSI-Bench | 28.20 | **31.00** | 28.80 | 25.70 |
 
-Mage-VL-4B 在文档理解（DocVQA 95.14% vs 94.69%）、图表推理（ChartQAPro 32.57% vs 26.79%）、通用 VQA（MMStar 67.32% vs 62.04%）、3D 空间推理（CV-Bench-3D 94.75% vs 92.30%、CrossPoint 80.00% vs 26.90%）上系统性地超越同参数规模 Qwen3-VL-4B，且以 4B 参数全面超越 15B Phi-4-reasoning-vision。
+Mage-VL-4B 在文档理解（DocVQA 95.14% vs 94.69%）、图表推理（ChartQAPro 32.57% vs 26.79%）、通用 VQA（MMStar 67.32% vs 62.04%）、3D 空间推理（CV-Bench-3D 94.75% vs 92.30%、CrossPoint 80.00% vs 26.90%）上系统性领先同参数规模 Qwen3-VL-4B（MMSI-Bench 28.20% vs 31.00%、RealWorldQA 70.46% vs 70.85% 略低），且以 4B 参数在绝大多数基准上超越 15B Phi-4-reasoning-vision。
 
 ### 5.3 视频理解对比
 
