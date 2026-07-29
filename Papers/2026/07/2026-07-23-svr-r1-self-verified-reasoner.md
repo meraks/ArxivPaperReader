@@ -185,7 +185,7 @@ SVR-R1 的多轮自验证在单个 rollout 中引入了多次生成和验证步�
 **ChartQA / TableVQA 训练参数**：
 - 优化器：AdamW，学习率 $1\times10^{-6}$
 - Micro-batch size：2 per GPU，mini-batch size 256（chart）或 128（table）
-- 训练硬件：8$\times$8 A100 80GB GPU
+- 训练硬件：8 $\times$ 8 A100 80GB GPU
 - Decoding temperature：1.0
 - Rollout group size：16
 - KL 系数 $\beta$：$1\times10^{-3}$
@@ -196,7 +196,7 @@ SVR-R1 的多轮自验证在单个 rollout 中引入了多次生成和验证步�
 - 优化器：AdamW，学习率 $1\times10^{-6}$
 - Micro-batch size：4 per GPU，mini-batch size 128 per update
 - 整体 batch size：512
-- 训练硬件：8$\times$8 A100 80GB GPU
+- 训练硬件：8 $\times$ 8 A100 80GB GPU
 - Decoding temperature：1.0
 - Rollout group size：32
 - KL 系数 $\beta$：$1\times10^{-2}$

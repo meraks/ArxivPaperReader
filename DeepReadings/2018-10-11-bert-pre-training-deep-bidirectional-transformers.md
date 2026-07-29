@@ -14,7 +14,7 @@
 ## 第一章 概述
 
 ### 1.1 核心问题
-
+ 
 在 BERT 之前,主流的预训练语言模型(如 GPT、ELMo)都存在一个根本性约束:它们本质上是**单向的(unidirectional)**,每个 token 只能利用一侧的上下文(left-to-right 或 right-to-left),从而无法学习到真正的**深度双向表示**。
 
 - **ELMo**:将独立训练的 left-to-right LM 与 right-to-left LM 进行**浅层拼接**(shallow concatenation)。两个方向各自独立建模、缺乏交互,因此并非真正的深度双向。
