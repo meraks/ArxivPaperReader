@@ -129,3 +129,9 @@
 | HF: 2607.24653 | Kimi K3: Open Frontier Intelligence | Kimi Team (Moonshot AI) | [Papers](Papers/2026/07/2026-07-29-kimi-k3-open-frontier-intelligence.md) |
 | 2607.24904 | Mage-VL: An Efficient Codec-Native Streaming Multimodal Foundation Model | Microsoft Mage Team | [Papers](Papers/2026/07/2026-07-30-mage-vl-codec-native-streaming-multimodal.md) |
 | 2607.27191 | Can AI agents conduct open-ended AI research? Early evidence from two case studies | Peter Kirgis, Sayash Kapoor, Andrew Schwartz et al. (Princeton, UK AISI, UC Berkeley, Stanford) | [Papers](Papers/2026/07/2026-07-31-can-ai-agents-conduct-open-ended-ai-research.md) |
+
+## Papers/2026/08
+
+| 编号 | 标题 | 主要作者 | 仓库链接 |
+|------|------|----------|----------|
+| 2607.28568 | Frontis-MA1: Training an AI4AI Model towards Recursive Self-Improvement in Machine Learning Engineering | Junlin Yang, Che Jiang, Yu Fu, Tianwei Luo et al. (Horizon Research / Frontis.AI, Tsinghua Univ.) | [Papers](Papers/2026/08/2026-08-01-frontis-ma1-ai4ai-recursive-self-improvement.md) |
