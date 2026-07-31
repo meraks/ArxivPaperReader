@@ -1,3 +1,4 @@
+
 ---
 > **论文**：Understanding Reasoning from Pretraining to Post-Training
 > **作者**：Jingyan Shen, Ang Li, Salman Rahman, Yifan Sun, Micah Goldblum et al. (New York University / Modal Labs / UCLA / UIUC / Columbia University)
@@ -130,7 +131,7 @@ $$r = \\texttt{<T>}\\ \\tilde{\\tau}_1\\ \\texttt{<sep>}\\ \\tilde{\\tau}_2\\ \\
 
 从 SFT 策略出发，在谜题环境上使用二元结果奖励：
 
-$$R(\\zeta, s_0) = \\mathbf{1}[a_1=a_1^\\star, \\dots, a_H=a_H^\\star]$$
+$$R(\zeta, s_0) = \\mathbf{1}[a_1=a_1^\star, \dots, a_H=a_H^\star]$$
 
 只有每一步都正确才获得奖励 1。优化算法为 GRPO（Shao et al., 2024）。
 
@@ -174,7 +175,7 @@ $$\tilde{\pi}_\theta(a|s) = \sum_r \pi_\theta(r) \cdot \tilde{\pi}_\theta(a|s,r)
 
 论文的一个重要技术细节是「诱导走法策略」（induced move policy）的定义。预训练模型走法得分为 token 序列概率的乘积，SFT 和 RL 模型则需要在推理链上边际化：
 
-$$\\tilde{\\pi}_\\theta(a|s) = \\sum_r \\pi_\\theta(r) \\cdot \\tilde{\\pi}_\\theta(a|s,r)$$
+$$\tilde{\pi}_\theta(a|s) = \sum_r \pi_\theta(r) \cdot \tilde{\pi}_\theta(a|s,r)$$
 
 实践中通过 128 次蒙特卡洛采样估计边际分布，为后续机制分析提供基础。
 ---
