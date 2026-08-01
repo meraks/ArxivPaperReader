@@ -135,3 +135,4 @@
 | 编号 | 标题 | 主要作者 | 仓库链接 |
 |------|------|----------|----------|
 | 2607.28568 | Frontis-MA1: Training an AI4AI Model towards Recursive Self-Improvement in Machine Learning Engineering | Junlin Yang, Che Jiang, Yu Fu, Tianwei Luo et al. (Horizon Research / Frontis.AI, Tsinghua Univ.) | [Papers](Papers/2026/08/2026-08-01-frontis-ma1-ai4ai-recursive-self-improvement.md) |
+| HF: 2607.26760 | Metis: Memory Foundation Model | Zeyu Zhang, Ziliang Guo, Yihang Sun et al. (MemTensor / RUC / NUS / SJTU / Tongji) | [Papers](Papers/2026/08/2026-08-02-metis-memory-foundation-model.md) |
