@@ -19,7 +19,7 @@ Metis 是首个 memory foundation model 原型，将记忆状态与记忆程序�
 | Figure 3 | 记忆容量：step-level（单次更新容量）与 trajectory-level（多步累积容量） | 第 6 章 |
 | Figure 4 | 低秩分解趋势：性能随保留秩 k 的变化曲线 | 第 6 章 |
 | Figure 5 | 案例研究：remembering / multi-fact / distractor / forgetting 四场景 | 第 6 章 |
-| Figure 6 | 五级能力路线图：stateful → self-managing → experience-learning → persistent cognitive → self-evolving | 第 9 章 |
+| Figure 6 | 五级能力路线图：stateful → self-managing → experience-driven learning → persistent cognition → self-evolving | 第 9 章 |
 | Figure 7 | 延迟随 context 长度增长曲线（512–128K） | 第 6 章 |
 | Figure 8 | Metis commit 延迟分解：commit 占比仅 2.1–4.3% | 第 6 章 |
 | Figure 9 | per-session 存储开销：Full Context 线性增长 vs Metis 恒定 | 第 6 章 |
@@ -33,9 +33,10 @@ Metis 是首个 memory foundation model 原型，将记忆状态与记忆程序�
 | Table 8 | OOD：ATM-Bench (Gold) / MemDaily (Gold) | 第 6 章 |
 | Table 9 | 通用能力：Metis-4B vs Qwen3.5-4B（Initial / Active 两阶段） | 第 6 章 |
 | Table 10 | 低秩分解：k ∈ {1,4,16,64,128,256} 各 benchmark 恢复率 | 第 6 章 |
-| Table 11 | MemOps (Full) 无上下文设置（对应论文 Table 11） | 第 6 章 |
+| Table 11 | MemOps (Full) 无上下文设置（对应论文 Table 11；报告仅提及，完整结果见论文附录 B） | 第 6 章 |
 | Table 12 | GDU vs LU 跨尺度对比（对应论文 Table 12） | 第 6 章 |
 | Table 13 | Llama-3.1-8B 迁移实验（对应论文 Table 13） | 第 6 章 |
+| Table 14 | 推理效率：E2E/Query 延迟与有效吞吐（对应论文 Table 14） | 第 6 章 |
 
 ### 1.2 核心贡献
 
@@ -196,7 +197,7 @@ $$L'_t = \text{clip}\left(\min\left\{k : \sum_{r=1}^{k} p_{(r)} \geq \rho\right\
 
 其中 $K_{\min}$ 为最小选定位置数，满足 $L'_t \ll L$。由于 top-$\rho$ 选择不可微，采用 **straight-through estimator** 使梯度通过稠密分布 $\mathbf{p}^{(l)}_t$ 回传，使评分器 $\tilde{\mathbf{w}}^{(l)}_{\text{agg}}$ 端到端可训练。
 
-选定位置经投影得到 memory key/value 状态后，稠密记忆网络通过 **Gated Delta Network 更新（GDU）** 更新（实践中 GDU 优于线性更新 LU，见 Table 7 ablation）：
+选定位置经投影得到 memory key/value 状态后，稠密记忆网络通过 **Gated Delta Network 更新（GDU）** 更新（实践中 GDU 在整体平均上略优于线性更新 LU，但优势随规模变化：4B 几乎持平、9B 时 LU 整体更高、27B 时 GDU 更优，见 Table 7 消融与附录 C）：
 
 $$\mathbf{M}^{(l)}_{t+1} = \lambda \mathbf{M}^{(l)}_t + \frac{(1-\lambda)}{L'_t} \cdot \frac{\tilde{\mathbf{K}}^{(l)\top}_t}{\sqrt{d_k}} \tilde{\mathbf{V}}^{(l)}_t \tag{2}$$
 
@@ -386,7 +387,7 @@ $$
 
 Metis 基于 Qwen3.5 backbone（4B/9B/27B），在 8×H100 上 mid-training，冻结 backbone，仅训练记忆参数（初始化为对应 backbone 层的 K/V 投影）。AdamW，学习率 2×10⁻⁴，200 warmup 步后常数 schedule，weight decay 0.01，β=(0.9,0.999)，ε=10⁻⁸，梯度裁剪 1.0，BF16，seed 42。Metis-4B 训练 14,000 步（1 epoch），Metis-27B 同步数（约 0.4 epoch），Metis-9B 8,000 步（约 0.5728 epoch，验证集早停）。
 
-评估采用静态范式：每个测试轨迹分为信息阶段（提供上下文）与查询阶段（基于先前信息作答）。LLM-as-a-judge 使用 gpt-4.1-mini（temperature 0，重复 3 次取中位数）。基线分四类：全上下文 Qwen3.5（上限参考）、部分上下文 RAG（top-55 chunks，BGE-M3 编码 + 余弦相似度）、TTT 型 Temp-LoRA（临时 LoRA 适配）、参数化记忆 δ-Mem。
+评估采用静态范式：每个测试轨迹分为信息阶段（提供上下文）与查询阶段（基于先前信息作答）。LLM-as-a-judge 使用 gpt-4.1-mini（temperature 0，重复 3 次取中位数）。基线分四类：全上下文 Qwen3.5（上限参考）、部分上下文 RAG（top-5 chunks，BGE-M3 编码 + 余弦相似度）、TTT 型 Temp-LoRA（临时 LoRA 适配）、参数化记忆 δ-Mem。
 
 ### 6.2 记忆操作任务总览
 
@@ -580,7 +581,7 @@ $$
 
 ### 7.1 仓库结构
 
-官方仓库 https://github.com/MemTensor/Metis 提供 Metis 架构、数据格式文档、推理示例、多步 mid-training 与评估 harness，以及官方模型权重。仓库核心目录：`metis/`（架构实现）、`configs/`（配置）、`eval/`（评估）、`train/` 与 `scripts/`（训练与数据 tokenization）、`example/`（示例）、`assets/`。训练数据尚未公开（README 标注 URL to be released）。
+官方仓库 https://github.com/MemTensor/Metis 提供 Metis 架构、数据格式文档、推理示例、多步 mid-training 与评估 harness，以及官方模型权重。仓库核心目录：`metis/`（架构实现）、`configs/`（配置）、`eval/`（评估）、`train/` 与 `scripts/`（训练与数据 tokenization）、`example/`（示例）、`assets/`。训练数据未随仓库公开（README 标注 Training data is not included）。
 
 ### 7.2 默认记忆配方
 
@@ -611,7 +612,7 @@ JSONL 数据集中每行一个对象：`messages` 是交互块列表（每块为
  "query_turn_id": 1, "metadata": {"type": "remember", "style": "explicit"}}
 ```
 
-训练流程：`scripts/tokenize_dataset.py` 用目标 backbone tokenizer 预 tokenize 训练/验证集（`--max_total_tokens 1024`）→ `scripts/train.sh` 启动训练（冻结 backbone、禁用 LoRA、只训练原生记忆参数）。环境变量控制优化与验证，例如 `LR=2e-4 NUM_EPOCHS=3` 的 4-GPU Qwen3.5-4B 复现命令（per-device batch 4、grad accum 5、有效 batch 32）。
+训练流程：`scripts/tokenize_dataset.py` 用目标 backbone tokenizer 预 tokenize 训练/验证集（`--max_total_tokens 1024`）→ `scripts/train.sh` 启动训练（冻结 backbone、禁用 LoRA、只训练原生记忆参数）。环境变量控制优化与验证，例如 `LR=2e-4 NUM_EPOCHS=3` 的 4-GPU Qwen3.5-4B 复现命令（per-device batch 4、grad accum 2、有效 batch 32）。
 
 ### 7.5 模型权重与许可
 
