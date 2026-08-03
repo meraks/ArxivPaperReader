@@ -13,29 +13,31 @@ RLSVR（Reinforcement Learning with Self-Verifiable Rewards）通过任务变换
 
 ### 论文图表总览
 
-| 编号 | 内容 | 章节 |
-|------|------|------|
-| Figure 1(a) | RLVR 范式示意图（确定性 verifier） | 第 2 章 |
-| Figure 1(b) | SSL 范式示意图（pretext task） | 第 2 章 |
-| Figure 1(c) | RLSVR 任务变换范式（latent $z$ 构造可验证奖励） | 第 2 章 |
-| Figure 2 | SpyRL 框架总览（performing + detection 两阶段闭环） | 第 3 章 |
-| Figure 3 | 三任务实例化（summarization / creative writing / math） | 第 3 章 |
-| Figure 4 | 100 局怀疑票数与 GPT-4o 质量排序相关性 | 第 4 章 |
-| Figure 5 | 组大小效应（$n=3,5,6,8$） | 第 5 章 |
-| Table 1 | Summarization：ROUGE-L / GPT-4o A/B win%（5 bench） | 第 4 章 |
-| Table 2 | Creative writing：GPT-4o A/B win%（WP / WB × 5 维） | 第 4 章 |
-| Table 3 | Reasoning：7 bench（GSM8K、Math500、AIME24、AIME25、Minerva、MMLU-Pro、GPQA-D） | 第 4 章 |
-| Table 4 | 模块消融（Math500：Only Performing / Only Detection / Without spy / SpyRL） | 第 5 章 |
-| Table 5 | 人工评估（10 博士生，WP / WB overall） | 第 5 章 |
-| Table 6 | RaR 对比 + verifier 成本（$\sim$​\$200$ / $\sim$​\$900$） | 第 5 章 |
-| Table 7 | 训练超参（GRPO、LR、batch、KL、组大小等） | 第 6 章 |
-| Table 8 | 直接 A/B summarization（RLSVR vs baseline win%） | 第 5 章 |
-| Table 9 | 直接 A/B creative writing overall win% | 第 5 章 |
-| Table 10 | Joint vs Alternating（Qwen3-4B，5 math bench 平均） | 第 5 章 |
-| Table 11 | 跨任务迁移（writing→summ / summ→writing / math→writing） | 第 5 章 |
-| Table 12 | 替代 judge Gemini-3.5-Flash（creative writing） | 第 5 章 |
-| Table 13 | 替代 judge Gemini-3.5-Flash（summarization） | 第 5 章 |
-| Table 14 | GPT-4o-human 一致性（precision / recall） | 第 5 章 |
+| 编号 | 内容 | 章节 | 论文 PDF 编号 |
+|------|------|------|------|
+| Figure 1(a) | RLVR 范式示意图（确定性 verifier） | 第 2 章 | Figure 1(a) |
+| Figure 1(b) | SSL 范式示意图（pretext task） | 第 2 章 | Figure 1(b) |
+| Figure 1(c) | RLSVR 任务变换范式（latent $z$ 构造可验证奖励） | 第 2 章 | Figure 1(c) |
+| Figure 2 | SpyRL 框架总览（performing + detection 两阶段闭环） | 第 3 章 | Figure 2 |
+| Figure 3 | 三任务实例化（summarization / creative writing / math） | 第 3 章 | Figure 3 |
+| Figure 4 | 100 局怀疑票数与 GPT-4o 质量排序相关性 | 第 4 章 | Figure 4 |
+| Figure 5 | 组大小效应（n=3,5,6,8） | 第 5 章 | Figure 5 |
+| Table 1 | Summarization：ROUGE-L / GPT-4o A/B win%（5 bench） | 第 4 章 | Table 1（ROUGE-L）+ Table 13（A/B 对未训练基线） |
+| Table 2 | Creative writing：GPT-4o A/B win%（WP / WB × 5 维） | 第 4 章 | Table 14（A/B 对未训练基线） |
+| Table 3 | Reasoning：7 bench（GSM8K、Math500、AIME24、AIME25、Minerva、MMLU-Pro、GPQA-D） | 第 4 章 | Table 3 |
+| Table 4 | 模块消融（Math500：Only Performing / Only Detection / Without spy / SpyRL） | 第 5 章 | Table 8 |
+| Table 5 | 人工评估（10 博士生，WP / WB overall） | 第 5 章 | Table 4 |
+| Table 6 | RaR 对比 + verifier 成本（$\sim$​\$200 / $\sim$​\$900） | 第 5 章 | Table 5 |
+| Table 7 | 训练超参（GRPO、LR、batch、KL、组大小等） | 第 6 章 | Table 12 |
+| Table 8 | 直接 A/B summarization（RLSVR vs baseline win%） | 第 5 章 | Table 1 A/B 列 |
+| Table 9 | 直接 A/B creative writing overall win% | 第 5 章 | Table 2 |
+| Table 10 | Joint vs Alternating（Qwen3-4B，5 math bench 平均） | 第 5 章 | Table 16（附录 D.3） |
+| Table 11 | 跨任务迁移（writing→summ / summ→writing / math→writing） | 第 5 章 | Table 7 |
+| Table 12 | 替代 judge Gemini-3.5-Flash（creative writing） | 第 5 章 | Table 18（附录 D.4） |
+| Table 13 | 替代 judge Gemini-3.5-Flash（summarization） | 第 5 章 | Table 17（附录 D.4） |
+| Table 14 | GPT-4o-human 一致性（precision / recall） | 第 5 章 | Table 19（附录 D.5） |
+
+> 注：本报告表格编号与 arXiv HTML 渲染版（arxiv.org/html/2607.23802v1）一致；论文 PDF 版表格编号不同（如模块消融为 PDF Table 8、人工评估为 PDF Table 4），对应关系见「论文 PDF 编号」列，两版数值一致。
 
 ### 1.2 核心贡献
 
@@ -186,7 +188,7 @@ $$\mathcal{L}_D(\phi) = -\mathbb{E}\left[\frac{1}{n}\sum_i \min\left(\rho^D_i\, 
 
 **任务与环境**。SpyRL 在三个领域构建信息不对称游戏环境：文本摘要（GovReport，civilians 获得完整输入，spy 获得 20% 连续 span 掩码后的输入）、创意写作（WritingPrompts，20% 掩码）、数学推理（Nemotron-CC-Math-v1，40% 掩码）。所有玩家基于各自的观察执行同一目标任务并产出输出；随后进入检测阶段，玩家根据多维度异常评估准则投票找出间谍。
 
-**训练配置**。使用 GRPO 算法（verl 框架实现），基础模型为 Qwen3-4B-Instruct-2507 / Qwen3-8B-Instruct-2507。批大小 1024（128 prompts × 8 rollouts），训练 100 epochs，最大输出长度 2048 tokens，默认组大小 n=5（见 5.2 节消融）。表演与检测阶段严格交替更新（见 3.4 节）。完整超参数见论文 Appendix C.3（学习率 $1\times10^{-6}$，KL 惩罚系数 0.001，低方差 KL，熵系数 0；vLLM 引擎 TP=8，最大 prompt 长度 12288，最大响应长度 4096，总模型长度 16384；单节点 8 卡，FSDP 参考模型 offload 到 CPU）。
+**训练配置**。使用 GRPO 算法（verl 框架实现），基础模型为 Qwen3-4B-Instruct-2507 / Qwen3-8B-Instruct-2507。批大小 1024（128 prompts × 8 rollouts），训练 100 epochs（论文正文表述；附录 C.3 记为 100 iterations，为论文对同一训练轮数的两种说法），最大输出长度 2048 tokens（论文正文；附录 C.3 配置表中最大响应长度为 4,096 tokens，两处为论文自身不一致的记录，详见 6.2 节 Table 7），默认组大小 n=5（见 5.2 节消融）。表演与检测阶段严格交替更新（见 3.4 节）。完整超参数见论文 Appendix C.3（学习率 $1\times10^{-6}$，KL 惩罚系数 0.001，低方差 KL，熵系数 0；vLLM 引擎 TP=8，最大 prompt 长度 12288，最大响应长度 4096，总模型长度 16384；单节点 8 卡，FSDP 参考模型 offload 到 CPU）。
 
 **基线与评测**。对比 SOTA proposer-solver 自博弈框架：R-Zero 与 Absolute Zero。自动指标（ROUGE-L、格式合规）+ GPT-4o 成对 A/B 评测（trained vs base model），采用交换顺序聚合（swapped-order）以缓解位置偏差：模型 A 仅在两个顺序中都胜出（或一胜一平）时才计为 Win。另用 Gemini-3.5-Flash 作为替代 judge 验证稳健性（附录 D.4）。
 
