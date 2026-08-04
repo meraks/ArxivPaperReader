@@ -138,3 +138,4 @@
 | HF: 2607.26760 | Metis: Memory Foundation Model | Zeyu Zhang, Ziliang Guo, Yihang Sun et al. (MemTensor / RUC / NUS / SJTU / Tongji) | [Papers](Papers/2026/08/2026-08-02-metis-memory-foundation-model.md) |
 | 2607.28227 | Qwen-UI-Agent Technical Report: Toward Next-Generation Real-World Centric Foundation GUI Agents | Hanzhang Zhou, Panrong Tong, Xu Zhang et al. (Qwen Team, Alibaba) | [Papers](Papers/2026/08/2026-08-03-qwen-ui-agent.md) |
 | HF: 2607.23802 | From RLVR to RLSVR: Task Transformation Induces Self-Verifiable Rewards for Open-Ended LLM Self-Improvement | Kun Wan, Huazheng Wang, Jing Shi, Qinsi Wang (COLM 2026) | [Papers](Papers/2026/08/2026-08-04-rlsvr-task-transformation-self-verifiable-rewards.md) |
+| HF: 2608.00146 | DiffusionGemma Technical Report | DiffusionGemma Team, Google DeepMind | [Papers](Papers/2026/08/2026-08-05-diffusiongemma-technical-report.md) |
