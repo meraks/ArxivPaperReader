@@ -52,7 +52,7 @@ DiffusionGemma 是首个同时具备**高智能、极速生成、开放权重**�
 | 平均有效去噪步 | ~12 步（最大 48 步） | Table 2 / Table 4 |
 | SD·RL 质量提升 | +10 分（GPQA-D + LCB-v6 均值） | Sec 5 |
 
-Table 3 代表性基准分数（DiffusionGemma TD 模式）：HumanEval **94.5%**、GSM8K **96.3%**、IFEval **97.4%**、AIME 2026 **69.1%**、GPQA Diamond **73.2%**、MMLU-Pro **77.6%**。TD 模式以部分性能换取约 5 倍吞吐——在与闭源 Mercury 2 High 质量相当的前提下快约 2.5 倍（1,479 vs 600 TPS）。
+Table 3 代表性基准分数（DiffusionGemma TD 模式）：HumanEval **94.5%**、GSM8K **96.3%**、IFEval **97.4%**、AIME 2026 **69.1%**、GPQA Diamond **73.2%**、MMLU-Pro **77.6%**。TD 模式以部分性能换取约 5 倍吞吐——在质量上与闭源 Mercury 2 High 高度竞争（AIME 2026 等个别基准仍有差距）的前提下快约 2.5 倍（1,479 vs 600 TPS）。
 
 ---
 
@@ -75,7 +75,7 @@ Table 3 代表性基准分数（DiffusionGemma TD 模式）：HumanEval **94.5%*
 文本扩散领域此前面临"三难"困境：
 
 - **闭源高速但不可复现**：Gemini Diffusion、Mercury 2 等闭源系统展示了高速度，但模型权重、训练方法、推理细节均未公开。
-- **开源但能力不足**：LLaDA 2.1 Flash 等开源扩散模型在 AIME 2026 仅 40.0 分（vs DG TD 69.1），Codeforces ELO 仅 718（vs DG 1429），与前沿 AR 模型差距巨大。
+- **开源但能力不足**：开源扩散模型与前沿 AR 模型仍有明显差距——Nemotron Diffusion 的 AIME 2026 仅 40.0 分（DG TD 69.1、Gemma 4 AR 84.2），LLaDA 2.1 Flash 的 Codeforces ELO 仅 718（vs DG 1429）；不过 LLaDA 的 AIME 2026 达 80.0，反超 DG TD（69.1）。
 - **延迟收益不足**：Nemotron Diff 等模型仅 49 TPS / 1.79 TPF，扩散带来的并行收益被低效率的去噪过程抵消。
 
 DiffusionGemma 从前沿 AR 模型（Gemma 4 26B A4B）出发进行扩散微调，首次同时达成**高智能**（继承 Gemma 4 能力）、**极速**（~1,500 TPS）、**开放**（Apache 2.0 权重 + 参考实现 + 微调工具包），填补了这一空白。
@@ -279,7 +279,7 @@ $$
 
 其中 $K$ 为 canvas 数量，$K - 1$ 项计入 canvas 间的上下文追加前向传播（Eq.4）。TPF 是衡量扩散效率的核心指标：AR 模型恒为 1.0，AR + MTP 约 1.40，而 DiffusionGemma 达 **19.74**——即每次前向传播平均产出近 20 个 token。
 
-验证：以 Table 3 全局均值为例，$N_{\mathrm{total}} \approx 4{,}001$，canvas 256 → $K \approx 15.6$，$\bar{S}_{\mathrm{eff}} \approx 12$ → $S \approx 188$，$\mathrm{TPF} = 4001 / (188 + 15.6 - 1) \approx 20.1$，与报告值 19.74 一致。
+验证：以 Table 3 全局均值为例，$N_{\mathrm{total}} \approx 4{,}001$，canvas 256 → $K \approx 15.6$，$\bar{S}_{\mathrm{eff}} \approx 12$ → $S \approx 188$，$\mathrm{TPF} = 4001 / (188 + 15.6 - 1) \approx 19.7$，与报告值 19.74 一致。
 
 ### 4.9 保留 AR 能力
 
@@ -411,14 +411,14 @@ DiffusionGemma 在四种运行模式下评估：文本扩散（TD）与自回归
 
 **结果解读**：
 
-- **扩散模型新前沿**：DiffusionGemma 大幅超越现有开源扩散基线（LLaDA 2.1 Flash、Nemotron Diffusion），同时 TPF 提升约一个数量级（19.74 vs 4.63 vs 1.79）。
+- **扩散模型新前沿**：DiffusionGemma 在绝大多数基准上大幅超越现有开源扩散基线（LLaDA 2.1 Flash、Nemotron Diffusion；唯 AIME 2026 落后：LLaDA 80.0 vs DG TD 69.1），同时 TPF 大幅提升（19.74 vs 4.63 vs 1.79，相对 LLaDA 约 4.3 倍、相对 Nemotron 约 11 倍）。
 - **对标闭源 Mercury 2**：质量上与 Mercury 2 高度竞争（AIME 69.1 vs 91.7 有差距，但 GPQA 73.2 vs 75.2、BigBench EH 47.6 vs 48.9 接近），而输出速度约为 Mercury 2 的 2.5 倍（1479 vs 600 TPS）。
 - **相对 AR 基线的代价**：TD 模式以绝对性能换取约 5 倍吞吐——相对 Gemma 4 AR(MTP) 的 303 TPS，TD 模式达到 1479 TPS。三大能力域（推理与知识、编码、指令遵循与智能体）均有一定程度下降。TD 模式在 Tau2 Telecom 上仅 28.1%（AR MTP 43.0%）。
 - **AR 模式能力保留**：将最终权重回载为 AR 解码后，性能介于 TD 模式与原始 Gemma 4 基线之间（如 AIME 84.2%、GPQA 79.8%），证实双模式路由的可行性。
 
 ### 7.2 效率指标（论文 Table 4）
 
-TD 模式在思考/非思考下的逐基准效率指标（TPF、TPS、有效去噪步数、总 forward passes、总 token 数、端到端延迟）：
+TD 模式（思考模式）下的逐基准效率指标（TPF、TPS、有效去噪步数、总 forward passes、端到端延迟；非思考模式与总 token 数数据见论文 Table 4）：
 
 | Benchmark | TPF (Think) | TPS (Think) | 有效去噪步 (Think) | 总 Forwards (Think) | E2E 时间 (s) (Think) |
 |:---|---:|---:|---:|---:|---:|
@@ -436,8 +436,9 @@ TD 模式在思考/非思考下的逐基准效率指标（TPF、TPS、有效去�
 | Natural2Code | 21.1 | 1682.7 | 10.5 | 70.5 | 0.83 |
 | HiddenMath | 21.0 | 1591.2 | 11.3 | 206.4 | 2.20 |
 | MMMU Pro | 17.7 | 1351.3 | 13.8 | 191.6 | 2.35 |
+| Putnam | 18.1 | 1330.8 | 13.4 | 303.8 | 3.55 |
 
-有效去噪步数横跨 9.1（GSM8K）到 17.1（Codeforces），远低于最大预算 48；结构化任务（代码）倾向于更少步数，复杂推理（Codeforces 1718 ELO 场景）需要更多步。端到端延迟方面，简单基准（GSM8K 0.47 s、HumanEval 0.64 s）接近实时，复杂基准（Codeforces 12.23 s）仍在数秒量级。
+有效去噪步数横跨 9.1（GSM8K）到 17.1（Codeforces），远低于最大预算 48；结构化任务（代码）倾向于更少步数，复杂推理（Codeforces 1429 ELO 场景）需要更多步。端到端延迟方面，简单基准（GSM8K 0.47 s、HumanEval 0.64 s）接近实时，复杂基准（Codeforces 12.23 s）仍在数秒量级。
 
 ### 7.3 能力域汇总
 
