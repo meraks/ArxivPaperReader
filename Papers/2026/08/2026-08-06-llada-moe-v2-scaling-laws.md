@@ -3,7 +3,7 @@
 > **论文**：LLaDA MoE v2: Scaling Mixture-of-Experts Diffusion Language Models
 > **作者**：Fengqi Zhu, Shaoxuan Xu, Jingyang Ou, Zebin You, Yipeng Xing, Huabin Liu, Xiaolu Zhang, Jun Zhou, Zhenzhong Lan, Yankai Lin, Wayne Xin Zhao, Jianguo Li, Chongxuan Li, Jirong Wen（中国人民大学 GSAI / Ant Group）
 > **arXiv ID**：2608.03457
-> **发表时间**：2026-08-05
+> **发表时间**：2026-08-04
 > **许可协议**：未标注
 > **代码仓库**：未公开
 
@@ -31,7 +31,7 @@
 ### 1.2 核心贡献
 
 1. **优化超参数 scaling law**：在 158M–3.6B 模型尺度、10¹⁸–3×10²⁰ FLOPs 预算下拟合出 MoE dLLM 专用的 batch size 与学习率规律（B\*=0.374·C^0.3481，η\*=64.8·C^−0.2447）。与 AR 模型相比，最优 batch size 随计算量增长更陡峭、最优学习率衰减更快——这与 dLLM 掩码去噪目标下「名义 token 的有效监督不足」一致（均匀时间步采样下期望只有一半 token 被预测）。
-2. **计算分配 scaling law**：IsoFLOP 分析（C = M·D，M 为每 token 激活非嵌入 FLOPs）得到 M\*(C)=0.5152·C^0.475、D\*(C)=1.9411·C^0.525，呈轻微数据侧倾斜——最优 token 预算增长快于激活模型计算。对比 11 项已有 AR/dense-dLLM 规律，稀疏激活与扩散目标各自都偏向数据侧，二者叠加使 MoE dLLM 前沿的数据侧指数（0.525）在 dLLM 研究中最高。
+2. **计算分配 scaling law**：IsoFLOP 分析（C = M·D，M 为每 token 激活非嵌入 FLOPs）得到 M\*(C)=0.5152·C^0.475、D\*(C)=1.9411·C^0.525，呈轻微数据侧倾斜——最优 token 预算增长快于激活模型计算。对比 10 项已有 AR/dense-dLLM 规律（连同本文共 11 项），稀疏激活与扩散目标各自都偏向数据侧，二者叠加使 MoE dLLM 前沿的数据侧指数（0.525）在 dLLM 研究中最高。
 3. **MoE 架构设计原则**：固定激活预算下，更大规模越来越偏好更稀疏的激活（更低激活比 A）；中等专家粒度 G=8–16 跨尺度稳健；共享专家比 S=33.3% 在所有尺度最优——这与 AR 实践（DeepSeekMoE 25%、Qwen3 无共享专家、Tian et al. 递减至 8.3%）形成对比，给出「每两单位路由激活配一单位共享激活」的 dLLM 专用规则。
 4. **大规模验证**：据此训练 LLaDA MoE v2 30B-A3B（23.5T tokens，约 460,000 B200 GPU 小时）。15 项基准中 dLLM 平均分最高（58.60），以 Qwen3 的 65% token 逼近其多项能力；SFT 后 7/8 项推理/代码基准超越 SDAR Chat，MultiPL-E 甚至超过 Qwen3。
 
