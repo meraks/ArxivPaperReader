@@ -1,5 +1,5 @@
 > **论文**：AgentOPSD: Recursive Self-Distillation for Agentic Reinforcement Learning
-> **作者**：Zi-Han Wang, Zhengxi Lu, Zhiyuan Yao, Jinyang Wu, Jie Wu, Zhengzhou Cai, Yueqing Sun, Ziang Ye, Linji Hao, Qi Gu, Xunliang Cai, Yongliang Shen, Yujiu Yang（清华大学深圳国际研究生院 SIGS 等）
+> **作者**：Zi-Han Wang, Zhengxi Lu, Zhiyuan Yao, Jinyang Wu, Jie Wu, Zhengzhou Cai, Yueqing Sun, Ziang Ye, Linji Hao, Qi Gu, Xunliang Cai, Yongliang Shen, Yujiu Yang（清华大学、浙江大学、美团）
 > **arXiv ID**：2608.05987
 > **发表时间**：2026-08-06
 > **许可协议**：Apache-2.0
@@ -15,7 +15,7 @@ AgentOPSD 是一种 critic-free 的递归 turn-level 信用分配方法——将
 
 | 图/表 | 内容 | 报告落点 |
 |-------|------|---------|
-| Figure 1 | (a) 三环境主结果总览；(b) ALFWorld 7B 长时程回归（success points lost per additional turn） | 第 5 章 |
+| Figure 1 | (a) ALFWorld 7B 验证成功率随训练步数变化；(b) 任务视界敏感性（每增加一个回合损失的成功率点数）；(c) 策略熵随训练步数变化 | 第 5 章 |
 | Figure 2 | AgentOPSD 方法框架图（贝叶斯信念递归更新 + 有界优势重塑全流程） | 第 3 章 |
 | Figure 3 | 超参敏感性（$\lambda$、$\gamma$、$\epsilon_{\text{high}}$ 三条曲线） | 第 5 章 |
 | Table 1 | 主结果对比（Qwen2.5-3B/7B × ALFWorld / Search-QA / WebShop） | 第 5 章 |
@@ -146,9 +146,9 @@ $$\tilde{A}_k = A_{\text{seq}} \left[(1-\lambda) + \lambda \cdot w_k\right]$$
 
 **PPO 风格损失（Eq.12）**：
 
-$$\mathcal{L} = -\frac{1}{G} \sum_i \frac{1}{\sum_t M_{i,t}} \sum_t M_{i,t} \min\!\left(r_{i,t} \cdot \tilde{A}_{\kappa(t)},\; \text{clip}(r_{i,t},\, 1-\epsilon,\, 1+\epsilon) \cdot \tilde{A}_{\kappa(t)}\right) + \beta \cdot \mathcal{L}_{KL}$$
+$$\mathcal{L} = -\frac{1}{G} \sum_i \frac{1}{\sum_t M_{i,t}} \sum_t M_{i,t} \min\!\left(r_{i,t} \cdot \tilde{A}_{\kappa_i(t)},\; \text{clip}(r_{i,t},\, 1-\epsilon,\, 1+\epsilon) \cdot \tilde{A}_{\kappa_i(t)}\right) + \beta \cdot \mathcal{L}_{KL}$$
 
-其中 $r_{i,t}$ 为重要性比，$M_{i,t}$ 为 token mask，$\kappa(t)$ 将 token 索引映射到所属 turn。$\tilde{A}_{\kappa(t)}$ 在同一 turn 内对所有 token 共享，无单独的蒸馏损失项。
+其中 $r_{i,t}$ 为重要性比，$M_{i,t}$ 为 token mask，$\kappa_i(t)$ 将 token 索引映射到所属 turn。$\tilde{A}_{\kappa_i(t)}$ 在同一 turn 内对所有 token 共享，无单独的蒸馏损失项。
 
 ### 3.5 与 GRPO 的兼容性
 
@@ -189,7 +189,7 @@ AgentOPSD 在三个交互式智能体环境中评估，覆盖具身家居推理�
 - **WebShop**（Yao et al., 2022）：在线购物交互环境，采用 Feng et al.（2025）的 128 个固定验证任务；报告归一化完成 Score（部分约束满足的平均值，缩放至 100）与精确完成率 Succ.（满足全部规格要求的 episode 占比）。
 - **Search-QA**：遵循 Search-R1（Jin et al., 2025）设定，覆盖 7 个数据集——单跳 NQ、TriviaQA、PopQA，多跳 HotpotQA、2Wiki、MuSiQue、Bamboogle；其中 NQ 与 HotpotQA 为域内数据，其余 held out；检索使用 E5 嵌入。
 
-模型规模为 Qwen2.5-3B-Instruct 与 Qwen2.5-7B-Instruct，训练于 8×H800 GPU。训练期间使用的特权 skill 从 SkillRL 的 SkillBank（Xia et al., 2026）按关键词匹配检索，仅训练阶段使用；推理时不使用任何外部 skill。信念先验 B0 设为每个 GRPO 组内成功轨迹的占比（即标准组均值 R̄）。其余优化设置与 SDAR 基线共享。
+模型规模为 Qwen2.5-3B-Instruct 与 Qwen2.5-7B-Instruct，训练于 8×H800 GPU。训练期间使用的特权 skill 从 SkillRL 的 SkillBank（Xia et al., 2026）按关键词匹配检索，仅训练阶段使用；推理时不使用任何外部 skill。信念先验 $B_0$ 设为每个 GRPO 组内成功轨迹的占比（即标准组均值 $\bar{R}$）。其余优化设置与 SDAR 基线共享。
 
 **基线分组**（全部共享相同 backbone、环境接口、数据与训练预算）：
 
@@ -207,7 +207,7 @@ Table 1 为两个模型规模在三个环境上的完整对比（单位 %）。
 
 **Qwen2.5-3B-Instruct 主结果（%）**
 
-| 方法 | ALFWorld Avg | Search-QA Avg | WebShop Score | WebShop Succ. |
+| 方法 | ALFWorld Avg | Search-QA Avg | WebShop Score | WebShop Acc |
 |------|:---:|:---:|:---:|:---:|
 | Vanilla | 21.9 | 31.7 | 6.7 | 0.8 |
 | Skill-Prompt\* | 28.9 | 23.9 | 0.2 | 0.8 |
@@ -224,7 +224,7 @@ Table 1 为两个模型规模在三个环境上的完整对比（单位 %）。
 
 **Qwen2.5-7B-Instruct 主结果（%）**
 
-| 方法 | ALFWorld Avg | Search-QA Avg | WebShop Score | WebShop Succ. |
+| 方法 | ALFWorld Avg | Search-QA Avg | WebShop Score | WebShop Acc |
 |------|:---:|:---:|:---:|:---:|
 | Vanilla | 12.5 | 33.9 | 5.9 | 1.6 |
 | Skill-Prompt\* | 23.4 | 36.4 | 1.7 | 0.8 |
@@ -239,7 +239,7 @@ Table 1 为两个模型规模在三个环境上的完整对比（单位 %）。
 | StepOPSD | 88.4 | 48.2 | 87.2 | 78.1 |
 | **AgentOPSD** | **89.1** | **49.2** | **90.2** | **79.7** |
 
-**核心结论一：收益来自信用构造而非特权访问。** 在统一设定下，AgentOPSD 与特权基线使用相同的检索 skill，差异仅在 skill 引发的 teacher–student 差异如何进入学习。AgentOPSD 在两个模型规模的 8 项聚合对比（ALFWorld Avg / Search-QA Avg / WebShop Score / WebShop Succ. × 2 规模）上全部优于 GRPO+OPSD、Skill-SD 与 RLSD，并在 8 项中超过 SDAR 6 项（3B ALFWorld 与 SDAR 并列 84.4，7B WebShop Succ. 落后 SDAR 的 82.8）。这一受控信息对比隔离出 AgentOPSD 的收益来源：局部 teacher-student gap 本身不是可靠信用信号，将其累积为信念状态并按信念修正分配信用，能更有效地识别改变预测结果的回合。
+**核心结论一：收益来自信用构造而非特权访问。** 在统一设定下，AgentOPSD 与特权基线使用相同的检索 skill，差异仅在 skill 引发的 teacher–student 差异如何进入学习。AgentOPSD 在两个模型规模的 8 项聚合对比（ALFWorld Avg / Search-QA Avg / WebShop Score / WebShop Acc × 2 规模）上全部优于 GRPO+OPSD、Skill-SD 与 RLSD，并在 8 项中超过 SDAR 6 项（3B ALFWorld 与 SDAR 并列 84.4，7B WebShop Acc 落后 SDAR 的 82.8）。这一受控信息对比隔离出 AgentOPSD 的收益来源：局部 teacher-student gap 本身不是可靠信用信号，将其累积为信念状态并按信念修正分配信用，能更有效地识别改变预测结果的回合。
 
 **核心结论二：优势随交互视界增长。** Figure 1(b) 对 ALFWorld（Qwen2.5-7B）各子任务成功率随成功 episode 平均回合数的增加做回归，报告每增加一个回合损失的成功率点数：
 
@@ -253,7 +253,7 @@ Table 1 为两个模型规模在三个环境上的完整对比（单位 %）。
 
 ![Figure 1: 主结果与长时程回归](Figures/2026-08-08-agentopsd-fig1.png)
 
-*图1：AgentOPSD 与基线在三个环境上的成功/准确率对比（a），以及 ALFWorld 上成功率随任务回合数增长的退化回归（b）——AgentOPSD 斜率最平缓，验证回合级信用在长视界任务中的价值。*
+*图1：AgentOPSD（Qwen2.5-7B / ALFWorld）的训练动态与视界稳健性——(a) 验证成功率随训练步数变化；(b) 任务视界敏感性：每增加一个回合损失的成功率点数（OLS 斜率），AgentOPSD 斜率最平缓（−0.54 vs GRPO −2.91、RLSD −3.59）；(c) 策略熵随训练步数变化。*
 
 ### 5.3 机制消融
 
@@ -271,7 +271,7 @@ Table 2 在 ALFWorld + Qwen2.5-7B 上逐一移除/替换 AgentOPSD 的单个组�
 
 **有符号方向。** 仅保留 magnitude 并丢弃符号（对 |ΔBk| 而非有符号 qk 做标准化）使性能降至 80.5%。magnitude 能定位信念状态变化的位置，但无法判断变化是否与验证器结果一致：成功轨迹中向上修正与结果一致，失败轨迹中同样的向上修正则不一致。有符号方向显式区分了这两者，让结果一致的修正获得更多信用，矛盾的修正获得更少。
 
-**状态先验锚定。** 移除经验先验 B0=clip(R̄, ε0, 1−ε0) 使成功率降至 78.9%。组成功率 R̄ 在轨迹特定 gap 累积之前提供验证器锚定的任务难度估计；同时 B0 决定初始 log-odds，从而决定 B(1−B) 门的操作区间。无此锚定时轨迹从任意不确定性水平出发，会错误缩放早期信念修正，扭曲哪些早期回合看似关键。消融分离了三个角色：信念修正定位信用、有符号方向将其与最终结果对齐、先验锚定稳定其参考点。
+**状态先验锚定。** 移除经验先验 $B_0=\text{clip}(\bar{R}, \epsilon_0, 1-\epsilon_0)$ 使成功率降至 78.9%。组成功率 $\bar{R}$ 在轨迹特定 gap 累积之前提供验证器锚定的任务难度估计；同时 $B_0$ 决定初始 log-odds，从而决定 $B(1-B)$ 门的操作区间。无此锚定时轨迹从任意不确定性水平出发，会错误缩放早期信念修正，扭曲哪些早期回合看似关键。消融分离了三个角色：信念修正定位信用、有符号方向将其与最终结果对齐、先验锚定稳定其参考点。
 
 ### 5.4 超参数敏感性
 
@@ -296,7 +296,7 @@ AgentOPSD 的官方仓库为 https://github.com/ZethWang/AgentOPSD（Apache-2.0 
 
 > 🚧 **Code coming soon.** The full training code and scripts will be released here shortly. Star / watch this repo to get notified.
 
-仓库仅包含 `.gitignore`、`LICENSE`、`README.md` 三个文件（12 stars, 1 fork），**尚未发布实际训练代码**。因此本章基于论文正文与附录的算法描述，给出 AgentOPSD 相对 GRPO 的核心实现逻辑。
+仓库仅包含 `.gitignore`、`LICENSE`、`README.md` 三个文件（14 stars, 1 fork），**尚未发布实际训练代码**。因此本章基于论文正文与附录的算法描述，给出 AgentOPSD 相对 GRPO 的核心实现逻辑。
 
 ### 6.2 核心算法：单次训练迭代
 
@@ -324,7 +324,7 @@ Algorithm 1: AgentOPSD 单次训练迭代（turn 级粒度）
 17.     zk = (qk − μq)/(σq + ε0)            # Eq.11 轨迹内标准化
 18.     wk = clip(1 + b·zk, 1−b, 1+b)       # 有界乘子
 19.     Ãk = A_seq(i)[(1−λ) + λ·wk]         # 重塑 advantage（token 继承所属回合的 Ã）
-20.  优化: L = −(1/G)Σ_i (1/Σ_t M_i,t) Σ_t M_i,t·min(r_i,t·Ãκ(t), clip(r_i,t,1−ε,1+ε)·Ãκ(t)) + β·L_KL   # Eq.12
+20.  优化: L = −(1/G)Σ_i (1/Σ_t M_i,t) Σ_t M_i,t·min(r_i,t·Ãκ_i(t), clip(r_i,t,1−ε,1+ε)·Ãκ_i(t)) + β·L_KL   # Eq.12
 ```
 
 **关键实现要点：**
@@ -385,7 +385,7 @@ AgentOPSD 的贡献点（信念修正替代局部 gap）可直接叠加在上述
 
 3. **WebShop 7B Acc 未超 SDAR**：在 WebShop 精确完成率（Acc）上，7B 模型 AgentOPSD 为 $79.7\%$，低于 SDAR 的 $82.8\%$。论文未对此 gap 做深入分析。
 
-4. **近似假设**：理论分析依赖两个近似——(A1) $e_k$ 近似为 Bayes factor，仅在 skill 与成功路径弱相关时严格成立；A.1 节证明在 $\rho_k \to 0$ 时 $e_k$ 收敛为 pointwise mutual information，$\text{sign}(e_k) = \text{sign}(B_k)$，但一般情形下存在偏差。(A2) 递归信念更新的线性叠加假设。命题 6（Non-Identifiability）指出相同 return 的两条轨迹可有不同的 per-turn 贡献分布，信念修正量是合理的代理但非唯一解。
+4. **近似假设**：理论分析依赖两个近似——(A1) 假设 skill 条件分支近似成功条件分布 $\pi_\theta(a_k \mid s_k, c^+) \approx p(a_k \mid s_k, C)$；(A2) 假设成功罕见（$\rho_k$ 小）时边际分布近似失败条件分布 $\pi_\theta(a_k \mid s_k) \approx p(a_k \mid s_k, \neg C)$。A.1 节证明在 $\rho_k \to 0$ 极限下 $e_k$ 恢复理想 Bayes factor；仅 (A1) 成立时 $e_k$ 为 pointwise mutual information。校正项对 $B_k$ 单调，故 $\text{sign}(e_k) = \text{sign}(B_k)$ 且 $e_k$ 保持回合证据强度排序，但一般情形下 $e_k$ 与理想 Bayes factor 存在偏差。命题 6（Non-Identifiability）指出相同 return 的两条轨迹可有不同的 per-turn 贡献分布，信念修正量是合理的代理但非唯一解。
 
 ### 7.2 延伸方向
 
