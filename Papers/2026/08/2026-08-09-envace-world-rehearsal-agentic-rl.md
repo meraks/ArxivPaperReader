@@ -31,6 +31,7 @@ EnvACE 是一种面向 agentic reinforcement learning 的训练范式：它让�
 | Figure 1 | 三种 rollout 范式对比（真实环境 / 外部模拟器 / world rehearsal） | 第 1 章 |
 | Figure 2 | EnvACE 总览：act-rehearse 内化循环 + Test-Time Scaling 流程 | 第 3 章 |
 | Figure 3 | τ²-Bench 消融实验（1.7B / 8B，standard GRPO vs Per-role vs EnvACE） | 第 5 章 |
+| Figure 4 | 跨模型规模效应（1.7B → 8B 在 BFCL-v4 与 τ²-Bench 上的提升） | 第 5 章 |
 | Figure 5 | 训练动态曲线（step 50 的 30.0% → step 470 的 36.7%） | 第 5 章 |
 | Figure 6 | Test-Time Scaling 在 BFCL Multi-Turn 上的 budget 效应 | 第 5 章 |
 
@@ -98,7 +99,7 @@ TTS 的意义不仅仅是「免费的性能提升」。它揭示了 world rehear
 
 **范式一：真实环境交互（Real Environment Rollout）。** 这是最直接的范式：agent 每一步的 action 被发送到真实的可执行环境，环境返回真实的 response，agent 基于真实 response 继续下一步决策。优点是 response 完全保真；缺点是环境构建成本极高、训练速度受限于环境响应延迟、且对于很多工具来说根本无法在训练期间反复调用（如涉及真实金融交易的操作）。论文中 BFCL-v4 的 Live 子集就是这种范式的典型场景。
 
-真实环境交互虽然信号最干净，但其训练效率瓶颈极为严重。每次 rollout 都需要等待真实工具的响应（网络延迟通常在数百毫秒到数秒），一条 30 轮交互的轨迹可能需要数分钟才能完成。如果每步训练需要 64 条 rollout，每条 rollout 平均 15 轮交互，那么单步训练的环境交互等待时间就可能超过 30 分钟。470 步训练需要超过 10 天——这还假设环境 100% 可用且无并发限制。
+真实环境交互虽然信号最干净，但其训练效率瓶颈极为严重。每次 rollout 都需要等待真实工具的响应（网络延迟通常在数百毫秒到数秒），一条 30 轮交互的轨迹可能需要数分钟才能完成。如果每步训练需要 64 条 rollout、每条 rollout 平均 15 轮交互，那么单步训练的环境交互等待时间就可能超过 30 分钟、470 步训练可能超过 10 天——不过这是报告者基于上述假设的粗略推算，论文本身并未报告具体的训练耗时（且这还假设环境 100% 可用、无并发限制）。
 
 **范式二：外部模拟器交互（External Simulator Rollout）。** 为了绕开真实环境的限制，研究人员引入外部模拟器——可以是程序化的合成环境（如 EnvScaler、AWM、ScaleEnv、Agent-World、EnvFactory 等合成环境方法），也可以是 LLM-based simulator（如 Simulator、WebWorld）。agent 向模拟器发送 action，模拟器返回 response。优点是构建成本低于真实环境、可以离线训练；但关键缺陷在于：模拟器是 policy 外部的独立模块，policy 在训练时学到的是「在模拟器环境下有效」的策略，一旦模拟器被移除或替换，policy 对环境动态的理解也随之消失。模拟器的知识从未进入 policy 参数。
 
@@ -146,7 +147,7 @@ TTS 的意义不仅仅是「免费的性能提升」。它揭示了 world rehear
 **环境建模谱系**：这是与 EnvACE 最直接相关的对比方向。进一步可细分为三类：
 - **合成环境**（EnvScaler、AWM、ScaleEnv、Agent-World、EnvFactory）：构建外部环境数据供训练使用，环境知识在 policy 之外。这些方法的核心思路是「让环境更丰富、更逼真」，但仍然是外部环境。EnvScaler 通过扩展环境的覆盖面来提升 agent 的泛化能力，AWM 构建显式的 agent world model 作为训练环境，ScaleEnv 则侧重于环境规模的扩展。这些方法的共同局限是：无论环境多丰富，它始终是一个与 policy 分离的外部实体。
 - **LLM 模拟器**（Simulator、WebWorld）：用另一个 LLM 扮演环境，同样在 policy 之外且存在分布偏差。这类方法的优势是灵活性强（可以用自然语言描述任何环境），劣势是模拟质量受限于 LLM 自身能力。Simulator-8B 在实验中的表现（BFCL-v4 仅 19.78%）直接暴露了这一范式的泛化缺陷——模拟器在特定域上调优后，在其他域上严重退化。
-- **世界模型**（Qwen-AgentWorld、COMAP）：显式建模世界动态，但通常作为独立模块存在，未与策略决策端到端联合优化。这类方法在概念上最接近 EnvACE，但关键区别在于它们将世界模型作为独立模块，而非内化进 policy 参数。Qwen-AgentWorld 构建了一个独立的世界模型模块来辅助 agent 决策，COMAP 则采用多 agent 协作的方式模拟环境。这些方法中的世界模型与 policy 是分离的——policy 需要查询外部世界模型来获取环境预测，而非直接从自身参数中提取。
+- **世界模型**（Qwen-AgentWorld、COMAP）：显式建模世界动态，但通常作为独立模块存在，未与策略决策端到端联合优化。这类方法在概念上最接近 EnvACE，但关键区别在于它们将世界模型作为独立模块，而非内化进 policy 参数。Qwen-AgentWorld 构建了一个独立的世界模型模块来辅助 agent 决策，COMAP 则通过世界模型与 agent 策略的共同演化（co-evolving world models and agent policies）来建模环境。这些方法中的世界模型与 policy 是分离的——policy 需要查询外部世界模型来获取环境预测，而非直接从自身参数中提取。
 
 EnvACE 的独特之处在于：它是第一个将环境建模完全内化进 policy 参数、并通过 role-wise 优化让 act 与 rehearse 协同增强的工作。与上述方法相比，EnvACE 的世界模型不是附属品，而是策略本身的一部分。这意味着 act 和 rehearse 共享同一套表征——policy 理解「该调用什么工具」的知识和「工具会返回什么」的知识是在同一组参数中编码的，两者天然对齐、相互增强。
 
@@ -184,17 +185,17 @@ World Rehearsal 是 EnvACE 的核心机制，通过三个公式定义了 act-reh
 
 **公式 (3) —— Act 阶段。** Policy 在历史 $h_t$ 和 act 角色提示的条件下，生成一个 tool call：
 
-$$a_t \sim \pi_\theta(\cdot \mid h_t, \text{Act})$$
+$$a_t \sim \pi_\theta(\cdot \mid h_t, \text{ACT})$$
 
-这里 $\text{Act}$ 是一个角色标记（role token / system prompt），告知模型当前应扮演「行动者」角色，输出格式为工具调用。这一步与传统 agentic RL 的 action 生成完全一致——区别在于下一步。
+这里 $\text{ACT}$ 是一个角色标记（role token / system prompt），告知模型当前应扮演「行动者」角色，输出格式为工具调用。这一步与传统 agentic RL 的 action 生成完全一致——区别在于下一步。
 
 Act 阶段的输出 $a_t$ 必须符合工具调用的格式规范——通常是一个结构化的 JSON 或特定的函数调用语法，包含工具名称和参数。policy 需要基于当前历史 $h_t$（包括任务描述、之前所有轮次的交互）来决定：调用哪个工具、传什么参数、或者不调用工具直接给出最终回复。
 
 **公式 (4) —— Rehearse 阶段。** Policy 在历史 $h_t$、刚生成的 action $a_t$、以及 rehearse 角色提示的条件下，生成该 action 诱导的 environment response：
 
-$$\hat{o}_t \sim \pi_\theta(\cdot \mid h_t, a_t, \text{Rehearse})$$
+$$\hat{o}_t \sim \pi_\theta(\cdot \mid h_t, a_t, \text{REHEARSE})$$
 
-这里 $\hat{o}_t$ 是 rehearsed observation（预演观测），即 policy 对「如果我执行了 $a_t$，环境会返回什么」的预测。$\text{Rehearse}$ 同样是一个角色标记，告知模型现在应扮演「环境」角色，输出格式为环境响应。关键点在于：$\hat{o}_t$ 与 $a_t$ 由同一组参数 $\theta$ 生成，没有任何外部调用。
+这里 $\hat{o}_t$ 是 rehearsed observation（预演观测），即 policy 对「如果我执行了 $a_t$，环境会返回什么」的预测。$\text{REHEARSE}$ 同样是一个角色标记，告知模型现在应扮演「环境」角色，输出格式为环境响应。关键点在于：$\hat{o}_t$ 与 $a_t$ 由同一组参数 $\theta$ 生成，没有任何外部调用。
 
 Rehearse 阶段要求 policy 完成一项截然不同的任务：不再是「决定做什么」，而是「预测做完后会发生什么」。这需要 policy 对工具的输入输出关系、业务逻辑、错误模式有深入的理解。例如，如果 $a_t$ 是一个带错误参数的 API 调用，一个高质量的 $\hat{o}_t$ 应当返回相应的错误信息而非编造成功结果。这种「环境角色」的理解能力，正是 world rehearsal 试图培养并内化的核心能力。
 
@@ -206,7 +207,7 @@ $$h_{t+1} = h_t \oplus (a_t, \hat{o}_t)$$
 
 历史更新的简洁性背后是一个深刻的信任决策：policy 完全信任自己的 rehearsed response，将其与真实的 action 等同对待。这意味着如果某一步的 $\hat{o}_t$ 出现严重偏差（如预演了一个不可能的成功响应），后续所有决策都会基于这个错误的前提展开。不过，Role-Wise GRPO 的奖励信号会在训练过程中惩罚这种导致错误最终结果的 rehearsed response，从而逐步提高预演的准确性。
 
-这三个公式的简洁性掩盖了一个深刻的架构选择：通过角色提示（$\text{Act}$ / $\text{Rehearse}$）来控制同一组参数的行为模式，policy 既是 agent 也是 environment。这种设计的好处是：act 能力和 rehearse 能力共享底层表征——policy 理解「该调用什么工具」和「工具会返回什么」用的是同一套知识与推理电路，两者天然对齐。
+这三个公式的简洁性掩盖了一个深刻的架构选择：通过角色提示（$\text{ACT}$ / $\text{REHEARSE}$）来控制同一组参数的行为模式，policy 既是 agent 也是 environment。这种设计的好处是：act 能力和 rehearse 能力共享底层表征——policy 理解「该调用什么工具」和「工具会返回什么」用的是同一套知识与推理电路，两者天然对齐。
 
 ### 3.3 GRPO 背景与标准形式
 
@@ -228,7 +229,7 @@ World Rehearsal 定义了前向 rollout 的方式，但如何对这种双角色�
 
 $$\mathcal{G}_{x,r} = \{(o_{i,m}) \mid r_{i,m} = r, \; i = 1, \ldots, K\}$$
 
-其中 $o_{i,m}$ 是第 $i$ 条 rollout 中的第 $m$ 个输出，$r_{i,m} \in \{\text{Act}, \text{Rehearse}\}$ 是该输出的角色标签。这一步确保每个角色的输出被分别归组。
+其中 $o_{i,m}$ 是第 $i$ 条 rollout 中的第 $m$ 个输出，$r_{i,m} \in \{\text{ACT}, \text{REHEARSE}\}$ 是该输出的角色标签。这一步确保每个角色的输出被分别归组。
 
 对于一条典型的 $T$ 轮 rollout 轨迹，其中大约包含 $T$ 个 act 输出和 $T$ 个 rehearse 输出（每轮各一个）。如果 $K=4$（每 prompt 4 条 rollout）且 $T=15$（平均轨迹长度），则每个角色的集合 $\mathcal{G}_{x,r}$ 包含约 60 个输出。这些输出共享同一个轨迹级奖励 $R_i$——因为任务成功与否取决于整条轨迹的整体表现，而非单个输出。
 
@@ -242,9 +243,9 @@ $$A_{i,m} = R_i - \mu_{x, r_{i,m}}$$
 
 **公式 (8) —— Clipped GRPO 目标。** 使用标准的 PPO-style clipping，双角色的 advantage 共同驱动参数更新：
 
-$$\mathcal{J}(\theta) = \mathbb{E}_{x, \, \{o_{i,m}\}} \left[ \sum_{i,m} \min\!\left(\rho_{i,m} A_{i,m}, \; \text{clip}(\rho_{i,m}, \, 1{-}\epsilon, \, 1{+}\epsilon) \, A_{i,m}\right) \right]$$
+$$\mathcal{J}(\theta) = \mathbb{E}_{x, i, m, \ell} \left[ \min\!\left(\rho_{i,m,\ell}(\theta)\, A_{i,m,\ell}, \; \text{clip}(\rho_{i,m}(\theta), \, 1{-}\epsilon, \, 1{+}\epsilon) \, A_{i,m,\ell}\right) \right]$$
 
-其中 $\rho_{i,m} = \pi_\theta(o_{i,m}) \, / \, \pi_{\theta_{\text{old}}}(o_{i,m})$ 是重要性采样比率，$\epsilon$ 是 clip 范围。关键在于：尽管 advantage 按角色独立计算，但梯度通过同一组参数 $\theta$ 反向传播——act 和 rehearse 的梯度信号共同更新同一套权重。这就是「role-wise（按角色分组）」与「shared parameters（参数共享）」的结合：分组是为了正确的 advantage 归一化，共享是为了让两个角色相互促进。
+其中 $\rho_{i,m,\ell}(\theta)$ 是第 $i$ 条 rollout 中第 $m$ 个输出 $o_{i,m}$ 的第 $\ell$ 个 token 的标准 GRPO 似然比（对应论文 Eq. 8 中的 $y_{i,m}$；clip 括号内沿用论文的 $\rho_{i,m}(\theta)$ 简写），$\epsilon$ 是 clip 范围。关键在于：尽管 advantage 按角色独立计算，但梯度通过同一组参数 $\theta$ 反向传播——act 和 rehearse 的梯度信号共同更新同一套权重。这就是「role-wise（按角色分组）」与「shared parameters（参数共享）」的结合：分组是为了正确的 advantage 归一化，共享是为了让两个角色相互促进。
 
 PPO-style clipping 的作用是限制每步更新的幅度——当重要性采样比率 $\rho_{i,m}$ 偏离 1 太远时（即新策略与旧策略的差异过大），clip 机制截断梯度，防止训练不稳定。这对于 world rehearsal 尤为重要，因为 act 和 rehearse 两个任务的梯度可能方向不一致甚至冲突，clip 机制可以在一定程度上缓解这种冲突带来的训练震荡。
 
@@ -258,15 +259,19 @@ World Rehearsal 的一个自然副产品是：训练完成后，policy 内部就
 
 之所以称为「private（私下）」，是因为这些预演完全发生在 policy 内部，外部观察者（用户、环境）看不到这些想象轨迹——它们不会产生任何外部副作用。这意味着 TTS 的成本纯粹是计算开销（额外的模型 forward pass），不涉及任何额外的工具调用次数或 API 费用。
 
-**公式 (9) —— Parallel 模式。** 在 parallel 模式下，policy 独立采样 $N$ 条想象轨迹：
+**公式 (9) —— Parallel 模式。** 在 parallel 模式下，policy 从相同的初始任务上下文独立采样 $N$ 条想象轨迹（论文 Eq. 9 的 parallel 定义）：
 
-$$\{h_x^{(1)}, h_x^{(2)}, \ldots, h_x^{(N)}\}, \quad h_x^{(n)} \sim \pi_\theta(\cdot \mid x, \, \text{Act/Rehearse})$$
+$$\tilde{\tau}^{(n)} \sim \Pi_\theta(\cdot \mid x)$$
 
-每条轨迹互相不可见，完全独立。$N$ 条轨迹的信息被汇总为 rehearsal memory $m_x = \text{Aggregate}(\{h_x^{(n)}\}_{n=1}^N)$，随后 policy 在 $(x, m_x)$ 上执行单次 committed execution。
+其中 $\Pi_\theta$ 是 act-rehearse 循环诱导的 rollout 分布。每条轨迹互相不可见，完全独立；每条轨迹随后被 policy 评估得到反馈 $f^{(n)}$（包含评估与修改建议）。$N$ 条轨迹与自评估被汇总为紧凑的 rehearsal memory $m_x$，随后 policy 在 $(x, m_x)$ 上执行单次 committed execution。
 
 Parallel 模式的优势在于**多样性**：$N$ 条独立轨迹可能探索到不同的工具调用路径，rehearsal memory 可以从中提取出最可靠的信息。由于每条轨迹独立采样，这一模式天然适合并行计算——$N$ 条轨迹可以在 $N$ 个 GPU 上同时生成，wall-clock 时间几乎不增加。
 
-**Sequential 模式。** 论文还提出了 sequential 变体：第 $n$ 条想象轨迹可以看到前 $n-1$ 条轨迹的内容，并对前序轨迹进行评估（判断哪些 action 是有效的、哪些 rehearsed response 是合理的）。这种模式允许后续轨迹从前序轨迹的错误中学习，但也带来了更高的上下文消耗。
+**Sequential 模式。** 论文还提出了 sequential 变体（论文 Eq. 9 的第二式）：
+
+$$\tilde{\tau}^{(n)} \sim \Pi_\theta\!\left(\cdot \mid x, \,\{(\tilde{\tau}^{(j)}, f^{(j)})\}_{j<n}\right)$$
+
+即第 $n$ 条想象轨迹可以看到前 $n-1$ 条轨迹及其评估与修改建议，并对前序轨迹进行评估（判断哪些 action 是有效的、哪些 rehearsed response 是合理的）。这种模式允许后续轨迹从前序轨迹的错误中学习，但也带来了更高的上下文消耗。
 
 Sequential 模式模拟了人类「试错-反思-再试」的认知过程：先做一次完整的想象，评估哪些步骤可能有问题，然后带着这些反思再做一次。理论上这种模式可以产生更高质量的想象轨迹，但实验表明它的实际效果不如 parallel 模式——可能是因为将前序轨迹拼入上下文后，信息密度下降，有效信息被冗余文本稀释。
 
@@ -290,7 +295,7 @@ TTS 的三种模式（Non-TTS、parallel、sequential）和两种 rehearsal 模�
 - Live：涉及真实在线工具的子集（最具挑战性）
 - Irrel（Irrelevant）：测试模型是否能正确拒绝不相关的工具调用
 
-BFCL-v4 Avg 为六子集的综合平均。EnvACE-8B 在六子集上的表现为 Web 12.25%、Mem 24.03%、Multi 45.29%、NoLive 87.59%、Live 81.20%、Irrel 83.19%，Avg 为 46.04%。可以看到，NoLive、Live 和 Irrel 三项非常高（80%+），说明 EnvACE 在标准函数调用和工具相关性判断上已经相当成熟；Web 和 Mem 较低则反映了这两类工具的环境复杂度更高。
+BFCL-v4 Avg 为论文报告的综合指标（BFCL 官方口径，并非六子集的简单算术平均——六子集均值约为 55.6%，与论文报告的 46.04% 不同）。EnvACE-8B 在六子集上的表现为 Web 12.25%、Mem 24.03%、Multi 45.29%、NoLive 87.59%、Live 81.20%、Irrel 83.19%，Avg 为 46.04%。可以看到，NoLive、Live 和 Irrel 三项非常高（80%+），说明 EnvACE 在标准函数调用和工具相关性判断上已经相当成熟；Web 和 Mem 较低则反映了这两类工具的环境复杂度更高。
 
 BFCL-v4 的六子集设计巧妙地覆盖了函数调用的不同维度。NoLive 和 Live 的对比尤其有价值：NoLive 使用预先准备的工具环境，而 Live 涉及真实的在线 API——两者的差异反映了方法从「受控环境」到「开放环境」的泛化能力。EnvACE 在 Live 子集上达到 81.20%，说明其内化的世界模型即使在面对训练中未见过的真实在线工具时，也能做出合理的工具调用决策。
 
@@ -318,17 +323,17 @@ Web（12.25%）和 Mem（24.03%）两个低分子集的共同特征是：它们�
 
 EnvACE-8B 在三个领域的表现差异显著：Retail 48.9% 表现最好，Airline 44.0% 紧随其后，Telecom 17.3% 大幅落后。这种差异可以从工具交互复杂度的角度来理解：Retail 领域（退换货、订单查询）的工具逻辑相对线性，每个 action 的环境响应较可预测；Airline 领域（航班查询、改签）虽然涉及更多业务规则，但核心流程仍然清晰；而 Telecom 领域（套餐变更、故障排查）的工具逻辑最为复杂，涉及大量的条件分支和状态依赖，对 rehearsed response 的精度要求最高。这一分布也解释了为什么所有方法在 Telecom 上都表现较弱——这不是某个方法的缺陷，而是该子领域本身的高难度决定的。
 
-**VitaBench。** 这是一个面向复杂真实场景工具交互的基准，包含四个子集：
-- Cross（跨域工具组合）
-- Deliv（交付相关工具）
-- Inst（安装 / 配置相关工具）
-- OTA（Over-the-Air 更新相关工具）
+**VitaBench。** 这是一个面向有状态、真实服务环境的工具交互基准（论文将其场景描述为 food delivery、in-store consumption、online travel 与 cross-domain），Table 1 中的四个子集列对应：
+- Cross（跨域场景）
+- Deliv（外卖配送，food delivery）
+- Inst（店内消费，in-store consumption）
+- OTA（在线旅行，online travel）
 
 EnvACE-8B 在四子集上分别为 Cross 6.0%、Deliv 24.0%、Inst 27.0%、OTA 7.0%，Avg 为 16.0%。整体绝对值较低，说明 VitaBench 是一个高难度基准，但 EnvACE 在此基准上仍优于绝大多数对比方法。
 
-VitaBench 的低绝对分数反映了一个行业现实：复杂真实场景的工具交互仍然是当前 agent 的重大挑战。Cross（6.0%）和 OTA（7.0%）的低分尤其值得关注——跨域工具组合要求 agent 灵活调度多个不同领域的工具，OTA 更新涉及系统级操作的高度不确定性。这些场景的难度远超传统的单一工具调用。
+VitaBench 的低绝对分数反映了一个行业现实：复杂真实场景的工具交互仍然是当前 agent 的重大挑战。Cross（6.0%）和 OTA（7.0%）的低分尤其值得关注——跨域场景要求 agent 灵活调度多个不同领域的工具，在线旅行（OTA）场景则涉及航班/酒店等复杂业务规则。这些场景的难度远超传统的单一工具调用。
 
-VitaBench 四个子集的得分分布（Cross 6.0% < OTA 7.0% < Deliv 24.0% < Inst 27.0%）揭示了一个规律：**环境响应越不确定、越难以预演的子任务，EnvACE 的得分越低。** Cross 涉及跨域工具组合，每个工具的环境响应模式不同，policy 需要同时掌握多个域的环境动态——这对 rehearse 角色的泛化能力提出了极高要求。OTA 涉及系统级操作（如固件更新），其环境响应往往包含系统状态变化的复杂信息，难以准确预演。相比之下，Inst（安装 / 配置）和 Deliv（交付）的流程相对线性，环境响应模式更可预测，因此得分更高。这一分布进一步验证了 world rehearsal 效果与环境可预测性的正相关性。
+VitaBench 四个子集的得分分布（Cross 6.0% < OTA 7.0% < Deliv 24.0% < Inst 27.0%）揭示了一个规律：**环境响应越不确定、越难以预演的子任务，EnvACE 的得分越低。** Cross 涉及跨域场景，每个工具的环境响应模式不同，policy 需要同时掌握多个域的环境动态——这对 rehearse 角色的泛化能力提出了极高要求。OTA（在线旅行）涉及多变的业务规则与价格/库存动态，难以准确预演。相比之下，Inst（店内消费）和 Deliv（外卖配送）的流程相对线性，环境响应模式更可预测，因此得分更高。这一分布进一步验证了 world rehearsal 效果与环境可预测性的正相关性。
 
 **FinMCP-Bench（Financial MCP Benchmark）。** 这是一个金融领域的 Model Context Protocol（MCP）工具调用基准，评估指标采用信息检索领域的三元组：
 - TR（Tool Recall）：工具召回率，衡量正确调用的工具占应调用工具的比例
@@ -363,7 +368,7 @@ FinMCP-Bench 的独特价值在于它是一个**训练中完全未见过的领�
 - **AWM 系列（8B / 14B）** 代表外部世界模型范式，且 AWM-14B 以接近两倍的参数量提供了「大力出奇迹」的参照
 - **TOUCAN-7B** 代表工具调用专用方法
 
-**基线选取的公平性考量。** 一个值得注意的细节是：所有 8B 级别的基线（Qwen3-8B、Simulator-8B、EnvScaler-8B、AWM-8B）都使用了与 EnvACE-8B 相同的 backbone（Qwen3-8B），确保了参数量和预训练数据的完全对齐。这使得性能差异可以完全归因于训练方法的不同，而非模型规模或预训练数据的差异。AWM-14B 虽然规模更大，但其存在恰恰提供了一个「如果不用 world rehearsal 而是用更多参数」的参照——EnvACE-8B 以更少参数超越 AWM-14B 的结果有力地证明了 world rehearsal 的参数效率优势。
+**基线选取的公平性考量。** 论文只明确说明 Qwen3 系列（1.7B / 4B / 8B）以 Qwen3 为 backbone，并未报告 Simulator-8B、TOUCAN-7B、EnvScaler-8B、AWM-8B/14B、ScaleEnv-8B 等环境扩展基线使用的具体 backbone——因此性能差异不能完全归因于训练方法，可能混有 backbone 与预训练数据的差异。AWM-14B 的规模更大（约 1.75 倍参数量），其存在提供了一个「如果不用 world rehearsal 而是用更多参数」的参照——EnvACE-8B 以更少参数超越 AWM-14B 的结果表明 world rehearsal 具有参数效率优势（但同样需注意两者的 backbone 未必相同）。
 
 ### 4.3 实现细节
 
@@ -434,7 +439,7 @@ Ray cluster 负责分布式训练的调度和资源管理，sglang 负责高效�
 
 *BFCL-v4 Avg 列*：EnvACE-8B 的 46.04% 排名第三，略低于 EnvScaler-8B（47.07%）和 AWM-14B（47.32%）。但需要注意，EnvScaler-8B 专门针对函数调用场景做了环境扩展优化，而 AWM-14B 使用了接近两倍的参数量。EnvACE-8B 以更少的参数和更通用的训练范式达到了接近的水平。更值得关注的是，即便是 EnvACE-1.7B（31.81%）也已经超过了 Qwen3-1.7B backbone（30.89%），说明 world rehearsal 在小规模上即开始生效。
 
-*τ²-Bench Avg 列*：EnvACE-8B 的 36.7% 排名第二，仅次于 ScaleEnv-8B 和 Simulator-8B 的 38.5%。但 Simulator-8B 的 BFCL-v4 仅为 19.78%、VitaBench 仅为 1.8%——它在 τ²-Bench 上的高分是以其他基准的严重坍塌为代价的，这恰恰说明了外部模拟器范式的泛化瓶颈：模拟器在某个领域调得好，换个领域就崩溃。EnvACE 在四个基准上保持了均衡的强势表现。
+*τ²-Bench Avg 列*：EnvACE-8B 的 36.7% 为第二高（论文口径：指在三个基准上均有完整结果的方法中），仅次于 Simulator-8B 的 38.5%；ScaleEnv-8B 在 τ²-Bench 上同为 38.5%，但其 BFCL-v4 数据缺失。但 Simulator-8B 的 BFCL-v4 仅为 19.78%、VitaBench 仅为 1.8%——它在 τ²-Bench 上的高分是以其他基准的严重坍塌为代价的，这恰恰说明了外部模拟器范式的泛化瓶颈：模拟器在某个领域调得好，换个领域就崩溃。EnvACE 在四个基准上保持了均衡的强势表现。
 
 Simulator-8B 在 τ²-Bench 上的 38.5% 看似与 ScaleEnv-8B 持平且高于 EnvACE-8B 的 36.7%，但只要看其他基准就能识破这一假象：BFCL-v4 从 Qwen3-8B 的 44.04% 暴跌到 19.78%，VitaBench 从 11.4% 跌到 1.8%。这组数据完美诠释了外部模拟器的**过拟合陷阱**——模拟器在 τ²-Bench 的三个客服领域（Retail / Telecom / Airline）上调得很好，但这种调优是以牺牲在其他所有场景下的泛化能力为代价的。一旦脱离模拟器的舒适区，性能急剧坍塌。
 
@@ -462,7 +467,7 @@ FinMCP-Bench 的结果揭示了一个有趣的 trade-off：TR（Tool Recall）�
 
 更重要的是，FinMCP-Bench 是一个完全独立的金融领域基准，训练数据中不包含金融 MCP 工具。EnvACE 在此基准上的强表现直接验证了论文摘要中强调的 **transferable performance**——world rehearsal 内化的环境动态具有跨域迁移能力。这种迁移能力的来源很可能是：world rehearsal 训练不仅让 policy 学会了特定工具的响应模式，更培养了一种通用的「环境预测能力」——即给定任何工具描述和参数，预测其可能的响应。这种元能力是可以跨域迁移的。
 
-EnvACE-8B 在 TP 上的大幅领先（54.04% vs 次优 EnvScaler-8B 的 39.18%，+14.86pp）尤为值得关注。这意味着在金融 MCP 场景下，EnvACE 调用的工具中有超过一半是正确的，而其他方法的正确率不到 40%。对于金融这种对工具调用准确性要求极高的领域（错误的工具调用可能导致严重的经济损失），TP 的优势具有直接的实用价值。
+EnvACE-8B 在 TP 上的大幅领先（54.04% vs 次优 Qwen3-8B 的 39.47%，+14.57pp）尤为值得关注。这意味着在金融 MCP 场景下，EnvACE 调用的工具中有超过一半是正确的，而其他方法的正确率不到 40%。对于金融这种对工具调用准确性要求极高的领域（错误的工具调用可能导致严重的经济损失），TP 的优势具有直接的实用价值。
 
 **FinMCP-Bench 的 TR-TP 权衡深度分析。** 将五种方法在 TR-TP 空间中的位置可视化，可以揭示不同方法的工具调用策略倾向：
 
@@ -518,7 +523,7 @@ Figure 3 显示，上述消融结论在 1.7B 和 8B 两个规模上均成立—�
 
 ### 5.3 模型规模效应
 
-论文在 1.7B 和 8B 两个规模上训练了 EnvACE，考察 world rehearsal 的收益如何随规模变化。
+论文在 1.7B 和 8B 两个规模上训练了 EnvACE，考察 world rehearsal 的收益如何随规模变化（论文 Figure 4）。
 
 | 规模 | BFCL-v4 Avg (%) | τ² Avg (%) | BFCL-v4 增量 (pp) | τ² 增量 (pp) |
 |------|:----------------:|:----------:|:-----------------:|:------------:|
@@ -611,7 +616,7 @@ Figure 5 展示了 EnvACE-8B 在 470 步训练过程中 τ²-Bench Avg 的变化
 
 综合以上五个子章节的实验结果，我们可以提炼出 EnvACE 优势的几个关键特征。
 
-**特征一：均衡优于专精。** Simulator-8B 在 τ²-Bench 上达到 38.5%，但 BFCL-v4 仅为 19.78%、VitaBench 仅为 1.8%。EnvScaler-8B 在 BFCL-v4 上最高（47.07%），但 τ²-Bench 仅为 32.9%。EnvACE-8B 没有在任何单一基准上取得绝对第一，但在四个基准上都接近或达到第一梯队，最终在 Overall 上以 32.91% 领先。这种均衡性来自 world rehearsal 的通用性——policy 内化的环境预测能力不依赖特定领域的环境调优，而是提供了一种跨域通用的问题求解范式。
+**特征一：均衡优于专精。** Simulator-8B 在 τ²-Bench 上达到 38.5%，但 BFCL-v4 仅为 19.78%、VitaBench 仅为 1.8%。EnvScaler-8B 在 BFCL-v4 上最高（47.07%），但 τ²-Bench 仅为 32.9%。EnvACE-8B 在 Table 1 的三个基准（BFCL-v4、τ²-Bench、VitaBench）上均未取得单项第一，但在三个基准上都接近或达到第一梯队，最终在 Overall 上以 32.91% 领先（在 FinMCP-Bench 上其 TP 与 TF1 则为最优）。这种均衡性来自 world rehearsal 的通用性——policy 内化的环境预测能力不依赖特定领域的环境调优，而是提供了一种跨域通用的问题求解范式。
 
 **特征二：参数效率优于大力出奇迹。** AWM-14B 以 14B 参数取得 Overall 32.54%，EnvACE-8B 以 8B 参数取得 32.91%。每增加 1B 参数带来的 Overall 收益，AWM 从 8B→14B 约为 +0.66pp（32.54 - 28.56 / 6），而 EnvACE 相比 Qwen3-8B backbone 的提升为 +4.43pp（32.91 - 28.48）。这意味着 world rehearsal 带来的参数效率提升远超单纯增加参数量。
 
@@ -627,7 +632,7 @@ Figure 5 展示了 EnvACE-8B 在 470 步训练过程中 τ²-Bench Avg 的变化
 
 **Case Study 1（Figure 7）：工具调用失败的预判与参数修复。** 在这个案例中，EnvACE 在预演阶段发现某个工具调用会因为参数不合法而失败。具体而言，policy 在 rehearse 角色中预演了调用某工具后的环境响应，发现响应中包含了参数错误的提示信息。基于这一预演发现，policy 在实际执行前修正了参数，使得真实调用成功完成。这一案例展示了 world rehearsal 的「试错-修正」认知模式——policy 先在脑中预演一个行动，发现预演结果不理想后修改行动方案，然后再执行修正后的方案。这种模式与人类专家在处理复杂任务时的行为高度一致。
 
-**Case Study 2（Figure 8）：阻止非法写操作改为只读查询。** 在这个案例中，EnvACE 在预演阶段发现某个写操作（如修改数据）是不合法的——目标数据是只读的。基于这一预演发现，policy 主动将写操作改为只读查询，避免了在真实执行中触发权限错误。这一案例展示了 world rehearsal 的「安全防护」能力——policy 通过预演来预见潜在的错误或风险，并在实际执行前规避它们。这种能力在金融、医疗等高风险领域具有特别重要的实用价值。
+**Case Study 2（Figure 8）：阻止非法写操作改为只读查询。** 在这个案例中，用户要求改签航班（basic_economy 舱位），EnvACE 在预演阶段发现改签这一写操作在给定环境约束下是不合法的——`update_reservation_flights` 所需信息不完整，发出写操作会导致 invalid action。基于这一预演发现，policy 主动将写操作改为只读查询（获取订座详情），避免了在真实执行中触发违规操作。这一案例展示了 world rehearsal 的「安全防护」能力——policy 通过预演来预见潜在的错误或风险，并在实际执行前规避它们。这种能力在金融、医疗等高风险领域具有特别重要的实用价值。
 
 **Case Study 的启示。** 两个 case study 共同揭示了 world rehearsal 培养的一种深层能力：**前瞻性错误预判与主动规避。** 这超越了简单的「预测环境会返回什么」——它要求 policy 不仅预演环境响应，还要从预演响应中识别出问题（参数错误、权限不足），并据此调整行动方案。这种能力是高级 agent 区别于简单工具调用器的核心特征。传统 agent 只能在真实执行后被动地发现错误（通过环境的错误响应），而 EnvACE 的 agent 可以在执行前主动预判错误——这是从「反应式」到「前瞻式」的质的飞跃。
 
@@ -637,7 +642,7 @@ Figure 5 展示了 EnvACE-8B 在 470 步训练过程中 τ²-Bench Avg 的变化
 
 ### 6.1 仓库概览
 
-EnvACE 的官方代码开源于 https://github.com/Within-yao/EnvACE ，采用 Apache-2.0 许可协议。截至论文发表时（2026-08-06），仓库有 13 stars、10 commits，README 中明确标注了 arXiv:2608.06197，属于一级可信来源。
+EnvACE 的官方代码开源于 https://github.com/Within-yao/EnvACE ，采用 Apache-2.0 许可协议。截至本报告撰写时（2026-08-09），仓库有 13 stars、10 commits（代码于 2026-08-07 发布），README 中明确标注了 arXiv:2608.06197，属于一级可信来源。
 
 仓库基于两个现有框架构建：
 - **Dr.MAS / verl-agent**：提供 multi-agent system 和 agent RL 训练的基础设施
@@ -651,7 +656,7 @@ EnvACE 的官方代码开源于 https://github.com/Within-yao/EnvACE ，采用 A
 | `simulate_core/` | World rehearsal 的模拟核心 |
 | `verl/` | verl RL 训练框架的适配层 |
 | `recipe/` | 训练配方和配置 |
-| `scripts/` | 训练与评估脚本（含 run_checklist_share.sh 等） |
+| `examples/drmas_trainer/` | 训练与评估启动脚本（含 run_checklist_share.sh 等，位于 examples 下） |
 | `examples/` | 使用示例 |
 | `docker/` | Docker 环境配置 |
 | `docs/` | 文档 |
@@ -717,7 +722,7 @@ Ray 集群的配置需要根据可用 GPU 数量来规划。头节点负责全�
 
 ### 6.5 复现要点与注意事项
 
-**角色提示词的设计。** EnvACE 的核心在于 Act / Rehearse 两种角色提示词的切换。虽然论文正文中以 $\text{Act}$ 和 $\text{Rehearse}$ 简记，但实际实现中这两个角色提示是精心设计的 system prompt，需要明确告知模型当前应输出的格式（tool call 格式 vs. environment response 格式）。复现时应仔细参考 `agent_system/` 目录中的提示词实现。
+**角色提示词的设计。** EnvACE 的核心在于 Act / Rehearse 两种角色提示词的切换。虽然论文公式中以 $\text{ACT}$ 和 $\text{REHEARSE}$ 简记，但实际实现中这两个角色提示是精心设计的 system prompt，需要明确告知模型当前应输出的格式（tool call 格式 vs. environment response 格式）。复现时应仔细参考 `agent_system/` 目录中的提示词实现。
 
 角色提示词的质量直接影响 world rehearsal 的效果。如果 Act 提示词不够明确，policy 可能生成不符合工具调用格式的输出；如果 Rehearse 提示词不够明确，policy 可能不知道应该如何模拟环境响应（是返回 JSON 格式的 API 响应？还是返回自然语言描述？）。一个好的 Rehearse 提示词应该包含：环境角色的身份描述、输出格式规范、以及「忠实模拟工具行为」的行为指引。
 
@@ -803,7 +808,7 @@ Judge 模型的选择还涉及一个潜在的**奖励 hacking** 风险：如果 
 
 **方向五：World Rehearsal 的可解释性研究。** EnvACE 内部化的世界模型本质上是一个 learned simulator。分析这个内部世界模型学到了什么——它是否正确捕获了工具的因果关系？它的预演在哪些场景下可靠、哪些场景下会失败？——不仅能帮助理解方法本身，也可能为工具调用的可解释性提供新的分析工具。论文 Appendix A 的两个 case study（Figure 7 的参数修复和 Figure 8 的非法操作阻止）已经初步展示了内部世界模型的「预判」能力，但更系统的可解释性分析仍有待深入。
 
-Figure 7 的 case study 展示了 EnvACE 在预演中发现某个工具调用会失败（因为参数不合法），从而在实际执行前修正了参数。Figure 8 则展示了一个更精彩的案例：EnvACE 在预演中发现某个写操作是非法的（如试图修改只读数据），从而主动将其改为只读查询。这两个案例说明，world rehearsal 培养的不只是被动的环境预测能力，更是一种主动的「错误预判与规避」能力——这正是高级 agent 的核心特征之一。
+Figure 7 的 case study 展示了 EnvACE 在预演中发现某个工具调用会失败（因为参数不合法），从而在实际执行前修正了参数。Figure 8 则展示了一个更精彩的案例：EnvACE 在预演中发现某个写操作（改签 basic_economy 机票）在给定环境约束下是非法的（所需信息不完整），从而主动将其改为只读查询。这两个案例说明，world rehearsal 培养的不只是被动的环境预测能力，更是一种主动的「错误预判与规避」能力——这正是高级 agent 的核心特征之一。
 
 ### 7.4 总结性评述
 
