@@ -54,7 +54,7 @@
 - multilingual OPD2：KO 90.5–97.6%，JA 90.9–95.2%（双模式范围）
 - EN-only OPD2：KO 36.1–48.3%，JA 29.6–30.8%
 
-**英韩性能差距缩小**（1.7B thinking，7 个基准）：OPD2 在 6/7 个基准上缩小 EN-KO gap，而 OPD 仅缩小 3/5（且 M-MMLU 上 gap 反而从 1.1 增至 4.6）。
+**英韩性能差距缩小**（1.7B thinking，7 个基准）：OPD2 在 6/7 个基准上缩小 EN-KO gap，1 个持平（M-MMLU 维持 1.1）；原版 OPD 缩小了 PolyMath（6.4→4.4）、Global-MGSM（13.4→8.6）、KSM（3.3→0.4）等基准的差距，但 M-MMLU 上 gap 反而从 1.1 增至 4.6。
 
 **强模型可靠性**（8B thinking）：原版 OPD 使英语 80.9→79.9、韩语 78.0→75.7（回退），OPD2 提升至 83.2/80.4——delta signal 在强 base 上更可靠。
 
@@ -91,7 +91,7 @@ $R_t > 0$ 表示 teacher 赋予 token $y_t$ 的概率高于 student 自身——
 以 REINFORCE 式梯度上升更新 student 参数：
 
 $$
-\theta \leftarrow \theta + \alpha \sum_t R_t \, \nabla_\theta \log \pi_\theta(y_t \mid y_{<t}, x)
+\mathbb{E}_{y\sim\pi_\theta(\cdot\mid x)}\left[\sum_{t=1}^{T} R_t \, \nabla_\theta \log \pi_\theta(y_t \mid y_{<t}, x)\right]
 $$
 
 实现层面（naver-ai/opd2 仓库，基于 trl 的 GRPOTrainer 改编），实际采用 per-token advantage + PPO-clipped surrogate loss，而非裸 REINFORCE——共享 open-r1 框架的 rollout 基础设施。
@@ -278,13 +278,13 @@ delta signal 的优势在非英语语言中至少与英语同等显著，说明 
 核心洞见：
 1. **English-only OPD2 的韩语响应率从 90%+ 暴跌至 36-48%**——模型虽然答对了韩语题，却用英语作答
 2. 多语言 OPD2 在 thinking 模式下响应率最高（KO 97.6% / JA 95.2%）
-3. 该现象在两种模式下都成立，与 thinking/non-thinking 无关，只取决于训练数据语言构成
+3. 该现象在两种模式下都成立——训练数据语言构成是决定性因素，但具体响应率数值仍受模式影响（如多语言 OPD 的韩语响应率 thinking 72.9% vs non-thinking 99.7%）
 
 ### 4.6 完整实验结果（附录）
 
 附录 A 报告了全部基准的完整数值（Qwen3-1.7B / Qwen3-8B × multilingual / English-only × thinking / non-thinking）：
 
-**Qwen3-1.7B 多语言训练**（HRM8K 五子集 + PolyMath + GMGSM 平均）：
+**Qwen3-1.7B 多语言训练**（EN/KO 行为 HRM8K 五子集 + PolyMath + GMGSM 共 7 项平均，JA 行为 PolyMath + GMGSM + MAWPS 共 3 项平均；下同）：
 
 | 模式 | 语言 | base | +OPD | +OPD2 |
 |:----|:----|:----:|:----:|:-----:|
@@ -401,6 +401,8 @@ JA 受影响程度大于 KO：EN-only OPD (thinking) JA 响应率仅 36.9%，而
 
 ⚠️ 注意：官方仓库 recipes 仅含英语推理数据配置，**不含本论文的三语（EN/KO/JA）配方**——多语言数据构建是本论文的独立贡献。
 
+⚠️ 注意：上述教师映射（1.7B→Qwen3-4B-Instruct-2507）是**仓库 README 中默认配方**（面向原版 OPD2 论文的配置），**与本论文 §3.1 的实验设置不同**——本论文多语言实验统一以 Qwen3-30B-A3B-2507 为教师（见第 2.2/3.2 节），并未使用 4B 教师。两处表述分别对应「仓库默认配方」与「本论文实验」，不可混读。
+
 ## 第 7 章 局限性与延伸阅读
 
 ### 7.1 局限性
@@ -408,7 +410,7 @@ JA 受影响程度大于 KO：EN-only OPD (thinking) JA 响应率仅 36.9%，而
 1. **语言覆盖有限**：实验仅覆盖英语、韩语、日语三种语言，且韩语/日语同属东亚语言系统，与英语的句法差异小于低资源语言（如非洲语言）。OPD2 在更远距离语言对（如英语–阿拉伯语、英语–斯瓦希里语）上的表现仍属未知。
 2. **数据规模与来源单一**：训练数据仅 100K 题（三语各约 33K），且全部来自 NVIDIA 的 Nemotron 系列数据集。数据规模对 OPD2 多语言效果的上限影响未做缩放研究。
 3. **模型家族局限**：学生模型仅为 Qwen3 家族（1.7B/8B），教师固定为 Qwen3-30B-A3B-2507。OPD2 的多语言效果是否依赖特定教师-学生组合（如同族模型、同一 tokenizer 家族）未经验证。
-4. **响应语言检测粒度**：目标语言响应率是粗粒度的整体判断，未分析代码混写、数学符号夹注等中间形态；thinking 模式的中间推理链（`</think>` 之前）几乎全为英语，其语言混用对下游能力的影响未深入探讨。
+4. **响应语言检测粒度**：目标语言响应率是粗粒度的整体判断，未分析代码混写、数学符号夹注等中间形态；论文仅对 `</think>` 之后的最终回答统计语言（因其认为中间推理链主要由英语生成，此判断未提供逐 token 的语言统计），语言混用对下游能力的影响未深入探讨。
 5. **训练步数固定**：所有实验固定 100 优化步，未探索更长训练的收益曲线；English-only OPD 在 thinking 模式下对韩语的大幅回退（63.7→48.5）的机制解释仍不完整。
 6. **未与 RL 直接对比**：论文未将 OPD2 与同设置的 GRPO/RLVR 多语言基线直接对比，无法定位 OPD2 相对 RL 在跨语言场景的相对优势区间。
 
