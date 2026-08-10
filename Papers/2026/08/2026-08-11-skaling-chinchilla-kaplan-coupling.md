@@ -3,7 +3,7 @@
 > **论文**：Skaling: Chinchilla's Exponents Meet Kaplan's Coupling
 > **作者**：Mathurin Videau, Badr Youbi-Idrissi, David Lopez-Paz, Kartik Ahuja（Meta FAIR）
 > **arXiv ID**：2608.07222
-> **发表时间**：2026-08-10（v1）
+> **发表时间**：2026-08-07（v1）
 > **许可协议**：arXiv 预印本（未标注明确许可）
 > **代码仓库**：无官方实现（截至 2026-08-11 检索）
 
@@ -284,7 +284,7 @@ $$\lim_{N\to\infty}L(N,D)=\left(\frac{B}{D^{\beta}}\right)^{k}+E$$
 
 ![Figure 4: L-shape 稀疏采样策略与交叉验证协议示意](Figures/2026-08-11-skaling-chinchilla-kaplan-coupling-fig4.png)
 
-*图4：左侧为 L-shape 网格（D-band 扫数据量 + N-band 扫模型大小，交汇角点提供 N 与 D 同时活跃的观测，k 与其余参数联合拟合），右侧为四级评估集划分（Interp / ExtN / ExtD / Far）——稀疏采样将 profiling 计算量降低约 10× 而不损失外推精度。*
+*图4：L-shape 稀疏采样策略（Figure 4a）。D-band 固定小模型扫数据量拟合数据参数 (B,β)，N-band 固定短训练扫模型大小拟合尺寸参数 (A,α)，交汇角点提供 N 与 D 同时活跃的观测，k 与其余参数联合拟合——稀疏采样将 profiling 计算量降低约 10× 而不损失外推精度。*
 
 ### 4.3 交叉验证协议
 
