@@ -19,11 +19,14 @@ Skaling law 是一种新型神经缩放定律形式，在 Chinchilla 加法内�
 | Figure 2 | 一阶导数投影：$\partial L/\partial N$ 与 $\partial L/\partial D$ 在 log-log 空间的幂律衰减及交叉斜率诊断 | 第 3 章 |
 | Figure 3 | 混合导数 $\partial^2 L / \partial N \partial D$ 非零的经验证据（核心动机） | 第 3 章 |
 | Figure 4 | L-shape 稀疏采样策略示意（D-band + N-band）及交叉验证协议（Interp / ExtN / ExtD / Far 分区） | 第 4 章 |
+| Figure 5 | iso-ratio compute 外推切片示意图（按固定 D/N 比分组留出高 compute 点） | 第 4 章 |
 | Figure 6 | 经验最优 token-to-parameter 比 vs compute（GP / MLS / Skaling / Chinchilla 对比），展示外推分歧 | 第 6 章 |
 | Table 1 | 主结果：Farseer 与 SK-Grid 双网格在四种交叉验证 regime 下的 MAPE 对比 | 第 5 章 |
 | Table 2 | 全网格拟合参数（Skaling vs Chinchilla，$A$, $B$, $\alpha$, $\beta$, $k$, $E$） | 第 5 章 |
 | Table 3 | iso-ratio compute 外推 MAPE（Skaling vs Chinchilla vs per-ratio power law） | 第 5 章 |
-| Table 5 / 6 | 额外数据集结果（Farseer-code 117 运行、原始 Chinchilla 245 散点） | 第 5 章 |
+| Table 4 | 各定律拟合配置（参数数、log 参数、边界） | 第 6 章 |
+| Table 5 / 6 | 额外数据集结果（Farseer-code 117 运行、原始 Chinchilla 245 散点）及对应系数 | 第 5 章 |
+| Table 8 | SK-Grid 模型架构与超参数配置（附录 E.1 中另写 125 runs / 14 sizes） | 第 6 章 |
 | Table 9 | dominated-pair 拟合结果（配对差消去 $E$ 后的 MAPE 对比） | 第 5 章 |
 
 ### 1.2 核心贡献
@@ -74,7 +77,7 @@ Skaling 继承了 Chinchilla 的闭式最优 token-to-parameter 比公式（$R_{
 
 神经缩放定律描述模型损失 $L$ 与参数量 $N$、训练 token 数 $D$ 之间的函数关系，是大模型计算预算分配的理论基础。该领域沿三条主线演进：
 
-**Kaplan et al. (2020)——耦合形式。** Kaplan 的缩放定律将 $N$ 与 $D$ 耦合在一个共享外层指数的幂律结构中，模型大小与数据量以非加法方式交互。该耦合形式隐含 $\partial^2 L / \partial N \partial D \neq 0$，即 $N$ 对损失的边际效应依赖于 $D$，反之亦然。但该工作基于有限的模型规模，其拟合结果后来被发现高估了计算最优时的数据需求——建议约 20× 以上参数量的 token，使得业界一度倾向于训练大模型而非"充分训练"。
+**Kaplan et al. (2020)——耦合形式。** Kaplan 的缩放定律将 $N$ 与 $D$ 耦合在一个共享外层指数的幂律结构中，模型大小与数据量以非加法方式交互。该耦合形式隐含 $\partial^2 L / \partial N \partial D \neq 0$，即 $N$ 对损失的边际效应依赖于 $D$，反之亦然。但该工作基于有限的模型规模，其拟合结果后来被发现高估了计算最优时的数据需求——建议约 20× 以上参数量的 token（背景估计，非本文数据），使得业界一度倾向于训练大模型而非"充分训练"。
 
 **Hoffmann et al. (2022)——Chinchilla 加法形式。** Chinchilla 定律将损失拆分为两个独立的加法项加一个不可约常数：
 
@@ -280,7 +283,7 @@ $$\lim_{N\to\infty}L(N,D)=\left(\frac{B}{D^{\beta}}\right)^{k}+E$$
 - **D-band**：仅对最小模型扫描数据量 $D$，用于拟合数据参数 $(B,\beta)$；
 - **N-band**：仅在最短训练轮次（少量数据）上扫描模型大小 $N$，用于拟合尺寸参数 $(A,\alpha)$。
 
-两条带的交汇处——即小模型 × 少量数据的角点——提供了 $N$ 与 $D$ 同时活跃的观测，使耦合指数 $k$ 与其余参数在 L-shape 网格上联合拟合成为可能。通过将独立衰减率锚定在网格边界上，这种稀疏几何在相同总预算约束下比全网格扫描更高效地映射 $N$-$D$ 交互。实验验证表明，L-shape 网格的拟合计算量约为全网格的 1/10：Farseer 从 $\sim5.0\times10^{22}$ FLOPs 降至 $\sim5.1\times10^{21}$ FLOPs，SK-Grid 从 $\sim3.1\times10^{21}$ FLOPs 降至 $\sim6.5\times10^{20}$ FLOPs。
+两条带的交汇处——即小模型 × 少量数据的角点——提供了 $N$ 与 $D$ 同时活跃的观测，使耦合指数 $k$ 与其余参数在 L-shape 网格上联合拟合成为可能。通过将独立衰减率锚定在网格边界上，这种稀疏几何在相同总预算约束下比全网格扫描更高效地映射 $N$-$D$ 交互。实验验证表明，L-shape 网格的拟合计算量约为全网格的 1/10（论文摘要口径，按两网格数据核算：Farseer 约 9.8×、SK-Grid 约 4.8×）：Farseer 从 $\sim5.0\times10^{22}$ FLOPs 降至 $\sim5.1\times10^{21}$ FLOPs，SK-Grid 从 $\sim3.1\times10^{21}$ FLOPs 降至 $\sim6.5\times10^{20}$ FLOPs。
 
 ![Figure 4: L-shape 稀疏采样策略与交叉验证协议示意](Figures/2026-08-11-skaling-chinchilla-kaplan-coupling-fig4.png)
 
@@ -324,13 +327,13 @@ $R^2$ 仅限于插值集，原因在于：外推集点数少、覆盖网格中�
 
 Skaling 定律在两个预训练网格上拟合与评估：公开的 Farseer 网格（Li et al., 2025a）与论文自建的 SK-Grid。
 
-**Farseer 网格**：404 个 (N, D) 配置，覆盖 25 个模型大小（100M 至 6.4B 参数）与 55 个数据预算（1B 至 512B tokens），compute 范围 1.6×10^18 至 4.1×10^21 FLOPs，所有模型序列长度 2048。留出三个评估集：Extrapolation N（最大的 3 个模型大小 4.5B–6.4B，36 个点）、Extrapolation D（每个剩余模型大小前 3 个数据预算，66 个点）、Far extrapolation（网格外的 7 个更大规模运行，2.3B–25B 参数、126B–453B tokens）。剩余 302 个配置用于拟合，总计算量约 5.0×10^22 FLOPs。
+**Farseer 网格**：404 个 (N, D) 配置，覆盖 25 个模型大小（100M 至 6.4B 参数）与 55 个数据预算（1B 至 512B tokens），compute 范围 $1.6\times10^{18}$ 至 $4.1\times10^{21}$ FLOPs，所有模型序列长度 2048。留出三个评估集：Extrapolation N（最大的 3 个模型大小 4.5B–6.4B，36 个点）、Extrapolation D（每个剩余模型大小前 3 个数据预算，66 个点）、Far extrapolation（网格外的 7 个更大规模运行，2.3B–25B 参数、126B–453B tokens）。剩余 302 个配置用于拟合，总计算量约 $5.0\times10^{22}$ FLOPs。
 
-**SK-Grid**：论文自建网格，134 个配置，覆盖 15 个模型大小（134M 至 4.9B）与 16 个数据预算（316M 至 316B tokens），compute 范围 9.0×10^16 至 9.9×10^20 FLOPs。同方案留出 7 个 Extrapolation N 点（2.8B–4.9B）、33 个 Extrapolation D 点、3 个 far-extrapolation 运行（约 10^22 FLOPs，5.8B–10.8B 参数）。拟合网格总计约 3.1×10^21 FLOPs。
+**SK-Grid**：论文自建网格，134 个配置，覆盖 15 个模型大小（134M 至 4.9B）与 16 个数据预算（316M 至 316B tokens），compute 范围 $9.0\times10^{16}$ 至 $9.9\times10^{20}$ FLOPs。同方案留出 7 个 Extrapolation N 点（2.8B–4.9B）、33 个 Extrapolation D 点、3 个 far-extrapolation 运行（约 $10^{22}$ FLOPs，5.8B–10.8B 参数）。拟合网格总计约 $3.1\times10^{21}$ FLOPs。
 
 **拟合设置**：所有缩放定律用同一优化器与 log-space 目标函数拟合——Huber loss（δ=0.05）+ L-BFGS-B + basin-hopping（Sobol 拟随机序列初始化），系数 A、B 在对数尺度优化。备选 BIPOP-CMA-ES 进化策略达到同等拟合质量。统一拟合流程保证对比反映函数形式而非拟合程序差异。
 
-**训练设置**（SK-Grid）：模型按宽度与深度同时增长（d_model 672→3264，深度 7→34 层），Llama 3 tokenizer（词表 128,256），序列长度 2048；数据混合 60% DCLM-Edu 网页文本、30% code、10% math；batch size 与峰值学习率遵循 StepLaw 处方（$B=896.07\,F^{0.231}$，$\eta=0.0709\,F^{-0.4303}\,D^{0.2785}$）；AdamW（β=(0.9, 0.95)，weight decay 0.1，grad clip 0.1，cosine LR，warmup 10%，final LR 1×10^-6）。
+**训练设置**（SK-Grid）：模型按宽度与深度同时增长（d_model 672→3264，深度 7→34 层），Llama 3 tokenizer（词表 128,256），序列长度 2048；数据混合 60% DCLM-Edu 网页文本、30% code、10% math；batch size 与峰值学习率遵循 StepLaw 处方（$B=896.07\,F^{0.231}$，$\eta=0.0709\,F^{-0.4303}\,D^{0.2785}$）；AdamW（β=(0.9, 0.95)，weight decay 0.1，grad clip 0.1，cosine LR，warmup 10%，final LR $1\times10^{-6}$）。
 
 ### 5.2 主结果：边界误差
 
@@ -403,7 +406,7 @@ Skaling 是每个 regime 与总体最优的全局定律（pooled MAPE 0.60±0.27
 
 ### 5.6 额外数据集验证
 
-在两个进一步数据集上重复交叉验证协议（Table 5）：**Farseer-code**（Farseer 的代码域对应，117 个运行、9 个模型大小 201M–3.18B、20 个 token 预算 2B–128B，compute 2.4×10^18–2.4×10^21 FLOPs，支持全网格与 L-shape 划分）与**原始 Chinchilla 测量**（Besiroglu et al., 2024，245 个散点，57M–16.2B 参数、245M–318B tokens、1.4×10^18–1.3×10^22 FLOPs，非规则网格仅适用随机划分，16.2B 与 318B-token 点构成两个外推集）。
+在两个进一步数据集上重复交叉验证协议（Table 5）：**Farseer-code**（Farseer 的代码域对应，117 个运行、9 个模型大小 201M–3.18B、20 个 token 预算 2B–128B，compute $2.4\times10^{18}$–$2.4\times10^{21}$ FLOPs，支持全网格与 L-shape 划分）与**原始 Chinchilla 测量**（Besiroglu et al., 2024，245 个散点，57M–16.2B 参数、245M–318B tokens、$1.4\times10^{18}$–$1.3\times10^{22}$ FLOPs，非规则网格仅适用随机划分，16.2B 与 318B-token 点构成两个外推集）。
 
 **Table 5：额外数据集结果（MAPE %）**
 
@@ -426,7 +429,7 @@ Skaling 是每个 regime 与总体最优的全局定律（pooled MAPE 0.60±0.27
 
 ### 5.7 计算最优分配方向
 
-Farseer 数据上的交互有具体分配后果。数值损失梯度恢复随 compute 下降的 token-to-parameter 比，拟合指数 −0.14 与 −0.15（GP 与 MLS），与 Skaling 的解析指数 −0.11 一致，与 Chinchilla 的近平坦预测 +0.03 符号相反。超出数据一个数量级时，两种处方推荐的 token-to-parameter 比相差约 10×（Figure 6）。在 2×10^25 FLOPs 外推点：Chinchilla 接近约 380 tokens/parameter，而经验拟合与 Skaling 落到 20–40。
+Farseer 数据上的交互有具体分配后果。数值损失梯度恢复随 compute 下降的 token-to-parameter 比，拟合指数 −0.14 与 −0.15（GP 与 MLS），与 Skaling 的解析指数 −0.11 一致，与 Chinchilla 的近平坦预测 +0.03 符号相反。超出数据一个数量级时（论文原文口径），两种处方推荐的 token-to-parameter 比相差约 10×（Figure 6）。在 $2\times10^{25}$ FLOPs 外推点：Chinchilla 接近约 380 tokens/parameter，而经验拟合与 Skaling 落到 20–40。
 
 分配方向数据集相关而非耦合形式的普遍后果：Farseer 上 α<β 给出随 compute 增长的递减 D⋆/N⋆；SK-Grid 上 α>β（全网格与 L-shape 皆然），同一闭式最优随 compute 增加 token-to-parameter 比。稳健结论是耦合改变大规模分配，方向取决于拟合数据与架构。
 
@@ -442,7 +445,7 @@ Skaling 定律在固定预算 C=6ND 下最小化。将 D=C/(6N) 代入，内层�
 
 $$\frac{dL}{dN}=k\cdot Z(N)^{k-1}\cdot Z^{\prime}(N)$$
 
-由于 Z(N) 是严格正项之和且经验拟合 k>0，缩放因子 k·Z(N)^{k-1} 非零，最小化损失严格等价于 Z′(N)=0——恰是加性 Chinchilla 定律的驻点条件。**Skaling 定律因此继承 Chinchilla 的计算最优分配不变**。求解 Z′(N)=−αA·N^{−α−1}+βB·(6/C)^β·N^{β−1}=0 得 N^{α+β}=αA/(βB)·(C/6)^β，代回 D*=C/(6N*) 得到最优 token-to-parameter 比：
+由于 $Z(N)$ 是严格正项之和且经验拟合 $k>0$，缩放因子 $k\cdot Z(N)^{k-1}$ 非零，最小化损失严格等价于 $Z^{\prime}(N)=0$——恰是加性 Chinchilla 定律的驻点条件。**Skaling 定律因此继承 Chinchilla 的计算最优分配不变**。求解 $Z^{\prime}(N)=-\alpha A\cdot N^{-\alpha-1}+\beta B\cdot(6/C)^{\beta}\cdot N^{\beta-1}=0$ 得 $N^{\alpha+\beta}=\alpha A/(\beta B)\cdot(C/6)^{\beta}$，代回 $D^{*}=C/(6N^{*})$ 得到最优 token-to-parameter 比：
 
 $$R_{opt}=6^{\frac{\beta-\alpha}{\alpha+\beta}}\left(\frac{\beta B}{\alpha A}\right)^{\frac{2}{\alpha+\beta}}C^{\frac{\alpha-\beta}{\alpha+\beta}}$$
 
@@ -452,7 +455,7 @@ $$R_{opt}=6^{\frac{\beta-\alpha}{\alpha+\beta}}\left(\frac{\beta B}{\alpha A}\ri
 
 ![Figure 6: 经验最优 token-to-parameter 比 vs compute（GP/MLS/Skaling/Chinchilla 对比）](Figures/2026-08-11-skaling-chinchilla-kaplan-coupling-fig6.png)
 
-*图6：GP 与 MLS 两种独立数值估计恢复随 compute 递减的最优比（指数约 −0.14/−0.15），与 Skaling 解析值 −0.11 一致；Chinchilla 预测近平坦（+0.03）。外推到 2×10^25 FLOPs 时两者推荐的 token/parameter 相差超过 10×（约 380 vs 20–40）。*
+*图6：GP 与 MLS 两种独立数值估计恢复随 compute 递减的最优比（指数约 −0.14/−0.15），与 Skaling 解析值 −0.11 一致；Chinchilla 预测近平坦（+0.03）。外推到 $2\times10^{25}$ FLOPs 时两者推荐的 token/parameter 相差超过 10×（约 380 vs 20–40）。*
 
 ### 6.2 拟合挑战
 
