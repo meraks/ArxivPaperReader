@@ -1,9 +1,9 @@
 > **论文**：SoftmaxGRPO: Learning to Reason using Softmax Advantage Group Estimation
 > **作者**：Jefferson Hernandez, Jaywon Koo, Zilin Xiao, Chen Wei, Vicente Ordonez（Rice University）
 > **arXiv ID**：2608.09271
-> **发表时间**：2026-08-11（COLM 2026）
+> **发表时间**：2026-08-10（COLM 2026，arXiv v1 提交日）
 > **许可协议**：CC BY 4.0
-> **代码仓库**：无官方实现
+> **代码仓库**：未提供官方代码仓库
 
 ---
 
@@ -17,7 +17,7 @@ SoftmaxGRPO 是 GRPO 组目标的 **drop-in 替代**：将 z-score 组归一化 
 
 | 编号 | 内容 | 所在章节 |
 |:---:|------|:---:|
-| Figure 1 | prompt 权重函数 $\omega(p)$ 对比（REINFORCE / ML / GRPO / MaxRL / SoftmaxGRPO，左）与 $\tau$ 族扫描（右） | 第 3 章 |
+| Figure 1 | (a) 各 RL 目标在二值奖励下的平均绝对 advantage 随 pass rate 变化（蒙特卡洛估计）；(b) 群体级 prompt 权重函数 $\omega(p)$（REINFORCE / ML / GRPO / MaxRL / SoftmaxGRPO） | 第 3 章 |
 | Figure 2 | ImageNet ResNet-50 分类训练曲线：REINFORCE 几乎不学习、GRPO 居中、SoftmaxGRPO 紧密跟踪精确 MLE | 第 5 章 |
 | Table 1 | 现有方法的二值奖励权重函数 $\omega(p)$ 对比表 | 第 3 章 |
 | Table 2 | 可验证任务主结果（GSM8K / Countdown / DeepMath，Exact 与 Sim 两种奖励） | 第 5 章 |
@@ -190,13 +190,13 @@ $$
 - **高温极限**：$\tau\to\infty$（即 $c = 1 + 1/\tau + O(\tau^{-2})$）时，$\omega_{M,\tau}(p) = \frac{M-1}{M\tau} + O(\tau^{-2})$ 为 $p$ 无关常数；且 $A_i \approx \frac{R_i - \bar{R}}{\tau} + O(\tau^{-2})$（论文 Eq.18），恢复居中组奖励（REINFORCE 式）加权。
 - **低温组内集中**：$\tau\downarrow 0$ 时质量集中于最高奖励 rollout，得到 best-of-group 更新。
 
-![Figure 1a: 各 RL 目标在二值奖励下的 prompt 权重函数对比](Figures/2026-08-12-softmaxgrpo-softmax-advantage-fig1.png)
+![Figure 1a: 各 RL 目标在二值奖励下的平均绝对 advantage](Figures/2026-08-12-softmaxgrpo-softmax-advantage-fig1.png)
 
-*图1：论文 Figure 1a 对比 REINFORCE、ML、GRPO、MaxRL 与 SoftmaxGRPO 的权重函数 $\omega(p)$，直观展示 GRPO 在 $p\to 1$ 发散而 SoftmaxGRPO 保持有限的核心几何差异。*
+*图1：论文 Figure 1a 以蒙特卡洛估计展示 REINFORCE、ML、GRPO、MaxRL 与 SoftmaxGRPO 在各 pass rate 下的平均绝对 advantage（权重幅度），直观展示 GRPO 在 $p\to 1$ 发散而 SoftmaxGRPO 保持有限的核心几何差异。*
 
-![Figure 1b: SoftmaxGRPO 在不同温度 τ 下的权重函数族](Figures/2026-08-12-softmaxgrpo-softmax-advantage-fig2.png)
+![Figure 1b: 各目标的群体级 prompt 权重函数 ω(p)](Figures/2026-08-12-softmaxgrpo-softmax-advantage-fig2.png)
 
-*图2：论文 Figure 1b 展示温度 $\tau$ 如何在 REINFORCE 式与 MaxRL 式加权之间平滑移动 SoftmaxGRPO 的权重函数。*
+*图2：论文 Figure 1b 展示各目标的群体级 prompt 权重函数 $\omega(p)$，其中 SoftmaxGRPO 随温度 $\tau$ 在 REINFORCE 式与 MaxRL 式加权之间平滑插值。*
 
 ## 第 4 章 一般标量奖励：目标、极限与边界
 
@@ -309,7 +309,7 @@ ImageNet 分类（ResNet-50）提供精确最大似然可闭合形式（标准�
 要点：
 - **相同弱相似性奖励下**：SoftmaxGRPO-Sim 三项全胜 GRPO-Sim——GSM8K +7.0 pp、Countdown +3.3 pp、DeepMath +1.2 pp；且仅凭弱输出重叠奖励即在 GSM8K、Countdown 超过演示式 SFT
 - **精确验证器奖励下**：SoftmaxGRPO-Exact 三项全胜 GRPO-Exact，取得 Countdown 与 DeepMath 最佳结果；GSM8K 与 OPD 竞争（75.8 vs 76.0——OPD 使用更强 teacher 的密集逐 token 蒸馏）
-- 3B 规模（论文 Table B.2）：Qwen2.5-3B 上 SoftmaxGRPO 优于 GRPO 2.1 pp（GSM8K 82.3 vs 80.2）与 9.5 pp（Countdown 60.4 vs 50.9）；注意 GRPO 从 1.5B 到 3B 在 Countdown 上回归（57.7→50.9），与 Cai & Provilkov 独立报告的 verifier-RL 缩放行为一致，而 SoftmaxGRPO 在该匹配对比中无此回归
+- 3B 规模（论文 Table B.3）：Qwen2.5-3B 上 SoftmaxGRPO 优于 GRPO 2.1 pp（GSM8K 82.3 vs 80.2）与 9.5 pp（Countdown 60.4 vs 50.9）；注意 GRPO 从 1.5B 到 3B 在 Countdown 上回归（57.7→50.9），与 Cai & Provilkov 独立报告的 verifier-RL 缩放行为一致，而 SoftmaxGRPO 在该匹配对比中无此回归
 
 ### 5.5 梯度分配测量
 
@@ -412,7 +412,7 @@ $\omega(p)$ 在 $p\to1$ 的发散本身并不直接证明计算浪费（$\nabla 
 
 ### 7.2 理论贡献的定位
 
-SoftmaxGRPO 的贡献不在于指数化奖励权重本身（RAML、softmax policy gradient、MPO 早已使用），而在于**组级几何**：二值奖励下精确的有限-$M$ prompt 权重目标、其 MaxRL 极限、大组标量奖励目标，以及标量目标存在性的边界（三水平以上奖励的非保守性）。这为"组归一化如何塑造 prompt 难度加权"提供了首个精确刻画，并将此前的实践变体（Dr.GRPO、DAPO、CISPO、DPPO 的裁剪/过滤/重加权方案）统一理解为在修正同一底层几何失衡的各类尝试。
+SoftmaxGRPO 的贡献不在于指数化奖励权重本身（RAML、softmax policy gradient、MPO 早已使用），而在于**组级几何**：二值奖励下精确的有限-$M$ prompt 权重目标、其 MaxRL 极限、大组标量奖励目标，以及标量目标存在性的边界（三水平以上奖励的非保守性）。这为"组归一化如何塑造 prompt 难度加权"提供了精确刻画，并将此前的实践变体（Dr.GRPO、DAPO、CISPO、DPPO 的裁剪/过滤/重加权方案）统一理解为在修正同一底层几何失衡的各类尝试。
 
 ### 7.3 延伸阅读
 
