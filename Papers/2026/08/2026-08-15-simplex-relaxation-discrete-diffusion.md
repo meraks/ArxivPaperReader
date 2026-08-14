@@ -1,9 +1,9 @@
 > **论文**：Simplex Relaxation for Discrete Diffusion
-> **作者**：Jinya Sakurai, Patrick Pynadath, Satoshi Hayakawa, Jaehong Yoon, Xulei Yang, Nancy F. Chen, Xun Xu（A*STAR I2R 等）
+> **作者**：Jinya Sakurai, Patrick Pynadath, Satoshi Hayakawa, Jaehong Yoon, Xulei Yang, Nancy F. Chen, Xun Xu（NTU Singapore、University of Tokyo、Purdue University、A*STAR IAIC/CFAR 等）
 > **arXiv ID**：2608.10615
-> **发表时间**：2026-08-14
+> **发表时间**：2026-08-11
 > **许可协议**：arXiv 预印本（未标注）
-> **代码仓库**：无官方实现
+> **代码仓库**：无官方实现（论文未提供代码链接）
 
 # 精读报告：Simplex Relaxation for Discrete Diffusion（arXiv:2608.10615，2026）
 
@@ -141,7 +141,7 @@ $$
 \bar{\mathcal{L}}=\Delta\,\ell_{\mathrm{ct}}+o(\Delta),
 $$
 
-其中 $\ell_{\mathrm{ct}}$（Eq. 17）含有信号率 $\lambda(t)=-\frac{d}{dt}\log\alpha(t)$，配套的连续时间目标为 Eq. 18。与 UDLM 的关系在此清晰：UDLM 直接从离散状态推导连续时间 reverse-KL；Simplax 先在辅助 $\tilde z_t$ 上做 Rao–Blackwellized 平均、再取连续时间极限，得到的 $\ell_{\mathrm{ct}}$ 是 **UDLM 目标的 simplex-relaxed 连续时间类比**——当辅助结构退化（$\eta_t\to 0$ 的极限意义上）时两者衔接。
+其中 $\ell_{\mathrm{ct}}$（Eq. 17）含有信号率 $\lambda(t)=-\frac{d}{dt}\log\alpha(t)$，配套的连续时间目标为 Eq. 18。与 UDLM 的关系在此清晰：UDLM 直接从离散状态推导连续时间 reverse-KL；Simplax 先在辅助 $\tilde z_t$ 上做 Rao–Blackwellized 平均、再取连续时间极限，得到的 $\ell_{\mathrm{ct}}$ 是 **UDLM 目标的 simplex-relaxed 连续时间类比**（论文原文表述：*"a simplex-relaxed continuous-time analogue of the UDLM objective"*）。
 
 ### 3.3 反向采样：ancestral sampler 与输入选择
 
@@ -180,7 +180,7 @@ Simplax 的三个组件环环相扣：Dirichlet–categorical augmentation 提�
 - 分词：GPT-2 BPE tokenizer，词表大小 $|\mathcal{V}| = 50{,}257$，序列长度 $L = 1{,}024$。
 - 模型：Sahoo et al. (2024) 的 179M 参数扩散 Transformer：12 个 Transformer block、旋转位置编码 (RoPE)、AdaLN 时间条件、softmax 输出头。
 - 优化：Adam，学习率 $3\times10^{-4}$，batch size 512，总预算 1M iterations。
-- Simplax 默认配置：$\mathbf{z}_t$ 作为 denoiser 输入，常量浓度 $\eta_t \equiv 0.01$。
+- Simplax 默认配置：$\mathbf{z}_t$ 作为 denoiser 输入，常量浓度 $\eta_t \equiv 0.01$。主实验 Simplax checkpoint 由 UDLM 训练 800k iterations 后切换 Simplax 目标再训练 200k iterations 得到（总 1M steps，见论文附录 E；UDLM 初始化对 PPL–ENT 前沿的改善见第 5.3 节诊断）。
 - 评估：生成 1,024 条序列，报告生成 unigram entropy 与生成困惑度（GPT-2 Large、GPT-2 XL、Llama-2 7B 三个评估器）。OpenWebText 的 unigram entropy 为 5.44 nats。
 - 温度扫描：每个方法在每个 NFE 预算下扫 15 个温度（0.84 到 1.12，步长 0.02），选择生成 entropy 最接近 5.44 nats 的操作点。
 
@@ -215,7 +215,7 @@ Simplax 的三个组件环环相扣：Dirichlet–categorical augmentation 提�
 **结果分析**：
 - **NFE=16**（低推理预算）：Simplax 在三个评估器下均为最低生成困惑度（90.5/93.1/49.3），大幅优于 UDLM（186.0/190.1/79.0）和 Duo（166.1/168.3/87.1）。相比最强基线 CANDI（97.2/99.6/56.0），Simplax 在 GPT-2 L/XL 下领先 6.7/6.5，Llama-2 下领先 6.7。
 - **NFE=128**（中等预算）：Simplax 在 GPT-2 Large 和 GPT-2 XL 下最优（56.9/58.9）；Llama-2 7B 下 LangFlow 最优（30.0），Simplax 次之（31.4）。
-- **NFE=1,024**（高预算）：Simplax 在全部三个评估器下均为最优（45.1/46.8/25.5），相比 MDLM（55.1/56.6/33.9）与 LangFlow（68.3/70.0/28.2）优势明显。
+- **NFE=1,024**（高预算）：Simplax 在全部三个评估器下均为最优（45.1/46.8/25.5）；相比 MDLM（55.1/56.6/33.9）在 GPT-2 L/XL 下领先约 10/10，Llama-2 下领先 8.4；相比 LangFlow（68.3/70.0/28.2）在 GPT-2 L/XL 下领先 23.2/23.2，Llama-2 下仅领先 2.7。
 - 总体而言，Simplax 在生成熵接近数据熵（5.44 nats）的前提下取得更低的生成困惑度，说明其在多样性与质量之间取得了更好的权衡。
 
 ### 4.3 Sudoku 约束生成结果（论文 Table 2）
@@ -250,7 +250,7 @@ Sudoku 评估集的构造值得注意：20-clue 与 17-clue 评估集并非从 3
 
 ### 4.6 与主题相关方法的定位
 
-Simplax 的实验对比覆盖了离散扩散的三个主要方向：masked 分支（MDLM）、uniform 分支（UDLM、Duo）、连续/混合分支（FLM、LangFlow、CANDI、S-FLM）。在 OWT 少步采样（NFE=16）下 Simplax 对 uniform 分支的 UDLM/Duo 优势最明显（PPL 近乎减半），说明 Rao-Blackwellized 目标对少步采样场景的 reverse bridge 质量提升是实质性的；在 Sudoku 上 Simplax 同时击败 masked（MDLM）、uniform（Duo）与连续（FLM、S-FLM）三路基线，说明 simplex 辅助结构带来的收益不限于某一类扩散设置。
+Simplax 的实验对比覆盖了离散扩散的三个主要方向：masked 分支（MDLM）、uniform 分支（UDLM、Duo）、连续/混合分支（FLM、LangFlow、CANDI、S-FLM）。在 OWT 少步采样（NFE=16）下 Simplax 对 uniform 分支的 UDLM 优势最明显（186.0 → 90.5，PPL 近乎减半；Duo 166.1 → 90.5，降幅约 45%），说明 Rao-Blackwellized 目标对少步采样场景的 reverse bridge 质量提升是实质性的；在 Sudoku 上 Simplax 同时击败 masked（MDLM）、uniform（Duo）与连续（FLM、S-FLM）三路基线，说明 simplex 辅助结构带来的收益不限于某一类扩散设置。
 
 ## 第 5 章 设计诊断与消融分析
 
