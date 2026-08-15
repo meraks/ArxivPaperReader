@@ -13,20 +13,21 @@ Evoke 是一个交互式视频世界模型：将场景几何持久化于外部�
 
 ### 论文图表总览
 
-| 编号 | 内容 | 章节 |
+| 编号 | 内容 | 论文章节 |
 |:---:|------|:---:|
 | Figure 1 | 7 个 2 小时连续生成 rollout 演示 | §1 |
 | Figure 2 | evocation 案例：定时指令按指定时刻引入/撤出场景元素 | §1 |
 | Figure 3 | 循环推理流程：student 与 world state bank 的读–生成–写循环 | §3 |
 | Figure 6 | 长/短视界教师蒸馏出的学生对比 | §3.3 |
-| Figure 7 | 短时记忆召回可视化 | §4.4 |
+| Figure 7 | 短时记忆召回可视化 | §3.4 |
+| Figure 8 | evocation 受控评估：中途子句实现率 67% / 需替换几何 4% | §4.4 |
 | Figure 10 | 几何路径成本分解 | §7 |
-| Figure 11 | 教师 prompt 调度：4 分钟 rollout × 12 条 20 s 指令 | §3.3 |
+| Figure 11 | 教师 prompt 调度：4 分钟 rollout × 12 条 20 s 指令 | §8 |
 | Figure 12 | 定性 rollout 汇总：9 个会话、4 类场景 | §9 |
 | Table 1 | WBench 导航 split（158 例）分组得分 | §4.1 |
 | Table 2 | VBench-2.0 与 VBench-Long 总分对比 | §4.1 |
-| Table 3 | VBench-2.0 完整榜单 | §4.1 |
-| Table 4 | VBench-Long 完整榜单 | §4.1 |
+| Table 3 | VBench-2.0 完整榜单 | §10 |
+| Table 4 | VBench-Long 完整榜单 | §10 |
 | Table 7 | WBench 公共榜单（30 个系统） | §11 |
 
 ![Figure 2: evocation 案例](Figures/2026-08-16-alaya-evoke-fig2.png)
@@ -167,7 +168,7 @@ $$12 \times 20 \;\rightarrow\; 24 \times 40 \;\rightarrow\; 48 \times 80$$
 
 **推理配置。** 除特别说明外，发布的学生模型每 chunk 使用 3 次去噪评估、不使用 classifier-free guidance。所有运行时测量在单张 H200 上、384×640 分辨率、使用完整 VAE 解码器、不启用 KV cache 缓存、编译、量化或蒸馏解码器等推理加速手段下进行。
 
-**长会话定量评估。** 使用 8 条 65.5 分钟的 rollout（每条 2,619 个 chunk、94,281 帧），世界状态库限制为保留 90 秒的观测。报告的 2.11 s 延迟指扩散过程的 wall clock，而非端到端执行时间（完整路径含几何渲染与视频 I/O，见第 4.4 节）。另有一条小时级 rollout 作为一致性检查，其光度与内容相似度轨迹保持在 8 条会话评估的范围内。
+**长会话定量评估。** 使用 8 条 65.5 分钟的 rollout（每条 2,619 个 chunk、94,281 帧），世界状态库限制为保留 90 秒的观测。报告的 2.11 s 延迟指扩散过程的 wall clock，而非端到端执行时间（完整路径含几何渲染与视频 I/O，见第 4.5 节）。另有一条小时级 rollout 作为一致性检查，其光度与内容相似度轨迹保持在 8 条会话评估的范围内。
 
 **受控蒸馏对比协议。** 为隔离教师视界的影响，论文用匹配的配方分别蒸馏「短视界教师」与「Evoke 长视界教师」两个学生；发布的 Evoke 学生由长视界管线继续训练得到。长会话评估沿光度（photometric）与内容（content descriptor）两条互补线索展开：光度统计量化亮度/饱和度等低层外观的渐进变化；内容描述符度量与各会话自身开场片段的相似度，属自一致性度量而非基于参考的身份指标——真实视频对照组随相机自然穿越新内容也呈现显著描述符去相关，因此绝对相似度值不应解读为场景身份的永久保持。
 
@@ -208,17 +209,17 @@ Table 1 为论文主结果表：9 个少步交互式世界模型在 WBench 导�
 | Visual Plausibility | 57.7 | 55.0 | 58.6 | 56.5 | 58.8 | 61.4 | 59.7 | 57.6 | **61.67** |
 | **Physical avg. (2)** | 65.20 | 57.15 | 66.30 | 62.40 | 65.65 | 69.05 | 65.70 | 63.45 | **72.06** |
 
-> 数值来源：论文 Table 1（精确值）。Evoke 领先组平均分的组用粗体标出 Evoke 列。
+> 数值来源：论文 Table 1（精确值）。Evoke 列以粗体标注；各组领先情况见下方分组解读。
 
 **分组解读。** 逐组分析 Evoke 的优势来源：
 
-- **Video Quality（82.79，领先第 2 名 LingBot-World v2 fast 的 81.77）**：最大单项增益来自 Aesthetic（66.12 vs 第 2 名 64.4）与 HPSv3-Norm（73.75 vs 74.6 位列第 2）——HPSv3 是人工偏好评分，73.75 明显高于多数少步系统，说明 3 步蒸馏并未显著牺牲主观画质。
-- **Setting（83.76，领先 LingBot-World v2 fast 的 76.80 达 6.96）**：Scene 维度 74.68 远超所有对比（第 2 名 66.7），与 Evoke 的持久场景状态设计直接相关——场景结构跨 chunk 保持一致正是世界状态库的目标。
-- **Consistency（86.87，与 LingBot-World v2 fast 的 86.49 并列最强）**：Segment 满分 100.00，Geometric 92.68 领先，但 Perspective（69.74）与 Photometric（82.53）落后——Perspective 弱反映相机控制路径限制，Photometric 弱则与论文 §4.2 承认的"光度统计稳定但非永久保真"一致。
-- **Physical（72.06，领先第 2 名 LingBot-World v2 fast 的 69.05）**：Causal Fidelity 82.44 大幅领先（第 2 名 76.7），Visual Plausibility 61.67 排名第 2——因果保真度优势与长视界监督暴露的远距一致性问题直接相关。
-- **Interaction/Navigation（78.63，第 4）**：是 Evoke 最弱的一组，落后 HY-World 1.5 ar-distill（87.5）与 Happy Oyster（85.1），论文归因于当前相机控制路径的局限。
+- **Video Quality（82.79，领先第 2 名 LingBot-World v2 fast 的 81.77）**：最大单项增益来自 Aesthetic（66.12 vs 第 2 名 64.4）；HPSv3-Norm 73.75 位列第 2（leader 74.6），明显高于多数少步系统——HPSv3 是人工偏好评分，说明 3 步蒸馏并未显著牺牲主观画质。
+- **Setting（83.76，领先第 2 名 LingBot-World fast 的 77.90 达 5.86）**：Scene 维度 74.68 远超所有对比（第 2 名 66.7），与 Evoke 的持久场景状态设计直接相关——场景结构跨 chunk 保持一致正是世界状态库的目标。
+- **Consistency（86.87，与 HY-World 1.5 ar-distill 的 86.86 基本持平、差 0.01，LingBot-World v2 fast 86.49 次之）**：Segment 满分 100.00，Geometric 92.68 领先，但 Perspective（69.74）与 Photometric（82.53）落后——Perspective 弱反映相机控制路径限制，Photometric 弱则与论文 §4.2 承认的"光度统计稳定但非永久保真"一致。
+- **Physical（72.06，领先第 2 名 LingBot-World v2 fast 的 69.05）**：Causal Fidelity 82.44 大幅领先（第 2 名 76.7），Visual Plausibility 61.67 排名第 1——因果保真度优势与长视界监督暴露的远距一致性问题直接相关。
+- **Interaction/Navigation（78.63，第 6）**：是 Evoke 最弱的一组，落后 HY-World 1.5 ar-distill（87.5）、Happy Oyster（85.1）、LingBot-World v2 fast（82.8）、Matrix-Game 2.0（80.6）与 LingBot-World fast（79.4）五个系统，论文归因于当前相机控制路径的局限。
 
-**WBench 公共榜单（Table 7）。** 同一运行放入 WBench 公开榜单（该 split 按五个组分的非加权均值排名，共 30 个任意采样预算的系统；Interaction 组在此 split 即导航维度）。Evoke 以 3 步、无 CFG 采样，而榜单中多数行使用各自的多步默认采样器，因此比较**不是 step-matched**。Evoke 以 80.8 Average 领先榜单第 1（比第二名 HiDream-O1-World 的 80.7 高 0.1，论文声明该幅度的领先与文中拒绝视为胜出的差异同阶）。
+**WBench 公共榜单（Table 7）。** 同一运行放入 WBench 公开榜单（该 split 按五个组分的非加权均值排名，共 30 个任意采样预算的系统；Interaction 组在此 split 即导航维度）。Evoke 以 3 步、无 CFG 采样，而榜单中多数行使用各自的多步默认采样器，因此比较**不是 step-matched**。Evoke 以 80.8 Average 领先榜单第 1（比第二名 HiDream-O1-World 的 80.7 高 0.1，论文声明该幅度的领先与文中拒绝视为胜出的差异同阶）。下表仅展示前 10 名，完整榜单（30 个系统）见论文 Table 7。
 
 | # | Model | Average | Quality | Setting | Inter. | Consist. | Phys. |
 |---|--------|:---:|:---:|:---:|:---:|:---:|:---:|
