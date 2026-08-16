@@ -41,7 +41,7 @@
 - **ISP 随全注意力密度单调上升**：ISR 在全部 20 组配置上随 $\rho$ 减小而显著增加（bootstrap 检验），如 GDN 1.3B 从 18.4%（12:1）升至 26.6%（6:1）再至 77.8%（3:1）；绝对 inter-spike 激活 $A_{\mathrm{ISP}}$ 在 19/20 组相邻比较中同步增加。
 - **门控衰减不消除组织**：GatedFA 强衰减 PAS/ISP 绝对幅度但层组织保留（ISR 99.48% @340M）；移除 GDN 门控（NoOutGate）反而增大幅度（ISR 96.48%），影响小于 GatedFA。
 - **大规模模型全面复现**：跨 post-training 阶段（Kimi Linear Base/Instruct）、跨尺度（Qwen3.5 35B/122B/397B 检查点）、跨序列混合器（线性注意力 Kimi Linear/Qwen3.5 与状态空间 Nemotron-H/Zamba2）形态一致——形态比幅度更稳定，架构决定 MA 位置，输入调制其强度。
-- **受控预训练下的涌现时序**：两尺度对齐率均达 100%；PAS 于训练 1B tokens 后可见（1.3B 在 5B tokens 出现前兆、10B 显著、50B 持续）；全注意力层放置越深 PAS 越强（layer 4 弱、12 显著、20 最强），且放置影响检索性能（NIAH/FDA/SWDE/NQ/SQuAD）而几乎不影响对齐率。
+- **受控预训练下的涌现时序**：layer-12 配置下两尺度对齐率均达 100%（340M FA=4/24 为 99.53%）；PAS 于训练 1B tokens 后可见（1.3B 在 5B tokens 出现前兆、10B 显著、50B 持续）；全注意力层放置越深 PAS 越强（layer 4 弱、12 显著、20 最强），且放置影响检索性能（NIAH/FDA/SWDE/NQ/SQuAD）而几乎不影响对齐率。
 
 ## 第 2 章 研究背景与动机
 
@@ -134,9 +134,9 @@ $$S_t=F_t\,S_{t-1}+k_t^{\top}v_t,\qquad y_t=q_t\,S_t\,W_O$$
 
 为此作者改用共识 sink 锚定。对输入 $x$,将全部 FA 层、全部注意力头的 softmax 归一化注意力对合法 query 位置取平均（按每个源位置可被查询的 query 数量 $|\mathcal{Q}_t|$ 归一化,以消除因果掩码下前部位置天然拥有更多合法 query 的偏差）后,再跨层跨头平均,取该平均值最大的 token 为共识 sink:
 
-$$t_x^{\ast}=\operatorname*{arg\,max}_{t\in[1,|x|]}\; \frac{1}{|\mathcal{I}_{\mathrm{FA}}|\,H}\sum_{\ell\in\mathcal{I}_{\mathrm{FA}}}\sum_{h=1}^{H}\frac{1}{|\mathcal{Q}_t|}\sum_{q\in\mathcal{Q}_t} A_{x,q,t}^{(\ell,h)},\qquad \mathcal{Q}_t=\{q:q>t\}$$
+$$t_x^{\ast}=\operatorname*{arg\,max}_{1\le t<|x|}\; \frac{1}{|\mathcal{I}_{\mathrm{FA}}|\,H}\sum_{\ell\in\mathcal{I}_{\mathrm{FA}}}\sum_{h=1}^{H}\frac{1}{|\mathcal{Q}_t|}\sum_{q\in\mathcal{Q}_t} A_{x,q,t}^{(\ell,h)},\qquad \mathcal{Q}_t=\{q:q>t\}$$
 
-其中 $\mathcal{Q}_t=\{q:q>t\}$ 为位置 $t$ 之后（即因果注意力下可合法查询 $t$ 的）query 位置集合，除以 $|\mathcal{Q}_t|$ 是对合法 query 数量归一化，以消除不同源位置可被查询次数的差异。
+其中 $\mathcal{Q}_t=\{q:q>t\}$ 为位置 $t$ 之后（即因果注意力下可合法查询 $t$ 的）query 位置集合，除以 $|\mathcal{Q}_t|$ 是对合法 query 数量归一化，以消除不同源位置可被查询次数的差异。范围取 $1\le t<|x|$（与论文一致，末位无后续 query 故被排除）。
 
 锚定共识 sink 后,对激活轨迹执行条件追踪,使层间形态观测不再依赖 magnitude ranking 的稳定性。3.3 的对齐率与 3.4 的 ISR 均建立在该追踪协议之上。
 
@@ -158,7 +158,7 @@ $$\mathrm{Align}(\mathcal{D})=\frac{1}{|\mathcal{D}|}\sum_{x\in\mathcal{D}}\math
 
 总体对齐率区间为 99.4%-100%,与数据域基本无关。
 
-对照实验(论文 Table 6,App B.5)排除了"任何高频 token 均可对齐"的解释:以 non-sink token 或首 token 为锚的对齐率仅 40.8%-93.5%,sink 对齐与 non-sink 对齐的差距为 6.5-58.6 pp;peak excess(Eq.8)差距为 0.97-4.42 log2 单位;所有配对比较的 95% CI 均排除 0。随机层基线仅为 1/11 = 9.1%。peak excess 定义为
+对照实验(论文 Table 6,App B.5)排除了"任何高频 token 均可对齐"的解释:以 non-sink token 为锚的对齐率仅 40.8%-93.5%,sink 对齐与 non-sink 对齐的差距为 6.5-58.6 pp;peak excess(Eq.8)差距为 0.97-4.42 log2 单位;所有配对比较的 95% CI 均排除 0。随机层基线仅为 1/11 = 9.1%。(注:以首 token 为锚的对齐率仍高达 99.7%-100.0%,因其本身多为共识 sink,故 40.8%-93.5% 仅适用于 non-sink 对照。)peak excess 定义为
 
 $$E=\log_2\frac{m(f-1)}{\max_{\ell\in\mathcal{B}_f\setminus\{f-1\}}m(\ell)}$$
 
@@ -170,7 +170,7 @@ $E$ 每增加 1 个 log2 单位,表示 $f-1$ 层幅度与块内其余最强层�
 
 ### 3.4 跨混合比 ISP:ISR 随全注意力密度单调增长
 
-经验发现二(ISP):当 FA 层变密集时,激活不再回落至基线,而是在相邻 PAS 之间持续形成 plateau。量化指标为 inter-spike ratio(Eq.7):
+经验发现二(ISP):当 FA 层变密集时,激活不再回落至基线,而是在相邻 PAS 之间持续形成 plateau。量化指标为 inter-spike 保留率 ISR(Eq.7,即论文的 inter-spike retention score):
 
 $$\mathrm{ISR}=\mathbb{E}_{\ell\in\mathcal{I}_i}\Big[\min\Big(1,\;\frac{m(\ell)}{\min\big(m(p_i),\,m(p_{i+1})\big)}\Big)\Big]$$
 
@@ -361,7 +361,7 @@ ISR 随全注意力密度单调上升：所有 20 个架构-尺度相邻比较�
 
 三个主要观察：
 
-1. **PAS 位置由全注意力层放置决定，幅度随深度增强**：层 4 放置只产生弱局部极大值，层 12 产生显著 spike，层 20 产生最强 PAS。训练 1B tokens 后 PAS 即已可见，随后逐步锐化稳定；1.3B 模型在 5B tokens 出现前兆、10B 显著、持续到 50B。两个尺度的最终对齐率均为 100%。
+1. **PAS 位置由全注意力层放置决定，幅度随深度增强**：层 4 放置只产生弱局部极大值，层 12 产生显著 spike，层 20 产生最强 PAS。训练 1B tokens 后 PAS 即已可见，随后逐步锐化稳定；1.3B 模型在 5B tokens 出现前兆、10B 显著、持续到 50B。layer-12 配置下两个尺度的最终对齐率均为 100%（340M FA=4/24 为 99.53%）。
 2. **全注意力放置显著影响检索性能**：层 12/20 放置大幅优于层 4（如 FDA 从 8.02% 提升到 60.43%/53.71%，NIAH-3 从 2.40% 提升到 25.80%/69.00%），尽管三种放置的对齐率都接近完美、语言建模与常识推理性能相当。值得注意的是层 12 与层 20 在指标间排序不完全一致——FDA 在层 12 已接近饱和（60.43% vs 53.71%），而「最深最强」的效应主要体现在 NIAH-3（25.80% → 69.00%）。
 3. **下游能力与 MA 形态解耦**：对齐率几乎不受放置影响，但检索能力对放置深度敏感——说明 PAS 是架构的「伴随现象」，其位置本身不直接决定任务能力。
 
