@@ -6,7 +6,7 @@
 > **发表时间**：2026-08-14（v1）
 > **许可**：Apache 2.0
 > **代码仓库**：https://github.com/InternLM/Intern-S2-Mobius
-> **模型权重**：https://huggingface.co/internlm/Intern-S2-Mobius-35B
+> **模型权重**：https://huggingface.co/internlm/Intern-S2-Mobius
 
 ## 第 1 章 概述
 
@@ -380,7 +380,7 @@ class InternS2MobiusDecoderLayer(nn.Module):
         self.post_attention_layernorm = RMSNorm(config.hidden_size, config.rms_norm_eps)
         # meta_mlp 由模型统一构建后注入：nn.ModuleList[MetaMoeBlock] * num_blocks
         self.meta_mlp = None
-        self.mlp = InternS2MobiusMLP(config)                   # 逐层 shared expert + combine
+        self.mlp = InternS2MobiusSharedExpertBlock(config)   # 逐层 shared expert + combine（官方类名）
 
     def forward(self, hidden_states, attention_mask=None, **kwargs):
         # 1) Reasoner：组合推理
@@ -461,17 +461,17 @@ class InternS2MobiusVisionConfig(PretrainedConfig):
 
 ```bash
 # LMDeploy
-lmdeploy serve api_server internlm/Intern-S2-Mobius-35B \
+lmdeploy serve api_server internlm/Intern-S2-Mobius \
     --speculative-algorithm qwen3_5_mtp \
     --speculative-num-draft-tokens 4
 
 # vLLM
-vllm serve internlm/Intern-S2-Mobius-35B \
+vllm serve internlm/Intern-S2-Mobius \
     --spec-method mtp --spec-tokens 4
 
 # SGLang
 python -m sglang.launch_server \
-    --model-path internlm/Intern-S2-Mobius-35B \
+    --model-path internlm/Intern-S2-Mobius \
     --speculative-algorithm NEXTN \
     --speculative-num-draft-tokens 4
 ```
@@ -509,7 +509,7 @@ Transformers 路线通过远程代码（trust_remote_code）加载。推荐采�
 
 ### 7.3 Concise CoT / Efficient Reasoning
 
-压缩显式 CoT 的常见做法是在监督数据或 RL 奖励上施加长度约束，让模型学会少写。这类方法改变的是「表达习惯」，推理仍在 token 空间展开。Mobius 改变的是「表达介质」：trial-and-error 与 refinement 在连续向量中迭代完成，输出只保留结论性内容。Table 2 的逐步对齐（Reframing、Statement 判定、Option matching 俱全，仅 Repeated derivation 为空）是介质迁移生效的证据形态。
+压缩显式 CoT 的常见做法是在监督数据或 RL 奖励上施加长度约束，让模型学会少写。这类方法改变的是「表达习惯」，推理仍在 token 空间展开。Mobius 改变的是「表达介质」：trial-and-error 与 refinement 在连续向量中迭代完成，输出只保留结论性内容。Table 2 的逐步对齐（Task framing、Statement 判定、Option matching 俱全，仅 Repeated derivation 为空）是介质迁移生效的证据形态。
 
 ### 7.4 注意力与残差的设计哲学
 
