@@ -1,10 +1,10 @@
 # 《DFM Mimir v1》论文精读报告
 
 > **论文**：DFM Mimir v1: An Open HRM Delivering Frontier Performance at 1B Parameters Using Only Permissible Post-Training Data
-> **作者**：Peter Schneider-Kamp, Jacob Nielsen, Gianluca Barmina, Kenneth Enevoldsen, Lukas Galke Poech（南丹麦大学 OdenseNLP / 丹麦基础模型项目 DFM）
+> **作者**：Peter Schneider-Kamp, Jacob Nielsen, Gianluca Barmina, Kenneth Enevoldsen, Lukas Galke Poech（南丹麦大学 / Ordbogen A/S / 奥胡斯大学；OdenseNLP / 丹麦基础模型项目 DFM）
 > **arXiv ID**：2608.13517
 > **发表时间**：2026-08-13
-> **许可协议**：Apache 2.0
+> **许可协议**：训练框架 Apache 2.0；模型权重 MIMIR License v1.0（研究模型许可）
 > **代码仓库**：https://github.com/schneiderkamplab/HRM-Text
 
 ## 第 1 章 概述
@@ -27,10 +27,12 @@
 | Table 7 | 英文基准 | 第 5 章 |
 | Table 8 | 数学与代码基准 | 第 5 章 |
 | Table 9 | 丹麦语基准 | 第 5 章 |
+| Table 10 | 全部 161 个训练数据集清单（HF 标识、处理形态、token 规模，附录 A） | 第 6 章 |
+| Table 11 | 评测基准配置（数据集来源与 N-shots，附录 B） | 第 5 章 |
 
 ### 1.2 核心贡献
 
-1. **基于 permissible 数据从零训练的 1B HRM**：在严格许可约束（开放许可 / 协议授权 / EU TDM 研究例外）下，用 161 个数据集、70.48B tokens/epoch 训练 1B 参数 HRM，证明不依赖大规模非合规语料也能达到前沿性能；模型权重（HuggingFace `danish-foundation-models/DFM-Mimir`）、训练框架（Apache 2.0）与数据配方全部开放。
+1. **基于 permissible 数据从零训练的 1B HRM**：在严格许可约束（开放许可 / 协议授权 / EU TDM 研究例外）下，用 161 个数据集、70.48B tokens/epoch 训练 1B 参数 HRM，证明不依赖大规模非合规语料也能达到前沿性能；模型权重（HuggingFace `danish-foundation-models/DFM-Mimir`）、训练框架（Apache 2.0）与数据配方几乎全部开放（少量协议授权数据除外）。
 2. **丹麦语 SOTA**：Danish Avg 56.8%，远超全部对比模型（次优 Gemma 4 E2B think 49.9%、第三 Qwen 3.5 4B 49.2%），并在 DaLA（96.1%）、GEC（85.6%）、WikiQA（66.8%）上全面领先，验证了 HRM 架构对低资源语言的适用性。
 3. **合成 transplant 数据集**：针对 HRM-Text 原始数据中不符合 DFM 许可标准的部分，用 Gemma4 31B 生成并经质量审计的合成数据集进行替换，效果相当或更优。
 4. **生成式任务导向的数据配比**：训练数据从「判别式多选题」转向「自由生成式」，83% tokens 来自非 Sapient 集合，56.1% 按 exact-match 评分（GSM8K / MATH / DROP），使数据形式与评测目标对齐。
@@ -100,7 +102,7 @@ Mimir v1 的训练数据是本文的核心创新载体：161 个数据集、每 
 
 ### 3.2 语言分布
 
-Table 2（论文 Table 2）给出语料按语言的分布。语料以英语为主（68.5%），丹麦语占 24.7%（8 个类别中有 6 个完全为英语），双语丹麦语-英语数据占 6.4%：
+Table 2（论文 Table 2）给出语料按语言的分布。语料以英语为主（68.6%），丹麦语占 24.7%（8 个类别中有 6 个完全为英语），双语丹麦语-英语数据占 6.5%：
 
 | 语言 | Tokens/epoch | 占比 |
 |:-----|:---:|:---:|
@@ -226,7 +228,7 @@ HRM-Text 以 PrefixLM 掩码预训练（prompt tokens 彼此双向注意、respo
 
 ### 5.1 评测设置
 
-Mimir 在 20 个基准上评测，覆盖英语、数学与代码、丹麦语三组套件。全部基准在 temperature 0（贪心解码）、shuffle seed 4242、全量数据集上评测。基线模型使用 vLLM 服务端点 + FlashInfer；Mimir 因 PrefixLM + Gemma 4 chat template 需 FlashAttention 4，同时用 vLLM 与 HuggingFace Transformers 评测结果可比，报告采用 HF Transformers 结果以保证可复现性。部分英语基准使用 few-shot prompting（shot 数沿用 HRM-Text 论文 2605.20613 的评测配置），所有丹麦语任务为 0-shot，MCQ 任务 max_tokens=1。Gemma 4 以 thinking 与非 thinking 两种模式评测（vLLM 的 --reasoning-parser gemma4 剥离思考 token 后计分），thinking 模式约需 500–650 tokens。
+Mimir 在 20 个基准上评测，覆盖英语、数学与代码、丹麦语三组套件。全部基准在 temperature 0（贪心解码）、shuffle seed 4242、全量数据集上评测。基线模型使用 vLLM 服务端点 + FlashInfer（并经 AI Security Institute 的 Inspect AI Framework 评测），Mimir 因 PrefixLM + Gemma 4 chat template 需 FlashAttention 4，同时用 vLLM 与 HuggingFace Transformers 评测结果可比，报告采用 HF Transformers 结果以保证可复现性。部分英语基准使用 few-shot prompting（shot 数沿用 HRM-Text 论文 2605.20613 的评测配置），所有丹麦语任务为 0-shot，MCQ 任务 max_tokens=1、其余任务 max_tokens=2048。Gemma 4 以 thinking 与非 thinking 两种模式评测（vLLM 的 --reasoning-parser gemma4 剥离思考 token 后计分），thinking 模式约需 500–650 tokens。
 
 ### 5.2 英文基准
 
@@ -298,7 +300,7 @@ Mimir 在语法任务（DaLA 96.1% F1、GEC 85.6% EM）、问答任务（WikiQA 
 
 - **同架构对比**：Mimir 相对 HRM-Text 1B 的改进集中在数据与训练配方——英语 Avg 66.1% → 69.0%（+2.9 pp）、Math & Code 46.9% → 64.1%（+36.7% 相对提升）、丹麦语 21.7% → 56.8%。HRM-Text 1B 的 HumanEval 为 0.0%、丹麦语 GEC 仅 0.5%、DaLA 仅 26.7%，说明其自定义 tokenizer 与数据配比在代码与丹麦语上的系统性缺陷；Mimir 的 Gemma-4 tokenizer 与生成式数据配比直接修复了这两块短板。
 - **跨规模对比**：Mimir 1B 在英语与丹麦语平均分上逼近乃至超过 4-5B 模型（Qwen 3.5 4B 英语 69.3% vs Mimir 69.0%；丹麦语 49.2% vs 56.8%），在 GSM8K 上超过所有 2-3B 与 4-5B 模型（除 Gemma 4 E2B think 外）。这与 HRM 架构「固定参数量下近似无界计算深度」的设计目标一致。
-- **明确的短板**：MATH（45.8%）、MMLU（57.5%）与 IFEval 指令跟随（丹麦语 63.9%）弱于同量级最优模型；Math & Code 平均分仍落后 Gemma 4 E2B（75.4%）10.9 pp。论文将 MATH/MMLU 的落后归因于数据配比从多选题向自由生成的转变（exact-match 导向），将整体差距归因于参数量与数据规模上限。
+- **明确的短板**：MATH（45.8%）、MMLU（57.5%）与 IFEval 指令跟随（丹麦语 63.9%）弱于同量级最优模型；Math & Code 平均分仍落后 Gemma 4 E2B（75.4%）11.3 pp。论文将 MATH/MMLU 的落后归因于数据配比从多选题向自由生成的转变（exact-match 导向），将整体差距归因于参数量与数据规模上限。
 
 ## 第 6 章 代码实现与开源生态
 
