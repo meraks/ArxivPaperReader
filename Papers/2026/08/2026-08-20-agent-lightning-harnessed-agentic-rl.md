@@ -110,10 +110,11 @@ $$z_t = (p_t^{\mathrm{tok}}, a_t^{\mathrm{tok}}), \qquad a_t^{\mathrm{tok}} \sim
 2. **解码-重分词漂移**：模型按 token 生成「h+aving」，harness 将解码后的 text 放入下一轮 prompt 重新分词时可能得到「hav+ing」（Figure 3）；两轮 prompt 的 token 序列在边界处即分叉，前缀关系失效。
 3. **推理时输出变换**：harness 或推理引擎对模型输出做 tool-call 解析、修复与重序列化后才写入下一轮上下文，变换后的文本与实际采样得到的 token 序列不再对应。
 
-前缀失效时如何构造训练样本，现有框架给出三种策略：
+前缀失效时如何构造训练样本，论文讨论了以下策略：
 
 | 策略 | 代表实现 | 机制 | 主要代价 |
 |:---|:---|:---|:---|
+| Train independently（不替换） | slime、Polar | 每个调用独立成训练样本，不做前缀替换 | 长 prompt 前缀跨调用重复计算 |
 | Buffered replacement | AReaL、verl Uni-Agent | 维护 request buffer，在重分词分叉处用先前请求的 token 替换续接，强行恢复前缀连续性 | 拼接片段可能并非当前策略在该上下文采样所得，引入 off-policy stitching（Eq.12–13） |
 | Tree-structured training | 论文未点名 | 将分叉的 token 前缀组织为树结构，共享前缀的计算与训练 | 训练后端实现复杂度高 |
 | Best-effort merging | Agent Lightning v1.0 | 仅当相邻调用的 token 前缀精确匹配时才合并为同一训练样本，否则各自独立成样本 | 无法合并的调用退化为独立短样本，rollout 内样本数变为动态 |
@@ -153,7 +154,7 @@ $$\mathcal{L}_{\text{rollout-mean}} = \frac{1}{3}\big(\bar{A} + \bar{B} + \bar{C
 
 动态样本数还影响训练后端：batch 的构成与大小在 rollout 完成前不可知，分组信息必须穿透到后端。论文要求训练 batch 显式保留 rollout 与 group 标识（Eq.17）：
 
-$$B_{\mathrm{train}} = \bigcup_{\rho} \big\{(S_{\rho,j},\ \rho,\ g_\rho)\big\}$$
+$$B_{\mathrm{train}} = \bigcup_{\rho \in \mathcal{B}_{\mathrm{rollout}}} \big\{(S_{\rho,j},\ \rho,\ g_\rho) \mid 1 \le j \le N_\rho\big\}$$
 
 其中 $S_{\rho,j}$ 是 rollout $\rho$ 的第 $j$ 个训练样本，$g_\rho$ 是其 group 标识。硬约束：同一 rollout 的所有序列必须在同一个 optimizer update 中训练；若被拆到不同 update，后训练的部分相当于在过期策略上训练，产生 policy skew。
 
@@ -179,14 +180,14 @@ Agent Lightning v1.0 以简洁为第一原则，约 3500 行代码实现三个�
 
 Gateway 管理三类对象：
 
-- **Rollout**：含 id、input 与 status（queuing / running / succeeded / failed）；
+- **Rollout**：含 id、input、status（queuing / running / succeeded / failed）与用户自定义 metadata；
 - **Model**：含 name 与 address；
 - **Event**：三类载荷——model_request（prompt token IDs、response token IDs、logprobs）、reward（标量）及自定义事件。
 
 对外提供两类 API（完整端点列表见第 6 章 Table 1）：
 
 - **rollout API**：`POST/GET /api/rollouts`、PATCH 更新状态、事件读写、`POST/DELETE /api/models`，供 Trainer 与 Controller 操作控制面对象；
-- **proxy API**：`POST /proxy/rollout/{id}/attempt/{id}/mode/{mode}/openai/v1/chat/completions`——OpenAI 兼容的 chat completions 端点，rollout ID、attempt ID 与 mode 直接编码在 URL 路径中；harness 只需把 LLM base URL 指向 Gateway 即可零改动接入，每次调用据此自动归属到正确的 rollout，并被记录为 model_request 事件。
+- **proxy API**：`POST /proxy/rollout/{rollout_id}/attempt/{attempt_id}/mode/{mode}/openai/v1/chat/completions`——OpenAI 兼容的 chat completions 端点，rollout ID、attempt ID 与 mode 直接编码在 URL 路径中；harness 只需把 LLM base URL 指向 Gateway 即可零改动接入，每次调用据此自动归属到正确的 rollout，并被记录为 model_request 事件。
 
 ### 4.3 Rollout Controller
 
@@ -276,13 +277,14 @@ coding agent 配置：Qwen3.5-9B + GRPO，任务来自 SWE-smith，harness 为 m
 |:---|---:|
 | 空 problem statement | 18,033 |
 | 缺 branch | 1,265 |
-| 测试数 > 200 | ——（数量未单独披露） |
+| 测试数 > 200 | ——（数量未单独披露；论文示例 python-jsonschema 需执行 7,000+ 个测试） |
 
 **第二级：模型难度过滤（Qwen3.5-9B 每任务执行 4 次）**
 
 | 判定 | 处置 | 数量 |
 |:---|:---|---:|
-| 4 次全部通过（过易） | 移除 | ~5,000 |
+| 4 次全部通过（过易） | 移除 | 未披露 |
+| 有成功有失败（混合结果） | 保留 | ~5,000 |
 | 4 次全部失败 | 补采 | 1,000 |
 
 最终 split 为 ~6,000 train + 400 test。训练环境的 Docker 占用为 295 GB，相比之下 R2E-Gym 需 4 TB、SWE-Gym 需 6 TB——低一个数量级以上，自托管复现的存储门槛大幅降低。
@@ -315,7 +317,7 @@ Trajectory Monitoring（4.7 节：rollout 轨迹与 K8s pod 日志集中留存�
 | Rollout-level Adv | rollout 级 | — | 33.1% |
 | Rollout-level Adv + Rollout-mean Norm | rollout 级 | rollout-mean（Eq.16） | **38.2%** |
 
-前两组的归一化保持与 baseline 相同（论文未单列其口径）。rollout-mean 归一化即 Eq.16：
+前两组的归一化保持与 baseline 相同的 token-mean loss（论文明确 baseline 即 sample 级 advantage + Eq.14 token-mean；Rollout-level Adv 组仅切换 advantage 口径、保留 Eq.14 不变）。rollout-mean 归一化即 Eq.16：
 
 $$\mathcal{L}_{\text{rollout-mean}} = \frac{1}{|\mathcal{R}|}\sum_{\rho\in\mathcal{R}}\frac{1}{N_\rho}\sum_{t=1}^{N_\rho}\ell_t(\rho)$$
 
@@ -360,14 +362,15 @@ v0.x 分支保留 2025 年原始论文（arXiv:2508.03680，2025-08-05 提交）
 
 | API 组 | 方法 | 端点 | 用途 |
 |:---|:---|:---|:---|
-| Rollout API | POST | `/api/rollouts` | 创建 Rollout |
-| Rollout API | GET | `/api/rollouts` | 查询 Rollout |
-| Rollout API | PATCH | `/api/rollouts` | 更新 Rollout 状态（queuing / running / succeeded / failed） |
+| Rollout API | POST | `/api/rollouts` | 创建一批 Rollout |
+| Rollout API | GET | `/api/rollouts` | 查询 Rollout（可按状态过滤） |
+| Rollout API | GET | `/api/rollouts/{rollout_id}` | 获取单个 Rollout |
+| Rollout API | PATCH | `/api/rollouts/{rollout_id}` | 更新 Rollout 状态（queuing / running / succeeded / failed） |
 | Rollout API | POST | `/api/rollouts/{rollout_id}/attempt/{attempt_id}/events` | 写入 Event（model_request / reward / 自定义） |
 | Rollout API | GET | `/api/rollouts/{rollout_id}/events` | 读取 Event 流 |
 | Rollout API | POST | `/api/models` | 注册模型（name / address） |
-| Rollout API | DELETE | `/api/models` | 移除模型 |
-| Proxy API | POST | `/proxy/rollout/{id}/attempt/{id}/mode/{mode}/openai/v1/chat/completions` | OpenAI 兼容 chat completions 代理转发 |
+| Rollout API | DELETE | `/api/models` | 移除全部已注册模型 |
+| Proxy API | POST | `/proxy/rollout/{rollout_id}/attempt/{attempt_id}/mode/{mode}/openai/v1/chat/completions` | OpenAI 兼容 chat completions 代理转发 |
 
 事件读写端点挂接于 rollout 资源之下，路径分别为 `/api/rollouts/{rollout_id}/attempt/{attempt_id}/events`（写入）与 `/api/rollouts/{rollout_id}/events`（读取）。proxy 端点把 rollout ID、attempt ID 与 mode 编码进 URL 路径，harness 只需将 LLM base URL 指向 Gateway 即完成接入（4.2 节）。
 
