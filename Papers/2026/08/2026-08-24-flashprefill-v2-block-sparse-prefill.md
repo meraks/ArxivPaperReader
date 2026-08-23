@@ -458,7 +458,7 @@ $\alpha$ 从 0.2 降到 0.0125 时，密度从 5.2% 升至 23.6%。校正后的 
 
 ## 第 6 章 代码实现详解
 
-官方代码仓库：https://github.com/qhfan/FlashPrefillv2（Apache-2.0，7 stars，1 fork，7 commits）
+官方代码仓库：https://github.com/qhfan/FlashPrefillv2（Apache-2.0，11 stars，1 fork，7 commits）
 
 ### 6.1 仓库结构
 
