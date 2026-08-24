@@ -1,7 +1,7 @@
 > **论文**：Mint-Agent: Introducing Finance-Native Agentic Foundation Models
-> **作者**：Mint-Agent Team（负责人 B. Zhang；核心 Yaze Geng、Lei Tang、Yaoyang Yi、Zonghan Wu；通讯 Kun Wang、Qingsong Wen、Yilei Shao）
+> **作者**：Mint-Agent Team（负责人 Gavin Zhang；核心 Yaze Geng、Lei Tang、Yaoyang Yi、Zonghan Wu；贡献 Yifan Hu；通讯 Kun Wang、Qingsong Wen、Yilei Shao）
 > **arXiv ID**：2608.16386
-> **发表时间**：2026-08-21（v1 提交，8 月 24 日公告）
+> **发表时间**：2026-08-17（v1 提交；v2 更新于 8 月 21 日，8 月 24 日公告）
 > **许可协议**：CC BY 4.0
 > **代码仓库**：无官方实现（官网 https://mint-fin.github.io/mint-agent，权重未公开）
 
@@ -18,7 +18,7 @@ Mint-Agent 是一组**金融原生（finance-native）的 agentic 基础模型**
 | Figure 1 | 三支柱总览（数据/harness/算法） | 第 1 章 |
 | Figure 4 | MintHarness 有状态执行循环 | 第 4 章 |
 | Figure 5 | 双专家训练与集成管线 | 第 5 章 |
-| Figure 9 | FAB v1.1/v2 失败分类网格 | 第 6 章 |
+| Figure 7 | FAB v1.1/v2 失败分类网格 | 第 6 章 |
 | Table 1 | 数据源（EDGAR/XBRL/交易所/FRED/Γ_fin） | 第 3 章 |
 | Table 2 | 七基准主结果对比 | 第 6 章 |
 | Table 3 | 专家集成效果（TIES vs MOPD） | 第 6 章 |
@@ -48,7 +48,7 @@ Mint-Agent 是一组**金融原生（finance-native）的 agentic 基础模型**
 - **BizFinBench 55.71%**：超最强外部模型 GPT-5.6-Sol（51.57%）4.14pp；
 - **FAB v1.1 76.00% / v2 60.49%**：分别领先次优 4.00pp（DeepSeek-V4-Flash 与 Cursor Composer 2.5 并列 72.00%）与 3.70pp（GPT-5.6-Sol 56.79%）；
 - **FinSearchComp T2 89.04%**：超 Cursor (Grok 4.5)（81.74%）7.30pp；T3 54.07% 与 Codex (GPT-5.6) 并列最高（论文自称"全部 7 个基准最高分"，T3 实为并列）；
-- **9B 模型的跨量级竞争力**：Mint-Cu T2 69.86%，超同体量级 agentic 模型 Agents-A1-35B（47.03%）22.83pp、超 Nex-N2-mini（57.08%）12.78pp；FAB v1.1 68.00%；
+- **9B 模型的跨量级竞争力**：Mint-Cu T2 69.86%，超开源 agentic 模型 Agents-A1-35B（47.03%）22.83pp、超 Nex-N2-mini（57.08%）12.78pp；FAB v1.1 68.00%；
 - **成本-精度 Pareto 前沿**：FAB v1.1 上 Mint-Cu 以 $0.016/任务取得 68.00%（最低成本锚点），Mint-Ag 以 $0.090/任务取得 76.00%（比对比组 $0.327 均值低 72.5%）；FAB v2 上 Mint-Cu $0.069/任务仍为最低成本，Mint-Ag 60.49% @ $0.213，较 GPT-5.6-Sol 精度高 3.70pp 且成本低 77.8%（$0.213 vs $0.959）。成本口径为基座模型 API 价 × 实测 token 用量（本地位托管）。
 
 ![Figure 1: Overview of the Mint Agent stack](Figures/2026-08-25-mint-agent-finance-native-agentic-models-fig1.png)
@@ -331,7 +331,7 @@ Mint-Ag 在三个有界金融任务基准上均取得最高分：BizFinBench 55.
 
 #### 规模效应小结
 
-论文强调两点：其一，Mint-Ag 在全部 7 个基准上取得最高（或并列最高）分数，覆盖"可靠性"（原子推理）与"可执行性"（长程研究）两个维度；其二，Mint-Cu 以 9B 规模全面超越 <20B 参数类别的所有对照（如 T2 的 69.86% 超过 Agents-A1-35B 的 47.03% 达 22.83pp、超过 Nex-N2-mini 的 57.08% 达 12.78pp），证明垂直化训练数据与验证信号可以显著压缩达成专业能力所需的模型规模。
+论文强调两点：其一，Mint-Ag 在全部 7 个基准上取得最高（或并列最高）分数，覆盖"可靠性"（原子推理）与"可执行性"（长程研究）两个维度；其二，Mint-Cu 以 9B 规模全面超越 <32B 参数类别的所有对照，并在 T2 以 69.86% 超过 Agents-A1-35B（47.03%）22.83pp、超过 Nex-N2-mini（57.08%）12.78pp（后两对比较出自论文摘要），证明垂直化训练数据与验证信号可以显著压缩达成专业能力所需的模型规模。
 
 ### 6.3 成本分析（Pareto 效率）
 
@@ -350,11 +350,11 @@ Mint-Ag 在三个有界金融任务基准上均取得最高分：BizFinBench 55.
 
 论文给出两个成功轨迹（外加附录 B 一个补充案例），展示 Evidence Ledger 如何支撑时间消歧、长程重算与多源对账。
 
-**TSMC 预测（Figure 7）**：37 步轨迹贯穿受阻文件、错误季度页面、年度数据集与最初错误的四年平均窗口。模型保留已恢复的有效 Q1 2025 guidance 与月度收入记录；恢复 2022–2024 窗口后重算历史 3 月增长率，估计 2025 年 3 月季度收入为 NT$825,110 百万。由于 guidance 中点与汇率换算锁定在账本中，最终 NT$8,010 百万的偏差可以在不信任中间弯路的前提下复现。
+**TSMC 预测（Figure 9）**：37 步轨迹贯穿受阻文件、错误季度页面、年度数据集与最初错误的四年平均窗口。模型保留已恢复的有效 Q1 2025 guidance 与月度收入记录；恢复 2022–2024 窗口后重算历史 3 月增长率，估计 2025 年 3 月季度收入为 NT$825,110 百万。由于 guidance 中点与汇率换算锁定在账本中，最终 NT$8,010 百万的偏差可以在不信任中间弯路的前提下复现。
 
-**BKR 收购（Figure 8）**：整合交易条款、会计输入、市场数据与收购理由。多数字段从公告材料与 GTLS 文件中早期恢复，但"未受影响收盘价"在多个受阻/歧义来源上无法确认。智能体将这些页面保留为发现线索而非证据，最终从 definitive proxy 锁定 $171.65 的精确收盘价；据此账本支撑 22.3% 的溢价，并对照收入与 SG&A 双口径复现 $325 百万的协同比率，每个报告数量均保留一手来源。
+**BKR 收购（Figure 10）**：整合交易条款、会计输入、市场数据与收购理由。多数字段从公告材料与 GTLS 文件中早期恢复，但"未受影响收盘价"在多个受阻/歧义来源上无法确认。智能体将这些页面保留为发现线索而非证据，最终从 definitive proxy 锁定 $171.65 的精确收盘价；据此账本支撑 22.3% 的溢价，并对照收入与 SG&A 双口径复现 $325 百万的协同比率，每个报告数量均保留一手来源。
 
-**AMD 指引（附录 B，Figure 10）**：13 步轨迹为四个季度测算 AMD 收入指引区间。初始 accession 猜测失败后扩大 SEC 检索，定位相关 EX-99.1 exhibits，记录各季度中点与区间端点；账本使模型无需重复完整搜索即可重开 Q3 来源。最终答案由四份一手文件支撑，报告区间宽度分别为 midpoints 的 10.53%、8.96%、8.00% 与 8.45%。
+**AMD 指引（附录 B，Figure 11）**：13 步轨迹为四个季度测算 AMD 收入指引区间。初始 accession 猜测失败后扩大 SEC 检索，定位相关 EX-99.1 exhibits，记录各季度中点与区间端点；账本使模型无需重复完整搜索即可重开 Q3 来源。最终答案由四份一手文件支撑，报告区间宽度分别为 midpoints 的 10.53%、8.96%、8.00% 与 8.45%。
 
 ### 6.5 模型分析
 
@@ -371,16 +371,16 @@ Mint-Ag 在三个有界金融任务基准上均取得最高分：BizFinBench 55.
 
 TIES 合并跨四个基准产生不均匀迁移（BizFinBench 从 53.86% 掉到 50.00%，FAB v1.1 从 66.21% 掉到 64.00%）；MOPD 在合并基础上分别提升 1.33pp（FinanceBench）、3.86pp（BizFinBench）、4.00pp（FAB v1.1）与 3.19pp（FinSearch T2），恢复后的分数与论文 Table 2 中 Mint-Cu 的结果一致——说明多教师按任务来源路由的蒸馏既修复了权重空间合并留下的行为干扰，又保留了两类能力的分工。
 
-#### 失败模式（论文 Figure 9）
+#### 失败模式（论文 Figure 7）
 
 金融+AI 双背景的博士研究员人工审阅全部轨迹，标注最早后果性错误：
 
 - **v1.1**：Mint-Cu 解决 68% 的任务；最大残留失败模式是答案遗漏（M10，18%），而任务误解、检索、证据提取、计算各占 2%；
 - **v2**：精度降至 41.98%，主导错误转移为证据提取（M5，18.5%），任务误解、金融解释、答案遗漏各贡献 7.9%，检索/计算/捏造/不终止均较小。
 
-![Figure 9: Failure taxonomy on FinanceAgentBench](Figures/2026-08-25-mint-agent-finance-native-agentic-models-fig9.png)
+![Figure 7: Failure taxonomy on FinanceAgentBench](Figures/2026-08-25-mint-agent-finance-native-agentic-models-fig7.png)
 
-*图9：FinanceAgentBench v1.1/v2 正确率与主要失败模式对比——v2 的瓶颈从"执行收尾"前移到"证据提取"，提示感知记忆→工作记忆接口是下一步能力缺口。*
+*图7：FinanceAgentBench v1.1/v2 正确率与主要失败模式对比——v2 的瓶颈从"执行收尾"前移到"证据提取"，提示感知记忆→工作记忆接口是下一步能力缺口。*
 
 这一转移表明：更难基准的约束主要不在"能否访问来源"，而在"能否把检索到的材料转换成完整、范围正确的金融证据"。
 
