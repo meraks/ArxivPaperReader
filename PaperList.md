@@ -131,6 +131,8 @@
 | 2607.24904 | Mage-VL: An Efficient Codec-Native Streaming Multimodal Foundation Model | Microsoft Mage Team | [Papers](Papers/2026/07/2026-07-30-mage-vl-codec-native-streaming-multimodal.md) |
 | 2607.27191 | Can AI agents conduct open-ended AI research? Early evidence from two case studies | Peter Kirgis, Sayash Kapoor, Andrew Schwartz et al. (Princeton, UK AISI, UC Berkeley, Stanford) | [Papers](Papers/2026/07/2026-07-31-can-ai-agents-conduct-open-ended-ai-research.md) |
 
+---
+
 ## Papers/2026/08
 
 | 编号 | 标题 | 主要作者 | 仓库链接 |
@@ -160,3 +162,4 @@
 | 2608.19197 | SPADE: Self-Play in Adaptive Synthetic Executable Environments | Bo Liu, Simon Yu, Yiding Jiang, Ao Qu, Andrew Zhao, Zichen Liu, Junsu Kim, Zijian Zhou, Seungone Kim, Tongzheng Ren, Mickel Liu, Hanfei Yu, Zhaorun Chen, Weiyan Shi, Paul Pu Liang, Luke Zettlemoyer, Yejin Choi, Natasha Jaques (UW / Stanford / Northeastern / CMU / MIT / NUS / SNU / Stevens / UChicago) | [Papers](Papers/2026/08/2026-08-22-spade-self-play-adaptive-synthetic-environments.md) |
 | 2608.19758 | FlashPrefill V2: Block-Sparse Prefill Attention for Long-Context LLM Serving | Qihang Fan, Huaibo Huang, Zhiying Wu, Bingning Wang, Ran He (Tencent) | [Papers](Papers/2026/08/2026-08-24-flashprefill-v2-block-sparse-prefill.md) |
 | HF: 2608.19880 | EnvHarness: Awakening Static Worlds for Agent Learning | Chengsong Huang (WashU), Zifeng Wang, Rujun Han, Jun Yan, Yanfei Chen, Zoey CuiZhu, Ke Jiang, Han Yu, Yufan Zhuang, Yifei Ming, Bhavana Dalvi Mishra, Jiaxin Huang, Burak Gokturk, Tomas Pfister, Chen-Yu Lee (Google Cloud AI Research), Peng Xia (UNC), Jiaqi Pan (Google Cloud) | [Papers](Papers/2026/08/2026-08-23-envharness-awakening-static-worlds.md) |
+| 2608.16386 | Mint-Agent: Introducing Finance-Native Agentic Foundation Models | Mint-Agent Team, Kun Wang, Gavin Zhang, Yaze Geng, Lei Tang, Yaoyang Yi, Zonghan Wu, Yifan Hu, Qingsong Wen, Yilei Shao | [Papers](Papers/2026/08/2026-08-25-mint-agent-finance-native-agentic-models.md) |
