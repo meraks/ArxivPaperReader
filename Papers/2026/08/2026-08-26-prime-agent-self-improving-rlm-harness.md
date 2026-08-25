@@ -182,7 +182,7 @@ Prime Agent 的统一资源核算（根会话 + 全部后代会话的 tokens/时
 
 ### 2.6 相关工作定位
 
-论文第 4 章把 Prime Agent 置于五条研究脉络的交汇处，其立场可概括为"取各家机制、弃各家预设"：
+论文第 4 章把 Prime Agent 置于六条研究脉络的交汇处，其立场可概括为"取各家机制、弃各家预设"：
 
 | 研究脉络 | 关注点 | Prime Agent 的取舍 |
 |---------|-------|-------------------|
@@ -395,7 +395,7 @@ Prime Agent 的处理策略与对照 harness 的根本差异在于：**Prime 把
 | LongCoT-Mini | long reasoning | 长推理链 |
 | EmulatorBench | long coding | 长时程代码构建 |
 
-对照组的选取逻辑是"每个模型打其最顺手的 harness"：GLM-5.2 配 Pi-mono（PrimeIntellect 自家的单体 harness，同为自家产品，对比公平性最强）、Opus 5 配 Claude Code（Anthropic 原生）、GPT-5.6 Sol 配 Codex（OpenAI 原生）。三个配对覆盖了"同厂对照"与"原生对照"两种情形。
+对照组的选取逻辑是"每个模型打其最顺手的 harness"：GLM-5.2 配 Pi-mono（与 Prime Agent 同源的 pi harness 单体模式，不含 RLM 递归扩展）、Opus 5 配 Claude Code（Anthropic 原生）、GPT-5.6 Sol 配 Codex（OpenAI 原生）。三个配对覆盖了"同源对照"与"原生对照"两种情形。
 
 Table 1（长上下文主结果，数值原样引自论文）：
 
@@ -426,7 +426,7 @@ RQ3 用五类真实长时程任务检验持久递归执行：
 
 **Factorio（§3.5）**：多天自主运行的控制类沙盒（详见第 5 章 5.5 节）。
 
-**MazeBench**：3D 空间推理，比较 Opus 5/GPT-5.6 Sol 在 Prime 与原生 harness 下的表现。
+**MazeBench**：3D 空间推理，比较 Opus 5/GPT-5.6 Sol 在 Prime 与原生 harness 下的表现，以及 GLM-5.2 配 Claude Code。
 
 五类任务合起来覆盖了 RQ3 的三个子维度，其分工可概括为：
 
@@ -584,7 +584,7 @@ Factorio 实验中的安全事件值得单独分析。Agent 发现游戏服务�
 
 ### 5.7 MazeBench 与跨 harness 对比总结
 
-**MazeBench（3D 空间推理）**：比较 Opus 5 与 GPT-5.6 Sol 在 Prime 与各自 native harness 下的表现。该任务检验的是非文本的空间信息组织能力，与长上下文套件互补。
+**MazeBench（3D 空间推理）**：比较 Opus 5 与 GPT-5.6 Sol 在 Prime 与各自 native harness 下的表现（论文另比较了 GLM-5.2 配 Claude Code）。该任务检验的是非文本的空间信息组织能力，与长上下文套件互补。
 
 在评估组合中纳入 MazeBench 的意义在于排除一种替代解释：若 Prime 的优势只来自"更擅长处理文本"，则纯空间任务上应无优势甚至受损。空间推理要求模型在 L2 中维护外部世界的一致表征（迷宫布局、已探索/未探索区域），这本质上是 REPL 变量承载非文本状态的测试——是 RLM"中间值驻留上下文之外"主张的最严格形式。将 Opus 5 与 GPT-5.6 Sol 两个强模型同时纳入，也使该任务成为"强模型上 harness 差距是否消失"的又一观察点。
 
@@ -624,7 +624,7 @@ Factorio 实验中的安全事件值得单独分析。Agent 发现游戏服务�
 - **仓库**：`PrimeIntellect-ai/prime-agent`（https://github.com/PrimeIntellect-ai/prime-agent）
 - **许可**：MIT
 - **社区规模**（截至 2026-08-26 推送验证）：18.4k stars，2.0k forks，4563 commits
-- **构建基础**：基于 earendil-works 的 `pi` 项目构建（论文致谢）
+- **构建基础**：基于 earendil-works 的 `pi` 项目构建（package.json 依赖 `@earendil-works/pi-coding-agent ^0.8.0` 确认；论文致谢未提及）
 - **同生态仓库**：`PrimeIntellect-ai/verifiers`、`prime-rl`（PrimeIntellect 的训练与验证基础设施）
 
 ### 6.2 仓库结构
