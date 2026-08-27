@@ -579,4 +579,4 @@ Appendix G 讨论两者**结合有前景**——H2O 或许能在被丢弃的中�
 3. **两条使用路径均可行**：免训练直接用于现有模型（Table 1），RL 训练进一步解锁更长轨迹与更高 reward（Figure 8，Appendix E 的 7B 验证）；
 4. **优于替代方案**：在支持无限 test-time scaling 的方法中，Prefix Sliding 的性能-效率权衡最佳（Figure 9）。
 
-结合第 3 章的三层实现（Continue PE 复用缓存、4× 截断反向传播 + loss mask、Hopper 两级过滤 kernel）与第 6 章的开源交付（`Muennighoff/prefix-sliding`，Apache-2.0，代码/数据/评估结果全托管），Prefix Sliding 提供了一条从注意力机制层面解除 test-time scaling 成本约束的完整路径：保留模型真正关注的 prefix 与当前推理状态，放弃已被后续推理吸收的中间历史，把长思考的每 token 成本钉在常数上——$$O(n) \;\longrightarrow\; O(|P| + W)$$ 这一步收缩，就是全文全部收益的来源。
+结合第 3 章的三层实现（Continue PE 复用缓存、4× 截断反向传播 + loss mask、Hopper 两级过滤 kernel）与第 6 章的开源交付（`Muennighoff/prefix-sliding`，Apache-2.0，代码/数据/评估结果全托管），Prefix Sliding 提供了一条从注意力机制层面解除 test-time scaling 成本约束的完整路径：保留模型真正关注的 prefix 与当前推理状态，放弃已被后续推理吸收的中间历史，把长思考的每 token 成本钉在常数上——$O(n) \;\longrightarrow\; O(|P| + W)$ 这一步收缩，就是全文全部收益的来源。
