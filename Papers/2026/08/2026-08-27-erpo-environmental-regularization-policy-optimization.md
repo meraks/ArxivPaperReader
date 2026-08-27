@@ -29,7 +29,7 @@ ERPO（Environment-Regularized Policy Optimization）把 LLM 策略优化中的�
 | Table 5 | checkpoint 轨迹（Step 0→240） | 第 5 章 |
 | Table 6 | ERPO 叠加于 DAPO / RLOO 及不同规模模型 | 第 5 章 |
 
-注：论文图片原文件因终端网络阻断未能采集，上表内容依据论文正文与研究材料整理，本报告正文不直接引用图片。
+注：论文共 9 个 Figure，本报告纳入其中 5 张关键图（Figure 1/2/3/4/8），图片经 alphaXiv CDN 采集（arxiv.org 直连被网络重置）。
 
 ### 1.2 核心贡献
 
@@ -75,6 +75,10 @@ ERPO（Environment-Regularized Policy Optimization）把 LLM 策略优化中的�
 
 论文 Figure 1 给出关键的实证观察：在 Policy-KL 被固定预算约束住的训练中，**Query-KL（查询分布相对参考的漂移）持续上升，而 Policy-KL 保持平稳**。换言之，输入侧的漂移不仅真实存在，而且完全游离于现有正则的监测与约束之外——action 侧被牢牢看住的同时，input 侧在无人看管地漂移。
 
+![Figure 1: 固定 Policy-KL 预算下 Query-KL 与 Policy-KL 漂移对比（动机实验）](Figures/2026-08-27-erpo-environmental-regularization-policy-optimization-fig1.png)
+
+*图 1：动机实验——Policy-KL 被约束住的同时 Query-KL 持续上升，证明输入侧漂移游离于现有正则监测之外。*
+
 ### 2.3 被忽视的输入侧：查询分布漂移及其代价
 
 RLVR 训练中，训练查询的分布并非固定，而是由当前策略诱导：ρ_θ(q) = P_θ(q)，随策略每一步更新而演化。策略在采样与筛选意义上会不断偏向自己已强化的查询类型，查询分布随之收窄、偏离 RL 前的参考分布——一个无人约束的自我强化回路。
@@ -91,6 +95,10 @@ RLVR 训练中，训练查询的分布并非固定，而是由当前策略诱导
 由此得出本文的核心洞察，也解释了方法名中的 "Environmental"：既然漂移发生在输入（查询）侧，正则就应该放在输入侧——用 Query-KL 直接约束漂移的源头 ρ_θ 相对 ρ_θ0，而把 action 侧彻底解放给探索。稳定与探索从此各占一侧，两难在结构上被拆解，而非在系数上被调和。
 
 ## 第 3 章 方法原理
+
+![Figure 2: ERPO 方法总览（架构图）](Figures/2026-08-27-erpo-environmental-regularization-policy-optimization-fig2.png)
+
+*图 2：ERPO 方法总览——在标准 RLVR 管线（查询→响应采样→可验证奖励→PG 更新）上叠加 Query-KL 正则项与参考派生的逐查询权重，正则从 action 侧移到 input 侧。*
 
 ### 3.1 核心思想：正则化从 action 侧移到 input 侧
 
@@ -233,6 +241,10 @@ Table 1 汇总了 Avg@32、Pass@32、Pass@1 三种指标在六个基准上的结
 
 *表 4-1：主结果。加粗为 GRPO 与 ERPO 中的较优值；Base 为未训练基线。*
 
+![Figure 3: 六基准 Avg@32 主结果（温度 0.1–1.5 聚合）](Figures/2026-08-27-erpo-environmental-regularization-policy-optimization-fig3.png)
+
+*图 3：主结果图——六个数学推理基准上 ERPO 的 Avg@32 一致超越 GRPO，MATH500 增益最大（0.528 → 0.677）。*
+
 ERPO 在六个基准上整体一致超越 GRPO：Avg@32 平均从 0.274 提升至 0.336（+6.2 pp），其中 MATH500 提升最大（0.528 → 0.677，+14.9 pp）；Pass@32 平均 0.575 → 0.611（+3.64 pp）；Pass@1 平均 0.275 → 0.332（+5.69 pp）。唯一例外是 Minerva 基准上 ERPO 的 Pass@32 略低于 GRPO（0.500 vs 0.516），但 Pass@1 反超（0.217 vs 0.201）。GRPO 与 ERPO 的训练 prompt 一致，Qwen 基线采用 Dr.GRPO 的默认配置。
 
 ### 4.3 跨算法通用性：DAPO 与 RLOO
@@ -312,6 +324,14 @@ ERPO 的核心设计不依赖特定 PG 估计器。论文将 ERPO 概念进一�
 ### 5.4 长期训练与高温稳定性
 
 将训练步数扩展至 1K 步观察长期稳定性（论文 Figure 5/6）：GRPO 在温度低于 1.0 时约 240 步（epoch=15）内保持稳定，但 400 步后首先在高温采样区间出现明显性能退化，随后逐步蔓延至所有温度；ERPO 虽不能完全免疫训练后期的坍缩现象（表现为熵突增、采样能力丧失），但退化幅度显著更小，且高温区间性能甚至有所提升。
+
+![Figure 4: 训练动态曲线（GRPO 与 ERPO 对比）](Figures/2026-08-27-erpo-environmental-regularization-policy-optimization-fig4.png)
+
+*图 4：训练动态——GRPO 高温区间率先退化后蔓延至全温度，ERPO 退化显著更小、高温区间甚至提升。*
+
+![Figure 8: 指标随解码温度变化（论文 Appendix B）](Figures/2026-08-27-erpo-environmental-regularization-policy-optimization-fig8.png)
+
+*图 8：指标随解码温度变化——ERPO 在高温区间（1.2–1.5）的性能衰减显著小于 GRPO，验证多温度稳定性评估协议的必要性。*
 
 ### 5.5 Reward Hacking 分析：训练-评测一致性
 
