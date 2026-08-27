@@ -27,6 +27,7 @@ htmlcov/
 .venv
 pyproject.toml
 .python-version
+uv.lock
 
 # Virtual environments
 .venv/
