@@ -42,7 +42,7 @@ Puro-2B 是一套面向"贫困实验室"（poor lab）的**从零预训练复现
 | 复现成本（canonical） | $6.89K（46,905 RMB，RTX 5090 $0.31/h） | 租用等价核算 |
 | 复现成本（uniform 1/2） | $4.37K（14,262 GPU-h） | Table 1 |
 | 训练日历时长 | 17.6 天（P1: 10.43d + P2: 7.16d） | Table 1 |
-| 最优模型 15 基准平均（Avg15） | 57.81% | Table 16 |
+| 最优模型 15 基准平均（Avg15） | 57.81% | 论文 Table 16（附录 G） |
 | 数学与代码 4 基准平均 | 43.50%（GSM8K 59.67%、MATH 30.30%、MBPP 52.92%、HumanEval 31.10%） | Table 3 |
 | 推理与知识 11 基准平均 | 63.02% | Table 4 |
 | 混合精度 MFU | ~73%（FP8 72% + BF16 28% 加权峰值） | §3.1.3 |
@@ -103,7 +103,7 @@ Puro-2B 的全部预训练与后训练都运行在消费级 RTX 5090 集群上�
 | RTX PRO 6000 | 503.8 | 1007.6 | 96 GB | 1.8 TB/s | 600 W | $1.89/h | 0.96 | 1.92 |
 | RTX 5090 | 209.5 | 419 | 32 GB | 1.8 TB/s | 575 W | $0.31/h | 2.43 | 4.87 |
 
-RTX 5090 的绝对峰值吞吐远低于数据中心 GPU（其 Tensor Core 在 FP32 累加下被限制为实际峰值的一半），但极低的有效价格带来约 **2.7×（BF16）/ 2.74×（FP8）H200 的单位美元计算量**。此外，受政策与成本约束拿不到 GB200 等 Blackwell 数据中心加速器时，RTX 5090 也是唯一具备 FP4 支持的现实选择。
+RTX 5090 的绝对峰值吞吐远低于数据中心 GPU（其 Tensor Core 在 FP32 累加下被限制为实际峰值的一半），但极低的有效价格带来约 **2.77×（BF16）/ 2.74×（FP8）H200 的单位美元计算量**。此外，受政策与成本约束拿不到 GB200 等 Blackwell 数据中心加速器时，RTX 5090 也是唯一具备 FP4 支持的现实选择。
 
 ### 3.2 硬件破解：P2P 与 GDR
 
@@ -193,7 +193,7 @@ WSD（Warmup-Stable-Decay）扫描（0.6B 模型、TPP=20、有效峰值 0.008�
 
 **生产调度**（Hyperball 权重 LR，即 MuonH 矩阵的 ELR）：
 
-- Phase 1（power 调度，开放端）：$\eta_{\mathrm{base}}(k) = \begin{cases} 5\times10^{-3}\,k/1000, & 0 \le k \le 1000, \\ 5\times10^{-4} + 4.5\times10^{-3}\left(1 + \dfrac{k-1000}{1000}\right)^{-1/2}, & k > 1000. \end{cases}$ —— 从约 $5\times10^{-2}$（Hyperball 组）/ $5\times10^{-3}$（base）指数衰减到 $1.04\times10^{-3}$（base），尾部保留持续训练路径。
+- Phase 1（power 调度，开放端）：$$\eta_{\mathrm{base}}(k) = \begin{cases} 5\times10^{-3}\,k/1000, & 0 \le k \le 1000, \\ 5\times10^{-4} + 4.5\times10^{-3}\left(1 + \dfrac{k-1000}{1000}\right)^{-1/2}, & k > 1000. \end{cases}$$ —— 从约 $5\times10^{-2}$（Hyperball 组）/ $5\times10^{-3}$（base）幂律衰减到 $1.04\times10^{-3}$（base），尾部保留持续训练路径。
 - Phase 2（长线性衰减）：从共享的 Phase 1 终点 $\eta_0 = 1.04\times10^{-3}$ 线性衰减到 $\eta_{\min} = 10^{-5}$，跨 960.0B tokens；5 个 uniform 变体对应 horizon 约 60.1/120.1/240.2/480.5/960.9B。
 
 ## 第 5 章 数据配方与 Curriculum Model Averaging
@@ -357,6 +357,7 @@ $C_{P1}$ 取实测 Phase 1 active GPU-hours 固定不变，对增量 Phase 2 成
 | Qwen2.5-1.5B | 6ND | 66,700 | 216,776 | 60.73 |
 | Qwen3-1.7B-Base | 6ND | 147,261 | 478,597 | 65.27 |
 | Gemma-2-2B | 6ND | 12,560 | 40,821 | 48.60 |
+| Gemma-3-1B-PT | 6ND | 4,812 | 15,640 | 25.34 |
 | Llama-3.2-3B | 报告 GPU-hours | 460,000 | 1,495,000 | 52.17 |
 | LFM2.5-1.2B-Base | 6ND | 78,828 | 256,190 | 53.54 |
 | Falcon-H1-Deep-1.5B-Base | 6ND | 11,189 | 36,364 | 63.53 |
