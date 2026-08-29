@@ -280,7 +280,7 @@ advantage 按 group-relative 方式构造（Eq 12）：
 
 $$A_k = -\sqrt{\frac{|P|/K}{1 - |P|/K}}, \qquad k \in N$$
 
-由构造 $A_k < 0$ 恒成立，配合损失前的负号，整条序列获得负梯度（惩罚）。其幅值随正样本占比 $|P|/K$ 自适应：正样本越稀少（问题越难、伪标签共识越弱），惩罚越强。
+由构造 $A_k < 0$ 恒成立，配合损失前的负号，整条序列获得负梯度（惩罚）。其幅值随正样本占比 $|P|/K$ 自适应：正样本占比越高（共识越强），对分歧样本的惩罚越强；正样本越稀少（问题越难、伪标签共识越弱），惩罚越弱。
 
 token 掩码通过两步构造。先定义 token 级惩罚分数：
 
@@ -544,7 +544,7 @@ TTPO 相对 base 的增益为 +25.2（1.7B）、+30.6（4B）、+36.4（8B）分
 
 ### 6.1 仓库结构
 
-官方代码库 [ZJU-REAL/TTPO](https://github.com/ZJU-REAL/TTPO)（论文摘要与 README 双重确认，18 stars）结构简洁：
+官方代码库 [ZJU-REAL/TTPO](https://github.com/ZJU-REAL/TTPO)（论文摘要与 README 双重确认，GitHub API 当前 24 stars）结构简洁：
 
 ```
 TTPO/
