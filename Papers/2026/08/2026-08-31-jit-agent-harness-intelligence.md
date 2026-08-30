@@ -19,7 +19,7 @@ JIT-Agent 是首个专门为"即时（just-in-time, JIT）harness 生成"而训�
 | 图表 | 内容 | 所在章节 |
 |------|------|----------|
 | Figure 1 | 四个代表 benchmark 的 JIT-Agent 排行榜（本文第 1 章引用） | 论文 §1（本报告第 1 章） |
-| Figure 2 | 方法总览：四模块（memory/planning/action/capability）harness 合成 | 论文 §3（本报告第 3 章） |
+| Figure 2 | 方法总览：四模块（memory/planning/action/capability）harness 合成 | 论文 §1（本报告第 3 章） |
 | Table 1 | AOT vs JIT 方法特性对比（实例合成 / harness 模型 / 学习修复 / 在线演进） | 论文 §2（本报告第 2 章） |
 | Table 2 | 13 种 scaffold 的模块配置清单（HarnessFactory 种子库 K0=13） | 论文 §3（本报告第 3 章） |
 | Table 3 | 9 个 benchmark 主结果（0-100 分制，10 模型 × 9 指标） | 论文 §6.2（本报告第 5 章） |
@@ -188,7 +188,7 @@ $$\Delta_{\mathrm{val}} = \alpha_r (r^+ - r^-) + \alpha_\ell [\ell^- - \ell^+]_+
 
 偏好损失为参考锚定形式（公式 13）：以冻结的 SFT checkpoint 为参考分布 p_ref，长度归一化 log 似然，β_pref 控制锐度；最终 Stage I 损失为两项加权和：
 
-$$\mathcal{L}_I^{\mathrm{pref}} = -\mathbb{E}\left[\sigma\!\left(\beta_{\mathrm{pref}}\left(\log\tfrac{p_\theta(h^+ \mid c_\tau)}{p_{\mathrm{ref}}(h^+ \mid c_\tau)} - \log\tfrac{p_\theta(h^- \mid c_\tau)}{p_{\mathrm{ref}}(h^- \mid c_\tau)}\right)\right)\right]$$
+$$\mathcal{L}_I^{\mathrm{pref}} = -\mathbb{E}\left[\Delta_{\mathrm{val}} \cdot \log\sigma\!\left(\beta_{\mathrm{pref}}\left(\log\tfrac{p_\theta(h^+ \mid c_\tau)}{p_\theta(h^- \mid c_\tau)} - \log\tfrac{p_{\mathrm{ref}}(h^+ \mid c_\tau)}{p_{\mathrm{ref}}(h^- \mid c_\tau)}\right)\right)\right]$$
 
 $$\mathcal{L}_I = \mathcal{L}_I^{\mathrm{gen}} + \lambda_{\mathrm{pref}} \cdot \mathcal{L}_I^{\mathrm{pref}}$$
 
@@ -212,7 +212,7 @@ $$\mathcal{D}_{II} = \{(\tau, \pi_\psi, \mathcal{C}_\tau, \mathcal{E}_\tau, \mat
 
 训练目标为条件于修复历史的 SFT（公式 18）：
 
-$$\mathcal{L}_{II} = -\mathbb{E}_{\mathcal{D}_{II}}\left[\sum_{j}\log p_\theta\!\left(\Delta^{*(j+1)}_j \mid c_\tau, \tilde{h}^{(j)}, g^{(j)}, \Delta^{*(j+1)}_{<j}\right)\right]$$
+$$\mathcal{L}_{II} = -\mathbb{E}_{\mathcal{D}_{II}}\left[\sum_{k=0}^{K^*-1}\log p_\theta\!\left(\Delta^{*(k+1)} \mid c_\tau, \{(\tilde{h}^{(j)}, g^{(j)})\}_{j=0}^{k}\right)\right]$$
 
 即模型学会在看到失败 harness 与诊断后，一步产出正确 patch，且最多堆叠两轮。
 
@@ -234,7 +234,7 @@ $$\hat{A}_i^\Sigma = \mathrm{BatchNorm}\!\left(A_i^\Sigma\right)$$
 
 最终损失为 PPO 风格的 clip 目标（公式 22）：重要性比 ρ_{i,j} 做 ratio clipping，聚合优势 Â^Σ 作为信号，按 |h_i| 做 token 长度归一，并加 KL 正则锚定参考策略：
 
-$$\mathcal{L}_{III}^{\mathrm{Evo\text{-}GDPO}} = -\mathbb{E}\left[\frac{1}{|h_i|}\sum_{j}\min\!\left(\rho_{i,j}\,\hat{A}_i^\Sigma,\ \mathrm{clip}(\rho_{i,j}, 1-\epsilon, 1+\epsilon)\,\hat{A}_i^\Sigma\right)\right] + \beta_{\mathrm{KL}}\,\mathbb{E}\left[\mathrm{KL}(p_\theta \,\|\, p_{\mathrm{ref}})\right]$$
+$$\mathcal{L}_{III}^{\mathrm{Evo\text{-}GDPO}} = -\mathbb{E}\left[\frac{1}{G}\sum_{i=1}^{G}\frac{1}{|h_i|}\sum_{j}\min\!\left(\rho_{i,j}\,\hat{A}_i^\Sigma,\ \mathrm{clip}(\rho_{i,j}, 1-\epsilon, 1+\epsilon)\,\hat{A}_i^\Sigma\right)\right] + \beta_{\mathrm{KL}}\,\mathbb{E}\left[\mathrm{KL}(p_\theta \,\|\, p_{\mathrm{ref}})\right]$$
 
 组解耦（group-decoupled）的含义在于：优势只由同组内比较得出，任务间的难度差异被自动消去，跨任务档案带来的偏置不会污染单任务的相对信号。
 
