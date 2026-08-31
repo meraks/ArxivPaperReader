@@ -3,7 +3,7 @@
 > **arXiv ID**：2608.28444（cs.CL，交叉 cs.LG）
 > **发表时间**：2026-08-28（v1）
 > **许可协议**：未标注（arXiv 预印本）
-> **代码仓库**：无官方实现（论文未提供代码）
+> **代码仓库**：论文未提供代码（arXiv 页面无代码/仓库链接）
 
 ## 第 1 章 概述
 
@@ -17,7 +17,7 @@
 |------|------|------|
 | **Figure 1** | 三类 attention mask 示意：Full Attention (FA)、LoLCATs/Liger-GLA（线性注意力 + SWA 混合）、带 sinks 的 SWA | 第 3 章 |
 | **Figure 2** | 四种注意力（FA、SWA、Linear、Linear+SWA 即 LoLCATs）在 128–256K context 下的解码吞吐（tokens/s）与内存成本（KV cache 或循环状态，MiB） | 第 4 章 |
-| **Figure 3** | Figure 2 的补充细节图：各 attention 类型的速度与内存随 context（128–256K）变化曲线 | 第 4 章 |
+| **Figure 3** | Figure 2 的补充细节图：各 attention 类型的速度与内存随 context（128–256K）变化曲线（含 SWA 窗口 64/128/256/512 全部变体） | 第 4 章 |
 | **Figure 4** | 四种注意力（FA、SWA、Linear、Linear+SWA）在 128–256K context 下的 FLOPs 对比 | 第 4 章 |
 | **Table 1** | 13 行方法汇总（12 种后训练线性化方法 + SWA(64,4)）：后训练 token 数、阶段数、MMLU-5shot 恢复率 (%)、六基准平均恢复率 (%) | 第 1、4 章 |
 | **Table 2** | 各蒸馏线性化模型、教师模型、教师 + SWA（sink=4，window 64 或 128）在 6 个基准上的完整分数 (%)，标出最佳非教师模型 | 第 4 章 |
@@ -31,7 +31,7 @@
 1. **补上缺失的基线对比**：首次把带 sinks 的 training-free SWA 与后训练线性注意力在同一口径（学生/教师性能恢复率）下直接对比，覆盖 SUPRA、Hedgehog、LoLCATs、Liger-GLA、MOHAWK、Mamba in the Llama、DiJiang、ARWKV、Llamba、QLinAtt、QRWKV6、QRWKV7 共 12 种方法、11 个预训练模型（Phi-1.5-1.3B 至 Llama 3.1-70B / Qwen2.5-72B-Instruct / QwQ，1.3B–70B 参数），短上下文与长上下文基准兼备。
 2. **短上下文结论**：SWA(64,4) 以 0 token 后训练、0 阶段实现 MMLU-5shot 恢复率 93.2%（13 行方法中最高）与六基准平均恢复率 99.0%（仅次于 QRWKV6 的 99.1%，后者需 350–700M token、3 个阶段）；在 11 组模型对比中有 9 组取得最佳平均下游性能（Table 2）。
 3. **长上下文结论**：S-NIAH 4K context 下 SWA 恢复全注意力准确率的 17.2–23%，而 LoLCATs 准确率至多 5.8%、Liger-GLA 至多 0.8%（Table 3）；BABILong 4K 下 SWA 恢复基线性能的 25%（绝对准确率 15%）而 LoLCATs 仅 5%（3%）（Table 4）；摘要级结论为长上下文任务 SWA 达线性注意力的 2–10 倍。
-4. **方法论纠偏**：指出既有线性注意力论文普遍只与无 sink 的 SWA 比较，而无 sink 的 SWA 在首批 token 移出窗口后会灾难性崩溃，因此这类对比不成立；同时指出后训练线性化模型的长上下文行为此前研究不足。
+4. **方法论纠偏**：指出既有线性注意力论文大多只与无 sink 的 SWA 比较（论文原文 "most linear attention papers only compare linear-attention to regular (sink-free) SWA"），而无 sink 的 SWA 在首批 token 移出窗口后会灾难性崩溃，因此这类对比不成立；同时指出后训练线性化模型的长上下文行为此前研究不足。
 5. **系统效率实测**：在 4 层 Transformer（embedding 维 1024、16 个 head × 64 维、batch 1、float16、NVIDIA RTX PRO 6000 Blackwell Max-Q）上于 128–256K context 实测四种注意力的速度与内存（Figure 2）：FA 解码吞吐在 context 超过 1K 后随长度下降，SWA 全程最快且内存达到 window-size 后恒定，window=64 时内存低于 Linear、Linear+SWA（LoLCATs）与 window=512 的 SWA，据此给出工程建议——直接切换 SWA 而非后训练线性模型。
 
 ### 1.3 关键结果速览
@@ -180,7 +180,7 @@ $$\mathbf{x}_t=\frac{\sum_{i=\max(1,t-w+1)}^{t}\exp(\mathbf{q}_t\mathbf{k}_i^\to
 
 长上下文推理采用两个任务：
 
-- **S-NIAH**（Single Needle-in-a-Haystack）：在最长 4K 上下文中检索单个/多个埋入信息，分为 S-NIAH-1、S-NIAH-2、S-NIAH-3 三档复杂度；
+- **S-NIAH**（Single Needle-in-a-Haystack）：在最长 4K 上下文中检索单个/多个埋入信息，分为 S-NIAH-1、S-NIAH-2、S-NIAH-3 三个子任务；
 - **BABILong**：基于 bAbI 任务的长上下文推理基准，取 QA1-QA5 五个子任务的平均准确率，上下文长度从 0K 到 4K。
 
 ### 4.3 对比方法与配置
@@ -268,6 +268,8 @@ Table 2 给出 11 个基座模型 × 6 基准的完整数值。列序：MMLU (5-
 | Teacher | 66.8 | 55.9 | 82.2 | 75.5 | 77.7 | 71.3 | 71.6 |
 | SWA(64,4) | 61.4 | 55.7 | 82.2 | 75.3 | 78.1 | 71.3 | 70.7 |
 | Mamba2(+SWA) | 45.2 | 48.0 | 74.1 | 70.8 | 75.8 | 58.6 | 62.1 |
+
+（注：论文 Table 1 中该方法名为 "Mamba in the Llama"（20B token、2 阶段），Table 2 行名写作 "Mamba2(+SWA)" 且 tokens 列标为 0——两表不一致系论文自身笔误，报告按 Table 2 行名与数值记录。）
 
 **Llama-3.1-8B**
 
@@ -395,7 +397,7 @@ BABILong 平均（QA1-QA5 均值，窗口 256，基座 Llama 3.1 8B）：
 | LoLCATs(+SWA) | 56 | 22 | 10 | 3 |
 | Full Attention | 74 | 70 | 67 | 60 |
 
-短上下文（0K-1K）下 LoLCATs 略高（56 vs 55、22 vs 20），但上下文拉长后 SWA 优势显著扩大：2K 时 19 vs 10，4K 时 **15 vs 3**。相对全注意力基线：0K 时两者恢复 74%-76%；4K 时 SWA 恢复 **25%**，LoLCATs 仅恢复 **5%**。
+短上下文（0K-1K）下 LoLCATs 略高（56 vs 55、22 vs 20），但上下文拉长后 SWA 优势显著扩大：2K 时 19 vs 10，4K 时 **15 vs 3**。相对全注意力基线：0K 时两者恢复 74%–76%；4K 时 SWA 恢复 **25%**，LoLCATs 仅恢复 **5%**。
 
 完整的 QA1-QA5 分任务结果见附录（Table 6）：
 
@@ -411,7 +413,7 @@ BABILong 平均（QA1-QA5 均值，窗口 256，基座 Llama 3.1 8B）：
 
 - **解码速度**：全注意力在上下文超过 1K 后速度持续下降；SWA、线性注意力、LoLCATs 均保持近似恒定速度；SWA 是全部方法中最快的（窗口 64 比 512 更快，两者均快于线性注意力与 LoLCATs）。
 - **内存**：全注意力的 KV cache 随上下文线性增长；SWA 的内存增长到窗口大小后封顶不变；窗口 64 的 SWA 内存最低，其次为纯线性注意力、LoLCATs，最后是窗口 512 的 SWA。
-- 因此，在窗口 ≤512 时 SWA 同时拥有更高速度与相似或更低的内存占用（Figure 3），且 FLOPs 随上下文增长远低于全注意力（Figure 4）。
+- 因此，在窗口小于 512 时 SWA 同时拥有更高速度与相似或更低的内存占用（Figure 3；论文原文为 "similar or lower memory cost at window-size smaller than 512"，w=512 时 SWA 内存为最高），且 FLOPs 随上下文增长远低于全注意力（Figure 4）。
 
 ### 5.7 综合结论
 
