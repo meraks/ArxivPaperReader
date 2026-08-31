@@ -170,3 +170,11 @@
 | 2608.27370 | Puro-2B: Poor Lab's Qwen2-1.5B Trained on RTX 5090 within $5090 | Kairong Luo, Jiarui Cui, Yaorui Yin, Shengqi Chen, Yiming Yang, Linxiang Gao, Yanmohan Wang, Mingzhe Zhang, Kaiyue Wen, Kaifeng Lyu, Wenguang Chen（清华大学 PACMAN） | [Papers](Papers/2026/08/2026-08-29-puro-2b-low-cost-pretraining-recipe.md) |
 | 2608.27448 | TTPO: Test-Time Policy Optimization | Aozhe Wang, Zhengxi Lu（共同一作）, Jianze Wang, Shangke Lv, Ying Liu, Weiming Lu, Jun Xiao, Yueting Zhuang, Hua Yang, Qianglong Chen, Yongliang Shen（浙江大学 / 阿里巴巴） | [Papers](Papers/2026/08/2026-08-30-ttpo-test-time-policy-optimization.md) |
 | HF: 2608.25593 | JIT-Agent: Scaling Harness Intelligence via Just-in-Time Harness Evolution | Guibin Zhang, Leo Lu, Fangzhou Xie, Kang Zhu, Junhao Wang, Zhifei Xie, Zhaochen Yu, Zihang Liu, Zhongxiang Sun, Qiankun Li, Yue Liao, Heng Chang, Xiaobin Hu, Qibing Ren, Wangchunshu Zhou, Shuicheng Yan（新加坡国立大学 NUS） | [Papers](Papers/2026/08/2026-08-31-jit-agent-harness-intelligence.md) |
+
+---
+
+## Papers/2026/09
+
+| 编号 | 标题 | 主要作者 | 仓库链接 |
+|------|------|----------|----------|
+| HF: 2608.28444 | Sliding-window beats linear attention | Alexia Jolicoeur-Martineau, Rhea Sanjay Sukthanker, Pashmina Cameron, Emy Gervais (Microsoft Applied Sciences Group) | [Papers](Papers/2026/09/2026-09-01-sliding-window-beats-linear-attention.md) |
