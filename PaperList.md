@@ -179,3 +179,4 @@
 |------|------|----------|----------|
 | HF: 2608.28444 | Sliding-window beats linear attention | Alexia Jolicoeur-Martineau, Rhea Sanjay Sukthanker, Pashmina Cameron, Emy Gervais (Microsoft Applied Sciences Group) | [Papers](Papers/2026/09/2026-09-01-sliding-window-beats-linear-attention.md) |
 | HF: 2609.02849 | Post-Training Language Models for Gold-Medal Performance in Coding Competitions | Aleksander Ficek, Sean Narenthiran, Mehrzad Samadi, Somshubra Majumdar, Boris Ginsburg (NVIDIA) | [Papers](Papers/2026/09/2026-09-04-post-training-coding-competitions-gold-medal.md) |
+| HF: 2609.03430 | Random Attention: Rethinking KV Cache Eviction for Efficient Reasoning | Heng Wang, Jielin Qiu, Wenting Zhao, Cheng Qian, Liangwei Yang, Jiawei Han, Heng Ji（UIUC）；Silvio Savarese, Shelby Heinecke, Huan Wang（Salesforce AI Research） | [Papers](Papers/2026/09/2026-09-07-random-attention-kv-cache-eviction.md) |
