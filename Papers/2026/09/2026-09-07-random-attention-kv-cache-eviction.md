@@ -1,5 +1,5 @@
 > **论文**：Random Attention: Rethinking KV Cache Eviction for Efficient Reasoning
-> **作者**：Heng Wang, Jielin Qiu, Wenting Zhao, Cheng Qian, Liangwei Yang, Jiawei Han, Heng Ji（UIUC）；Silvio Savarese, Shelby Heinecke, Huan Wang（Salesforce AI Research）
+> **作者**：Heng Wang, Jielin Qiu, Wenting Zhao, Cheng Qian, Liangwei Yang, Silvio Savarese, Shelby Heinecke, Huan Wang（Salesforce AI Research）；Jiawei Han, Heng Ji（UIUC）；Heng Wang、Cheng Qian 另兼属 UIUC
 > **arXiv ID**：2609.03430
 > **发表时间**：2026-09-03
 > **许可协议**：Apache-2.0（官方代码）
@@ -13,7 +13,7 @@
 
 ### 论文图表总览
 
-论文正文含 4 张主表（另含附录 Table 5–11），无独立 Figure 编号图形（图内嵌于各表所在小节）：
+论文正文含 4 张主表（另含附录 Table 5–11）与 5 张编号 Figure（Figure 1：精度与 vLLM 吞吐总览（§1）；Figure 2：2×–16× 压缩压力扫描（§4.3）；Figure 3：跨头冗余探针 a/b/c（§5.2）；Figure 4：按 token 年龄的保留率（附录 D）；Figure 5：等内存吞吐（附录 G））。下表总览以主表为主，报告未复制图片文件、正文引用 Figure 编号时对应论文原文：
 
 | 编号 | 内容 | 章节 |
 |------|------|------|
@@ -35,7 +35,7 @@
 
 - **随机驱逐匹配最强基线**：4 个模型（Qwen3-4B/14B/32B、Phi-4-reasoning）× 6 个推理任务上，Random Attention 与最强启发式基线整体可比；在数学、科学类任务上表现尤为突出，竞赛数学（AIME/HMMT）上无人真正拉开差距（名义领先均在噪声内，30 题任务上 run-to-run 波动约 ±5 点）。
 - **31/60 显著领先**：60 组基线对比（baseline comparisons）中，Random Attention 在 31 组显著领先，仅 1 组显著落后（TriAttention 在 Qwen3-32B code 任务上领先约 3 点）。
-- **vLLM 吞吐 +32–43%**：32k token 生成长度下，比最强基线 TriAttention 每秒多产出 32–43% 的 token（Qwen3-14B/4B/32B 与 Phi-4 上分别为 +37%/+43%/+40%/+32%）；等内存比较下相对 Full attention 达到约 3–10× 吞吐，K=1024 高压缩下最高 28.8×。
+- **vLLM 吞吐 +32–43%**：32k token 生成长度下，比最强基线 TriAttention 每秒多产出 32–43% 的 token（Qwen3-4B/Phi-4-reasoning/Qwen3-14B/Qwen3-32B 上分别为 +37%/+43%/+40%/+32%）；等内存比较下相对 Full attention 达到约 3–10× 吞吐，K=1024 高压缩下最高 28.8×。
 - **两机制解释**：(1) prompt 是脆弱部分——所有方法都保 prompt 后，差距大部分消失（如 SnapKV 在 MATH500 K=1024 上 0.703→0.829，Recency 诊断基线 0.246→0.843）；(2) 推理轨迹通过两级冗余自我保护——planted-fact 探针显示一个事实保留在单个 head 内几乎无法检索（最佳单头仅 3%），保留在多个 head 中则几乎总能检索（两头 60%、三头 83%、八头 99%）。真正留给选择信号的，只剩"只陈述一次、从不复述的罕见事实"，而推理轨迹很少产生这种信息。
 
 ## 第 2 章 研究背景与动机
@@ -103,7 +103,7 @@ $$
 
 其中 $\mathcal{P}$ 为 prompt 的全部条目，$\cup$ 表示并集（prompt 条目优先占用预算）。
 
-值得注意的是，虽然方法不含显式的位置先验，均匀随机 + top-K 的组合会自然产生一个**隐式的 soft recency 窗口**（附录 D 的 keep-log 分析）：一条已生成 $n$ 轮驱逐前、位于预算内深处的条目，每轮驱逐的存活概率约为 $(K-\ell_p)/(K+r-\ell_p)$，在 $K=1024$、$r=64$ 时约为 $0.94^n$——越老的 token 越可能已被换出，但并非硬截断。
+值得注意的是，虽然方法不含显式的位置先验，均匀随机 + top-K 的组合会自然产生一个**隐式的 soft recency 窗口**（附录 D 的 keep-log 分析）：一条已生成 $n$ 轮驱逐前、位于预算内深处的条目，每轮驱逐的存活概率约为 $(K-\ell_p)/(K+r-\ell_p)$（$K=1024$、$r=64$ 时约 $0.94$），故经过 $n$ 轮驱逐后仍被缓存的概率约为 $0.94^n$——越老的 token 越可能已被换出，但并非硬截断。
 
 ### 3.3 每轮代价：1 rand + 1 topk
 
@@ -283,7 +283,7 @@ Figure 2 给出了 Qwen3-4B 与 Phi-4-reasoning 在四个数学/科学任务上�
 
 ### 6.3 代码实现与工程要点
 
-官方实现（Apache-2.0）位于 https://github.com/SalesforceAIResearch/Random-Attention（29 stars），核心策略在代码中名为 `random_pp`。仓库包含驱逐引擎、评估 harness、显著性检验、效率基准、vLLM 移植与机制研究工具，即论文全部数字的产出代码；`data/`、`figures/`、`kvcompress/`、`scripts/` 为顶层目录。评估 harness 与引擎骨架继承自 VaSE（MIT），TriAttention 基线与 vLLM 基准构建于 TriAttention（Apache-2.0）。
+官方实现（Apache-2.0）位于 https://github.com/SalesforceAIResearch/Random-Attention（32 stars），核心策略在代码中名为 `random_pp`。仓库包含驱逐引擎、评估 harness、显著性检验、效率基准、vLLM 移植与机制研究工具，即论文全部数字的产出代码；`data/`、`figures/`、`kvcompress/`、`scripts/` 为顶层目录。评估 harness 与引擎骨架继承自 VaSE（MIT），TriAttention 基线与 vLLM 基准构建于 TriAttention（Apache-2.0）。
 
 把驱逐器移植到分页运行时的工程量与分数本身无关：物理驱逐须把每个请求幸存的 KV 重写进其 block、释放尾部、在物理槽收缩时保持 rotary 位置逻辑一致、并在 preemption 下保持正确。R-KV 的发布移植横跨 13 个上游文件约 849 行接线并依赖 vLLM V1 model runner；分数决定还需要什么：读 cache 的分数（VaSE 的 value range、TriAttention 的校准 key 统计）需跨 block table 的 gather；读注意力权重的分数（SnapKV、R-KV、VaSE 的注意力比例填充）在融合分页内核中根本读不到——权重从不物化，必须重算为显式 window-query 乘积（chunked，因瞬时量达 heads×window×cache）或改注意力内核本身。随机驱逐的 keep-set 是槽位索引的随机排列，什么都不读，运行时现有压缩路径即全部集成——加入 TriAttention 插件只花了一个函数。
 
