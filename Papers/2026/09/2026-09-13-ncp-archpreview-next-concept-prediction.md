@@ -35,11 +35,11 @@ NCP-ArchPreview 把语言模型内部自发涌现的语义抽象从"下一 token
 | **Table 7** | 知识域适配结果 + 通用能力保留 | 第 6 章 |
 | **Table 8** | 3B 规模：depth 对齐 OLMo-3-3B 与 NCP-ArchPreview 的 MTP 对照 | 第 6 章 |
 | **Table 9** | 块并行 drafter 的平均接受长度（MAL） | 第 6 章 |
-| **Table 10** | 完整架构配置表 | 第 7 章 |
-| **Table 11** | 中训配方筛查的精确输入（source-balanced NLL + 下游） | 第 6 章 |
-| **Table 12** | 缩放梯子实验设置与验证 loss（27 个配置点，五档 FLOPs 预算） | 第 5 章 |
-| **Table 13** | 生成式 benchmark 的 prompting / sampling 配置 | 第 7 章 |
-| **Table 14** | Stage-1 下游性能随 checkpoint 的演化 | 第 5 章 |
+| **Table 10** | 完整架构配置表（论文附录 B） | 第 7 章 |
+| **Table 11** | 中训配方筛查的精确输入（source-balanced NLL + 下游；论文附录 C） | 第 6 章 |
+| **Table 12** | 缩放梯子实验设置与验证 loss（27 个配置点，五档 FLOPs 预算；论文附录 D） | 第 5 章 |
+| **Table 13** | 生成式 benchmark 的 prompting / sampling 配置（论文附录 E） | 第 7 章 |
+| **Table 14** | Stage-1 下游性能随 checkpoint 的演化（论文附录 E） | 第 5 章 |
 
 ### 1.2 核心贡献
 
@@ -339,7 +339,7 @@ Stage-1 结束时，NCP-ArchPreview 在几乎全部评测指标上超过 OLMo-3-
 
 逐项细节中，Stage-1 提升最大的单项包括：
 
-- **GSM8K 39.27 → 45.26（+5.99）**，是**数学域**最大的单项提升；全部 26 项中绝对提升最大的两项是 PiQA 72.25 → 80.85（**+8.60**）与 MultiPL-E MBPP 28.67 → 33.96（+5.29），GSM8K 的 +5.99 位列第三；
+- **GSM8K 39.27 → 45.26（+5.99）**，是**数学域**最大的单项提升；在全部 26 项中其绝对提升仅次于 PiQA 72.25 → 80.85（**+8.60**）位列第二，其后依次是 MultiPL-E MBPP 28.67 → 33.96（+5.29）与 HumanEval 27.10 → 31.38（+4.28）；
 - PiQA 72.25 → 80.85（+8.60）、MultiPL-E MBPP 28.67 → 33.96（+5.29）、HumanEval 27.10 → 31.38（+4.28）、GSM-Symbolic 18.85 → 22.80（+3.95）、SocialIQA 65.35 → 69.24（+3.89）、ARC-C 77.99 → 81.57（+3.58）、MMLU-Humanities 64.73 → 68.28（+3.55）；
 - MATH 域的相对提升达到 **18%**（论文正文表述），MATH AVG 绝对提升 +3.75 分；
 - 似然指标上，Stage-1 的 HumanEval Gold BPB 由 0.384 降至 0.364（−0.020）、DROP 由 4.474 降至 4.397（−0.077）、Natural Questions 0.917 → 0.884（−0.033）。
@@ -559,7 +559,7 @@ Stage-2 出现"loss 更低但下游更差"的背离（5.6 节）后，论文构�
 5. CRC 把 $S_e$、$S_c$ 按粒度对齐后注入目标模块（Token Encoder→Concept Module / Token Encoder→Token Decoder / Concept Module→Token Decoder），IRC 在每个模块内跨深度组合状态；
 6. $\hat{c}_{1:M}$ 经 $\mathrm{CausalShiftAndRepeat}$ 变回 token 分辨率并以残差加入 $h_{1:T}$，Token Decoder 从融合状态预测下一 token。
 
-三个损失（$L_{\mathrm{NTP}}$、$L_{\mathrm{NCP}}$、$L_{\mathrm{VQ}}$）在同一次前向中计算并联合回传。IRC/CRC 的具体形式对应第 4 章的式 14–20。
+三个损失（$L_{\mathrm{NTP}}$、$L_{\mathrm{NCP}}$、$L_{\mathrm{VQ}}$）在同一次前向中计算并联合回传。IRC/CRC 的具体形式见第 4 章（对应论文式 14–20）。
 
 ### 7.4 工程层面的可复用经验
 
