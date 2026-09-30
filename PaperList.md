@@ -184,3 +184,11 @@
 | HF: 2609.10715 | NCP-ArchPreview Technical Report: Moving towards Latent Space Language Models through Next Concept Prediction | The Intern-NCP Team（Shanghai AI Lab；LUMIA Lab, Shanghai Jiao Tong University） | [Papers](Papers/2026/09/2026-09-13-ncp-archpreview-next-concept-prediction.md) |
 | HF: 2609.24797 | Complex KDA: Understanding and Enhancing the Expressivity of Kimi Delta Attention | Julien Siems, Riccardo Grazzi, Korbinian Pöppel et al.（OpenEuroLLM：弗莱堡大学 / MPI-IS Tübingen / EPFL 等） | [Papers](Papers/2026/09/2026-09-23-complex-kda.md) |
 | 2609.28654 | Training Object Permanence in World Models | Carnegie Mellon University（AWS Trainium for Research 支持） | [Papers](Papers/2026/09/2026-09-25-wrop.md) |
+
+---
+
+## Papers/2026/10
+
+| 编号 | 标题 | 主要作者 | 仓库链接 |
+|------|------|----------|----------|
+| HF: 2609.31093 | Block Sparse Attention with Log-Linear Complexity（PISA） | Bohao Tang, Zhen Qin, Yuqi Pan, Zheng Li, Pengfei Liu（Shanghai Jiao Tong University / Shanghai Innovation Institute / ByteDance Seed） | [Papers](Papers/2026/10/2026-10-01-pisa.md) |
