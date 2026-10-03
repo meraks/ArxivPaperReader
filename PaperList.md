@@ -192,3 +192,4 @@
 | 编号 | 标题 | 主要作者 | 仓库链接 |
 |------|------|----------|----------|
 | HF: 2609.31093 | Block Sparse Attention with Log-Linear Complexity（PISA） | Bohao Tang, Zhen Qin, Yuqi Pan, Zheng Li, Pengfei Liu（Shanghai Jiao Tong University / Shanghai Innovation Institute / ByteDance Seed） | [Papers](Papers/2026/10/2026-10-01-pisa.md) |
+| HF: 2609.38537 | Systematically Exploring the Capabilities of GPT-6 Astra as Embodied Policies | Galbot（Jiayi Su, Yixin Zheng, Mi Yan, Li Yi, Zhizheng Zhang, He Wang 等约 30 位贡献者） | [Papers](Papers/2026/10/2026-10-04-gpt6-astra-embodied.md) |
