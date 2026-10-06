@@ -3,7 +3,7 @@
 > **论文**：Systematically Exploring the Capabilities of GPT-6 Astra as Embodied Policies
 > **作者**：Galbot（Jiayi Su, Yixin Zheng, Mi Yan, Li Yi, Zhizheng Zhang, He Wang 等，共约 30 位贡献者，分组列于论文 Contributors 节）
 > **arXiv ID**：2609.38537（v1）
-> **发表时间**：2026-09-28
+> **发表时间**：2026-09-29
 > **代码仓库**：github.com/anonymous-report-421/GPT-as-Policy/（MIT，548 stars，含评测代码 hybrid_rollout/ 与双语技术报告网页）
 > **项目页**：galaxygeneralrobotics.github.io/astra-policy/
 
@@ -52,7 +52,7 @@
 | Table 9–10 | 运动控制（PASSAGE 密集参考 + 紧凑参考诊断） | 第 5 章 |
 | Table 11–12 | HumanoidBench 八任务对比 + SIMPLE L2 | 第 5 章 |
 | Table 17 | RoboDojo 执行与 token 精确账目 | 第 6 章 |
-| Table 36 | RoboCasa 配对 McNemar 检验 | 第 4 章 |
+| Table 35 | RoboCasa 配对 McNemar 检验 | 第 4 章 |
 | Figure 9 | RoboCasa 三条件匹配起始对比 | 第 4 章 |
 | Figure 11 | 导航本地对比与失败模式 | 第 4 章 |
 | Figure 21 | Allegro 掌内 rollout 序列 | 第 3 章 |
@@ -103,9 +103,10 @@
   "理解指令并规划子目标"，Astra 的通用语义能力直接兑现为高成功率；
 - **物理主导域崩**：掌内操作（0.51%）与 locomotion（0/5）要求毫秒级的数值一致性，
   这是自回归离散 token 生成最不擅长的，Astra 接近零分；
-- **中间地带 Hybrid 胜**：RoboDojo（48% vs 26%）、Sharpa（61.6 vs 16.6）、RoboCasa（38.7% vs 33.3%）
-  上 Hybrid 全面优于 Direct——把 Astra 放在"决策层"、把物理控制留给学习策略，
-  是当前更合理的分工；
+- **中间地带 Hybrid 胜**：RoboDojo（48% vs 26%）、Sharpa（61.6 vs 16.6）、RoboCasa 总体
+  （38.7% vs 33.3%）上 Hybrid 优于 Direct——把 Astra 放在"决策层"、把物理控制留给学习策略，
+  是当前更合理的分工。但该优势并非无条件成立：RoboCasa composite unseen 子组为
+  Direct 56% vs Hybrid 36%（Direct 反超），同属夹爪域的 RoboLab 也是 Hybrid 92% < Direct 98%；
 - **资源维度不可忽略**：即便 Hybrid 比 Direct 省 44.8% token，RoboDojo 一域仍耗 624.8M；
   39.86 s/次的调用延迟意味着真实闭环控制目前不可行。
 
@@ -155,7 +156,7 @@ Astra 的角色从"仲裁者"变为"参考轨迹生成器"，给一个冻结的�
 |------|--------|--------------------|---------------------|
 | 动作出处 | Astra 直接生成 | π0.5 提议 + Astra 仲裁 | Astra 参考 + 冻结控制器执行 |
 | Astra 职责 | 感知→规划→控制全链路 | 高层决策与纠错 | 参考轨迹生成 |
-| 适用域 | 全部六域 | 夹爪/灵巧手/移动操作 | locomotion/loco-manipulation |
+| 适用域 | 五域（人形 loco-manipulation 仅 Hybrid，未评测 Direct） | 夹爪/灵巧手/移动操作 | locomotion/loco-manipulation |
 | 典型结果 | RoboLab 98%；RoboDojo 26% | RoboDojo 48%；Sharpa 61.6 | HumanoidBench 581.9；locomotion 0/5 |
 
 ### 2.2 六域评估设计（Table 1）
@@ -167,7 +168,7 @@ Table 1 集中给出六域的任务数、样本量与对比条件：
 | 夹爪操作 | RoboDojo（仿真，配对评测） | 10 任务 × 5 次 | 50 episodes/条件 | Hybrid、Direct、π0.5（+重加权 15.67%/24.43） |
 | 夹爪操作 | RoboLab（Franka 单臂，零样本） | 10 任务 | 50 episodes | Direct、Hybrid、π0.5、Cosmos3-Nano-Policy、DreamZero |
 | 灵巧手 | Sharpa（部分分 0–100） | 10 任务 | 每任务多次 rollout | Hybrid、π0.5、Direct |
-| 灵巧手 | DexJoCo Hanoi | 双臂叠盘 10 试 + 5 复盘 | 15 试（63.60M tokens） | Astra 修正占比分析 |
+| 灵巧手 | DexJoCo Hanoi | 双臂叠盘 10 试 + 5 复盘 | 10 试 + 5 复盘（共 63.60M tokens） | Astra 修正占比分析 |
 | 灵巧手 | 掌内操作（Allegro） | 圆柱旋转/立方体/平移/平移+旋转 | 5 试/条件 | Astra vs RL（成功阈值 22.4 mm/10°） |
 | 移动操作 | RoboCasa365 | atomic/composite × seen/unseen | 75 episodes/条件 | π0.5、Direct、Hybrid + McNemar 精确检验 |
 | 导航 | VLN-CE（R2R/RxR）+ ObjectNav（MP3D/HM3D） | 4 子集 | 50 episodes/子集 | 本地 LightNav-0（同一 200 episodes） |
@@ -337,7 +338,7 @@ At-goal 定义为 $e_q(t) < 0.1$ rad 的控制步占比，Speed MAE 为 1 s 滑�
 
 - **Hybrid 在 seen 任务上超 Direct（52% vs 28%、28% vs 16%），在 unseen 组合上反被 Direct 压制（36% vs 56%）**——策略先验覆盖内的任务，协作有价值；组合外的新任务，Astra 自己从头构建反而更好；
 - Hybrid 的语言组织能力体现在：66/75 episodes 使用了改写指令，改写条件化了 72.6% 的策略提议；执行步中 55.2% 来自接受的策略动作、44.8% 由 Astra 产出（Figure 8）；
-- **配对 McNemar 精确检验**（Appendix I Table 36）：Hybrid vs Direct p=0.5235（不显著）、Hybrid vs π0.5 p=0.0227（显著）、Direct vs π0.5 p=0.1849；原子组 Hybrid vs Direct 名义 p=0.03125 经 Bonferroni 校正后升至 0.09375。总量差距在统计上相当脆弱；
+- **配对 McNemar 精确检验**（Appendix I Table 35）：Hybrid vs Direct p=0.5235（不显著）、Hybrid vs π0.5 p=0.0227（显著）、Direct vs π0.5 p=0.1849；原子组 Hybrid vs Direct 名义 p=0.03125 经 Bonferroni 校正后升至 0.09375。总量差距在统计上相当脆弱；
 - 最有信息量的失败：CoffeeSetupMug 与 WashLettuce 两任务上两个 Astra 条件全败（各 5 种子），裸 π0.5 却分别完成 3 例和 2 例——**策略访问不保证保留策略本可完成的成功**。16 对双 Astra 成功 episodes 中 Hybrid 平均 1,110.4 步 vs Direct 1,256.6 步，Hybrid 在其中 11 对用步更少。
 
 ![Figure 9: RoboCasa matched-start comparisons](Figures/2026-10-04-gpt6-astra-embodied-fig9.png)
@@ -389,7 +390,7 @@ At-goal 定义为 $e_q(t) < 0.1$ rad 的控制步占比，Speed MAE 为 1 s 滑�
 | Astra 4 | No progress | 8.48 | 0.159 | 8.958 | No | No |
 | Astra 5 | Time horizon | 30.00 | 2.598 | 6.519 | No | No |
 
-- 五连败的模式：首次前进了 1.561 m 后跌倒；中间三次原地不动（8 s 位移 < 0.10 m 触发无进展终止）；第五次稳定行走 30 s、推进 2.598 m，仍停在主障碍区之前。注意这是**一条适应轨迹而非五次独立试验**；
+- 五连败的模式：首次前进了 1.561 m 后跌倒；第 2–4 次原地不动（位移 < 0.10 m 持续 8 s 触发无进展终止；其中 Attempt 2 耗时 20.28 s 位移 −0.024 m）；第五次稳定行走 30 s、推进 2.598 m，仍停在主障碍区之前。注意这是**一条适应轨迹而非五次独立试验**；
 - 根因在接口的物理一致性：关节限位内的参考未必是连贯运动——root 速度、肢体姿态及其演化必须描述相容的动态，tracker 可以跟上一个参考却产出原地踏步、意外接触或跌倒。供给路线只简化了规划，不提供协调的身体运动；
 - **延迟是更硬的墙**：最终 30 s episode 用了 250 次同步调用、平均每次 39.86 s recorded latency（PASSAGE 规划约 0.08 s/次），推理期间物理暂停。真实物理场景不会等待推理。
 
@@ -473,7 +474,7 @@ RoboCasa 的细账（Appendix I）：三条件各 75 episodes 下，π0.5-only /
 - **评测协议的边界**：导航基线在本地协议下重评（LightNav-0/Uni-NaVid 换用 Astra 的前视相机规格，OmniNav Flow 只评释放的 Flow 策略而非带慢速探索规划器的完整系统），与各自论文的公开数字不直接可比；HumanoidBench 对比引用的是发表平均值（三种子）而非最大值；
 - **locomotion 是单课程适应轨迹**：五次顺序尝试共享文字摘要与运动片段上下文，非独立试验，不能给出成功率意义上的结论；紧凑参考诊断的两个生成器不同，无法隔离维度数这一变量；
 - **样本量普遍为 5/任务量级**：RoboCasa 的 Hybrid vs Direct 差距 McNemar p=0.5235，原子组校正后 p=0.09375，多数任务级差异不具备统计显著性；论文也如实报告了这一点而非隐藏；
-- **物理暂停假设**：全部操作/locomotion 评测在 Astra 推理期间暂停仿真，39.86 s/次的延迟在真实闭环中不可行，文中所有成功率都是「暂停世界」条件下的数字；
+- **物理暂停假设**：RoboDojo/RoboCasa 等 Astra 条件与 locomotion 密集参考评测在 Astra 推理期间暂停仿真（论文多处明确声明，如 Appendix "Simulation time pauses while Astra deliberates"），39.86 s/次的延迟在真实闭环中不可行，相关成功率是「暂停世界」条件下的数字；
 - **开发与评测混合报告**：DexJoCo Hanoi、SIMPLE handover 修订、Push 接触诊断属于 development trials（指导/接口随试验演化），与冻结配置评测并列呈现，读者需自行区分证据强度；
 - **可复现性**：匿名仓库（anonymous-report-421/GPT-as-Policy，548 stars，MIT）公开评测代码 hybrid_rollout/、双语报告与结果归档（public_results/），但依赖专有模型 gpt-6-astra 与部分专有仿真器/存储的实验无法从公开快照重跑，付费模型与 GPU 实验未在发布中重跑。
 
