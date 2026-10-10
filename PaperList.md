@@ -183,7 +183,8 @@
 | HF: 2609.08183 | NeoHorse-1: Towards Recursive Self-Improvement via Agentic Post-Training with Routing Harness | NeoHorse Team（TokenRhythm Technologies / Infinigence AI / 清华大学 / 北京大学 / 香港中文大学 / Alibaba Group） | [Papers](Papers/2026/09/2026-09-10-neohorse-1-agentic-post-training-routing-harness.md) |
 | HF: 2609.10715 | NCP-ArchPreview Technical Report: Moving towards Latent Space Language Models through Next Concept Prediction | The Intern-NCP Team（Shanghai AI Lab；LUMIA Lab, Shanghai Jiao Tong University） | [Papers](Papers/2026/09/2026-09-13-ncp-archpreview-next-concept-prediction.md) |
 | HF: 2609.24797 | Complex KDA: Understanding and Enhancing the Expressivity of Kimi Delta Attention | Julien Siems, Riccardo Grazzi, Korbinian Pöppel et al.（OpenEuroLLM：弗莱堡大学 / MPI-IS Tübingen / EPFL 等） | [Papers](Papers/2026/09/2026-09-23-complex-kda.md) |
-| 2609.28654 | Training Object Permanence in World Models | Carnegie Mellon University（AWS Trainium for Research 支持） | [Papers](Papers/2026/09/2026-09-25-wrop.md) |
+| HF: 2609.28654 | Training Object Permanence in World Models | Carnegie Mellon University | [Papers](Papers/2026/09/2026-09-25-wrop.md) |
+| HF: 2609.29845 | Your Transformer Can Hold Two Thoughts at Once: Evidence of Linear Superposition in LLMs | 9 authors（HF Daily Papers 2026-09-27） | [Papers](Papers/2026/09/2026-09-28-linear-superposition.md) |
 
 ---
 
