@@ -196,3 +196,4 @@
 | HF: 2609.38537 | Systematically Exploring the Capabilities of GPT-6 Astra as Embodied Policies | Galbot（Jiayi Su, Yixin Zheng, Mi Yan, Li Yi, Zhizheng Zhang, He Wang 等约 30 位贡献者） | [Papers](Papers/2026/10/2026-10-04-gpt6-astra-embodied.md) |
 | HF: 2610.03665 | Pivot-SD: Efficient Self-Distillation for Masked Diffusion Language Models | Seo Hyun Kim, Sunwoo Hong, Younwoo Choi, Chen-Hao Chao, Se-Young Yun, Rahul G. Krishnan（KAIST AI / University of Toronto & Vector Institute，EMNLP 2026 Oral） | [Papers](Papers/2026/10/2026-10-07-pivot-sd.md) |
 | HF: 2610.11959 | MiMo-V2.6: Scaling Reinforcement Learning Towards Self-Improvement | Xiaomi LLM-Core | [Papers](Papers/2026/10/2026-10-13-mimo-v26.md) |
+| HF: 2610.15028 | UltraBERT: Beyond the Limit of BERT Pre-Training | Jungwoo Park, Taewoo Lee, Jaewoo Kang（Korea University, DMIS Lab） | [Papers](Papers/2026/10/2026-10-16-ultrabert.md) |
