@@ -197,3 +197,4 @@
 | HF: 2610.03665 | Pivot-SD: Efficient Self-Distillation for Masked Diffusion Language Models | Seo Hyun Kim, Sunwoo Hong, Younwoo Choi, Chen-Hao Chao, Se-Young Yun, Rahul G. Krishnan（KAIST AI / University of Toronto & Vector Institute，EMNLP 2026 Oral） | [Papers](Papers/2026/10/2026-10-07-pivot-sd.md) |
 | HF: 2610.11959 | MiMo-V2.6: Scaling Reinforcement Learning Towards Self-Improvement | Xiaomi LLM-Core | [Papers](Papers/2026/10/2026-10-13-mimo-v26.md) |
 | HF: 2610.15028 | UltraBERT: Beyond the Limit of BERT Pre-Training | Jungwoo Park, Taewoo Lee, Jaewoo Kang（Korea University, DMIS Lab） | [Papers](Papers/2026/10/2026-10-16-ultrabert.md) |
+| 2610.21601 | Waypoint-OPD: Transferring RL-Induced Policy Shifts via Gated On-Policy Distillation | Bingxi Hou, Guochao Jiang, Guofeng Quan, Weiqing Li, Wenfeng Feng, Guohua Liu, Yuewei Zhang | [Papers](Papers/2026/10/2026-10-19-waypoint-opd.md) |
