@@ -2,7 +2,7 @@
 > **论文**：Meta Expert: Cross-Layer Expert Sharing for Storage- and Retrieval-Efficient MoE
 > **作者**：Ermo Hua, Xiangyu Hong, Baiting Wu, Che Jiang, Haozheng Hou, Yicheng Gu, Hanjing Wang, Qirui Zeng, Ming Zhang, Ning Ding, Qipeng Guo, Youbang Sun, Biqing Qi, Bowen Zhou（清华大学 C3I / InternLM 系）
 > **arXiv ID**：2610.27598
-> **发表时间**：2026-10-23
+> **发表时间**：2026-10-20
 > **许可协议**：CC BY 4.0
 > **代码仓库**：https://github.com/InternLM/Intern-S2-Mobius
 
@@ -11,7 +11,7 @@
 
 ### 1.1 一句话定位
 
-《Meta Expert: Cross-Layer Expert Sharing for Storage- and Retrieval-Efficient MoE》（arXiv:2610.27598，清华 C3I / InternLM 系，2026）研究的问题是：主流 MoE 模型采用分层架构，各层私有的 Local Expert 在拓扑上相互独立，但存储的内容高度相似，存在大量跨层冗余，使深度方向成为参数浪费的重灾区；论文提出用跨层共享的 Meta Expert 池替代（或部分替代）分层 Local Expert——一个共享专家池配单一 router，每一层都可以激活其中任意专家——并系统证明这一设计在专家冗余更低的同时取得更低的 cross-entropy loss 与更高的下游任务精度：在激活专家数与专家粒度固定的前提下，仅用 70–80% 的专家数即可匹配 Vanilla MoE（最优配置下相当于节省约 20–30% 专家、15–25% 参数，§3.3）。
+《Meta Expert: Cross-Layer Expert Sharing for Storage- and Retrieval-Efficient MoE》（arXiv:2610.27598，清华 C3I / InternLM 系，2026）研究的问题是：主流 MoE 模型采用分层架构，各层私有的 Local Expert 在拓扑上相互独立，但存储的内容高度相似，存在大量跨层冗余，使深度方向成为参数浪费的重灾区；论文提出用跨层共享的 Meta Expert 池替代（或部分替代）分层 Local Expert——一个共享专家池配单一 router，每一层都可以激活其中任意专家——并系统证明这一设计在专家冗余更低的同时取得更低的 cross-entropy loss 与更高的下游任务精度：在激活专家数与专家粒度固定的前提下，仅用 70–80% 的专家数即可匹配 Vanilla MoE（最优配置下相当于节省约 20–30% 专家、15–25% 参数，论文 §3.3）。
 
 标题中的两个关键词各有所指：**storage-efficient** 对应消除层间专家冗余、提高信息存储效率（实证贡献）；**retrieval-efficient** 对应理论分析揭示的更灵活残差通路、提高信息检索效率（理论贡献）。论文最终想传达的信息是：层间冗余这一长期被视为深度 MoE 固有成本的东西，可以转化为有效容量。
 
@@ -21,7 +21,7 @@
 
 ### 论文图表总览
 
-| 编号 | 内容 | 章节 |
+| 编号 | 内容 | 报告章节 |
 | --- | --- | --- |
 | Figure 1 | 整体 teaser：Vanilla MoE 与 Meta Expert 的 loss/参数对比 | 第 1 章 |
 | Figure 2 | 架构图：(a) 分层 Local Expert（每层私有 router + N 个专家）与 (b) 跨层共享 Meta Expert（单一 router + 全层共享专家池） | 第 3 章 |
@@ -41,9 +41,9 @@
 
 论文的贡献可概括为三条，分别对应"实证—理论—落地"三个层面：
 
-**（1）系统性的实证对比。** 论文沿两个轴系统消融 Meta Expert 的引入方式：数量轴（Meta 占专家总数的比例 0–100%、每层激活中 Meta 的比例 25–75%）与拓扑轴（是否每层都含 Meta Expert、Meta 池是否再分层级化子池）。实验在 2B-A0.5B 主消融模型上展开，并在 L∈{12,16,20,24} 的 scaling ladder 上验证，全程保持总专家数 128×L（iso-param）与每 token top-8 路由（iso-FLOP）两个不变量，且所有 Meta 变体直接沿用 Vanilla 的 compute-optimal 训练配置、不按变体重新调参。结论是：无论具体配置如何，引入 Meta Expert 都带来一致的改进。
+**（1）系统性的实证对比。** 论文沿两个轴系统消融 Meta Expert 的引入方式：数量轴（Meta 占专家总数的比例 0–100%、每层激活中 Meta 的比例 25–75%）与拓扑轴（是否每层都含 Meta Expert、Meta 池是否再分层级化子池）。实验在 2B-A0.5B 主消融模型上展开，并在 L∈{12,16,20,24} 的 scaling ladder 上验证，全程保持总专家数 128×L（iso-param，唯一的例外是 5.4 节的 mpl 参数削减消融族）与每 token top-8 路由（iso-FLOP）两个不变量，且所有 Meta 变体直接沿用 Vanilla 的 compute-optimal 训练配置、不按变体重新调参。结论是：无论具体配置如何，引入 Meta Expert 都带来一致的改进。
 
-**（2）残差通路视角的理论解释。** 论文对比含/不含 Meta Expert 的模型在前向 hidden-state 更新与反向参数更新上的差异，证明共享专家池为 hidden state 提供了更灵活的残差通路。Local Expert 架构中，前向只能冻结式携带浅层内容（深读浅），反向梯度高速路是参数级的、层层稀释的；而 Meta Expert 的共享池在单次前向内给出 O(1) 长度的双向通路——深层可以在写入时的同一码空间中再编码浅层内容，浅层也能读到训练期间深层写入共享池的内容。共享池因此不只是省参装置，而是层间的信息存储与检索中介。
+**（2）残差通路视角的理论解释。** 论文对比含/不含 Meta Expert 的模型在前向 hidden-state 更新与反向参数更新上的差异，论证共享专家池为 hidden state 提供了更灵活的残差通路。Local Expert 架构中，前向只能冻结式携带浅层内容（深读浅），反向梯度高速路是参数级的、层层稀释的；而 Meta Expert 的共享池在单次前向内给出 O(1) 长度的双向通路——深层可以在写入时的同一码空间中再编码浅层内容，浅层也能读到训练期间深层写入共享池的内容。共享池因此不只是省参装置，而是层间的信息存储与检索中介。
 
 **（3）放大落地为 Intern-S2-Mobius。** 论文本身不附带训练代码仓库，其设计已被放大为 35B 的 Intern-S2-Mobius（Mobius-v0 架构：全局共享 Memory + 多 Reasoner 迭代查询，基于 Qwen3.5-35B 续训并做 SFT/RL；代码见 github.com/InternLM/Intern-S2-Mobius，模型见 HuggingFace internlm/Intern-S2-Mobius），体现了跨层共享思想在更大规模上的工程可行性。需注意该模型的能力描述（如推理近 4x 端到端加速）来自其 README 与技术报告，不属于论文正文的实验结论。
 
@@ -53,10 +53,10 @@
 
 - **等性能下的专家节省**：激活专家数（top-8）与专家粒度固定时，含 Meta Expert 的模型仅用 70–80% 的专家数（最优配置下节省约 15–25% 参数）即可匹配 Vanilla MoE 的性能，即每个参数的有效容量更高。
 - **最优配置下的显式节省**：最优组合 F2L2（首尾各 2 层纯 Local Expert）+ Loop2（Meta 池分 2 个 interleaved 子池）在 loss 上稳定超过所有单配置；在此基础上削减 Meta 池宽度（mpl 系列，不回填 Local），相对 Vanilla 节省约 20–30% 专家 / 15–25% 参数，且规模越大优势越明显。
-- **比例规律**（§3.2）：Meta 总数占比越高，loss 与专家冗余越低；提高 Meta 激活占比降 loss，提高 Local 激活占比反而降冗余——Local Expert 每层只被本层激活、训练不充分，论文认为这可能是冗余的重要来源。每层 4 Meta + 4 Local 激活最优；75% 总数比在所有 Partial 配置中最好，纯 Meta 略优于 75% 但训练不稳定，故后续实验统一采用 75%。
+- **比例规律**（§3.2）：Meta 总数占比越高，loss 与专家冗余越低；提高 Meta 激活占比降 loss，提高 Local 激活占比反而降冗余——Local Expert 每层只被本层激活、训练不充分，论文认为这可能是冗余的重要来源。每层 4 Meta + 4 Local 激活最优；75% 总数比在所有 Partial 配置中最好，纯 Meta 略优于 75% 但存在训练不稳定风险，故后续实验统一采用 75%。
 - **拓扑规律**（§3.3）：F2L2+Loop2 最好；最浅与最深层的专家功能分化、彼此基本无冗余，因此把首尾层留给 Local Expert 不损失性能；更深模型需要更大的层级化专家拓扑，Vanilla 的全分层属于过度层级化，只能取得次优结果。
 - **冗余度量**（A.2）：以 linear-CKA（专家响应中心化协方差的余弦相似度）构造专家 Gram 矩阵，取其特征谱的 Gini 系数 ρ∈[0,1] 作为专家冗余指标（均匀 rank-k 谱时 ρ=1−k/E，即塌缩方向占比）；Meta Expert 模型的 ρ 在各配置下一致低于 Vanilla。
-- **下游任务**（Table 1，6B-A1.6B、200B tokens）：受预算限制，各 Meta 变体在不同数据集互有胜负，但含 Meta 的变体整体优于 Vanilla——MMLU 上 MR75+Loop2（0.4175）超过 Vanilla（0.4087），CMMLU 上 MR75+Loop2（0.4344）超过 Vanilla（0.4203），BBH 上 MR75+F2L2（0.3061）超过 Vanilla（0.2972），OpenBookQA 上 MR75+Loop2（0.3640）超过 Vanilla（0.3500），TriviaQA 上 MR75+F2L2+Loop2（0.2042）超过 Vanilla（0.1924），C-Eval 上 MR75（0.4443）与 MR75+Loop2（0.4487）超过 Vanilla（0.4354）。
+- **下游任务**（Table 1，6B-A1.6B、200B tokens）：受预算限制，各 Meta 变体在不同数据集互有胜负，其中 MR75+Loop2 是唯一在全部六个基准上均超过 Vanilla 的变体——MMLU 上（0.4175）超过 Vanilla（0.4087），CMMLU 上（0.4344）超过 Vanilla（0.4203），BBH 上 MR75+F2L2（0.3061）超过 Vanilla（0.2972），OpenBookQA 上 MR75+Loop2（0.3640）超过 Vanilla（0.3500），TriviaQA 上 MR75+F2L2+Loop2（0.2042）超过 Vanilla（0.1924），C-Eval 上 MR75（0.4443）与 MR75+Loop2（0.4487）超过 Vanilla（0.4354）；而 MR75+F2L2 在 MMLU/C-Eval/CMMLU/OpenBookQA 四项上低于 Vanilla。论文原文将此概括为「incorporating Meta Experts consistently outperform the vanilla baseline」，相对 Table 1 的事实属于偏强的表述。
 
 ## 第 2 章 研究背景与动机
 
@@ -107,11 +107,11 @@ $$
 
 对比式(1) 与式(2) 可见变化只在一处下标：专家参数从层私有的 $\theta_l^e$ 变为无层下标的 $\theta^e$，router 从 $R_l$ 变为全局 $R$。router 与专家池的跨层共享由此同源：同一份 router 权重对所有层的归一化输入打分，同一份专家参数对所有层选中的 token 做变换，任一专家的参数在训练中被所有层共同读写。这一改动直接命中 MoE 的存储痛点——每层各存一套池意味着专家数量随深度 $L$ 线性堆叠，而共享池让"全模型一份"替代"$L$ 份"。
 
-值得注意的是，论文在后续所有消融中刻意保持两个不变量，使比较不依赖任何容量或算力的暗中让渡：其一，全模型专家总数恒为 $128\times L$（Meta 池与各层 Local 池的专家数之和不变，即 iso-param）；其二，每 token 激活专家数恒为 top-8（Meta 与 Local 各自的 top-k 之和不变，即 iso-FLOP）。换言之，Meta Expert 的收益不是靠加参数或加计算换来的，而是在同等参数量与同等激活 FLOPs 下重新分配"专家放在哪里、被谁使用"。
+值得注意的是，论文在除 mpl 参数削减消融（见 5.4 节，特意允许总数低于 128×L）外的全部消融中刻意保持两个不变量，使比较不依赖任何容量或算力的暗中让渡：其一，全模型专家总数恒为 $128\times L$（Meta 池与各层 Local 池的专家数之和不变，即 iso-param）；其二，每 token 激活专家数恒为 top-8（Meta 与 Local 各自的 top-k 之和不变，即 iso-FLOP）。换言之，Meta Expert 的收益不是靠加参数或加计算换来的，而是在同等参数量与同等激活 FLOPs 下重新分配"专家放在哪里、被谁使用"。
 
 ![Figure 2: 分层 Local Expert 与跨层共享 Meta Expert 架构对比](Figures/2026-10-25-meta-expert-fig2.png)
 
-*图2：架构图—— 传统每层私有 router+专家池 vs (b) 全层共享单一 router+Meta 专家池*
+*图2：架构图——(a) 传统每层私有 router+专家池 vs (b) 全层共享单一 router+Meta 专家池*
 
 ### 3.2 设计空间：比例与拓扑
 
@@ -119,7 +119,7 @@ $$
 
 **比例族。** 混合模型同时维护一个跨层共享的 Meta 池与每层私有的 Local 池，激活采取 $4+4$ 的固定切分（4 个 Meta + 4 个 Local）。按 Meta 专家占每层总专家数的比例分为三档：MR25（32 个 Meta + 96 个 Local）、MR50（64 + 64）、MR75（96 + 32）。比例族的端点是 Pure-Meta——每层 128 个专家全部来自共享池，激活为 8 个 Meta + 0 个 Local，即回到式(2) 的纯粹形态。这一族回答的问题是：专家池从"完全私有"滑向"完全共享"时，模型质量与冗余如何变化。
 
-**首尾 Local-only 族。** 在 MR75 基础上，把模型最浅与最深的若干层退化为纯 Local 层（这些层的 8 个激活全部交给 Local 池），其余层保持 $4+4$ 混合。按首尾各保留的纯 Local 层数分为 F1L1（首尾各 1 层）、F2L2（各 2 层）、F4L4（各 4 层）。其动机是让输入嵌入的第一跳与输出头前的最后一跳保持层私有，隔离共享池对"原始表示"与"最终读出"两端的干扰。
+**首尾 Local-only 族。** 在 MR75 基础上，把模型最浅与最深的若干层退化为纯 Local 层（这些层转为 128 个纯 Local 专家、8 个激活全部交给 Local 池），其余层保持 $4+4$ 混合。按首尾各保留的纯 Local 层数分为 F1L1（首尾各 1 层）、F2L2（各 2 层）、F4L4（各 4 层）。其动机是让输入嵌入的第一跳与输出头前的最后一跳保持层私有，隔离共享池对"原始表示"与"最终读出"两端的干扰。
 
 **Meta 子池（Loop）。** 把单一 Meta 池拆为若干个子池，各层按 interleave 方式轮流归属其中一个子池——Loop2 表示 2 个子池隔层交替，Loop4、Loop8 同理。这相当于在"全层一份共享池"与"每层私有"之间插入一个可控的层级化中间态：子池数越少，共享范围越大。Loop 可与任一比例、任一 Local-only 配置叠加以构成组合变体，论文的最终构型即 F2L2+Loop2。
 
@@ -226,7 +226,7 @@ $$
 
 附录 A.4 为上述分析划定了两条边界，使其不至于被过度解读。
 
-**其一，路径短不等于信号强。** 分析刻画的只是"通路存在性与路径长度"：共享池路径确实只有 $O(1)$ 跳，但有效增益由跨层 tangent 因子 $J_m^{(t)}{J_l^{(t)}}^{\top}$ 的谱决定——若两层在该因子上接近正交，信号同样可能消失。换言之，式(8) 给出的是访问权（access）与路径长度（path length）的论证，而非"信号不衰减"的保证。
+**其一，路径短不等于信号强。** 分析刻画的只是"通路存在性与路径长度"：共享池路径确实只有 $O(1)$ 跳，但有效增益由跨层 tangent 因子 $J_m^{(t)}{J_l^{(t)}}^\top$ 的谱决定——例如若两层在该因子上接近正交，信号同样可能消失。换言之，式(8) 给出的是访问权（access）与路径长度（path length）的论证，而非"信号不衰减"的保证。
 
 **其二，因果方向未变。** 单次前向内 $\hat{x}_m$ 仍不依赖更深层在同一次前向中的激活：浅层读到的深层内容，是**训练期间**深层写入共享池的内容（式(5) 的 $\sum_l\bar{\Delta\theta}_l$）。这与任何训练过的权重都携带其训练数据的信息是同一回事；区别仅在于这里的载体沿深度共享，使得该信息在公共编码空间中对每一层都可及。
 
@@ -235,7 +235,7 @@ $$
 
 ### 5.1 实验设置与公平性保障
 
-所有实验在 NVIDIA H200 GPU 上基于 Megatron-LM 从零训练。主消融在一个 2B-A0.6B 量级的 sweep 模型（论文记为 2B-A0.5B 配置）上完成全部变量扫描，随后将较优配置放入四档深度的 scaling ladder（$L \in \{12, 16, 20, 24\}$，hidden size 768/1024/1280/1536，宽度随深度联合放大以保持近似 compute-optimal）验证。
+所有实验在 NVIDIA H200 GPU 上基于 Megatron-LM 从零训练。主消融在 2B-A0.5B 的 sweep 模型上完成全部变量扫描，随后将较优配置放入四档深度的 scaling ladder（$L \in \{12, 16, 20, 24\}$，hidden size 768/1024/1280/1536，宽度随深度联合放大以保持近似 compute-optimal）验证。
 
 两个设计不变量贯穿除 mpl 参数削减消融外的全部对比（mpl 族特意允许总数低于 128×L，见 5.4 节），是公平性的核心：
 
@@ -256,9 +256,9 @@ $$
 
 核心观察（论文 §3.2）：
 
-- Meta 总数占比越高，loss 与专家冗余**同时单调下降**；提高 Meta 激活占比同样降 loss；
-- 反直觉的一点：提高 Local 激活占比虽然损失 loss，却**降低**冗余度。论文对此的解释是——每层独占的 Local Expert 训练机会不足（欠训练），论文认为这种欠训练可能正是冗余的来源；
-- 75% 配比（96 Meta + 32 Local，激活 4+4）在所有 Partial 设置中最好；纯 Meta（100%）loss 略优但训练不稳定，故后续实验统一采用 75%。
+- Meta 总数占比越高，loss 与专家冗余**一致下降**；提高 Meta 激活占比同样降 loss；
+- 反直觉的一点：提高 Local 激活占比虽然使 loss 变差，却**降低**冗余度。论文对此的解释是——每层独占的 Local Expert 训练机会不足（欠训练），论文认为这种欠训练可能正是冗余的来源；
+- 75% 配比（96 Meta + 32 Local，激活 4+4）在所有 Partial 设置中最好；纯 Meta（100%）loss 略优但存在训练不稳定风险，故后续实验统一采用 75%。
 
 ### 5.3 拓扑消融：边界层与子池划分
 
@@ -278,7 +278,7 @@ $$
 
 *图8：F2L2+Loop2 组合在全部计算预算下 loss 稳定低于 Vanilla；再削减 Meta 宽度后，相对 Vanilla 节省约 20–30% 专家数（15–25% 参数）仍保持同等性能*
 
-mpl 族的具体配置（论文 Table 5）：
+mpl 族的具体配置（论文 Table 5；「Meta 池大小」列为名义槽位和，= 12 个含 Meta 层（L=16 减去 F2L2 的 4 个 Local-only 层）× 每层 Meta 宽度，照论文原表口径）：
 
 | 变体 | Meta/层 | Local | Top-k (m+l) | Meta loop | Meta 池大小 (L=16) |
 |:---|:---:|:---:|:---:|:---:|:---:|
@@ -329,7 +329,7 @@ mpl 族的具体配置（论文 Table 5）：
 - **BBH**：MR75+F2L2（0.3061）与 MR75+Loop2（0.3030）高于 Vanilla（0.2972）；
 - **OpenBookQA**：MR75+Loop2（0.3640）最高，较 Vanilla（0.3500）提升 1.40 pp（0.3640 − 0.3500 = 0.0140）。
 
-总体上"含 Meta 的变体整体优于 Vanilla"，但单变体并非全面占优——F2L2 在 MMLU/C-Eval 上是净损失，这与其在 scaling ladder 上的 loss 优势形成张力，论文据此明确指出需要更大规模的下游验证（该方向由 Intern-S2-Mobius 承接，见第 6 章）。
+总体上多数 Meta 变体在多数基准上占优（其中 MR75+Loop2 六项全胜），但单变体并非全面占优——MR75+F2L2 在 MMLU/C-Eval/CMMLU/OpenBookQA 四项上是净损失，这与其在 scaling ladder 上的 loss 优势形成张力；论文原文以「incorporating Meta Experts consistently outperform the vanilla baseline」概括全局，相对 Table 1 的事实偏强，并据此明确指出需要更大规模的下游验证（该方向由 Intern-S2-Mobius 承接，见第 6 章）。
 
 ## 第 6 章 代码实现与落地系统
 
@@ -397,7 +397,7 @@ sglang serve \
 1. **下游验证预算有限**：Table 1 仅 200B token 训练，各 Meta 变体在不同基准各有胜负（如 MR75+F2L2 在 MMLU 上 0.3928 低于 Vanilla 0.4087），论文自己承认需要更大规模实验确认下游优势；
 2. **理论是一阶近似**：§4 的分析基于一阶 Taylor 展开（式 7-8），刻画的是"通路存在性与路径长度"而非信号强度保证，作者在 A.4 中明确说明不保证不消失（vanishing 仍由 tangent kernel $J_m^{(t)}{J_l^{(t)}}^\top$ 的谱决定）；
 3. **浅层读深层 ≠ 因果反转**：单次前向的因果方向不变，浅层访问的是训练期间深层写入共享池的内容——这与"浅层实时看到深层激活"有本质区别，引用时不可过度引申；
-4. **开放问题**：轻度层级化的 Meta（Loop2）会引入专家冗余，但该冗余**并未**转化为更高的 loss，机制尚不明确；
+4. **开放问题**：轻度层级化的 Meta（Loop2）相对单一共享池（Loop1）会引入专家冗余，但该冗余**并未**转化为更高的 loss，机制尚不明确；
 5. **纯 Meta 训练不稳定**：100% Meta 虽 loss 略优，论文因稳定性放弃，未给出不稳定的定量刻画。
 
 ### 7.2 延伸阅读
