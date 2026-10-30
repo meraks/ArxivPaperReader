@@ -201,3 +201,4 @@
 | HF: 2610.23928 | miniTE: Diagnosing and Bridging the Execution Gap in Native NVFP4 Reinforcement Learning | Zhen Li, Mingfa Feng, Yiming Zhang, Yang Yu, Changhai Zhou, Pengxiang Li, Dongkuan Wu, Congkai Xie, Hongxia Yang 等 | [Papers](Papers/2026/10/2026-10-28-minite.md) |
 | HF: 2610.27598 | Meta Expert: Cross-Layer Expert Sharing for Storage- and Retrieval-Efficient MoE | Ermo Hua, Xiangyu Hong, Baiting Wu, Che Jiang 等（清华大学 C3I / InternLM 系，Bowen Zhou 团队） | [Papers](Papers/2026/10/2026-10-25-meta-expert.md) |
 | 2610.28559 | Large Flow Language Models (Lafa) | Arnav Chavan, Chanhyuk Lee, Udbhav Bamba, Jaehoon Yoo, Seunghoon Hong, Aditi Raghunathan, Jinwoo Kim（KAIST / Stanford 等） | [Papers](Papers/2026/10/2026-10-22-large-flow-lms.md) |
+| HF: 2610.38331 | Multi-Token Prediction Done Right（Soft-MTP） | Jayden Teoh（MIT，单作者） | [Papers](Papers/2026/10/2026-10-31-soft-mtp.md) |
