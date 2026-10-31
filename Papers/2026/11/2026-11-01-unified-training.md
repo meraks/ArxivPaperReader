@@ -1,7 +1,7 @@
 # 精读：Training Foundation Models with a Single Algorithm
 
 > **论文**：Training Foundation Models with a Single Algorithm
-> **作者**：Yuda Song、Alvin Zhang、Fahim Tajwar（Meta）、Daman Arora、Jeff Schneider、Daniel Khashabi、Ruslan Salakhutdinov、J. Andrew Bagnell、Aarti Singh、Andrea Zanette（CMU）
+> **作者**：Yuda Song、Alvin Zhang、Fahim Tajwar、Daman Arora、Jeff Schneider、Daniel Khashabi、Ruslan Salakhutdinov、J. Andrew Bagnell、Aarti Singh、Andrea Zanette（CMU / Meta）
 > **arXiv ID**：2610.40564
 > **发表时间**：2026-10-29（preprint，67 页 / 31 图 / 22 表；HuggingFace Daily Papers 2026-11-01 收录）
 > **许可协议**：代码 Apache 2.0
@@ -34,18 +34,20 @@
 | **Table 19/20**（App D.5） | MaxRL vs REINFORCE | 第 6 章 |
 | **Table 22**（App D.7） | coding 持续学习最终成绩 | 第 6 章 |
 
+（总览仅列报告正文直接引用的关键图表；论文共 31 图 / 22 表，其余附录图表未逐一列出。）
+
 ### 1.2 核心贡献
 
-1. **统一定理层**：以 MaxRL 梯度恒等式为基础，把任意固定生成策略 ν 下的 RL 目标写成对目标分布 $q=\rho\circ\nu^{+}$ 的极大似然拟合，REINFORCE 是 $\nu=\pi_\theta$、单样本采样的特例，连续奖励经 TailRL 的阈值积分 $\nu_{\mathrm{Tail}}=\int_0^1\nu^+_\tau\,d\tau$ 纳入同一框架；staged training 退化为「数据比例突变」的特例。
+1. **统一定理层**：以 MaxRL 梯度恒等式为基础，把任意固定生成策略 ν 下的 RL 目标写成对目标分布 $q=\rho\circ\nu^{+}$ 的极大似然拟合，REINFORCE 是 $\nu=\pi_\theta$、单样本采样（binary reward 下）的特例，连续奖励经 TailRL 的阈值积分 $\nu_{\mathrm{Tail}}=\int_0^1\nu^+_\tau\,d\tau$ 纳入同一框架；staged training 退化为「数据比例突变」的特例。
 2. **系统层**：一套共享数据格式（token 序列 + 权重向量）、一个加权似然损失、一个 trainer 同时吃静态语料与 RL 生成数据；generator 与 trainer 异步运行（trainer 每 4 updates 发布权重，实测生成策略落后 12–44 updates）。
-3. **实证层**：124M 受控实验中，最优统一配置在 Base / Extended / Extended generalization 三种设定的精度全面超过 staged，且在算力两端预算下精度更优；0.76B 真实数据实验中，统一训练以 0.5–5% 的 midtraining 混合把 held-out loss 从上升 +0.074 nats/token（纯 RL）扭转为下降 −0.087 ~ −0.147 nats/token，数学精度几乎不受影响，并使后续 coding RL 的最终成绩全面超过 staged（HumanEval+ pass@1 24.96% vs 22.94%）。
+3. **实证层**：124M 受控实验中，最优统一配置在 Base / Extended / Extended generalization 三种设定的精度全面超过 staged，且在算力两端预算下精度更优；0.76B 真实数据实验中，统一训练以所有非零（0.1–5%）midtraining 混合把 held-out loss 从上升 +0.074 nats/token（纯 RL）扭转为下降（0.5–5% 幅度 −0.087 ~ −0.147），数学平均精度基本持平（GSM pass@1 从 32.68% 小幅降至 30.80%），并使后续 coding RL 获得更优起点——5% 混合模型的 HumanEval+/MBPP+ pass@1 与 pass@16 四项全部超过 staged（HumanEval+ pass@1 24.96% vs 22.94%；较小混合的 HumanEval+ 覆盖则与 staged 持平或略低）。
 4. **科学议程**：把「数据复用轮数、混合比例、调度形状、算力分配」变成可联合研究的变量，为建立贯穿全生命周期的训练轨迹科学（science of training trajectories）提供载体。
 
 ### 1.3 关键结果速览
 
 | 结果 | 数值 | 来源 |
 |------|------|------|
-| 统一 vs staged 数学精度（0.76B，纯 RL 基线口径） | Math pass@1 24.75% vs 24.16% | Figure 7 |
+| 0% 混合（纯 RL 控制）vs staged 数学精度（0.76B） | Math pass@1 24.75% vs 24.16% | Figure 7 |
 | 混入 5% midtraining 后 held-out loss 变化 | −0.1474 nats/token（0% 时 +0.0737，staged +0.0472） | Table 16（App D.2） |
 | 混合比例上升时 SciQ 变化（0% → 5%） | 50.20% → 65.10%（staged 53.00%） | Table 16（App D.2） |
 | Coding 精度/覆盖的取舍（5% vs 0%） | pass@1 下降（MBPP+ 20.97% vs 25.41%），pass@32 上升（45.17% vs 44.62%） | App D.2 |
@@ -263,7 +265,7 @@ $$
 \hat{\mathcal{L}}(\theta;B) \vcentcolon= -\,\frac{1}{T_{B}}\sum_{(z,w)\in B}\sum_{\ell=1}^{L}w_{\ell}\log\pi_{\theta}(z_{\ell}\mid z_{<\ell}),
 $$
 
-其中 T_B 为 batch 内非 prompt token 总数。实现上这是一个 token 级均值：各源对损失的相对贡献由 token 混合比例直接决定，无需额外的损失系数。论文 Appendix C.9 与之对照测试了「各源分别归一化、再乘固定系数 α∈{0.1, 0.5, 1} 相加」的替代方案，最优 α 随配置变化，需要额外调参；统一损失在该对照中取得了 Base 与 Extended generalization 上最高的最终精度与覆盖。
+其中 T_B 为 batch 内非 prompt token 总数。实现上这是一个 token 级均值：各源对损失的相对贡献由 token 混合比例直接决定，无需额外的损失系数。论文 Appendix C.9 与之对照测试了「各源分别归一化、再乘固定系数 α∈{0.1, 0.5} 相加」的替代方案（Extended 的 2.14B 初始化下另加测 α=1，未改善两套 Extended 测试的最高精度/覆盖），最优 α 随配置变化，需要额外调参；统一损失在该对照中取得了 Base 与 Extended generalization 上最高的最终精度与覆盖，但在初始化与数据混合匹配时并不一致占优——分别归一方案在 Extended 上常取得更高精度与覆盖。
 
 真实数据实验（0.76B）中的两个归一化细节：RL response 的 token 似然在当前策略 top-k=50 / top-p=0.95 截断分布下计算，落在支撑之外的 token 同时从损失与归一化 token 计数中剔除；归一化分母 T_B 计入**未成功** response 的 token 与 midtraining token，midtraining token 似然则使用全词表。
 
@@ -285,7 +287,7 @@ $$
 
 即恰好等于「正确 completion 的 score 平均」；N 条全错时该 prompt 的更新为零。
 
-取期望后，该估计器是第 3 章 $-\nabla_{\theta}\mathcal{L}(\theta;\rho\circ\nu^{+})$ 的无偏形式，但每个 prompt x 的有效权重变为：
+取期望后，该估计器与第 3 章 $-\nabla_{\theta}\mathcal{L}(\theta;\rho\circ\nu^{+})$ 共享同一 completion 目标分布 ν⁺，但每个 prompt x 的有效权重变为（即对 prompt 重加权后的目标无偏，仅 N→∞ 时回到原目标分布）：
 
 $$
 1-(1-p_{\nu}(x))^{N},
@@ -323,7 +325,7 @@ $$
 - trainer 每 k 个 update 发布一次权重（实验中 k=4），生成器在 batch 之间加载新权重；
 - buffer 保留每个生成器**最新完成的一轮**数据，即使该轮的生成策略已落后超过 4 个 update——发布间隔 k=4 不是数据年龄的上界。
 
-数据陈旧度（policy staleness）实测：在训练中的两个时间点检查 8 个生成器各自最新完成的一轮，其生成策略落后最新已记录 trainer step **12–44 个 optimizer update**。该数字描述的是 buffer 中可用人数据的陈旧度；trainer 实际消费的样本的生成策略版本未被记录，因此这不构成训练数据年龄的精确分布。
+数据陈旧度（policy staleness）实测：在训练中的两个时间点检查 8 个生成器各自最新完成的一轮，其生成策略落后最新已记录 trainer step **12–44 个 optimizer update**。该数字描述的是 buffer 中可用数据的陈旧度；trainer 实际消费的样本的生成策略版本未被记录，因此这不构成训练数据年龄的精确分布。
 
 与同步式 staged RL 的吞吐对比（12000 updates 的生产日志）：unified（0% 混合，24 GPUs）约 **3.7 s/update**，staged RL（16 GPUs）**28.8 s/update**，优化吞吐相差 **7.8×**。该计时排除 launch 与 restart 停机，且异步 trainer 可跨 update 复用已有 response，因此度量的是优化吞吐而非新 rollout 生成速率。staged RL 每 update 消耗 32 个新 prompt 并在优化前收集当前策略的 response；两个实现还有一处算法差异——staged 有 baseline 减法（§4.2），unified 没有。
 
@@ -357,13 +359,13 @@ Figure 5 把每个配置的整条 RL 轨迹放到「总训练算力（含预训�
 
 ![Figure 5: 受控设置的 compute–accuracy 前沿（Base 与 Extended）](Figures/2026-11-01-unified-training-fig1.png)
 
-*图1：Base 与 Extended 设定下精度/覆盖随总算力的变化。彩色曲线为统一训练各配置，灰色为 staged，黑色曲线连接每个预算下的最优 checkpoint。accuracy 上统一训练在最大与最小预算两端取得最优，Extended generalization 设定下几乎全预算最优；coverage（pass@16）则在部分中间预算由 staged 更优（论文 Figure 5 原图）。*
+*图1：Base 与 Extended 设定下精度/覆盖随总算力的变化。彩色曲线为统一训练各配置，灰色为 staged，黑色曲线连接每个预算下的最优 checkpoint。accuracy 上统一训练在最大与最小预算两端取得最优，Extended generalization 设定下几乎全预算最优；coverage（pass@16）上 staged 整体更为算力最优（论文 Figure 5 原图）。*
 
-结论：staged 只在中间预算区间是精度-算力最优的；**统一训练在最大预算与最小预算两端都取得更高精度**，并且在 Extended generalization（最重要的泛化设定）下几乎在所有预算上同时取得最佳精度与覆盖。coverage（pass@16）单独看时 staged 在部分中间预算更优——精度与覆盖的算力最优性并不总在同一边。
+结论：staged 只在中间预算区间是精度-算力最优的；**统一训练在最大预算与最小预算两端都取得更高精度**，并且在 Extended generalization（最重要的泛化设定）下几乎在所有预算上同时取得最佳精度与覆盖。coverage（pass@16）单独看时 staged 整体更算力最优——精度与覆盖的算力最优性并不总在同一边。
 
 ### 5.4 能力保持：混合训练显著缓解遗忘
 
-RL 开始前，统一初始化（五种混合强度全部）在 held-out 预训练损失与五个通用基准均值上都保持在与 pretrain-only 模型相当的水平，即使 midtraining 数据量增加也不恶化；而**所有 staged 配置中 retention 最好的那个**（六种变体中选出）held-out loss 明显更高、基准均值更低（Figure 6，App C.10）。这说明把 midtraining 数据混进预训练，可以在学推理技能的同时大幅减少对预训练能力的遗忘。
+RL 开始前，统一初始化（五种混合强度全部）在 held-out 预训练损失与五个通用基准均值上都保持在与 pretrain-only 模型相当的水平，数据量增大后也不恶化——held-out loss 保持 2.537–2.540，基准均值与参考差距 ≤0.52 pp（该优势是均值口径，论文明确不适用于每个单项基准，如 TruthfulQA MC2 上 staged midtraining 相对 pretraining-only 反而改善）；而**所有 staged 配置中 retention 最好的那个**（六种变体中选出）held-out loss 明显更高、基准均值更低（Figure 6，App C.10）。这说明把 midtraining 数据混进预训练，可以在学推理技能的同时大幅减少对预训练能力的遗忘。
 
 ### 5.5 RL 前的视角：midtraining 的价值在「支持后续学习」
 
@@ -433,9 +435,9 @@ App D.2 把混合比例从 0% 扫到 5%（0% 是「同一异步 trainer、零混
 
 三个结构性结论：
 
-1. **数学精度对混合比例不敏感**：Math 平均 pass@1 在 0% 与 staged 之间几乎无差（Figure 7 口径：24.75% vs 24.16%；0% 的 pass@32 覆盖 68.88% vs staged 68.56%）；
-2. **保持收益单调且幅度大**：held-out loss 从 0% 的 +0.0737 nats/token 单调降至 5% 的 −0.1474；SciQ 从 50.20% 升至 65.10%（staged 仅 53.00%）；MMLU 从 37.12% 升至 40.77%（staged 37.46%）——所有非零混合都把 loss 压到 base model 以下，staged 反而升高；
-3. **精度-覆盖取舍出现在 coding 上**：Coding pass@1 随混合上升下降（MBPP+ 25.41% → 20.97%），但 Coding 覆盖在每个非零比例都超过 0% 基线（5% 时 pass@32 45.17% vs 44.62%）。
+1. **数学精度对混合比例较不敏感**：Math 平均 pass@1 在全部七个比例下处于 23.9–24.8% 窄区间（GSM pass@1 从 32.68% 小幅降至 30.80%）；0% 与 staged 之间几乎无差（Figure 7 口径：24.75% vs 24.16%；0% 的 pass@32 覆盖 68.88% vs staged 68.56%）；
+2. **保持收益幅度大（held-out loss 单调）**：held-out loss 从 0% 的 +0.0737 nats/token 单调降至 5% 的 −0.1474，所有非零混合都把 loss 压到 base model 以下，staged 反而升高；SciQ 总体上升（50.20% → 65.10%，峰值在 2% 的 67.00%；staged 仅 53.00%）、MMLU 从 37.12% 升至 40.77%（staged 37.46%），但单项并非全部单调（ARC-C 在 5% 回落到 30.12%）；
+3. **精度-覆盖取舍出现在 coding 上**：Coding pass@1 总体低于 0% 基线但非严格单调（HumanEval+ 单调下降 15.17% → 10.90%；MBPP+ 先降至 2% 的 19.23%、5% 回升到 20.97%），而 Coding 覆盖在每个非零比例都超过 0% 基线（App D.2 正文：5% 时 pass@32 45.17% vs 44.62%）。
 
 ### 6.3 混合调度：形状决定「保什么、舍什么」
 
@@ -452,11 +454,11 @@ Math 与 MMLU 在四种调度间基本持平（Math pass@1 跨度 24.01–24.80%
 
 ### 6.4 语料成分：去掉代码源反而提高 Coding 精度
 
-App D.4 消融 midtraining 语料中的三个代码源（CraneCode、StackEdu-FIM、Code Meta-Reasoning，合计 24.8% token）。constant 0.5% 下去除代码源使 Coding pass@1 从 16.51% 升至 18.65%（MBPP+ 21.05%→23.66%、HumanEval+ 11.97%→13.64%）；full anneal 下几乎无影响；替换为 OpenCodeInstruct 执行验证答案提高退火下的覆盖但不提高精度（Table 18）。语料成分的效果**依赖于混合调度**——再次说明比例、时机、成分必须联合设计。
+App D.4 消融 midtraining 语料中的三个代码源（CraneCode、StackEdu-FIM、Code Meta-Reasoning，合计 24.8% token）。constant 0.5% 下去除代码源使 Coding pass@1 从 16.51% 升至 18.65%（MBPP+ 21.05%→23.66%、HumanEval+ 11.97%→13.64%）；full anneal 下几乎无影响；替换为 OpenCodeInstruct 执行验证答案提高退火下的覆盖但不提高精度（Table 18）。语料成分的效果**依赖于混合调度与评测指标**（schedule 与 metric）——再次说明比例、时机、成分必须联合设计。
 
 ### 6.5 RL 目标选择：MaxRL vs REINFORCE
 
-App D.5 在同数据混合下对比两种目标（统一框架内二者都是似然拟合的特例）。constant 2% 时（Table 19）：REINFORCE 的 Math pass@1 更高（24.81% vs 23.99%）、held-out loss 更低（−0.157 vs −0.127 nats/token）、SciQ（71.70% vs 67.00%）与 ARC-C（36.43% vs 34.22%）更高；MaxRL 的数学覆盖更高（pass@32 69.61% vs 67.70%）。该模式在全部六个混合设定中稳定复现（Table 20）：**REINFORCE 换 retention 与精度、MaxRL 换覆盖**——RL 目标本身就是统一框架内的一个可调数据/目标选择。
+App D.5 在同数据混合下对比两种目标（统一框架内二者都是似然拟合的特例）。constant 2% 时（Table 19）：REINFORCE 的 Math pass@1 更高（24.81% vs 23.99%）、held-out loss 更低（−0.157 vs −0.127 nats/token）、SciQ（71.70% vs 67.00%）与 ARC-C（36.43% vs 34.22%）更高；MaxRL 的数学覆盖更高（pass@32 69.61% vs 67.70%）。覆盖与 retention 的差异在全部六个混合设定中稳定复现（Table 20）：**MaxRL 换数学覆盖，REINFORCE 换更低 held-out loss 与更高 SciQ/ARC-C**；数学精度与 coding 的方向则随混合比例和调度变化（论文原文明确：effects on mathematical accuracy and coding depend on the mixing proportion and schedule）——RL 目标本身就是统一框架内的一个可调数据/目标选择。
 
 ### 6.6 KL 正则替代不了数据混合
 
@@ -464,7 +466,7 @@ App E 试图用对 base model 的 KL 惩罚复现混合 midtraining 的收益：
 
 ### 6.7 持续学习：统一训练是更好的起点
 
-App D.7 从各数学模型（staged + 统一 0.5/1/2/5%）的最终 checkpoint 出发，做完全相同的 coding RL（KodCode-V1 20,000 题：10,000 medium + 10,000 hard；reward 为通过全部单元测试；4,000 updates，lr $10^{-6}$，fresh AdamW，32 prompts × 16 responses/update）。尽管统一模型初始 coding 精度更低，最终成绩全面反超（Table 22）：
+App D.7 从各数学模型（staged + 统一 0.5/1/2/5%）的最终 checkpoint 出发，做完全相同的 coding RL（KodCode-V1 20,000 题：10,000 medium + 10,000 hard；reward 为通过全部单元测试；4,000 updates，lr $10^{-6}$，fresh AdamW，32 prompts × 16 responses/update）。尽管统一模型初始 coding 精度更低，5% 混合模型最终在四项指标上全部反超、较小混合的 HumanEval+ pass@16 与 staged 持平或略低（Table 22）：
 
 | 数学训练历史 | HumanEval+ pass@1 | HumanEval+ pass@16 | MBPP+ pass@1 | MBPP+ pass@16 |
 |:------------|:---:|:---:|:---:|:---:|
@@ -474,11 +476,11 @@ App D.7 从各数学模型（staged + 统一 0.5/1/2/5%）的最终 checkpoint �
 | Unified 2% | 24.09% | 44.51% | 31.76% | 56.88% |
 | Unified 5% | **24.96%** | **46.95%** | **32.69%** | **58.47%** |
 
-5% 混合模型在全部四个指标上最优：HumanEval+ pass@1 领先 staged 2.02 pp、MBPP+ pass@1 领先 2.88 pp。coding RL 后统一模型的 MMLU/SciQ 仍更高、held-out loss 增幅更小；WebInstruct RL 的持续学习实验（App D.8）给出同样结论。**前一段训练中混入的通用数据，转化为后续新任务学习的更好起点。**
+5% 混合模型在全部四个指标上最优：HumanEval+ pass@1 领先 staged 2.02 pp、MBPP+ pass@1 领先 2.88 pp。coding RL 后统一模型的 MMLU/SciQ 仍更高、held-out loss 增幅更小；WebInstruct RL 的持续学习实验（App D.8）给出方向一致的结论（两个统一模型 3000 updates 后精度均超过 staged；2% 模型 test pass@64 更高，5% 模型在该指标上仍略低于 staged）。**前一段训练中混入的通用数据，转化为后续新任务学习的更好起点。**
 
 ### 6.8 异步系统的吞吐与陈旧度
 
-0% 混合统一训练 3.7 s/update，staged RL 28.8 s/update（生产日志、12,000 updates 平均，不含启动/重启；分别使用 24 与 16 GPU），**update 吞吐差 7.8×**——异步 trainer 可跨 update 复用已生成 responses，该数字衡量优化吞吐而非新鲜 rollout 生成速率。代价是策略陈旧度：trainer 每 4 updates 发布权重，但实测八台 generator 的最新完成轮落后最新 trainer step 12–44 updates。在此陈旧度下 0% 混合与 staged 的数学精度几乎一致（Math pass@1 24.75% vs 24.16%），说明该实现的开销-收益权衡在当前尺度是良性的。
+0% 混合统一训练 3.7 s/update，staged RL 28.8 s/update（生产日志、12,000 updates 平均，不含启动/重启；分别使用 24 与 16 GPU），**update 吞吐差 7.8×**——异步 trainer 可跨 update 复用已生成 responses，该数字衡量优化吞吐而非新鲜 rollout 生成速率。代价是策略陈旧度：trainer 每 4 updates 发布权重，但实测八台 generator 的最新完成轮落后最新 trainer step 12–44 updates。在此配置下 0% 混合与 staged 的数学精度几乎一致（Math pass@1 24.75% vs 24.16%）——论文明确该对比混合了异步陈旧度与 baseline 减法两个算法差异、未逐一分离，但至少说明该实现的开销-收益权衡在当前尺度是良性的。
 
 ## 第 7 章 代码实现与开源资源
 
@@ -511,7 +513,7 @@ App D.7 从各数学模型（staged + 统一 0.5/1/2/5%）的最终 checkpoint �
 - 统一训练的结论建立在「staged 基线也用 MaxRL（而非 PPO/GRPO）」的对照上，作者自陈这是为了干净对比，其他 RL 目标仅有 MaxRL vs REINFORCE 的初步分析；
 - 124M 受控实验的谜题分布可控但合成，0.76B 实验的 RL 数据只有 Math12K（12K prompts）——在更大 RL 任务池与更大模型上，「混合改善保持且不伤精度」是否仍成立是关键开放问题；
 - 7.8× 吞吐对比中统一训练用 24 GPU、staged 用 16 GPU，且比较的是 update 吞吐而非端到端墙钟时间与总 GPU 时，直接引用时需注明口径；
-- Coding pass@1 随混合上升单调下降（5% 时 MBPP+ 20.97% vs 0% 的 25.41%）说明「免费午餐」不存在：保持通用能力与目标任务精度的权衡仍需调度（如半程退火）或语料设计（如去代码源）来精细管理。
+- Coding pass@1 随混合上升总体下降且非单调（5% 时 MBPP+ 20.97% vs 0% 的 25.41%，最低点在 2% 的 19.23%）说明「免费午餐」不存在：保持通用能力与目标任务精度的权衡仍需调度（如半程退火）或语料设计（如去代码源）来精细管理。
 
 ### 8.3 延伸阅读
 
@@ -520,4 +522,4 @@ App D.7 从各数学模型（staged + 统一 0.5/1/2/5%）的最终 checkpoint �
 - **OLMo 3 / Tulu 3 / DeepSeek-V3**：staged 训练管线的代表与公开 recipe；
 - **LUFFY / UFT / SRFT / CHORD**：在 RL 损失上加监督项的混合方法——与本文「共享单一似然目标、比例由数据混合决定」形成方法论对照；
 - **AReaL / StaleFlow / PipelineRL / StreamRL**：异步 RL 系统中限制策略滞后的不同手段，与本文 §4.3 的异步设计同族；
-- **InstructGPT**：最早在 PPO 目标中加预训练似然项以防止能力回退的先例（App E 的 KL 正则对照是其精神续作）。
+- **InstructGPT**：早期在 PPO 目标中加预训练似然项以防止能力回退的代表先例（App E 的 KL 正则对照是其精神续作）。
