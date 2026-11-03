@@ -11,7 +11,7 @@
 
 ### 1.1 一句话定位
 
-这篇论文回答了一个 LLM 强化学习训练系统中最基础却常被回避的问题：**当推理引擎（vLLM）与训练器（trainer）之间存在概率分布差异时，这个"训练-推理失配"究竟由什么构成、如何随训练演化、以及为什么同一修正方法在不同失配来源下表现相反**——作者将采样 token 误差精确分解为"数值差异"（近似恒定）与"策略滞后"（自诱导增长、形成反馈环）两个分量，据此提出 DLC 修正，使异步（stale sampler）训练与 on-policy 训练的偏差稳定在噪声底板的 2 倍以内。
+这篇论文回答了一个 LLM 强化学习训练系统中最基础却常被回避的问题：**当推理引擎（vLLM）与训练器（trainer）之间存在概率分布差异时，这个"训练-推理失配"究竟由什么构成、如何随训练演化、以及为什么同一修正方法在不同失配来源下表现相反**——作者将采样 token 误差精确分解为"数值差异"（近似恒定）与"策略滞后"（自诱导增长、形成反馈环）两个分量，据此提出 DLC 修正，使 Qwen3-0.6B/1.7B 的异步（stale sampler）训练与 on-policy 训练的偏差保持在噪声底板的 2 倍以内（Qwen3-8B 上约为 3 倍底板）。
 
 ### 论文图表总览
 
@@ -49,7 +49,7 @@
 | 设定 | 关键数值 | 来源 |
 |------|---------|------|
 | Qwen3-0.6B stale、step 40 | DLC 偏差 **1.9×floor**、精度 **31.7%**（on-policy 46.5%，score centering 12.2%，IS+centering 32.0%） | Table 2/4 |
-| Qwen3-1.7B stale、step 40 | DLC 偏差 **0.6×floor**、精度 **51.9%**（on-policy 57.6%）；IS 在 step 30 达 **152×floor**、精度 0.5% | Table 4 |
+| Qwen3-1.7B stale、step 40 | DLC 偏差 **0.6×floor**、精度 **51.9%**（on-policy 57.6%）；IS 在 step 30 达 **152×floor**、step 40 精度跌至 0.5% | Table 4 |
 | IS 失效点（1.7B） | ESS 跌破 1/2 于 **step 11**（mean lag −0.15 nats/token），Gaussian 预测 step 14 | §6.1 |
 | Qwen3-8B stale、step 40 | DLC **3.1×floor / 49.6%**；score centering 89.1×floor；M2PO 10768×floor、精度 0.0% | Table 8 |
 | 连续异步（1.7B，max gap 4） | DLC **1.2×floor / 55.9%**（on-policy 56.8%）；admission 变体 0.8×floor / 55.3% | Table 9 |
@@ -67,7 +67,7 @@ LLM 的 on-policy 强化学习在理论上有一个朴素假设：训练响应�
 
 第一个来源是**引擎数值（engine numerics）**。
 推理引擎用自己的一套 kernel 和数值精度计算 token 概率，因此即使权重完全相同，引擎给出的分布 $q$ 与 trainer 的分布 $p$ 也不一致。
-Yao et al. (2025) 首次报告 vLLM 与 FSDP 在相同权重下给出不同的 token 概率，Liu et al. (2025a) 进一步把这一差距追溯到引擎数值、量化与 kernel 实现的差别。
+Yao et al. (2025) 报告了 vLLM 与 FSDP 在相同权重下给出不同的 token 概率，Liu et al. (2025a) 进一步把这一差距追溯到引擎数值、量化与 kernel 实现的差别。
 低精度 sampler 会进一步拉大这个差距。
 
 第二个来源是**异步采样的过期权重（stale weights）**。
@@ -89,7 +89,7 @@ on-policy 时 mean score 为零（概率对全词表求和为一），因此 pre
 $$\mathbb{E}_q[a\,s]=\mathbb{E}_q[a]\,\mathbb{E}_q[s]+\mathrm{Cov}_q(a,s),\qquad \mathbb{E}_q[s]=\mathbb{E}_q[s]-\mathbb{E}_p[s]=-\nabla_\theta\,\mathrm{KL}(q\,\|\,p_\theta).$$
 
 第一项 $\bar{a}\bar{s}$ 称为 **drift**：一个只通过 advantage 均值依赖 advantage 的项。
-由第二行可知，drift 恰好是以 $\bar{a}$ 为步长、沿 $\mathrm{KL}(q\|p_\theta)$ 梯度方向的一步——在期望 advantage 为正的 prefix 上把 trainer 蒸馏向 sampler，在期望 advantage 为负的 prefix 上把 trainer 推离 sampler。
+由第二行可知，drift 恰好是以 $\bar{a}$ 为步长、沿 $\mathrm{KL}(q\|p_\theta)$ 负梯度（下降）方向的一步——在期望 advantage 为正的 prefix 上把 trainer 蒸馏向 sampler，在期望 advantage 为负的 prefix 上把 trainer 推离 sampler。
 GRPO 式 group centering 只把每个 prompt 内的平均 advantage 置零，而通往正确答案途中的 prefix 期望 advantage 为正、出错之后的 prefix 为负，所以在携带学习信号的 prefix 上 drift 并不为零。
 
 针对失配，现有工作提出三类逐 token 的修正：
@@ -110,7 +110,7 @@ Marek & Ryabinin (2026) 观察到的**源依赖（source dependence）现象**�
 - 每 64 步同步一次的 sampler（stale）下，importance sampling + centering 能继续训练，而 score centering 单独掉队；
 - PPO 在 staleness 下存活，却在量化以及合成权重噪声下崩溃。
 
-他们对前两者的解释是 score centering 在 sampler 分布下取到的 covariance，对第三者的解释是 PPO 的 clip 本为"policy movement 产生的比值"设计。
+他们对 stale 情形的解释是 score centering 在 sampler 分布下取到的 covariance，对 PPO 在 staleness 下存活的解释是其 clip 本为"policy movement 产生的比值"设计。
 换言之，这些解释是逐个修正、逐个来源给出的，尚无统一机理说明为什么同一个修正换个来源就失效。
 旁证还有两条：异步 GRPO 的崩溃规模随 staleness 与 learning rate 的乘积增长（Song et al., 2026）；importance 加权的异步训练在真正发散之前就先丢掉 effective sample size（Huang et al., 2026）。
 这些现象共同说明，修正的行为取决于估计器与产生失配的过程两个方面，而不是估计器单独决定的。
@@ -143,7 +143,7 @@ Marek & Ryabinin (2026) 观察到的**源依赖（source dependence）现象**�
 
 $$\ell_t=\log p_\theta(y_t\mid h_t)-\log p_{\theta_{\mathrm{old}}}(y_t\mid h_t),$$
 
-它随 trainer 的更新而增长，由"以 sampler 权重为比值分母"一类的方法（decoupled PPO、M2PO、VCPO）处理。
+它随 trainer 的更新而增长，由"以 sampler 权重为比值分母"一类的方法（decoupled PPO、M2PO）处理，VCPO 则按 effective sample size 缩放学习率（Huang et al., 2026）。
 引擎数值失配给出 **numerical discrepancy**：
 
 $$e_t=\log p_{\theta_{\mathrm{old}}}(y_t\mid h_t)-\log q(y_t\mid h_t),$$
@@ -257,7 +257,7 @@ deviation 的单位是 ×floor（noise floor 的倍数）：1 ×floor 表示偏�
 两组锚点数字便于定位各方法的位置：
 Qwen3-0.6B 上初始模型 $\theta_0$ 为 8.2%、on-policy 训练 40 步后为 46.5%；
 Qwen3-1.7B 上分别为 33.4% 与 57.6%。
-任何修正方法的表现都落在这两个锚点之间——下界是"不训练"，上界是"完美修正"。
+多数修正方法的表现落在这两个锚点之间（stale 失配过大时方法可跌破 $\theta_0$，如 PPO 0.0%、policy gradient 0.2%）——下界是"不训练"，上界是"完美修正"。
 deviation 衡量训练轨迹的保真度，accuracy 衡量最终模型的可用性。
 论文 §7 的结果显示两者排序大体一致，但也存在 deviation 保持在 floor 而 accuracy 已崩溃的情形——那正是"逐 token 修正只作用于 sampler 抽到的 token"这一限制的体现（论文 §7.3）。
 ## 第 4 章 误差的精确分解：数值差异与自诱导策略滞后
@@ -278,7 +278,7 @@ deviation 衡量训练轨迹的保真度，accuracy 衡量最终模型的可用�
 | IS + centering | 0.53 / 1.11, 46.0 | 0.86 / 2.10, 32.0 | 1.20 / 2.61, 30.5 |
 | **DLC（本文）** | – | **0.86 / 1.93, 31.7** | **0.96 / 2.17, 30.3** |
 
-三个规律值得注意：① 量化源下 centering 一枝独秀（精度 46.5% 与 on-policy 完全持平）；② 过期源下 centering 恶化到 31.7×floor、精度 12.2%，而 IS+centering 保持 2.1×floor、32.0%；③ PPO 在本文实现（每 batch 4 次更新、batch 参考策略）下两种源都失败——量化下与 policy gradient 同级（14.3 vs 12.7×floor），过期下达 699×floor。
+三个规律值得注意：① 量化源下 centering 一枝独秀（精度 46.5% 与 on-policy 完全持平）；② 过期源下 centering 恶化到 31.7×floor、精度 12.2%，而 IS+centering 保持 2.1×floor、32.0%；③ PPO 在本文实现（每 batch 4 次更新、batch 参考策略）下两种源均未贴住底板——量化下与 policy gradient 同级（14.3 vs 12.7×floor），过期下达 699×floor。
 
 ### 4.2 精确分解：policy lag 与 numerical discrepancy
 
@@ -294,7 +294,7 @@ $$
 
 - **数值差异近似恒定**：量化 sampler 的误差即数值差异，全程约 **0.02 nats/token**；对整个 response 求和得到恒定的 sequence offset（长 response 上约 8.9 nats）。它不依赖累积更新 $\Delta$，因此每一步以几乎相同的量偏置更新，不会反馈进后续误差——**在每个 prefix 上 centering 掉其 drift 即可消除一阶偏置**。
 - **策略滞后自诱导增长**：stale sampler 的数值差异低于 $10^{-3}$ nats，其误差几乎全是 policy lag；一阶展开 $\ell_t \approx \Delta^\top s_t$ 表明 lag 完全来自 trainer 自己的移动。其 sequence offset 每步增长约 **0.7 nats**。量化与过期两类误差在 step 5 即清晰分离（Figure 2d）。
-- **组合源的检验**：quantized+stale 的数值差异保持量化单独作用的值，其累积更新与纯 stale run 的差距在 10% 以内（对 centering 与 IS 都是），偏差保持 stale 的排序——证明两个分量可叠加处理，分解是"正交"的。
+- **组合源的检验**：quantized+stale 的数值差异保持量化单独作用的值，其累积更新与纯 stale run 的差距在 10% 以内（对 centering 与 IS 都是），偏差保持 stale 的排序——支持两个分量近似可叠加处理，分解近似"正交"的。
 
 ### 4.3 更新在 prefix 处的结构：drift 与协方差
 
@@ -304,7 +304,7 @@ $$
 \mathbb{E}_q[a\,s] = \mathbb{E}_q[a]\,\mathbb{E}_q[s] + \mathrm{Cov}_q(a,s), \qquad \mathbb{E}_q[s] = -\nabla_\theta\, \mathrm{KL}(q \,\|\, p_\theta)
 $$
 
-第一项 $\bar{a}\bar{s}$ 即 **drift**：它等于以 $\bar{a}$ 为步长、朝 $\mathrm{KL}(q\|p_\theta)$ 梯度方向的一步——在期望优势为正的 prefix 上把 trainer 蒸馏向 sampler，在期望优势为负的 prefix 上推离。由于 group centering 只把每个 prompt 的平均 advantage 置零，通往正确答案途中的 prefix（正期望优势）与出错之后的 prefix（负期望优势）依然承载非零 drift。未截断 ratio 与 centering 都能在单 prefix 处精确消掉 drift，因此**各修正的差异在于它们消掉 drift 之后剩下什么、以及剩余部分如何随训练演化**——这是全文分析的主线。
+第一项 $\bar{a}\bar{s}$ 即 **drift**：它等于以 $\bar{a}$ 为步长、朝 $\mathrm{KL}(q\|p_\theta)$ 负梯度（下降）方向的一步——在期望优势为正的 prefix 上把 trainer 蒸馏向 sampler，在期望优势为负的 prefix 上推离。由于 group centering 只把每个 prompt 的平均 advantage 置零，通往正确答案途中的 prefix（正期望优势）与出错之后的 prefix（负期望优势）依然承载非零 drift。未截断 ratio 与 centering 都能在单 prefix 处精确消掉 drift，因此**各修正的差异在于它们消掉 drift 之后剩下什么、以及剩余部分如何随训练演化**——这是全文分析的主线。
 
 ![Figure 2: Deviation of the corrections and the growth of the discrepancy and the lag](Figures/2026-11-04-training-inference-mismatch-fig2.png)
 
@@ -369,14 +369,14 @@ $$
 
 即 ESS 在 $\mu = -\frac{1}{2}\log 2 \approx -0.35$ nats 处跌破 1/2。**实测重尾使交叉显著提前**（Figure 4）：
 
-- **Qwen3-1.7B**：训练日志逐步给出 ratio 二阶矩，实测 ESS 在 **step 11** 跌破 1/2（此时 mean lag 仅 **−0.15 nats/token**），Gaussian 预测要到 step 14（−0.35 nats）。用累积量展开 $\log \mathbb{E}[\rho^2] = -2\mu + \frac{2}{3}\nu_3 + \frac{1}{2}\nu_4 + \cdots$，实测交叉意味着高阶累积量贡献约 $\log 2 - 0.30 \approx 0.39$——lag 集中在少数 ratio 巨大的 token 上。越过该点后 IS 的偏差立即离地，**step 30 达 152 倍底板**，step 40 仍有 115 倍、精度掉到 0.5%（Table 4）。
-- **Qwen3-0.6B**：更新更小，IS 的 mean lag 全程低于 0.3 nats，ESS 不越界，IS 偏差最多 4.5×floor——与 1.7B 形成对照，说明有效范围由"更新步长 × 模型尺度"共同决定。
+- **Qwen3-1.7B**：训练日志逐步给出 ratio 二阶矩，实测 ESS 在 **step 11** 跌破 1/2（此时 mean lag 仅 **−0.15 nats/token**），Gaussian 阈值对应 $\mu \approx -0.35$ nats、其预测交叉在 step 14。用累积量展开 $\log \mathbb{E}[\rho^2] = -2\mu + \frac{2}{3}\nu_3 + \frac{1}{2}\nu_4 + \cdots$，实测交叉意味着高阶累积量贡献约 $\log 2 - 0.30 \approx 0.39$——lag 集中在少数 ratio 巨大的 token 上。越过该点后 IS 的偏差立即离地，**step 30 达 152 倍底板**，step 40 仍有 115 倍、精度掉到 0.5%（Table 4）。
+- **Qwen3-0.6B**：更新更小，IS 的 mean lag 全程低于 0.3 nats（低于 Gaussian 阈值 −0.35），未观察到 ESS 越界导致的失效，IS 偏差最多 4.5×floor——与 1.7B 形成对照，说明有效范围由"更新步长 × 模型尺度"共同决定。
 
 另一个 Gaussian 失准的证据：step 40 时 Gaussian 预测 28% 的 token ratio < 0.5，实测只有 11%（0.6B）——多数 token 的 ratio 仍贴着 1，lag 集中在极少数 token 上。
 
 ### 6.2 PPO 参考策略的位置解释了源依赖
 
-同一分解直接解释了 PPO 的不对称表现（Appendix J）：以 **sampler 权重为参考**时，clip 的 ratio 恰是 $e^{\ell_t}$——clip 约束的是 policy lag，数值差异留在 ratio 之外构成 drift；以 **batch 前的 trainer 为参考**时，policy lag 完全在 ratio 之外，clip 只约束 batch 内 4 次更新之间的移动。
+同一分解直接解释了 PPO 的不对称表现（Appendix J）：以 **sampler 权重为参考**时，clip 的 ratio 恰是 $e^{\ell_t}$——clip 约束的是 policy lag，数值差异留在 ratio 之外构成 drift；以 **batch 前的 trainer 为参考**时，batch 之前累积的 policy lag 与数值差异都在 ratio 之外（batch 内更新产生的 lag 仍在 ratio 内），clip 只约束 batch 内 4 次更新之间的移动。
 
 实测印证（Table 2）：batch 参考的 PPO 在 staleness 下偏至 699×floor，比去掉 clip（534×floor）还差——clip 不仅没有修正 lag，反而保护了 batch 内的多次更新把 lag 偏置完整累积；而共享 sampler-参考 ratio 的 DLC clip 只有 1.9×floor。量化下 PPO（14.3×floor）与单次更新的 policy gradient（12.7×floor）同级——clip 移除了额外更新的代价，却留下数值差异的 drift。**修正方法的成败由"哪个分量进入了它的 ratio 分母"决定**，这一视角统一了 Marek & Ryabinin 观察到的全部源依赖现象。
 
@@ -392,7 +392,7 @@ $$
 
 四个组件各司其职：
 
-1. **Clip lag ratio（算法层，切闭环）**：以 sampler 权重为参考，PPO-clip lag ratio $\rho_t = e^{\ell_t}$，$\varepsilon = 0.2$、verl 默认 dual-clip 上界 $c = 3$。clip 范围内的权重即 lag ratio，与 staleness 下 IS 同阶地消掉 token 项 $(A_t - \bar{A}_t)\ell_t$——闭环增益的来源。
+1. **Clip lag ratio（算法层，切闭环）**：以 sampler 权重为参考，PPO-clip lag ratio $\rho_t = e^{\ell_t}$，$\varepsilon = 0.2$、verl 默认 dual-clip 上界 $c = 3$。clip 范围内的权重即 lag ratio，像 staleness 下的 IS 一样作用于 token 项 $(A_t - \bar{A}_t)\ell_t$（闭环增益的来源；纯 stale 下 DLC 的该项精确为零，见 7.3）。
 2. **Centering（算法层，消数值差异 drift）**：$C_t$ 是加权 score 在 sampler 下的均值；常数优势在 prefix 上的期望贡献为零（同 on-policy），数值差异的 drift 被消掉。sampler 只报告 top-128 head $H$，尾部取 $q_v = \kappa\, p_{\theta_{\mathrm{old}}}(v)$（$\kappa$ 为两侧尾质量比），clip 在尾部不激活。
 3. **重同步（基础设施层，兜底）**：当 lag ratio 的 ESS 跌破 batch 的 1/2 时，把 trainer 权重拷贝给 sampler——重置 $\Delta$、lag 与 prefix offset，同时把 clip 参考移到 trainer 权重。算法够不着的 prefix/continuation 项与越界 token 的 lag 由此交还基础设施。
 4. **一次参考 forward pass**：trainer 在 $\theta_{\mathrm{old}}$ 处的额外 forward 给出 $\ell_t$、$e_t$ 及 head 上 $p_{\theta_{\mathrm{old}}}$ 的对数概率。
@@ -438,7 +438,7 @@ $$
 三条观察：
 
 1. **DLC 是唯一在两个尺度上都贴住底板的方法**：0.6B 上 1.9×floor / 31.7%（与 IS+centering 的 32.0% 相当）；1.7B 上全程 ≤1.2×floor、step 40 收在 0.6×floor，精度 51.9%——三个 run 各自与同配置 on-policy 对应模型的差距都在 7 个百分点内（on-policy 57.6%）。
-2. **尺度放大了 IS 的失效**：0.6B 上 IS 温和恶化（4.5×floor、20.9%），1.7B 上却在 step 20 后爆炸（152×floor）精度归零（0.5%）——对应 §6.1 的 ESS 越界点 step 11。这正是"更新步长随模型尺度增大、重尾更早出现"的直接后果。
+2. **尺度放大了 IS 的失效**：0.6B 上 IS 温和恶化（4.5×floor、20.9%），1.7B 上却在 step 20 后爆炸（152×floor）精度崩至 0.5%——对应 §6.1 的 ESS 越界点 step 11。这正是"更新步长随模型尺度增大、重尾更早出现"的直接后果。
 3. **IS+resync 的精度均值被单 run 崩溃拖累**（36.6%）：它同样以 ESS<1/2 为阈值，但三次 run 分别命中阈值 2、4、5 次；DLC 的三次 run 各只重同步 1 次（step 20、35、36）——因为 clip+centering 把 lag 的增长速度本身压下来了，达到阈值更慢。若给 IS 用固定间隔同步，需要**每 11 步一次**才能留在有效范围内。
 
 ![Figure 5: DLC against importance sampling, importance sampling with resynchronization and DLC without resynchronization on Qwen3-1.7B](Figures/2026-11-04-training-inference-mismatch-fig5.png)
@@ -450,7 +450,7 @@ $$
 DLC 去掉重同步（保留 clip 与 centering）后在 1.7B 上三次 run 中两次跌破 $\theta_0$ 精度、输出约 26 token 的退化答案。**其偏差（在 sampler 的 prefix 上计算）却始终贴着底板**——这一"指标看不见的崩溃"是本文最深刻的发现之一：
 
 - 诊断量是 trainer 自身 response 的 sequence KL 中落在 $p_{\theta_0}(y_t) < 10^{-3}$ token 上的份额（off-support share，256 条 test 响应计算）。两次崩溃时该份额达约 **90%**，此前最多 14%；DLC（带重同步）全程 ≤**11%**。
-- 机制：centering、ratio 加权、clip 都只作用于 sampler 采到的 token；当 trainer 的策略向 stale sampler 极少采到的 token 偏移时，三类修正全部失效。这种偏移发生在 **sampler 到达不了的 prefix** 上——next-token KL（在 sampler 的 prefix 上算）对崩溃完全无感。
+- 机制：centering、ratio 加权、clip 都只作用于 sampler 采到的 token；当 trainer 的策略向 stale sampler 极少采到的 token 偏移时，三类修正全部失效。这种偏移发生在 **sampler 到达不了的 prefix** 上——next-token KL（在 sampler 的 prefix 上算）对崩溃不敏感——坍缩 run 的取值仍处于正常 run 的区间内。
 - 判别力：跨 checkpoint 的 off-support share 与"精度跌破 $\theta_0$"的 Spearman 相关为 **0.80**，高于 deviation 的 0.74。
 - 重同步让 trainer 的 response 重新成为 sampler 的 response；连续异步（每步同步）下 DLC 的 admission 变体则改为推迟 ESS<1/2 的响应、用新权重重生成。
 
@@ -472,7 +472,7 @@ DLC 去掉重同步（保留 clip 与 centering）后在 1.7B 上三次 run 中�
 | VCPO | 14.0 | 42.6 |
 | **DLC（本文）** | **3.1** | **49.6** |
 
-8B 上 M2PO（约束 importance 权重二阶矩）与 policy gradient 同级崩溃（10768 / 6470×floor、精度 0.0%）。值得注意的是 M2PO 与 DLC 的 ratio 分母同为 $p_{\theta_{\mathrm{old}}}$，结构差异在于三者中只有 DLC 做 centering、且只有 DLC 带 ESS 触发的重同步；不过论文并未给出 M2PO 崩溃的机制分析，这一崩溃应主要归因于其未处理的 policy lag（纯 stale 下数值差异低于 $10^{-3}$ nats，centering 的有无在该设定中量级可忽略）。VCPO 靠调学习率减速（14.0×floor、42.6%）保住部分精度。DLC 与 IS+centering 分别以 3.1 / 2.9×floor、49.6% / 51.8% 领先其余全部基线，on-policy 为 55.3%。
+8B 上 M2PO（约束 importance 权重二阶矩）与 policy gradient 同级崩溃（10768 / 6470×floor、精度 0.0%）。值得注意的是 M2PO 与 DLC 的 ratio 分母同为 $p_{\theta_{\mathrm{old}}}$，结构差异在于三者中只有 DLC 做 centering、且只有 DLC 带 ESS 触发的重同步；不过论文并未给出 M2PO 崩溃的机制分析，本报告推断其崩溃主要归因于未处理的 policy lag（纯 stale 下数值差异低于 $10^{-3}$ nats，centering 的有无在该设定中量级可忽略）。VCPO 靠调学习率减速（14.0×floor、42.6%）保住部分精度。偏差上 DLC 与 IS+centering 领先其余基线（3.1 / 2.9×floor）；精度上 DLC 49.6% 反而低于 IS+centering 51.8%、score centering 51.4% 与 IS 51.0%（on-policy 为 55.3%）——规模放大后 DLC 的偏差优势不再伴随精度优势。
 
 **连续异步（1.7B，每步同步、max version gap 4、平均 token 落后 2.85 个版本；DLC 对每个 token 以生成它的版本为 clip 参考）**：
 
@@ -505,20 +505,20 @@ DLC 的两笔开销都有明确来源：sampler 报告 top-128 head 使生成时
 
 ### 8.5 两种统计口径的稳健性（Table 6，Appendix B）
 
-正文的 deviation 用"均值之比"（KL 均值 ÷ 底板均值）；Table 6 同时报告"逐 run 比值的均值"，两种口径下各方法排序完全一致（如 stale 下 IS+centering 2.10/2.51、DLC 1.93/2.70、SC 31.7/45.1、PPO 699/804），结论不依赖口径选择。
+正文的 deviation 用"均值之比"（KL 均值 ÷ 底板均值）；Table 6 同时报告"逐 run 比值的均值"，两种口径数值接近、结论大体一致，但相邻方法的排序可能互换——stale 下 IS+centering 为 2.10/2.51、DLC 为 1.93/2.70，按「均值之比」DLC 更低、按「逐 run 比值均值」IS+centering 更低（SC 31.7/45.1、PPO 699/804）。
 
 ## 第 9 章 局限性与评论
 
 ### 9.1 论文自述与隐含的局限
 
-1. **训练规模刻意收短**：主实验为 40 步、Countdown 单任务、Qwen3-0.6B–8B；作者明言短训练 + checkpoint 回放是为了"测量落在尚未崩溃的轨迹上"。68 步以上的长程行为、以及 DLC 在真实 RLHF/推理 RL 工作流（奖励模型、长 response、多任务混合）中的表现均未验证。
+1. **训练规模刻意收短**：主实验为 40 步、Countdown 单任务、Qwen3-0.6B–8B；作者明言短训练 + checkpoint 回放是为了"测量落在尚未崩溃的轨迹上"。远超 40 步主实验（乃至超过一个 64 步同步周期）的长程行为、以及 DLC 在真实 RLHF/推理 RL 工作流（奖励模型、长 response、多任务混合）中的表现均未验证。
 2. **deviation 度量的盲区由论文自己揭示**：off-support 分析（§8.2）证明"sampler prefix 上的 KL"看不到训练分布的坍缩——这既是论文的贡献，也是对其主度量（deviation）适用范围的限定。评价异步训练至少需要 off-support share 这类基于 trainer 自身 response 的诊断。
 3. **DLC 的吞吐收益未兑现**：113.2 s/步的开销使异步在此设定下不划算（8.4 节）；论文未测更大的 rollout batch/更长 response 下摊薄 $\theta_{\mathrm{old}}$ forward 的情形。
 4. **无官方代码**：论文给出完整的算法（Algorithm 1）与 loss（Eq 43），但未发布实现；复现依赖 verl 的 dual-clip、top-128 head 报告等工程细节。
 
 ### 9.2 方法论评价
 
-这篇论文的价值不在于 DLC 本身——clip + centering + 条件重同步的每个组件都有前身（decoupled PPO 的 sampler 参考 ratio、Marek & Ryabinin 的 centering、Guan et al. 的 ratio 因式分解与重置参考）——而在于**用一次可精确控制的参考 forward 把失配分解成两个动力学迥异的分量，再让每个组件对准一个分量**。由此获得三此前不清晰的因果链：centering 在 staleness 下恶化的根源是 $(A_t - \bar{A}_t)\ell_t$ token 项进入闭环（$M_c - M_w$ 的负特征值）；IS 的崩溃点可由 ESS < 1/2 预报且重尾使其比 Gaussian 预测早 3 步；PPO 的源依赖由参考策略位置完全解释。对异步 RL 系统的实践者，可直接带走的规则是：**量化引擎 → centering；异步采样 → clip 对 sampler 权重 + ESS 监控触发重同步；两者并存 → DLC 的组合；永远不要只看 sampler prefix 上的 KL 判断训练健康度**。
+这篇论文的价值不在于 DLC 本身——clip + centering + 条件重同步的每个组件都有前身（decoupled PPO 的 sampler 参考 ratio、Marek & Ryabinin 的 centering、Guan et al. 的 ratio 因式分解与重置参考）——而在于**用一次可精确控制的参考 forward 把失配分解成两个动力学迥异的分量，再让每个组件对准一个分量**。由此获得三条此前不清晰的因果链：centering 在 staleness 下恶化的根源是 $(A_t - \bar{A}_t)\ell_t$ token 项进入闭环（$M_c - M_w$ 的负特征值）；IS 的崩溃点可由 ESS < 1/2 预报且重尾使其比 Gaussian 预测早 3 步；PPO 的源依赖由参考策略位置解释。对异步 RL 系统的实践者，可直接带走的规则是：**量化引擎 → centering；异步采样 → clip 对 sampler 权重 + ESS 监控触发重同步；两者并存 → DLC 的组合；永远不要只看 sampler prefix 上的 KL 判断训练健康度**。
 
 与同期工作的关系：Guan et al. (2026) 同样对 ratio 做双因子加权，DLC 的区别是只加权 lag 因子而 centering 掉差异因子；VCPO 与 DLC 用同一个 ESS 信号做相反的控制（降速 vs 重置）；Song et al. (2026) 的 staleness 崩溃边界（$\eta k$ 恒定）与本文 Eq 3 的二阶展开一致，本文给出了其微观机制（负特征值方向的指数放大）。
 
@@ -528,5 +528,5 @@ DLC 的两笔开销都有明确来源：sampler 报告 top-128 head 使生成时
 - **Guan et al. (2026)**：importance ratio 的 discrepancy × staleness 因式分解，及 share-of-unmasked-tokens 触发的参考重置。
 - **Song et al. (2026)**：异步 GRPO 崩溃与 staleness×lr 乘积的稳定性边界。
 - **Huang et al. (2026)（VCPO）**：ESS 自适应学习率缩放；本文的有效范围分析与它共享 Kish ESS 框架。
-- **Yao et al. (2025) / Liu et al. (2025a)**：vLLM 与 trainer 概率差异的最早工程报告与归因（截断 IS 的来源）。
+- **Yao et al. (2025) / Liu et al. (2025a)**：vLLM 与 trainer 概率差异的工程报告与归因（截断 IS 的来源）。
 - **verl (Sheng et al. 2024) / AReaL / PipelineRL**：本文测量所依托的训练栈与异步系统。
