@@ -210,3 +210,4 @@
 | 编号 | 标题 | 主要作者 | 仓库链接 |
 |------|------|----------|----------|
 | HF: 2610.40564 | Training Foundation Models with a Single Algorithm（unified training） | Yuda Song, Alvin Zhang, Fahim Tajwar（Meta）, Daman Arora, Jeff Schneider, Daniel Khashabi, Ruslan Salakhutdinov, J. Andrew Bagnell, Aarti Singh, Andrea Zanette（CMU） | [Papers](Papers/2026/11/2026-11-01-unified-training.md) |
+| HF: 2610.40945 | On the Origin and Evolution of Training-Inference Mismatch in LLM Reinforcement Learning（训练-推理失配的起源与演化） | Yu Li, Yufa Zhou, Tian Lan（GWU/Duke） | [Papers](Papers/2026/11/2026-11-04-training-inference-mismatch.md) |
