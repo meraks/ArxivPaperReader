@@ -1,9 +1,9 @@
 > **论文**：From RLVR to RLSVR: Task Transformation Induces Self-Verifiable Rewards for Open-Ended LLM Self-Improvement
-> **作者**：Kun Wan, Huazheng Wang, Jing Shi, Qinsi Wang, Benjamin-eecs
+> **作者**：Qinsi Wang, Jing Shi, Huazheng Wang, Kun Wan, Yiran Wu, Bo Liu, Qingyun Wu, Hai Helen Li, Yiran Chen, Handong Zhao, Wentian Zhao
 > **arXiv ID**：2607.23802
 > **发表时间**：2026-07-23
 > **会议**：COLM 2026
-> **代码仓库**：https://github.com/wangqinsi1/SpyRL
+> **代码仓库**：https://github.com/wangqinsi1/RLSVR/tree/SpyRL
 
 ## 第 1 章 概述
 
@@ -21,7 +21,7 @@ RLSVR（Reinforcement Learning with Self-Verifiable Rewards）通过任务变换
 | Figure 2 | SpyRL 框架总览（performing + detection 两阶段闭环） | 第 3 章 | Figure 2 |
 | Figure 3 | 三任务实例化（summarization / creative writing / math） | 第 3 章 | Figure 3 |
 | Figure 4 | 100 局怀疑票数与 GPT-4o 质量排序相关性 | 第 4 章 | Figure 4 |
-| Figure 5 | 组大小效应（n=3,5,6,8） | 第 5 章 | Figure 5 |
+| Figure 5 | 组大小效应（n=3,4,5,6,8） | 第 5 章 | Figure 5 |
 | Table 1 | Summarization：ROUGE-L / GPT-4o A/B win%（5 bench） | 第 4 章 | Table 1（ROUGE-L）+ Table 13（A/B 对未训练基线） |
 | Table 2 | Creative writing：GPT-4o A/B win%（WP / WB × 5 维） | 第 4 章 | Table 14（A/B 对未训练基线） |
 | Table 3 | Reasoning：7 bench（GSM8K、Math500、AIME24、AIME25、Minerva、MMLU-Pro、GPQA-D） | 第 4 章 | Table 3 |
@@ -207,7 +207,7 @@ Table 1 报告五个摘要基准（GovReport、Multi_News、QmSum、VcSum、SamS
 | + Absolute Zero | 32.5 / 62.5% | 23.2 / 50.3% | 19.1 / 53.2% | 15.8 / 58.2% | 46.2 / 70.6% |
 | + SpyRL | **34.1 / 78.2%** | **25.8 / 68.5%** | **23.2 / 78.2%** | **19.1 / 72.5%** | **48.5 / 79.5%** |
 
-平均而言，SpyRL 将 Qwen3-4B 与 Qwen3-8B 的五个基准平均 ROUGE 分别提升 4.56 与 4.04 点，A/B 胜率分别达到 73.92% 与 75.38%。R-Zero 与 Absolute Zero 在部分基准（如 Multi_News 4B 的 48.2%）甚至低于基线，说明依赖任务可验证性的 proposer-solver 方法在开放生成任务上信号失效。
+平均而言，SpyRL 将 Qwen3-4B 与 Qwen3-8B 的五个基准平均 ROUGE 分别提升 4.56 与 4.04 点，A/B 胜率分别达到 73.92% 与 75.38%。R-Zero 在部分基准（如 Multi_News 4B 的 48.2%）甚至低于未训练基线，Absolute Zero 虽有提升但增益明显小于 SpyRL，二者在开放生成任务上的收益均有限。
 
 ### 4.3 创意写作主结果
 
@@ -224,7 +224,7 @@ Table 2 报告 WritingPrompts 与 WritingBench 上五个维度（Novelty、Emoti
 | + Absolute Zero | 55.3/52.8/57.4/56.8/56.4 | 56.5/55.8/58.2/57.9/58.1 |
 | + SpyRL | **77.3/76.2/74.2/75.0/76.5** | **78.1/77.4/71.0/71.2/78.1** |
 
-Qwen3-8B 的 Overall 平均胜率为 77.3%（WritingPrompts 76.5% + WritingBench 78.1% 平均）。R-Zero 在写作任务上甚至低于基线的 50% 水平（4B：48.8%/46.5%），再次印证可验证信号缺失时 proposer-solver 方法退化。
+Qwen3-8B 的 Overall 平均胜率为 77.3%（WritingPrompts 76.5% + WritingBench 78.1% 平均）。R-Zero 在写作任务上甚至低于基线的 50% 水平（4B：48.8%/46.5%），再次印证可验证信号缺失时 R-Zero 的写作能力反而退化。
 
 ### 4.4 数学推理主结果
 
@@ -284,7 +284,7 @@ SpyRL 在所有维度领先，尤其 Novelty 与 Emotion，确认其提升被人
 
 ### 5.4 与 rubric-as-reward（RaR）基线对比（Table 6）
 
-以 novelty/emotion/coherence/consistency 作为二元 checklist 生成奖励，用相同 GRPO 框架训练 Qwen3.5-27B-RaR 与 GPT-4o-RaR（各 50 iterations）：
+使用 Qwen3.5-27B 与 GPT-4o 作为 rubric executor 生成奖励，用相同 GRPO 框架训练 Qwen3.5-27B-RaR 与 GPT-4o-RaR（各 50 iterations）：
 
 | SpyRL vs | WritingPrompts Overall | WritingBench Overall | 外部 verifier 成本 |
 |------|:---:|:---:|:---:|
@@ -293,18 +293,18 @@ SpyRL 在所有维度领先，尤其 Novelty 与 Emotion，确认其提升被人
 
 SpyRL 全面胜过 Qwen3.5-27B-RaR，与 GPT-4o-RaR 竞争（Novelty/Emotion 更优），且**零外部 verifier 成本**——Qwen3.5-27B-RaR 和 GPT-4o-RaR 分别产生约 $200 与 $900 的额外验证开销。
 
-### 5.5 与基线的直接 A/B 对比（Table 8-9，附录 D.1）
+### 5.5 与基线的直接 A/B 对比（Table 8-9，正文 Table 1-2）
 
 为排除「以未训练 base 为共同锚点」的质疑，论文直接对比 SpyRL 与 R-Zero/Absolute Zero：
 
 - 摘要（Table 8）：4B 对 R-Zero 平均 76.5%、对 Absolute Zero 70.4%；8B 对 R-Zero 76.4%、对 Absolute Zero 72.0%。20 组对比中 19 组超过 65%（最低 64.8%）。
 - 写作（Table 9）：4B 对 R-Zero WP/WB Overall 78.9%/75.0%；8B 77.5%/77.0%。所有细粒度维度均被偏好（65.7%-86.2%）。
 
-### 5.6 联合 vs 交替优化（Table 10，附录 D.2）
+### 5.6 联合 vs 交替优化（Table 10，附录 D.3）
 
 Joint training（每 epoch 同时更新两阶段）导致退化：GSM8K 从 84.5 降至 76.8、Math500 从 68.2 降至 53.1、Minerva 从 42.3 降至 33.1，五基准平均 42.4→35.3。交替训练则全面提升：GSM8K 84.5→93.4、Math500 68.2→79.5、AIME25 6.7→20.0，平均 50.8（比 base +8.4、比 joint +15.5）。原因：joint 训练时两阶段互相依赖造成 credit assignment 不准确与非平稳优化；交替更新分解耦合问题，先强化检测器再优化表演者，提供可靠中间信号。
 
-### 5.7 跨任务迁移与 judge 稳健性（附录 D.3-D.5）
+### 5.7 跨任务迁移与 judge 稳健性（跨任务迁移见正文 4.3，judge 稳健性见附录 D.4-D.5）
 
 - **跨任务迁移**（Table 11）：创意写作训练的模型在摘要基准上全部正向迁移（GovReport 56.1%、Multi-News 55.4%、QMSum 52.7%、VCSum 51.8%、SAMSum 52.9%）；摘要训练适度提升写作（coherence 64.2% / consistency 63.1% 增益明显）。数学训练对写作任务负迁移（overall 40.9%）。迁移方向与任务能力重叠度一致。
 - **替代 judge**（Table 12-13）：Gemini-3.5-Flash 复评下 4B 摘要平均胜率 79.8%、写作 WP/WB Overall 81.8%/81.4%；8B 摘要 76.1%、写作 77.8%/77.0%——与 GPT-4o 结论一致，排除 evaluator 特化偏好。
@@ -314,7 +314,7 @@ Joint training（每 epoch 同时更新两阶段）导致退化：GSM8K 从 84.5
 
 ### 6.1 官方代码仓库
 
-官方实现：https://github.com/wangqinsi1/SpyRL（MIT 许可，基于 verl 构建）。仓库结构：`spyrl/`（核心游戏环境与两阶段优化实现）、`verl/`（上游 RL 框架集成）、`examples/`（启动示例）、`docker/`（容器化）、`docs/`、`tests/`、`scripts/`。
+官方实现：https://github.com/wangqinsi1/RLSVR/tree/SpyRL（MIT 许可，基于 verl 构建）。仓库结构：`spyrl/`（核心游戏环境与两阶段优化实现）、`verl/`（上游 RL 框架集成）、`examples/`（启动示例）、`docker/`（容器化）、`docs/`、`tests/`、`scripts/`。
 
 ### 6.2 训练系统配置（Table 7）
 
@@ -360,6 +360,6 @@ Joint training（每 epoch 同时更新两阶段）导致退化：GSM8K 从 84.5
 ### 7.2 延伸阅读
 
 - **Self-play for LLMs**：R-Zero（Huang et al., 2025）、Absolute Zero（Zhao et al., 2025）、SPIRAL（Liu et al., 2025a，零和博弈激励推理）、SPICE（Liu et al., 2025b）、SPAG（Cheng et al., 2024）、SPELL（Yang et al., 2025，长上下文自博弈）、Vision-Zero（Wang et al., 2025，「谁是卧底」游戏结构扩展到视觉语言模型）。
-- **RL beyond verifiable domains**：RLHF/RLAIF/DPO 系列、LLM-as-a-Judge（Zheng et al., 2024）、Rubrics-as-Rewards（Gunjal et al., 2025）、PRM（Lightman et al., 2023）、Writing-Zero（Jia et al., 2025，生成式奖励模型桥接写作任务）、AlphaProof（Hubert et al., 2025）。
+- **RL beyond verifiable domains**：RLHF/RLAIF/DPO 系列、LLM-as-a-Judge（Zheng et al., 2023）、Rubrics-as-Rewards（Gunjal et al., 2025）、PRM（Lightman et al., 2023）、Writing-Zero（Jia et al., 2025，生成式奖励模型桥接写作任务）、AlphaProof（Hubert et al., 2025）。
 - **可扩展 RL 训练系统**：DAPO（Yu et al., 2025，开源 LLM RL 系统）、verl（ByteDance Seed）。
 - **自博弈退化分析**：Chae et al. (2025)、Shafayat et al. (2025) 关于长时间自博弈退化与自我训练风险的研究。

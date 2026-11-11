@@ -33,7 +33,7 @@ SoftmaxGRPO 是 GRPO 组目标的 **drop-in 替代**：将 z-score 组归一化 
 
 3. **理论——有界标量奖励与负面结果**：证明大组更新精确优化 log-moment-generating-function 目标 $\nabla_\theta \log Z_\tau(\theta;x)$，其中 $Z_\tau = \mathbb{E}[e^{R/\tau}]$；同时给出**不存在性定理**——对三水平以上奖励，通用有限-$M$ 标量群体目标不存在（one-form 非保守：Eq.8 交叉偏导 $-1/15 \neq 1/15$），划定了方法的理论适用边界。
 
-4. **实证——梯度重分配与跨场景一致改进**：在 8 个 benchmark 上验证梯度预算从 near-solved prompt 流向中等难度 prompt，且在相同弱奖励（string-overlap）下一致优于 GRPO。
+4. **实证——梯度重分配与跨场景一致改进**：在 8 个 benchmark 上评估，并在 GSM8K 与 Countdown 上测得梯度预算从 near-solved prompt 流向中等难度 prompt；在相同弱奖励（string-overlap）下一致优于 GRPO。
 
 ### 1.3 关键结果速览
 
@@ -78,7 +78,7 @@ $$
 
 "弱奖励"（weak reward）指那些基于字符串重叠的代理奖励（如 ROUGE-L、BLEU、F1），而非精确匹配的验证器奖励。这类奖励广泛存在于**非可验证任务**（non-verifiable tasks）中——诗歌生成、会议摘要等开放式生成任务没有唯一正确答案，无法用 Exact Match 判定。
 
-弱奖励场景放大了 GRPO 的权重发散问题，原因有二：
+弱奖励场景使这一问题的代价更高：论文指出弱奖励噪声大且稀疏，已易 prompt 上浪费的梯度预算会进一步挤占本已稀缺的学习信号。论文的权重发散分析仅针对二值奖励；以下两点是报告作者关于连续奖励的推断：
 
 1. **奖励连续化使 $p(1-p) \to 0$ 更频繁**：精确奖励下 $p = k/M$ 是离散的；弱奖励的连续分布使得更多 prompt 落入极端 pass rate 区间，发散权重被更频繁地触发。
 2. **奖励噪声与方差的混淆**：弱奖励本身的噪声进一步扰动组内方差估计，使 advantage 的方差更大、训练更不稳定。
@@ -419,5 +419,5 @@ SoftmaxGRPO 的贡献不在于指数化奖励权重本身（RAML、softmax polic
 - **GRPO 权重几何分析**：论文引用的 [6][36] 对组目标如何优化 pass probability 的不同单调变换做了系统刻画，是理解本工作理论起点的基础
 - **MaxRL**：截断 ML 式加权 $[1-(1-p)^T]/p$ 作为 SoftmaxGRPO 的低温极限，两者关系见论文 Eq.5
 - **指数效用/MPO 家族**：RAML、softmax policy gradient、MPO 的指数化奖励视角（论文 [25][9][1]），SoftmaxGRPO 在有限 $M$ 时保持其指数倾斜解释
-- **verifier-RL 缩放行为**：Cai & Provilkov 独立报告的 GRPO 从 1.5B 到 3B 的 Countdown 回归现象（论文 [3]），与本文 3B 匹配对比直接相关
+- **verifier-RL 缩放行为**：Cai & Provilkov 独立报告的 verifier-RL 缩放行为（论文 [3]），与本文 3B 匹配对比中 GRPO 的 Countdown 回归现象直接相关
 - **弱奖励后训练**：无验证器域（摘要、开放问答、创意生成）的方法论挑战与 process-level 约束方案（论文 [19][24][45]）

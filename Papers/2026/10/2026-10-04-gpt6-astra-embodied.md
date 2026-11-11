@@ -11,13 +11,13 @@
 
 ### 1.1 一句话定位
 
-一句话定位：本文将 OpenAI 的 GPT-6 Astra 作为 **embodied policy（具身策略）**——不再只输出"该做什么"的语言建议，而是直接输出数值机器人动作——并在六大具身域上做了首次系统性评测。
+一句话定位：本文将 OpenAI 的 GPT-6 Astra 作为 **embodied policy（具身策略）**——不再只输出"该做什么"的语言建议，而是直接输出数值机器人动作——并在六大具身域上做了系统性评测。
 
 六域覆盖了从指尖到全身的完整控制谱系：
 
 - 夹爪操作：RoboDojo（仿真配对评测）、RoboLab（Franka 单臂零样本）；
 - 灵巧手操作：Sharpa 10 任务、DexJoCo Hanoi 双臂叠盘、Allegro 掌内操作；
-- 移动操作：RoboCasa365（atomic/composite × seen/unseen）；
+- 移动操作：RoboCasa365（atomic seen / composite seen / composite unseen 三组）；
 - 导航：VLN-CE（R2R/RxR）+ ObjectNav（MP3D/HM3D）；
 - 运动控制：PASSAGE 场景密集参考（locomotion）；
 - 人形 loco-manipulation：HumanoidBench 30 任务 + SIMPLE L2（6 任务 × 10 场景）。
@@ -54,7 +54,7 @@
 | Table 17 | RoboDojo 执行与 token 精确账目 | 第 6 章 |
 | Table 35 | RoboCasa 配对 McNemar 检验 | 第 4 章 |
 | Figure 9 | RoboCasa 三条件匹配起始对比 | 第 4 章 |
-| Figure 11 | 导航本地对比与失败模式 | 第 4 章 |
+| Figure 11 | 导航成功/失败轨迹与失败模式 | 第 4 章 |
 | Figure 21 | Allegro 掌内 rollout 序列 | 第 3 章 |
 | Figure 14 | 第一视角视频场景重建 | 第 5 章 |
 | Figure 18 | 掌内操作基准总览 | 第 6 章 |
@@ -64,7 +64,7 @@
 
 论文的四条贡献可以概括为"一个框架、一个划分、一份边界、一本账"：
 
-1. **首次六域系统评测框架**。
+1. **六域系统评测框架**。
    将 Astra 统一置于从抓取到全身运动的完整控制谱系上评测，覆盖六大域与多个基准平台；
    每域显式给出任务数、样本量与对比条件（Table 1），并配套固定配置协议与统计检验
    （RoboCasa 的 McNemar 精确检验），使跨域结论可复现、可归因。
@@ -78,7 +78,7 @@
    locomotion 密集参考全失败（0/5）、RoboDojo 上 Direct 抓不住物体但语义分类更强等；
    并以 150 个 Astra sessions 的信息边界审计保证归因干净。
 4. **token 与延迟量化**。
-   首次为 VLM 具身策略建立资源账本：RoboDojo 50 实例 Hybrid/Direct 总 token 624.8M/1,132.3M
+   为 VLM 具身策略建立资源账本：RoboDojo 50 实例 Hybrid/Direct 总 token 624.8M/1,132.3M
    （Hybrid 省 44.8%）、RoboCasa 7,910–8,941 次模型请求、locomotion 平均 39.86 s/次调用
    ——把"能否得分"与"能否部署"放进同一份讨论。
 
@@ -114,7 +114,7 @@
 
 ### 2.1 Direct 与 Hybrid：两种控制责任划分
 
-评测对象统一为 GPT-6 Astra（`gpt-6-astra` xhigh，Responses API，900 s 超时）。两种模式共享同一模型与观测流，差别只在动作的最终出处——这使跨模式对比可以干净地归因于"控制责任的划分"。
+评测对象统一为 GPT-6 Astra（`gpt-6-astra` xhigh，Responses API，900 s 超时）。两种模式共享同一底层模型，但各域的控制与观测配置并不完全一致（例如 RoboCasa 中两条件还在策略访问、上下文管理与反馈防护上不同，见 Appendix I.4），因此跨模式对比反映这些因素的联合效应，不能全部归因于"控制责任的划分"。
 
 **Direct：动作 = 控制接口命令。** Astra 的输出直接就是机器人控制接口的数值命令，模型完整承担从感知到执行的整条链路。各域接口示例：
 
@@ -169,10 +169,10 @@ Table 1 集中给出六域的任务数、样本量与对比条件：
 | 夹爪操作 | RoboLab（Franka 单臂，零样本） | 10 任务 | 50 episodes | Direct、Hybrid、π0.5、Cosmos3-Nano-Policy、DreamZero |
 | 灵巧手 | Sharpa（部分分 0–100） | 10 任务 | 每任务多次 rollout | Hybrid、π0.5、Direct |
 | 灵巧手 | DexJoCo Hanoi | 双臂叠盘 10 试 + 5 复盘 | 10 试 + 5 复盘（共 63.60M tokens） | Astra 修正占比分析 |
-| 灵巧手 | 掌内操作（Allegro） | 圆柱旋转/立方体/平移/平移+旋转 | 5 试/条件 | Astra vs RL（成功阈值 22.4 mm/10°） |
-| 移动操作 | RoboCasa365 | atomic/composite × seen/unseen | 75 episodes/条件 | π0.5、Direct、Hybrid + McNemar 精确检验 |
+| 灵巧手 | 掌内操作（Sharpa 旋转 + Allegro 平移） | 圆柱旋转/立方体旋转（Sharpa）、圆柱平移/平移+旋转（Allegro） | 5 试/条件 | Astra vs RL（旋转看 At-goal；平移/平移+旋转用 22.4 mm 与 10° 阈值） |
+| 移动操作 | RoboCasa365 | atomic seen / composite seen / composite unseen 三组（无 atomic unseen） | 75 episodes/条件 | π0.5、Direct、Hybrid + McNemar 精确检验 |
 | 导航 | VLN-CE（R2R/RxR）+ ObjectNav（MP3D/HM3D） | 4 子集 | 50 episodes/子集 | 本地 LightNav-0（同一 200 episodes） |
-| 运动控制 | PASSAGE 场景密集参考 | Astra 5 试 + 紧凑参考 12 试/格式 | — | PASSAGE 参考 vs Five-point / WholeBody-14 |
+| 运动控制 | PASSAGE 场景密集参考 | Astra 5 试 + 紧凑参考 12 试/格式 | — | Astra vs PASSAGE；另设无 Astra 的 Five-point / WholeBody-14 诊断 |
 | 人形 | HumanoidBench + SIMPLE L2 | 30 任务；6 任务 × 10 场景 | — | TD-MPC2、SAC、DreamerV3 |
 
 各域设计要点（详细数字留待第 3–5 章展开）：
@@ -184,9 +184,9 @@ Table 1 集中给出六域的任务数、样本量与对比条件：
   用于检验语义主导任务上 Direct 的上限（98% 即出自这里）。
 - **Sharpa（灵巧手）**：10 任务、0–100 **部分分**制（s=1 全部 subgoal+验证窗……s=0 无进展），
   允许"部分完成"得分，以区分"完全失败"与"接近成功但最后一步失手"。
-- **掌内操作（Allegro）**：四项毫米级技能各 5 试，与专项 RL 策略直接对比
-  （成功阈值 22.4 mm/10°），这是全文物理难度最高的对照。
-- **RoboCasa365（移动操作）**：atomic/composite × seen/unseen 四象限，75 episodes/条件，
+- **掌内操作（Sharpa 旋转 + Allegro 平移）**：四项毫米级技能各 5 试，与专项 RL 策略直接对比
+  （旋转看 At-goal，平移/平移+旋转用 22.4 mm 与 10° 阈值），这是全文物理难度最高的对照。
+- **RoboCasa365（移动操作）**：atomic seen / composite seen / composite unseen 三组（无 atomic unseen），75 episodes/条件，
   并以 McNemar 精确检验给出显著性
   （Hybrid vs Direct p=0.5235；Hybrid vs π0.5 p=0.0227；Direct vs π0.5 p=0.1849）。
 - **导航**：四子集（R2R/RxR/MP3D/HM3D）各 50 episodes；对比基线 LightNav-0 在**同一 200 episodes**
@@ -291,7 +291,7 @@ $$S_{t,m} = \frac{100}{5}\sum_{i=1}^{5} s_{t,i,m}, \qquad S_{m} = \frac{1}{10}\s
 
 Hanoi 任务要求双 Franka Panda + Allegro 手完成两次有序转移（右手中盘入位 → 左手小盘叠上）。Astra 审查为该任务训练的固定 π0.5，10 次试验以 5 个连续对组织，对内共享书面指导、对间细化（模型权重不变）。**原生判据下完成 5/10**；11,320 个执行步中 73.6% 为未修改的策略动作、26.4% 为 Astra 修正。10 次试验加 5 次复盘消耗 63.60M recorded tokens（含缓存输入），其中真正用于复盘的仅 0.136M——**token 大头永远在在线控制环里，即使物理动作大部分由策略提供**。
 
-行为层面的两个细节刻画了「合作」的微观结构：成功试验中 Astra 会延迟策略提议的释放动作（小盘仍悬在支撑上方），用短下压修正使盘落稳再交还控制权；失败试验中同样的反复落位修正耗尽步数，甚至有两步腕部调整把盘带离目标、交还策略后才恢复运输的案例——**有效合作既需要及时干预，也需要识别策略可能是更好的恢复者**。
+行为层面的两个细节刻画了「合作」的微观结构：成功试验中 Astra 会延迟策略提议的释放动作（小盘仍悬在支撑上方），用短下压修正使盘落稳再交还控制权；失败试验中同样的反复落位修正耗尽步数，而在另一成功试验中 Astra 的两步腕部调整把盘带离目标、交还策略后才恢复运输——**有效合作既需要及时干预，也需要识别策略可能是更好的恢复者**。
 
 ### 3.5 掌内操作：稳定抓握 ≠ 持续运动
 
@@ -321,7 +321,7 @@ At-goal 定义为 $e_q(t) < 0.1$ rad 的控制步占比，Speed MAE 为 1 s 滑�
 
 ![Figure 21: Representative rollout sequences for Allegro in-hand tasks](Figures/2026-10-04-gpt6-astra-embodied-fig21.png)
 
-*图21（论文 Figure 21）：Allegro 掌内任务代表性 rollout 序列。Astra 直控下物体被握住但几乎不产生目标方向的运动，接触重构极少，而 RL 基线持续推进重定向（旋转任务）——「稳定抓握、有限旋转」的直观呈现。*
+*图21（论文 Figure 21）：Allegro 平移与平移+旋转任务代表性 rollout 序列。Astra 直控下物体被握住但目标方向的运动不足，而 RL 基线继续推进——「稳定抓握、有限推进」的直观呈现；旋转任务的接触重配对比见 Figure 20。*
 
 ## 第 4 章 移动操作与导航
 
@@ -412,7 +412,7 @@ At-goal 定义为 $e_q(t) < 0.1$ rad 的控制步占比，Speed MAE 为 1 s 滑�
 | Door | 213.0 | 274.7 | 39.4 | 142.4 | 600 |
 
 - 30 任务等权平均：**Astra 581.9 > TD-MPC2 338.2 > SAC 42.7 > DreamerV3 −41.9**；超 DreamerV3 16 任务、TD-MPC2 19 任务、SAC 25 任务、超三者最优 13 任务、Kitchen 零平局；**6 个任务均值达原生阈值：Stand 954.2±0.1（800）、Walk 848.7±5.9（700）、Maze 1358.8±7.4（1200）、Crawl 971.9±0.2（700）、Push 877.3±59.6（700）、Sit Simple 793.0±19.1（750）**；
-- 但要诚实读这张表：Package −5148.0±1288.1、Balance Simple 53.1±6.7、Basketball 24.0±2.9、Window 6.1±0.7 等任务接近零分——Astra 的优势集中在「全身控制器已提供可用运动基元、Astra 只需选命令」的任务（走、爬、推、迷宫），一旦需要自己发明接触策略（Door、Window、Insert）就崩塌；
+- 但要诚实读这张表：Package −5148.0±1288.1（大幅负值）、Balance Simple 53.1±6.7、Basketball 24.0±2.9、Window 6.1±0.7 等任务得分很低、远低于阈值——Astra 的优势集中在「全身控制器已提供可用运动基元、Astra 只需选命令」的任务（走、爬、推、迷宫），一旦需要自己发明接触策略（Door、Window、Insert）就崩塌；
 - **校准的隐性贡献**：脚本化 Walk 扫频中，gait-clock 从 1.2 Hz 提到 1.8 Hz，8 个配对种子平均 return 从 705.72 升至 746.60——权重、命令速度、反馈规则全部不变。命令 1.25 m/s 实测前进 1.48 m/s。性能是「Astra 决策 × 控制器校准」的联合产物，不能全记在模型头上；
 - Push 的接触诊断（seed 5）：entry 与 contact 参考都不改 27.02 cm、只改 entry 36.81 cm、只改 contact 23.11 cm、**两者联改 4.97 cm**——有效的手部偏移依赖于进入接触时的身体构型，接触参数必须与状态联合校准。
 
@@ -438,7 +438,7 @@ Astra 还被要求自己组装并修正一条管线：自我中心视频 → 感
 
 ![Figure 14: Why handover remains fragile — scene reconstruction from everyday videos](Figures/2026-10-04-gpt6-astra-embodied-fig14.png)
 
-*图14（论文 Figure 14）：从日常第一视角视频重建的场景与运动参考。几何上合理的重建不保证物理交互成功——支撑面、容器内部与可动机构必须在重建与重定向后保持可用。*
+*图14（论文 Figure 14）：从日常第一视角视频重建的交互场景（源帧与重建几何）。几何上合理的重建不保证物理交互成功——支撑面、容器内部与可动机构必须在重建与重定向后保持可用。*
 
 ## 第 6 章 讨论与资源消耗
 

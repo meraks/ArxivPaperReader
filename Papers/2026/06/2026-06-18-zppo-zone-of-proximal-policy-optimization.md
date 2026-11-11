@@ -2,10 +2,10 @@
 
 ## 论文元数据
 - **标题：** Zone of Proximal Policy Optimization: Teacher in Prompts, Not Gradients
-- **作者：** Byung-Kwan Lee (†Project Lead), Ximing Lu, Shizhe Diao, Minki Kang, Saurav Muralidharan, Karan Sapra, Andrew Tao, Pavlo Molchanov, Yejin Choi, Yu-Chiang Frank Wang, Ryo Hachiuma — NVIDIA
+- **作者：** Byung-Kwan Lee (†Project Lead), Ximing Lu, Shizhe Diao, Minki Kang, Saurav Muralidharan, Karan Sapra, Andrew Tao, Yu-Chiang Frank Wang, Ryo Hachiuma — NVIDIA
 - **arXiv ID：** 2606.18216
 - **提交日期：** 2026-06-17
-- **官方代码：** 无公开仓库（NVIDIA Technical Patent Filed, 2026）
+- **官方代码：** 无公开代码仓库（论文仅给出项目页面）
 - **项目页面：** https://byungkwanlee.github.io/ZPPO-page/
 - **数据集：** ZPPO-77K（77K image-question pairs 多模态 RL 数据集）
 
@@ -19,14 +19,14 @@
 
 | 方案 | 核心机制 | 根本缺陷 |
 |------|---------|---------|
-| **知识蒸馏** | 学生模仿教师 logit/logits/hidden states | Mode-seeking：小容量学生集中到教师最尖锐的少数模式，泛化脆弱 |
+| **知识蒸馏** | 学生模仿教师 logit/logits/hidden states | Memorization：小容量学生记忆教师答案、遗忘通用能力，泛化脆弱 |
 | **强化学习（GRPO）** | 学生自身 rollout 的 group-relative advantage | 所有 rollout 全失败时产生零优势 → hard question 被静默丢弃 |
 
 ZPPO 提出第三个路径：**教师仅出现在 prompt 中，从不进入 policy gradient**。
 
 ### ZPPO 核心思想
 
-ZPPO将教师知识从梯度空间转移到prompt空间。教师响应被编码为prompt的一部分（BCQ/NCQ重新表述），学生生成全新rollout，策略梯度仅计算学生自身输出。这一设计同时避免了蒸馏的mode-seeking和RL的零优势陷阱。
+ZPPO将教师知识从梯度空间转移到prompt空间。教师响应被编码为prompt的一部分（BCQ/NCQ重新表述），学生生成全新rollout，策略梯度仅计算学生自身输出。这一设计同时避免了蒸馏的记忆/遗忘问题和RL的零优势陷阱。
 
 ### 三个核心组件
 
@@ -40,7 +40,7 @@ ZPPO将教师知识从梯度空间转移到prompt空间。教师响应被编码�
 
 | 学生规模 | 16 VLM（pp） | 10 LLM（pp） | 5 Video（pp） |
 |---------|:-----------:|:-----------:|:------------:|
-| **0.8B** | **+9.3** | **+7.9** | **+4.5** |
+| **0.8B** | **+9.3** | **+7.9** | **+4.6** |
 | 2B | +5.2 | +5.1 | +2.6 |
 | 4B | +4.0 | +3.9 | +0.3 |
 | 9B | +2.8 | +3.9 | +0.4 |
@@ -53,7 +53,7 @@ ZPPO将教师知识从梯度空间转移到prompt空间。教师响应被编码�
 
 ### 2.1 小模型蒸馏的固有问题
 
-Off-policy 蒸馏（学生通过 KL 散度模仿教师 logit 分布）、On-policy 蒸馏（学生实时采样后教师评分再模仿）、self-distillation（学生自蒸馏），三者共享根本约束：训练信号是学生容量不足以表示的 logit 分布。对于 0.8B 或 2B 学生，有限的模型容量导致**模式寻求偏差（mode-seeking bias）**——学生集中在教师最尖锐的少数峰上，在训练语料外的 benchmark 上泛化脆弱（Tab. 2 验证：0.8B 蒸馏在 LLM+Video 上退化为 -2.5pp）。
+Off-policy 蒸馏（学生通过 KL 散度模仿教师 logit 分布）、On-policy 蒸馏（学生实时采样后教师评分再模仿）、self-distillation（学生自蒸馏），三者共享根本约束：训练信号是学生容量不足以表示的 logit 分布。对于 0.8B 或 2B 学生，有限的模型容量导致**记忆/遗忘（memorization）**——学生记忆教师答案、遗忘通用能力，在训练语料外的 benchmark 上泛化脆弱（Tab. 2 验证：0.8B 蒸馏在 LLM+Video 上退化为 -2.5pp）。
 
 ### 2.2 GRPO 的零优势陷阱
 
@@ -122,7 +122,7 @@ Buffer $\mathcal{B}$ 仅存储问题 $x$（图像+文本），不存储响应。
 
 ### 3.5 RL 主干配方
 
-ZPPO 基于 GRPO [36] + DAPO [8] 的三个成分：
+ZPPO 基于 GRPO [47] + DAPO [8] 的三个成分：
 
 1. **Clip-higher**：$\epsilon_{\text{low}} = 0.20, \epsilon_{\text{high}} = 0.28$
 2. **Token-level policy gradient loss**：逐 token 计算替代损失而非整序列平均
@@ -130,7 +130,7 @@ ZPPO 基于 GRPO [36] + DAPO [8] 的三个成分：
 
 外加两个对训练动力学敏感的 recipe 选择：
 
-4. **Iterations per step $I = 4$**（vs GRPO 默认 $I=16$；$I=16$ 导致小模型漂移）
+4. **Iterations per step $I = 4$**（vs DAPO 默认 $I=16$；$I=16$ 导致小模型漂移）
 5. **Batch-level advantage normalization（排除零优势组）**：零优势组（all-wrong/all-correct）的 batch mean/std 会扭曲 batch 级别统计，必须在计算 batch 归一化时排除
 
 ---
@@ -145,7 +145,7 @@ ZPPO 基于 GRPO [36] + DAPO [8] 的三个成分：
 | 教师模型 | Qwen3.5-27B-FP8（冻结） |
 | 训练数据 | ZPPO-77K（77K image-question pairs） |
 | 评估套件 | 31 benchmarks: 16 VLM + 10 LLM + 5 Video |
-| 硬件 | NVIDIA GPU（论文未明确具体型号/数量） |
+| 硬件 | NVIDIA H100-80 GB ×64（8 节点 × 8） |
 
 **基线方法**：Off-policy distillation、On-policy distillation、GRPO（ZPPO pipeline 不含 BCQ/NCQ/buffer）、GRPO†（含 prompt replay buffer 但不含 BCQ/NCQ）。
 
@@ -169,11 +169,11 @@ ZPPO 基于 GRPO [36] + DAPO [8] 的三个成分：
 | VisP | 20.5 | 27.8 | 35.0 | +7.2 |
 | VBlind | 42.8 | 43.6 | 44.7 | +1.1 |
 | WeMath | 54.4 | 62.5 | 71.7 | +9.2 |
-| **Avg** | **41.0** | **45.4** | **50.3** | **+4.9** |
+| **Avg** | **41.0** | **45.5** | **50.3** | **+4.8** |
 
 **2B VLM**：Base 56.8 → GRPO† 59.2 → **ZPPO 62.0**（+2.8pp）。最大增益：BabyV +4.2pp、DynaM +6.8pp、MVision +7.1pp。
 
-**规模趋势**：ZPPO 增益随规模递减——+9.3pp (0.8B) → +5.2pp (2B) → +4.0pp (4B) → +2.8pp (9B)。蒸馏增益始终有限（最佳 <+1pp）。
+**规模趋势**：ZPPO 增益随规模递减——+9.3pp (0.8B) → +5.2pp (2B) → +4.0pp (4B) → +2.8pp (9B)。蒸馏平均增益有限（+0.9/+0.9/+0.7/+0.6pp），最佳单变体 +1.3pp。
 
 ### 4.3 LLM 与 Video 基准（泛化分析）（Tab. 2）
 
@@ -182,9 +182,9 @@ ZPPO 基于 GRPO [36] + DAPO [8] 的三个成分：
 | Method | 0.8B LLM | 0.8B Video | 2B LLM | 2B Video |
 |--------|:--------:|:----------:|:------:|:--------:|
 | Base | 25.2 | 48.3 | 45.3 | 60.6 |
-| +Off/On-Distill† | 22.5–23.2 | 45.0–45.8 | 43.1–43.7 | 58.6–59.2 |
+| +Off/On-Distill† | 22.5–23.2 | 45.0–45.8 | 43.1–43.8 | 58.6–59.2 |
 | +GRPO† | 28.7 | 50.5 | 47.3 | 61.9 |
-| **+ZPPO** | **33.1** | **52.8** | **50.4** | **63.2** |
+| **+ZPPO** | **33.1** | **52.9** | **50.4** | **63.2** |
 
 **蒸馏退化幅度**（LLM+Video 平均）：-2.5pp (0.8B), -1.8pp (2B), -0.9pp (4B), -0.3pp (9B)。
 
@@ -200,30 +200,30 @@ ZPPO 基于 GRPO [36] + DAPO [8] 的三个成分：
 | 方法 | 0.8B VLM Avg | 2B VLM Avg |
 |------|:-----------:|:----------:|
 | GRPO | 43.8 | 58.7 |
-| +GRPO† (buffer only) | 45.4 | 59.2 |
+| +GRPO† (buffer only) | 45.5 | 59.2 |
 | +GRPO+Both (BCQ+NCQ, no buffer) | 45.2 | 58.9 |
 | +GRPO†+BCQ | 48.6 | 60.8 |
 | +GRPO†+NCQ | 46.2 | 60.1 |
 | **+ZPPO (GRPO†+BCQ+NCQ)** | **50.3** | **62.0** |
 
 **关键观察**：
-- **Replay × Reformulation 是超可加的**：单独 replay 仅 +1.6pp（0.8B），单独 BCQ+NCQ 仅 +1.4pp，但三者组合 +6.5pp
-- **BCQ 在小规模主导，NCQ 在大规模主导**：0.8B 时 BCQ 贡献（+3.2pp = 48.6−45.4）大于 NCQ（+0.8pp）；2B 时 NCQ 贡献增长
+- **Replay × Reformulation 是超可加的**：单独 replay 仅 +1.7pp（0.8B），单独 BCQ+NCQ 仅 +1.4pp，但三者组合 +6.5pp
+- **BCQ 在小规模主导，NCQ 在大规模主导**：0.8B 时 BCQ 贡献（+3.1pp = 48.6−45.5）大于 NCQ（+0.7pp）；2B 时 NCQ 贡献增长
 
 ### 4.5 毕业动力学分析（Fig. 4）
 
 | 准入时 rollout 准确率 | ZPPO 毕业率 | GRPO† 毕业率 |
 |---------------------|:----------:|:------------:|
-| **0%**（最困难问题） | **28%** (432/1568) | **4%** (73/2035) |
+| **0%**（最困难问题） | **28%** (432/1566) | **4%** (73/2035) |
 | 12.5% | **54%** | 14% |
-| 25% | 76% | 49% |
-| 37.5% | 93% | 82% |
+| 25% | **62%** | 37% |
+| 37.5% | **67%** | 51% |
 
 在普通 RL 完全提供零梯度的最困难问题（0% accuracy）上，ZPPO 通过 BCQ/NCQ 的 prompt reformulation 恢复了 28% 的毕业率，而 GRPO† 仅有 4%。
 
 ### 4.6 RL 配方消融（Fig. 6）
 
-**$I=4$ 是最优点**：$I=16$（GRPO 默认）产生 4 倍更新但增益有限；$I=1$ 消除漂移但训练不足。论文发现 $I=4$ 在小模型上是最优折中。
+**$I=4$ 是最优点**：$I=16$（DAPO 默认）产生 4 倍更新但增益有限；$I=1$ 消除漂移但训练不足。论文发现 $I=4$ 在小模型上是最优折中。
 
 **Norm w/o Zero（排除零优势组）是关键**：包含零优势组会缩小 batch 标准差，放大其他优势值，导致训练不稳定。排除零优势组后，2B LLM avg 从 ~43 提升至 ~47。
 
@@ -233,9 +233,9 @@ ZPPO 基于 GRPO [36] + DAPO [8] 的三个成分：
 
 ### 5.1 论文明确的局限性
 
-**Teacher-bounded zone**：BCQ 需要教师成功解决 hard question。教师和学生同时失败时只有 NCQ 可用，而 NCQ 单独贡献有限（Tab. 3 中 NCQ-only vs BCQ-only）。扩展 ZPD 超越当前教师覆盖范围是最重要的开放问题。
+**Teacher-bounded zone**：BCQ 需要教师成功解决 hard question。教师和学生同时失败时只有 NCQ 可用，而 NCQ 单独贡献有限（Tab. 3 中 NCQ-only vs BCQ-only）。扩展 ZPD 超越当前教师覆盖范围是论文明确留下的重要开放问题。
 
-**与 Dynamic Sampling 的张力**：ZPPO 存储 all-wrong group 给予第二次机会，DAPO 的 dynamic sampling 则丢弃它们。论文建议先 ZPPO reformulation 后 dynamic sampling 可能产生协同。
+**与 Dynamic Sampling 的张力**：ZPPO 存储 all-wrong group 给予第二次机会，DAPO 的 dynamic sampling 则丢弃它们；论文所有 RL 实验均禁用 dynamic sampling，未讨论二者组合。
 
 **Scope 限制**：仅覆盖单轮推理正确性，不覆盖多步推理、agentic 推理、鲁棒性、推理时效率、会话能力、多传感感知、多轮对话。
 
@@ -246,7 +246,7 @@ ZPPO 基于 GRPO [36] + DAPO [8] 的三个成分：
 - [4] Qwen3.5 Team (2026) — 基座模型系列
 - [5] DeepSeek-R1 (Guo et al., 2025) — 基础 RL 推理框架
 - [8] DAPO (Yu et al., 2025) — clip-higher, token-level loss, dynamic sampling
-- [36] GRPO (Shao et al., 2024) — 群组相对策略优化
-- [37] REINFORCE++ (Hu, 2025) — 两步 batch-level advantage normalization
-- [42] Vygotsky (1978) — Zone of Proximal Development
-- [44] PPO (Schulman et al., 2017) — 近端策略优化
+- [47] GRPO (Shao et al., 2024) — 群组相对策略优化
+- [48] REINFORCE++ (Hu, 2025) — 两步 batch-level advantage normalization
+- [53] Vygotsky (1978) — Zone of Proximal Development
+- [79] PPO (Schulman et al., 2017) — 近端策略优化

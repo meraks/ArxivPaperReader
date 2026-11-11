@@ -14,7 +14,7 @@
 
 ### 1.1 一句话总结
 
-DeepSeekMath 通过**两个核心创新**——120B tokens 的专用数学预训练语料（Common Crawl 迭代挖掘）和**免 critic 的 GRPO 强化学习算法**——在 7B 参数模型上实现了与 540B 参数的 Minerva 持平的数学推理能力（MATH 51.7% vs 33.6%，提升 53.9%），并首次在开源模型上证明了**代码预训练→数学推理**的正迁移效应。
+DeepSeekMath 通过**两个核心创新**——120B tokens 的专用数学预训练语料（Common Crawl 迭代挖掘）和**免 critic 的 GRPO 强化学习算法**——在 7B 参数模型上，Base 模型实现了与 540B 参数的 Minerva 持平/略优的数学推理能力（MATH 36.2% vs 33.6%），经 SFT+RL 后进一步提升到 51.7%；并首次在开源模型上证明了**代码预训练→数学推理**的正迁移效应。
 
 ---
 
@@ -26,8 +26,8 @@ DeepSeekMath 通过**两个核心创新**——120B tokens 的专用数学预训
 
 | 模型 | 参数量 | MATH | GSM8K | 访问方式 |
 |------|--------|------|------|----------|
-| GPT-4 (OpenAI) | 未知 (~1.8T) | 42.5% | 92.0% | 闭源 API |
-| Minerva 540B (Google) | 540B | 33.6% | [未报告] | 闭源 |
+| GPT-4 (OpenAI) | 未知（外部估计 ~1.8T） | 52.9% | 92.0% | 闭源 API |
+| Minerva 540B (Google) | 540B | 33.6% | 58.8% | 闭源 |
 | Claude 3 (Anthropic) | 未知 | [未报告] | 95.0% | 闭源 |
 | LLaMA-2 70B (Meta) | 70B | 13.5% | 56.8% | 开源 |
 
@@ -36,12 +36,12 @@ DeepSeekMath 通过**两个核心创新**——120B tokens 的专用数学预训
 #### 技术路线的三重瓶颈
 
 1. **数据瓶颈**：高质量数学数据稀缺
-   - OpenWebMath（开源标杆）：仅 14.5B tokens
-   - Minerva（闭源）：15.4B tokens（arXiv + 网页）
+   - OpenWebMath（开源标杆）：仅 13.6B tokens
+   - Minerva（闭源）：约 17B 数学网页 tokens（arXiv + 网页）
    - Common Crawl：数学内容占比 <0.1%，需高效挖掘
 
 2. **算法瓶颈**：PPO 需要同时训练 4 个模型（policy + reference + value + reward）
-   - 7B 模型的 PPO 训练需要 8×A100（80GB）才能运行
+   - PPO 需额外训练/维护 value model，显存与计算开销显著高于 GRPO（论文未给出具体卡数）
    - 开源研究者无法复现（算力门槛）
 
 3. **评估瓶颈**：工具辅助推理（PoT）与无工具推理（CoT）能力不分离
@@ -58,10 +58,10 @@ DeepSeekMath 通过**两个核心创新**——120B tokens 的专用数学预训
 
 | # | 贡献 | 级别 | 可复现性 | 关键数字 |
 |---|------|------|----------|----------|
-| 1 | **DeepSeekMath Corpus**：从 Common Crawl 迭代挖掘 120B tokens 数学数据（4轮迭代，35.5M网页） | 工程范式 | ✅ 完全开源 | 规模=Minerva的7倍，OpenWebMath的9倍；与GSM8K/MATH的10-gram重叠率 <0.5% |
-| 2 | **GRPO 算法**：用同问题多次采样的组均值替代 value function，仅需 2 个模型（policy + reference） | 算法创新 | ✅ 代码已开源 | 显存节省 ~50%；MATH 从 36.2%→51.7%（+15.5%） |
-| 3 | **Code→Math 迁移路径**：证明代码预训练对数学推理有显著正迁移效应 | 洞察 | ✅ 可复现 | Code-初始化 vs LLM-初始化：MATH 36.2% vs [未明确报告，但论文确认前者显著更优] |
-| 4 | **arXiv 论文无效发现**：在充分的高质量网页数据下，arXiv 论文数据无法提升基准性能 | 反直觉发现 | ✅ 可验证 | 消融实验：加入 arXiv 数据后，GSM8K/MATH 无提升 |
+| 1 | **DeepSeekMath Corpus**：从 Common Crawl 迭代挖掘 120B tokens 数学数据（4轮迭代，35.5M网页） | 工程范式 | ✅ 完全开源 | 规模=Minerva的约7倍，OpenWebMath的约9倍；用10-gram精确匹配做去污染（论文未报告残余重叠率） |
+| 2 | **GRPO 算法**：用同问题多次采样的组均值替代 value function，去掉 value model（仍为 policy + reference + reward 3 个模型） | 算法创新 | ✅ 代码已开源 | 显著降低训练资源（论文未给具体比例）；RL 阶段 MATH 从 46.8%→51.7%（+4.9%） |
+| 3 | **Code→Math 迁移路径**：证明代码预训练对数学推理有正迁移效应 | 洞察 | ✅ 可复现 | 1.3B 消融：Code 初始化 vs General 初始化 MATH 15.3% vs 14.4%（+0.9） |
+| 4 | **arXiv 论文无效发现**：arXiv-only 语料无法提升基准性能（与网页数据混合的效果论文未研究） | 反直觉发现 | ✅ 可验证 | 消融实验：仅用 arXiv 语料训练，GSM8K/MATH 无显著提升 |
 | 5 | **统一 RL 范式**：将 SFT、RFT、DPO、PPO、GRPO 统一为三要素框架（数据源、奖励函数、梯度系数） | 理论贡献 | ✅ 理论推导 | 提供了 RL 微调方法的系统性对比视角 |
 
 ---
@@ -104,7 +104,7 @@ DeepSeekMath 通过**两个核心创新**——120B tokens 的专用数学预训
 2. **标注门槛高**：需要专家验证解答的正确性，无法众包
 3. **分布偏斜**：网页上的数学内容占比 <0.1%（Common Crawl 统计），且大量是低质量的作业辅导网站
 
-**DeepSeekMath 的假设**：通过**迭代式分类器**（fastText）和**大规模网页挖掘**（35.5M页面），可以将数学数据规模从 15B tokens（Minerva）提升到 120B tokens（7倍），且质量不下降。
+**DeepSeekMath 的假设**：通过**迭代式分类器**（fastText）和**大规模网页挖掘**（35.5M页面），可以将数学数据规模从约 17B tokens（Minerva 数学网页）提升到 120B tokens（约7倍），且质量不下降。
 
 ---
 
@@ -139,7 +139,7 @@ DeepSeekMath 通过**两个核心创新**——120B tokens 的专用数学预训
 **理由**：
 1. **可分离性**：不使用工具，纯粹测试**符号推理能力**
 2. **可复现性**：开源数据 + 开源算法，社区可复现
-3. **效率**：GRPO 比 PPO 节省 ~50% 显存，7B 模型可在 4×A100 上训练
+3. **效率**：GRPO 去掉 value model，显著降低训练资源（论文未给出具体显存比例或卡数）
 
 ---
 
@@ -151,7 +151,7 @@ DeepSeekMath 通过**两个核心创新**——120B tokens 的专用数学预训
 
 **验证实验**：
 - arXiv 论文（权威来源）vs Common Crawl 网页（大众来源）
-- 消融实验结果：在 120B tokens 基础上加入 arXiv 数据，GSM8K/MATH 无提升
+- 消融实验结果：只用 arXiv 语料（MathPile/ArXiv-RedPajama）训练，GSM8K/MATH 无显著提升；arXiv 与网页数据混合的效果论文明确列为未研究
 
 **反直觉之处**：学术界通常认为 arXiv 论文质量更高，但实验证明**大量网页数学内容**（StackExchange、Wikipedia、教程网站）比**少量精选论文**更有效。
 
@@ -162,12 +162,12 @@ DeepSeekMath 通过**两个核心创新**——120B tokens 的专用数学预训
 
 #### 假设2：迁移假设（Transfer Hypothesis）
 
-**表述**：代码预训练对数学推理有**显著正迁移效应**（positive transfer）。
+**表述**：代码预训练对数学推理有**正迁移效应**（positive transfer）。
 
 **验证实验**：
-- Code-初始化：从代码预训练模型开始（DeepSeek-Coder）
-- LLM-初始化：从通用 LLM 开始（LLaMA-2）
-- 结果：Code-初始化在 MATH 上显著优于 LLM-初始化（36.2% vs [未明确数值，但论文确认显著]）
+- Code-初始化：DeepSeek-LLM 1.3B 先在 400B 代码 tokens 上训练，再训练 150B 数学 tokens
+- General-初始化：同一模型先在 400B 通用 tokens 上训练，再训练 150B 数学 tokens
+- 结果：在 DeepSeek-LLM 1.3B 上，Code-初始化在 MATH 上略优于 General-初始化（15.3% vs 14.4%，+0.9）；带工具时增益更明显（MATH+Python 9.4% vs 6.7%）
 
 **迁移机制**：
 1. **符号系统共享**：代码（变量、函数、逻辑）与数学（变量、函数、逻辑）使用相似的符号
@@ -181,7 +181,7 @@ DeepSeekMath 通过**两个核心创新**——120B tokens 的专用数学预训
 **验证实验**：
 - PPO：用 value model 估计绝对 advantage（需要额外模型）
 - GRPO：用同问题多次采样的组均值估计 relative advantage（无需 value model）
-- 结果：GRPO 在 MATH 上达到 51.7%，接近 PPO（[未明确对比，但论文声称 GRPO 与 PPO 性能相当]）
+- 结果：GRPO 的 RL 阶段把 MATH 从 46.8% 提升到 51.7%；论文未做 GRPO vs PPO 的性能对比，只声称 GRPO 显著降低训练资源
 
 **理论依据**：
 - **绝对 advantage**：$A(s,a) = Q(s,a) - V(s)$（需要学习 Q 函数和 V 函数）
@@ -190,8 +190,8 @@ DeepSeekMath 通过**两个核心创新**——120B tokens 的专用数学预训
 
 **效率提升**：
 - PPO：需要 4 个模型（policy + reference + value + reward）
-- GRPO：仅需 2 个模型（policy + reference + reward，reward 可离线计算）
-- 显存节省：~50%（从 8×A100→4×A100）
+- GRPO：去掉 value model，仍需 policy + reference + reward 3 个模型（reward 可离线计算）
+- 训练资源：显著低于 PPO（论文未给出具体显存比例或卡数）
 
 ---
 
@@ -216,7 +216,7 @@ DeepSeekMath 的核心创新之一是其大规模数学语料的自动化挖掘�
 Common Crawl (原始快照)
          │
          ▼
-    Seed URLs (初始种子：~2K个数学网站域名)
+    Seed Corpus (初始种子：OpenWebMath，50万正/50万负样本)
          │
          ▼
   [Round 1] fastText 训练
@@ -225,7 +225,7 @@ Common Crawl (原始快照)
    Recall@K 筛选（保留 top-K 预测置信度）
          │
          ▼
-  Domain Discovery (域名聚合 + 人工审核)
+  Domain Discovery (域名聚合 + >10% 自动分类 + URL 人工标注)
          │
          ▼
     新增域名 → 加入种子
@@ -251,8 +251,8 @@ DeepSeekMath Corpus (120B tokens, 35.5M pages)
 
 ### Pipeline 关键步骤解析
 
-1. **Seed URLs（种子初始化）**
-   - 初始种子约 2,000 个数学相关网站域名（Wikipedia 数学页面、数学教育网站、在线论坛等）
+1. **Seed Corpus（种子初始化）**
+   - 以 OpenWebMath 高质量数学网页作为初始种子语料；第一轮从种子随机取 50 万正样本，再从 Common Crawl 取 50 万负样本
    - 用于训练第一轮 fastText 分类器
 
 2. **fastText 分类**
@@ -265,8 +265,8 @@ DeepSeekMath Corpus (120B tokens, 35.5M pages)
 
 4. **Domain Discovery（域名发现与聚合）**
    - 将筛选出的网页按域名聚合（如 physics.stackexchange.com、mathpages.com）
-   - 人工审核新增域名：确认其确实为数学相关网站
-   - 审核通过的新域名加入下一轮种子
+   - 自动分类：某域名中被收集网页占比 >10% 时，判定为数学相关域名
+   - 人工标注这些域名下的数学 URL 路径（如 mathoverflow.net/questions），未收集的关联网页加入下一轮种子
 
 5. **迭代至饱和**
    - 每轮迭代：扩充种子 → 重新训练 fastText → 筛选新网页 → 域名发现
@@ -279,13 +279,13 @@ DeepSeekMath Corpus (120B tokens, 35.5M pages)
 - **Domain Discovery 关键**：每轮迭代发现新的数学网站域名，扩充覆盖范围
 - **迭代饱和**：当几乎不再有新的高质量域名被发现时（98% 重叠），说明已"扫荡"了 Common Crawl 中的数学网页
 
-非迭代式方法无法发现远处的富矿区。DeepSeekMath 通过 4 轮迭代，从初始 2K 域名扩展到 未报告 个数学相关域名。
+非迭代式方法无法发现远处的富矿区。DeepSeekMath 通过 4 轮迭代，从 OpenWebMath 种子语料出发，扩展到未报告数量的数学相关域名。
 
 ### 单轮 vs 迭代：实验对比（推断）
 
 | 方法 | 覆盖域名数 | 最终语料规模 | GSM8K 准确率（Base 模型） |
 |------|-----------|-------------|--------------------------|
-| 单轮 fastText | ~2K（初始种子） | ~[推断: 40-60B tokens] | [推断: 55-58%] |
+| 单轮 fastText | OpenWebMath 种子 | ~[推断: 40-60B tokens] | [推断: 55-58%] |
 | 迭代式（4轮） | [论文未公开] | 120B tokens | 64.2% |
 
 > 注：单轮数据为推断值，论文未提供直接对比。但根据迭代式方法饱和点（98% 重叠）及最终规模（120B），可推断单轮方法难以达到同等覆盖。
@@ -298,20 +298,22 @@ DeepSeekMath Corpus (120B tokens, 35.5M pages)
 
 ## 3.3 四轮迭代数据
 
-DeepSeekMath 的数据收集共进行 4 轮迭代，每轮迭代显著扩充了种子域名和最终语料规模。
+DeepSeekMath 的数据收集共进行 4 轮迭代，逐步扩充种子和语料规模。
 
-| 迭代轮次 | 新增域名数 | 新增网页数 | 累计网页数 | 与前轮重叠率 | 本轮语料 Tokens（估计） |
-|---------|-----------|----------|-----------|------------|----------------------|
-| Round 1 | ~2,000（初始种子） | ~8-10M | ~8-10M | — | ~40B |
-| Round 2 | ~数千 | ~10-12M | ~18-22M | ~60-70% | ~40B |
-| Round 3 | ~数千 | ~8-10M | ~27-32M | ~80-85% | ~40B |
-| Round 4 | ~数百 | ~3-5M | 35.5M | **98%** | ~40B（实际约40B，累计120B） |
+论文只报告了迭代的总体结果，未给出逐轮域名数、网页数和 token 数：
+
+| 项目 | 论文报告 |
+|------|----------|
+| 首轮筛选保留 | top 40B tokens（按 fastText 分数排序） |
+| 4 轮后总计 | 35.5M 数学网页 / 120B tokens |
+| 第 4 轮重叠率 | 约 98% 的数据已在第 3 轮收集，因此停止 |
+| 逐轮域名/网页/token | 未报告 |
 
 ### 迭代规律分析
 
-1. **新增网页递减**：从首轮 ~8-10M → 第4轮 ~0.5-1M，呈现明显边际收益递减
-2. **重叠率递增**：从 Round 2 的 ~60-70% → Round 4 的 98%，说明接近饱和
-3. **Token 估计**：基于平均每网页 ~3,400 tokens（120B / 35.5M）估算，各轮 token 分布需论文验证
+1. **边际收益递减**：第 4 轮约 98% 的数据已在第 3 轮出现，继续迭代收益很低
+2. **论文未报告逐轮规模**：因此无法从论文推算每轮新增网页数或 token 分布
+3. **平均网页长度**：按 120B / 35.5M 约 3,400 tokens/网页，但这只是总量平均，不能当作逐轮估计
 
 ## 3.4 去污染 Decontamination
 
@@ -347,8 +349,8 @@ DeepSeekMath 的数据收集共进行 4 轮迭代，每轮迭代显著扩充了�
 ### 实验设计
 
 **变量控制**：
-- 模型架构：7B Transformer（相同）
-- 训练 tokens：500B（相同）
+- 模型架构：DeepSeek-LLM 1.3B（相同）
+- 训练 tokens：150B（相同）
 - 训练超参数：学习率、batch size、上下文长度等（相同）
 - **唯一差异**：预训练数据中的数学语料来源
 
@@ -458,7 +460,7 @@ DeepSeekMath-Base 的预训练数据不仅包含数学语料，还混合了代�
 | NL | ~10% | 10% |
 | 其他 | - | 4% (AlgebraicStack) |
 
-> 关键差异：DeepSeekMath 用**更高的数学占比**（56% vs 40%）和**更大的绝对规模**（280B vs 17B）弥补参数差距。
+> 关键差异：DeepSeekMath 用**更高的数学占比**（56% vs 40%）和**更大的数学语料**（120B vs 约17B；500B 混合中的数学 token 达 280B，含重复轮次）弥补参数差距。
 
 ## 4.3 基准性能
 
@@ -481,41 +483,40 @@ DeepSeekMath-Base 在数学基准上的表现令人震撼：7B 模型在 MATH �
 ### 震撼点分析
 
 1. **77 倍参数差距下的反超**：7B vs 540B，MATH 上 36.2% vs 33.6%，相对提升 ~7.7%
-2. **7 倍数据规模的威力**：280B vs 17B 数学语料，证明"数据规模 > 参数量"
-3. **Code→Math 迁移关键**：从代码 LLM 初始化的模型显著优于从通用 LLM 初始化（详见 4.4）
+2. **约 7 倍数据规模的威力**：120B vs 约17B 数学语料（280B 是 500B 混合中的数学 token，含重复轮次），证明"数据规模 > 参数量"
+3. **Code→Math 迁移关键**：从代码数据初始化的模型优于从通用数据初始化（详见 4.4）
 
 ### 与开源模型的对比
 
 | 对比维度 | DeepSeekMath-Base 优势 | 劣势 |
 |---------|---------------------|-----|
-| vs Llemma 7B | GSM8K +9.2%, MATH +6.2% | 推理成本相同 |
-| vs Mistral 7B | GSM8K +14.2%, MATH +11.2% | 通用能力可能略弱 |
-| vs Mixtral 8x7B | MATH +1.2% | 参数量仅为 1/6 |
+| vs Llemma 7B | GSM8K +26.8%, MATH +18.1% | 推理成本相同 |
+| vs Mistral 7B | GSM8K +23.9%, MATH +21.9% | 通用能力：MMLU 更低、BBH 更高 |
 
 > 关键洞察：DeepSeekMath-Base 是**开源最强的数学基础模型**（在论文发表时），仅在少数闭源模型（GPT-4、Gemini）之下。
 
 ## 4.4 Code→Math 迁移实验
 
-DeepSeekMath-Base 的核心假设之一：**代码预训练对数学推理有显著正迁移**。论文设计了受控实验验证这一假设。
+DeepSeekMath-Base 的核心假设之一：**代码预训练对数学推理有正迁移**。论文设计了受控实验验证这一假设。
 
 ### 实验设计
 
 **变量控制**：
-- 模型架构：7B Transformer（相同）
-- 训练数据：完全相同的 500B tokens（56% 数学 + 20% 代码 + 10% arXiv + 10% NL + 4% AlgebraicStack）
+- 模型架构：DeepSeek-LLM 1.3B（相同）
+- 训练数据：相同规模的两阶段训练（Stage 1 400B code 或 general + Stage 2 150B math）
 - 训练超参数：完全相同
-- **唯一差异**：模型初始化方式
+- **唯一差异**：Stage 1 使用代码数据还是通用数据
 
 **对比组**：
-1. **Code→Math**：从 DeepSeek-Coder-Base（代码 LLM）初始化，然后在混合数据上继续训练
-2. **General→Math**：从通用 LLM（如 Mistral-7B）初始化，然后在混合数据上继续训练
+1. **Code→Math**：先在 400B 代码 tokens 上训练，再在 150B 数学 tokens 上训练
+2. **General→Math**：先在 400B 通用 tokens 上训练，再在 150B 数学 tokens 上训练
 
 ### 实验结果
 
 | 初始化方式 | GSM8K | MATH | CMATH | GSM8K+Python | MATH+Python |
 |-----------|-------|------|-------|--------------|-------------|
-| Code→Math (DeepSeek-Coder-Base 初始化) | **21.9%** | **15.3%** | **39.7%** | **17.4%** | **9.4%** |
-| General→Math (通用 LLM 初始化) | 19.1% | 14.4% | 37.2% | 14.3% | 6.7% |
+| Code→Math (400B code 预训练) | **21.9%** | **15.3%** | **39.7%** | **17.4%** | **9.4%** |
+| General→Math (400B general 预训练) | 19.1% | 14.4% | 37.2% | 14.3% | 6.7% |
 | 仅数学训练 (无预训练初始化) | 20.5% | 13.1% | 37.6% | 11.4% | 6.5% |
 
 *数据来源：论文 Table 6，基于 DeepSeek-LLM 1.3B，两阶段训练（400B code/general + 150B math），few-shot CoT/PoT 评估*
@@ -562,7 +563,7 @@ DeepSeekMath-Base 的目标不仅是数学能力，还要保持通用语言理�
 
 ### 关键观察
 
-1. **数学特化的代价**：DeepSeekMath-Base 在通用基准（MMLU、BBH）上可能略逊于通用 LLM（如 Mistral-7B），但差距不大（~10-15%）
+1. **数学特化的代价**：DeepSeekMath-Base 的 MMLU（54.9%）低于 Mistral-7B（62.4%），但 BBH（59.5%）高于 Mistral-7B（55.7%）；相对其前身 DeepSeek-Coder-Base-v1.5，MMLU 和 BBH 都提升
 2. **代码能力保持**：从代码 LLM 初始化确保了 HumanEval、MBPP 等代码基准的性能
 3. **平衡设计**：10% 自然语言数据确保模型不过度专业化，保持合理的通用能力
 
@@ -576,7 +577,7 @@ DeepSeekMath-Base 的预训练数据中，数学占比 56%，远超通用 LLM（
 ### 是否可通过微调恢复通用能力？
 
 论文未直接回答，但后续章节（Ch3 SFT）表明：
-- DeepSeekMath-Instruct 在 GSM8K、MATH 上显著提升（82.9%、46.5%）
+- DeepSeekMath-Instruct 在 GSM8K、MATH 上显著提升（82.9%、46.8%）
 - 通用基准（如 MMLU）的性能变化需论文补充
 
 推测：通过指令微调（SFT），可部分恢复通用能力，同时保持数学能力。
@@ -594,7 +595,7 @@ Ch3（数据收集）和 Ch4（预训练）构建了 DeepSeekMath 的基础：
 
 2. **预训练（Ch4）**：
    - 7B 模型在 500B tokens 上训练，56% 为数学语料
-   - Code→Math 初始化显著优于 General→Math（MATH +6.5-13.1%）
+   - Code→Math 初始化优于 General→Math（MATH +0.9，GSM8K +2.8；带工具时增益更明显）
    - GSM8K 64.2%、MATH 36.2%，超越 540B Minerva（33.6%）
 
 3. **核心洞察**：
@@ -620,7 +621,7 @@ PPO（Proximal Policy Optimization）作为RL训练的主流方法，其架构�
 - 单个7B模型（FP16）：约14GB显存
 - PPO四个模型：至少56GB显存（不含激活/梯度）
 - 这导致训练时batch size受限，影响梯度估计的稳定性
-- **结果**：无法在单卡80GB A100上训练，必须多卡并行
+- **结果**：需要多卡/分布式训练，显存开销显著高于 GRPO（论文未给出具体卡数）
 
 ## 5.2 核心思想：组内相对优势
 
@@ -658,10 +659,10 @@ $$A_i = \frac{r_i - \text{mean}(\mathbf{r})}{\text{std}(\mathbf{r})}$$
 
 GRPO的目标函数继承PPO的clipped surrogate目标，但advantage计算改为组内相对形式：
 
-$$J_{\text{GRPO}}(\theta) = \mathbb{E}_{q \sim D, \mathbf{o} \sim \pi_\theta} \left[ \frac{1}{k} \sum_{i=1}^{k} \min\left(\frac{\pi_\theta(o_i|q)}{\pi_{\text{ref}}(o_i|q)} A_i, \text{clip}\left(\frac{\pi_\theta(o_i|q)}{\pi_{\text{ref}}(o_i|q)}, 1-\epsilon, 1+\epsilon\right) A_i\right) - \beta \cdot \text{KL}(\pi_\theta \| \pi_{\text{ref}}) \right]$$
+$$J_{\text{GRPO}}(\theta) = \mathbb{E}_{q \sim D, \mathbf{o} \sim \pi_{\theta_{\text{old}}}} \left[ \frac{1}{k} \sum_{i=1}^{k} \min\left(\frac{\pi_\theta(o_i|q)}{\pi_{\theta_{\text{old}}}(o_i|q)} A_i, \text{clip}\left(\frac{\pi_\theta(o_i|q)}{\pi_{\theta_{\text{old}}}(o_i|q)}, 1-\epsilon, 1+\epsilon\right) A_i\right) - \beta \cdot \text{KL}(\pi_\theta \| \pi_{\text{ref}}) \right]$$
 
 **变量说明：**
-- $\frac{\pi_\theta}{\pi_{\text{ref}}}$：重要性采样比率，修正策略更新幅度
+- $\frac{\pi_\theta}{\pi_{\theta_{\text{old}}}}$：重要性采样比率（当前策略 / 采样时的旧策略），修正策略更新幅度；$\pi_{\text{ref}}$ 只出现在 KL 项中
 - $\epsilon$：clip参数（通常0.2）
 - $\beta$：KL惩罚系数
 - $A_i$：组内advantage（公式见5.2）
@@ -696,14 +697,14 @@ for question in dataset:
     optimizer.step()
 ```
 
-**关键差异**：无需第3步的value model，显存节省25%（从4模型降至2模型）。
+**关键差异**：无需 value model（模型数从 PPO 的 4 个降到 3 个），显著降低训练资源（论文未给出具体显存比例）。
 
 ## 5.4 GRPO vs PPO对比
 
 | 维度 | PPO | GRPO |
 |------|-----|------|
-| **模型数量** | 4个（policy + reference + value + reward） | 2个（policy + reference + reward） |
-| **显存占用** | ~56GB（7B×4，FP16） | ~28GB（7B×2，FP16） |
+| **模型数量** | 4个（policy + reference + value + reward） | 3个（policy + reference + reward） |
+| **显存占用** | 更高（多一个 value model） | 低于 PPO（论文未报告具体显存数值） |
 | **训练速度** | 基线（1.0×） | ~1.2×（value model前向+反向计算消除） |
 | **Advantage计算** | $A_t = r_t + \gamma V(s_{t+1}) - V(s_t)$（需value model） | $A_i = \frac{r_i - \text{mean}(\mathbf{r})}{\text{std}(\mathbf{r})}$（组内相对） |
 | **KL约束** | KL penalty 或 adaptive KL（需估计KL） | Schulman estimator（解析计算） |
@@ -741,7 +742,7 @@ DeepSeekMath在RL阶段的完整数据（GSM8K/MATH主要基准）：
 
 ### GRPO的"输出分布优化"效应
 
-论文发现一个关键现象：**RL提升Maj@K（多数投票）但不提升Pass@1（单次采样）**：
+论文发现一个关键现象：**RL 提升 Maj@K（多数投票），但对 Pass@K（K>1 的多次采样上界）提升有限；Pass@1 本身仍从 82.9% 升至 88.2%**：
 
 | 指标 | Base | Instruct | RL |
 |------|------|----------|-----|
@@ -753,9 +754,9 @@ DeepSeekMath在RL阶段的完整数据（GSM8K/MATH主要基准）：
 > - 但RL并未显著提升"单次推理的上限"（最优秀解法的质量）
 > - **实践建议**：RL训练后的模型应搭配self-consistency使用，最大化投资回报
 
-## 5.6 域外泛化：英文→中文
+## 5.6 域外泛化：中文数学基准
 
-DeepSeekMath训练数据**完全来自英文网页**（Common Crawl + filter），但中文数学基准CMATH依然提升：
+DeepSeekMath 的训练语料是**以英文和中文为主的多语种网页**（论文明确没有只收集英文数学数据），中文数学基准 CMATH 也取得提升：
 
 | 模型 | CMATH（中文数学） |
 |------|------------------|
@@ -766,7 +767,7 @@ DeepSeekMath训练数据**完全来自英文网页**（Common Crawl + filter）�
 *数据来源：论文 Table 2, Table 5*
 
 > **泛化机制**：
-> 数学符号和逻辑结构具有**语言无关性**（$2+2=4$在所有语言中成立）。RL学习的是**推理模式**而非语言表面形式，因此能跨语言迁移。
+> 预训练语料本身包含中文；此外数学符号和逻辑结构具有**语言无关性**（$2+2=4$在所有语言中成立），RL 虽只用 GSM8K/MATH 的英文 CoT 数据，学到的**推理模式**仍能迁移到中文基准。
 >
 > **反例**：arXiv论文数据（英文科学文本）无法提升数学基准，说明"学术文本"≠"数学推理能力"——领域相关，但非语言相关。
 
@@ -780,9 +781,9 @@ DeepSeekMath训练数据**完全来自英文网页**（Common Crawl + filter）�
 
 ### 统一目标函数
 
-所有RL对齐方法可表示为：
+所有RL对齐方法的**梯度**可表示为（论文 Eq. 5）：
 
-$$J(\theta) = \mathbb{E}_{q \sim D_{\text{data}}, o \sim \pi_\theta} \left[ \sum_{t} c_t(q, o) \log \pi_\theta(o_t | q, o_{<t}) \right]$$
+$$\nabla_\theta J(\theta) = \mathbb{E}_{q \sim D_{\text{data}}, o \sim \pi_\theta} \left[ \sum_{t} c_t(q, o) \nabla_\theta \log \pi_\theta(o_t | q, o_{<t}) \right]$$
 
 其中：
 - $D_{\text{data}}$：数据源分布
@@ -875,7 +876,7 @@ $$J(\theta) = \mathbb{E}_{q \sim D_{\text{data}}, o \sim \pi_\theta} \left[ \sum
 
 ## 7.1 Pass@K vs Maj@K：RL提升的本质
 
-DeepSeekMath 论文最深刻的洞察之一是：**强化学习（RL）不提升 Pass@K（单次采样通过率），但显著提升 Maj@K（多数投票准确率）**。这一发现揭示了 RL 对数学推理模型的真实影响机制。
+DeepSeekMath 论文最深刻的洞察之一是：**强化学习（RL）显著提升 Maj@K（多数投票准确率），但对 Pass@K（K 次采样至少一次正确的上界）提升有限**；注意 Pass@1 仍从 82.9% 升至 88.2%。这一发现揭示了 RL 对数学推理模型的真实影响机制。
 
 ### 指标定义
 
@@ -902,7 +903,7 @@ DeepSeekMath 在 GSM8K 上的 Pass@K 与 Maj@K 对比：
 **发现**：RL 训练后，模型在**同一问题**上的多次采样，其**输出分布更加集中**（正确答案出现频率更高），但**单次采样的上限**并未显著提升。
 
 **解释**：
-1. **Pass@K 不变**：模型最优秀的推理路径（Top-1 解法）质量没有本质提升
+1. **Pass@K（K>1）提升有限**：模型最优秀的推理路径（Top-1 解法）质量提升幅度远小于 Maj@K
 2. **Maj@K 提升**：模型学会了"生成更鲁棒的解法"，避免低级错误，使正确答案在多次采样中更频繁出现
 
 ### 为什么 Pass@K 不提升？
@@ -920,50 +921,48 @@ DeepSeekMath 在 GSM8K 上的 Pass@K 与 Maj@K 对比：
 
 ---
 
-## 7.2 迭代 RL：自举式评分提升
+## 7.2 迭代 RL：RM 持续训练 + reference 更新
 
-DeepSeekMath 引入了**迭代式 RL**（Iterative RL）训练：用训练中的模型作为 reward model，重新评分已训练数据，实现"自举式"（bootstrapping）持续改进。
+DeepSeekMath 引入了**迭代式 RL**（Iterative RL）训练：策略模型采样新的训练数据，旧的 reward model 用 10% 历史数据回放持续训练；随后把 reference model 设为当前 policy，继续训练策略。
 
 ### 迭代流程
 
 ```
-Round 1: 用初始 RM 评分 → GRPO 训练 → 得到 DeepSeekMath-RL v1
+Round 1: 策略采样 → 用初始 RM 评分 → GRPO 训练 → 得到 v1
     ↓
-Round 2: 用 v1 作为新 RM → 重新评分训练集 → GRPO 训练 → 得到 DeepSeekMath-RL v2
+Round 2: 策略继续采样新数据 → 旧 RM 用 10% 历史数据回放持续训练 → reference=当前 policy → GRPO 训练 → v2
     ↓
-（可选继续迭代）
+（论文实际做了 2 轮迭代）
 ```
 
-### 关键机制：评分自举
+### 关键机制：RM 持续训练 + reference 更新
 
-**Round 1 → Round 2 的评分变化**：
+论文没有报告逐题的 RM 分数变化；其迭代机制是：
+- 用当前 policy 的采样结果构造新的 RM 训练集；
+- 旧 RM 用 **10% 历史数据回放**持续训练，而不是直接用 policy 替换 RM；
+- 将 reference model 设为当前 policy，再继续 GRPO 训练。
 
-| 问题示例 | Round 1 RM 评分 | Round 2 RM 评分 | 评分提升原因 |
-|---------|----------------|----------------|------------|
-| 复杂代数题（10步推理） | 0.6（部分正确） | 0.8（步骤更清晰） | v1 学会识别"好的推理路径" |
-| 几何证明题（需辅助线） | 0.4（未发现辅助线） | 0.7（识别关键步骤） | v1 学会识别"关键推理环节" |
-
-**自举机制**：训练后的模型 v1 本身已具备更强的数学推理能力，用它作为 RM 重新评分，比初始 RM 更准确（能识别"解题思路的优劣"而不仅是"答案对错"）。
+> 注：原报告中的 0.6→0.8、0.4→0.7 评分表并非论文数据，已删除。
 
 ### 实验效果
 
-论文报告了迭代 RL 的效果（Round 1 vs Round 2）：
+论文报告了迭代 RL 的效果（Figure 6 的 Iteration-0/1/2 曲线）：
 
-| 基准 | Round 1 (单轮 RL) | Round 2 (迭代 RL) | 提升幅度 |
-|------|------------------|-------------------|----------|
-| **GSM8K** | ~86% [论文 Figure 6 估算] | 88.2% | +2.2% |
-| **MATH** | ~49% [论文 Figure 6 估算] | 51.7% | +2.7% |
+| 基准 | Iteration-0 (Instruct) | Iteration-1 | Iteration-2 (最终 RL) |
+|------|------------------------|-------------|----------------------|
+| **GSM8K** | 82.9% | ~86% [Figure 6 估算] | 88.2% |
+| **MATH** | 46.8% | ~49% [Figure 6 估算] | 51.7% |
 
-*注：Round 1 数值为论文 Figure 6 图表估算，论文文中未直接给出具体数值。迭代 RL 通过用 Round 1 训练出的模型作为新的 Reward Model 重新评分训练数据实现自举式提升。*
+*注：Iteration-1/2 的部分数值为论文 Figure 6 图表估算，论文文中未直接给出具体数值。迭代机制见上：policy 采样新数据，旧 RM 用 10% 历史数据回放持续训练，reference 设为当前 policy。*
 
 ### 迭代 RL 的局限
 
 **边际收益递减**：Round 1 → Round 2 提升 ~2-3%，继续迭代可能进一步下降。
 
 **原因**：
-- RM 能力有限：v1 虽优于初始 RM，但仍非完美评分器
+- RM 能力有限：持续训练的旧 RM 仍非完美评分器
 - 分布偏移风险：多次迭代可能导致模型"过拟合"于自身生成的数据
-- 训练成本：每次迭代需重新评分全量数据（~500B tokens），成本高昂
+- 训练成本：每次迭代需重新采样、评分并训练 RM，成本高昂
 
 **实践建议**：迭代 RL 最多 2-3 轮，避免过度迭代导致的分布偏移。
 
@@ -972,8 +971,8 @@ Round 2: 用 v1 作为新 RM → 重新评分训练集 → GRPO 训练 → 得�
 **历史意义**：DeepSeekMath 的迭代 RL 是 **DeepSeek-R1（DeepSeek 的推理模型）的前身实验**。
 
 **证据**：
-- 迭代 RL 证明了"用训练中模型作为 RM"的可行性
-- Round 1 → Round 2 的自举机制与 R1 的"自我进化训练"同构
+- 迭代 RL 证明了"策略采样新数据 + 旧 RM 持续训练"的可行性
+- Round 1 → Round 2 的迭代机制与 R1 的"自我进化训练"同构
 - 论文发表后（2024年2月），DeepSeek 团队在 R1 中扩展了这一思路
 
 > **未来影响**：迭代 RL 开启了"自进化模型"的研究方向，后续工作（DeepSeek-R1、OpenAI o1）均借鉴了这一范式。
@@ -982,7 +981,7 @@ Round 2: 用 v1 作为新 RM → 重新评分训练集 → GRPO 训练 → 得�
 
 ## 7.3 工具辅助推理：CoT vs PoT
 
-DeepSeekMath 论文对比了 **CoT（Chain-of-Thought，纯符号推理）** 与 **PoT（Program-of-Thought，代码辅助推理）** 在 Base 和 RL 模型上的表现，发现了"工具降级"的反直觉现象。
+DeepSeekMath 论文对比了 **CoT（Chain-of-Thought，纯符号推理）** 与 **PoT（Program-of-Thought，代码辅助推理）** 在 Base、Instruct 和 RL 模型上的表现；结果显示 PoT 的增益随基准和训练阶段变化，并非单调的"工具降级"。
 
 ### CoT vs PoT 定义
 
@@ -1003,31 +1002,31 @@ DeepSeekMath 在 GSM8K 和 MATH 上的 CoT vs PoT 对比：
 
 *数据来源：论文 Table 2, Table 3, Table 5*
 
-### 反直觉发现：工具带来的增益在 RL 后缩小
+### 观察：PoT 增益在 GSM8K 上缩小、在 MATH 上反而扩大
 
-**观察**：
-- Base 模型：PoT 显著优于 CoT（GSM8K +5.8%，MATH +8.8%）
-- RL 模型：PoT 优势大幅缩小（GSM8K +1.8%，MATH +3.3%）
+**观察**（按表中数值计算）：
+- Base：GSM8K +2.7%（64.2→66.9），MATH **-4.8%**（36.2→31.4，PoT 更差）
+- Instruct：GSM8K +0.8%（82.9→83.7），MATH **+10.6%**（46.8→57.4）
+- RL：GSM8K **-1.5%**（88.2→86.7），MATH **+7.1%**（51.7→58.8）
 
 **解释**：
-- **Base 模型**：符号推理能力不足，需依赖工具（Python）补偿数值计算错误
-- **RL 模型**：学会了"更稳定的符号推理"，工具的必要性下降
+- **GSM8K**：题目较简单，RL 后纯 CoT 已足够强，PoT 不再带来增益甚至略有下降
+- **MATH**：题目更难，PoT 的工具能力仍有明显价值；Base 的 PoT 反而下降，说明工具能否帮上忙取决于模型是否会正确调用工具
+- 因此不能概括为"模型越强、工具收益越小"；论文也没有提出"工具降级/替代"的结论
 
-**关键洞察**：工具辅助与模型能力存在**替代关系**——模型越强，工具（PoT）的边际收益越小。
+### 实践含义
 
-### 工具降级的实践含义
-
-**发现**：RL 训练后，工具带来的增益大幅下降（从 +5.8% → +1.8%）。
+**发现**：PoT 的收益高度依赖基准和模型阶段，不存在单调的"RL 后工具增益下降"。
 
 **含义**：
-1. **RL 优化了符号推理**：模型学会了"更稳定的逐步推导"，减少计算错误
-2. **工具与模型的替代性**：工具（Python）与 RL 都在"提升数值稳定性"，存在功能重叠
-3. **纯符号推理的价值**：RL 后的模型可无需工具，达到接近工具辅助的水平
+1. **分基准看待**：GSM8K 上 RL 后 PoT 增益消失，MATH 上 PoT 仍有 +7.1%
+2. **工具与模型并非简单替代**：工具收益取决于题目难度和模型调用工具的能力
+3. **论文本身只报告 CoT/PoT 数值**，未把该现象解释为"工具降级"
 
 > **实践建议**：
-> - **资源受限场景**：RL 训练后可考虑移除工具（节省 Python 解释器开销）
-> - **离线求解场景**：保留工具 + self-consistency，最大化准确率
-> - **实时对话场景**：RL 模型无需工具即可达到高准确率（88.2%）
+> - **GSM8K 类简单题**：RL 后纯 CoT 即可，工具收益有限
+> - **MATH 类难题**：保留工具 + self-consistency，通常仍有增益
+> - **实时对话场景**：RL 模型纯 CoT 可达 88.2%（GSM8K）
 
 ### 工具的隐藏代价
 
@@ -1036,9 +1035,9 @@ DeepSeekMath 在 GSM8K 和 MATH 上的 CoT vs PoT 对比：
 - 需设计安全沙箱（防止代码执行风险）
 - 需处理超时/内存限制（如死循环）
 
-**RL 的价值**：通过训练优化符号推理，降低对工具的依赖，减少计算成本。
+**RL 的作用**：RL 提升了纯 CoT 的表现，但并未消除工具的价值——MATH 上 PoT 仍比 CoT 高 7.1%。
 
-**核心洞察**：训练优化模型能力（内部）比增加工具（外部）更具长期价值。
+**核心洞察**：内部能力与外部工具不是简单替代关系，应按题目难度和基准分别评估。
 
 ---
 
@@ -1074,7 +1073,7 @@ DeepSeekMath 在 **miniF2F**（形式化定理证明基准，Isabelle 语言）�
 
 ### 隐式迁移：非形式化 → 形式化
 
-**发现**：DeepSeekMath 虽仅在**非形式化数学**（GSM8K、MATH）上训练，但在**形式化证明**（miniF2F）上显著优于其他开源模型（25.8% vs 18.9%-22.1%）。
+**发现**：DeepSeekMath-Base 虽只用**非形式化数学语料**预训练、未做形式化证明训练，但在**形式化证明**（miniF2F）上优于其他开源模型（25.8% vs 18.9%-22.1%）。
 
 **迁移机制**：
 1. **逻辑结构共享**：非形式化推理（CoT）与形式化证明（Isabelle）都依赖严格的逻辑链
@@ -1114,9 +1113,9 @@ DeepSeekMath 在 **miniF2F**（形式化定理证明基准，Isabelle 语言）�
 Ch7 分析了 DeepSeekMath 的实验结果，揭示了 **RL 的真实作用机制**：
 
 1. **Pass@K vs Maj@K**：RL 提升稳定性（Maj@K）而非上限（Pass@K），是"输出分布优化"而非"智力提升"
-2. **迭代 RL**：自举式评分提升，用训练中模型作为 RM，是 DeepSeek-R1 的前身
-3. **工具辅助（PoT vs CoT）**：RL 后工具增益下降，证明"训练优化模型能力 > 外部工具依赖"
-4. **形式化证明（miniF2F）**：非形式化推理能力隐式迁移到形式化领域，RL 提升约 +5%
+2. **迭代 RL**：策略采样新数据、旧 RM 用 10% 历史数据回放持续训练，是 DeepSeek-R1 的前身
+3. **工具辅助（PoT vs CoT）**：PoT 增益随基准变化——GSM8K 上 RL 后消失，MATH 上仍为 +7.1%
+4. **形式化证明（miniF2F）**：非形式化预训练能力可迁移到形式化领域；论文只评估了 Base 模型，未报告 RL 的 miniF2F 结果
 
 下一章（Ch8）将深入代码实现，展示如何复现 DeepSeekMath 的核心算法。
 
@@ -1141,7 +1140,7 @@ class IterativeMathCollector:
     迭代式数学数据收集器（基于 DeepSeekMath 论文 Section 2.1）
     
     核心功能：
-    1. 初始化种子域名（~2K 数学网站）
+    1. 初始化种子域名（OpenWebMath 种子语料）
     2. 训练 fastText 分类器
     3. 从 Common Crawl 筛选数学网页
     4. 域名发现与人工审核
@@ -1160,7 +1159,7 @@ class IterativeMathCollector:
         初始化收集器
         
         Args:
-            seed_domains: 初始种子域名（~2K 数学网站）
+            seed_domains: 初始种子域名（OpenWebMath 种子语料）
             recall_k: Recall@K 筛选参数（保留 top-K 预测置信度）
             saturation_threshold: 饱和阈值（两轮重叠率 >= 此值时停止）
             max_rounds: 最大迭代轮数
@@ -1465,7 +1464,7 @@ class IterativeMathCollector:
 
 # 使用示例
 if __name__ == "__main__":
-    # 初始化种子域名（论文：~2K 数学网站）
+    # 初始化种子域名（论文：OpenWebMath 种子语料）
     seed_domains = {
         "en.wikipedia.org/wiki/Mathematics",
         "math.stackexchange.com",
@@ -1498,7 +1497,7 @@ if __name__ == "__main__":
 1. **迭代式训练**：每轮用扩充的种子域名重新训练 fastText（第 2-3 轮发现新域名最多）
 2. **饱和检测**：重叠率 >= 98% 时停止（第 4 轮新增网页 < 1M）
 3. **去污染**：10-gram 精确匹配移除 benchmark 训练集污染
-4. **域名发现**：按域名聚合 + 人工审核（确保新增域名确实是数学网站）
+4. **域名发现**：按域名聚合，>10% 网页被收集的域名自动判为数学相关，再人工标注数学 URL 路径
 
 > **实践提示**：
 > - fastText 训练需数亿样本（单轮 ~8-10M 网页），建议使用分布式训练
@@ -1574,7 +1573,7 @@ def grpo_loss(
     # Step 2: 计算 Log-Probabilities
     # ========================================
     # log π_θ(o_i|q) 和 log π_ref(o_i|q)
-    # 用于计算重要性采样比率
+    # π_θ 用于策略；π_ref 用于 KL（概念实现中用 π_ref 的 log-prob 代替 π_θ_old 计算 ratio）
     policy_log_probs = []
     reference_log_probs = []
     
@@ -1606,9 +1605,12 @@ def grpo_loss(
     
     # Step 3: 计算重要性采样比率
     # ========================================
-    # ratio_i = π_θ(o_i|q) / π_ref(o_i|q)
-    # 或 log-ratio: log(ratio) = log π_θ - log π_ref
-    log_ratio = policy_log_probs - reference_log_probs
+    # ratio_i = π_θ(o_i|q) / π_θ_old(o_i|q)
+    # 或 log-ratio: log(ratio) = log π_θ - log π_θ_old
+    # 注：概念实现简化，用 reference_model 的 log-prob 代替采样时的 old policy log-prob；
+    #     π_ref 在论文中只用于 KL 项。
+    old_policy_log_probs = reference_log_probs
+    log_ratio = policy_log_probs - old_policy_log_probs
     ratio = torch.exp(log_ratio)  # [batch_size * group_size, seq_len, vocab_size]
     
     # Reshape 适配 advantage 的形状
@@ -1744,7 +1746,7 @@ def train_grpo(
 
 **关键实现细节**：
 1. **Advantage 计算**：组内标准化（(r - mean) / std），无需 value model
-2. **重要性采样比率**：policy / reference 的 log-prob 差值
+2. **重要性采样比率**：policy / old policy 的 log-prob 差值（π_ref 仅用于 KL）
 3. **PPO Clip**：限制策略更新幅度（防止崩溃）
 4. **KL 惩罚**：Schulman 估计器（exp(-log_ratio) + log_ratio - 1）
 5. **训练循环**：采样 → 评分 → 损失 → 反向传播
@@ -1759,7 +1761,7 @@ def train_grpo(
 
 ## 8.3 奖励函数设计：数学推理的评分器
 
-GRPO 的核心之一是奖励函数（Reward Function）。DeepSeekMath 使用**答案正确性**作为主要奖励信号，辅以**步骤级评分**。
+GRPO 的核心之一是奖励函数（Reward Function）。DeepSeekMath 主实验使用**结果监督**：奖励为最终答案是否正确（二元）；论文另在 4.1.3 节探索了**过程监督**（用 PRM 给每个推理步骤打分），两者不是 70/30 的混合权重。
 
 # ⚠️ 概念实现 — 基于论文 Section 4 描述
 
@@ -1993,8 +1995,8 @@ if __name__ == "__main__":
 ```
 
 **奖励函数设计要点**：
-1. **答案正确性（70% 权重）**：主要信号，二元奖励（正确=1，错误=0）
-2. **推理步骤（30% 权重）**：辅助信号，鼓励逐步推导
+1. **主实验：结果监督**：二元奖励（最终答案正确=1，错误=0），没有步骤权重
+2. **可选：过程监督**：论文另用 PRM 给每个推理步骤打分；下方代码中的 step_weight/answer_weight 仅为示意，论文未使用 70/30 混合
 3. **答案提取**：支持 `\boxed{}`、`answer:` 等格式
 4. **数值解析**：支持整数、小数、分数、科学计数法
 
@@ -2180,7 +2182,7 @@ Ch8 提供了 DeepSeekMath 核心组件的概念实现：
 
 1. **fastText Pipeline**（IterativeMathCollector）：4 轮迭代 + 饱和检测 + 去污染
 2. **GRPO 算法**（grpo_loss）：advantage → log-prob → ratio → clip → KL → loss
-3. **奖励函数**（compute_math_reward）：答案正确性（70%）+ 推理步骤（30%）
+3. **奖励函数**（compute_math_reward）：主实验为答案正确性二元奖励；过程监督为论文的独立实验设置（代码权重仅为示意）
 4. **官方模型使用**（solve_math_problem）：CoT Prompt + Self-Consistency
 
 所有代码均为**概念实现**（基于论文描述），生产环境需进一步优化（如分布式训练、缓存、错误处理）。
@@ -2201,17 +2203,17 @@ DeepSeekMath 在数学推理领域实现了显著突破，但仍存在以下局�
 
 **影响**：
 - GRPO 的"组内相对优势"假设可能不适用于奖励稀疏的任务（如开放式对话）
-- 工具降级（PoT vs CoT）的发现可能仅限于数学领域（数值计算 vs 符号推理）
+- PoT 与 CoT 的差异可能仅限于数学领域（数值计算 vs 符号推理）
 
 **风险**：过度泛化 GRPO 到奖励稀疏任务可能导致无效应用。
 
-### 2. 奖励函数过于简单
+### 2. 主实验奖励函数较简单
 
-**局限**：论文使用二元奖励（答案正确/错误），未考虑**部分正确**或**推理质量**。
+**局限**：论文主实验使用结果监督的二元奖励（答案正确/错误）；不过论文在 4.1.3 节也探索了过程监督（PRM），Figure 5 显示 GRPO+PS 优于 GRPO+OS。局限主要在于主 RL 模型仍以结果奖励为主，未把部分正确/步骤质量作为最终奖励。
 
 **影响**：
-- RL 无法区分"完全正确"与"部分正确"（如步骤对但计算错）
-- 可能导致"过度自信"（模型学会投机行为，而非稳健推理）
+- 主模型无法区分"完全正确"与"部分正确"（如步骤对但计算错）
+- 过程监督虽有探索，但未用于最终的 DeepSeekMath-RL 主结果
 
 > **改进方向**：
 > - 步骤级奖励（如每步推理的合理性）
@@ -2262,8 +2264,8 @@ DeepSeekMath 在数学推理领域实现了显著突破，但仍存在以下局�
 | 论文 | 关系 | 核心内容 | 与 DeepSeekMath 的联系 |
 |------|------|----------|---------------------|
 | **Minerva (Lewkowycz et al., 2022)** | 前驱工作 | 540B 模型 + 17B 数学语料，MATH 33.6% | DeepSeekMath 用 7B 模型超越（36.2%），证明数据规模 > 参数量 |
-| **Llemma (Azer et al., 2023)** | 同期开源 | 7B 模型 + Proof-Pile-2 语料，MATH ~30% | DeepSeekMath 用更大语料（120B vs ~40B）超越 |
-| **OpenWebMath (Paster et al., 2023)** | 数据方法 | 单轮 fastText 筛选 Common Crawl，14.5B tokens | DeepSeekMath 用迭代式挖掘（120B tokens），覆盖更广 |
+| **Llemma (Azer et al., 2023)** | 同期开源 | 7B 模型 + Proof-Pile-2 语料（51.9B），MATH 18.1% | DeepSeekMath 用更大语料（120B vs 51.9B）超越 |
+| **OpenWebMath (Paster et al., 2023)** | 数据方法 | 单轮 fastText 筛选 Common Crawl，13.6B tokens | DeepSeekMath 用迭代式挖掘（120B tokens），覆盖更广 |
 | **ToRA (Gao et al., 2023)** | 工具路线 | Python 工具辅助推理，GSM8K ~80% | DeepSeekMath 不依赖工具（88.2% CoT），证明纯符号推理可行 |
 | **MathCoder (Wang et al., 2023)** | 工具路线 | 代码生成 + Python 执行，MATH ~40% | DeepSeekMath-RL（51.7%）超越，工具与 RL 的替代性 |
 | **DeepSeek-R1 (DeepSeek-AI, 2024)** | 后续工作 | 迭代 RL + 自进化训练，推理模型 | DeepSeekMath 的迭代 RL 是 R1 的前身实验 |
@@ -2294,7 +2296,7 @@ DeepSeekMath 在 2024 年发表后，对开源数学推理和 RL 微调产生了
 - **OpenRLHF（2024）**：开源库集成 GRPO，成为默认选项之一
 - **HuggingFace TRL**：在 PPO 旁提供 GRPO 实现
 
-> **实践意义**：研究者可在 4×A100（80GB）上训练 7B 模型的 RLHF，而非 8×A100（PPO 的要求）。
+> **实践意义**：去掉 value model 后，7B 模型的 RLHF 显存需求显著低于 PPO（论文未给出具体卡数）。
 
 ### 2. 数据方法论：迭代式挖掘成为标准
 
@@ -2334,7 +2336,7 @@ DeepSeekMath 在 2024 年发表后，对开源数学推理和 RL 微调产生了
 
 **证据**：
 - **时间线**：DeepSeekMath（2024年2月）→ DeepSeek-R1（2024年11月）
-- **技术同构性**：两者都用"训练中模型作为 RM"，实现自举式改进
+- **技术同构性**：两者都用策略采样新数据 + 奖励模型持续训练，实现迭代式改进
 - **团队延续**：DeepSeekMath 和 DeepSeek-R1 均由 DeepSeek-AI 团队发布
 
 > **历史意义**：DeepSeekMath 首次在开源模型上验证"迭代 RL"，为 R1 的"自我进化训练"铺路。
@@ -2345,9 +2347,9 @@ DeepSeekMath 在 2024 年发表后，对开源数学推理和 RL 微调产生了
 
 DeepSeekMath 通过**两个核心创新**（120B tokens 数学语料 + GRPO 算法）和**三个关键洞察**（数据规模 > 参数量、Code→Math 迁移、RL 提升 Maj@K 而非 Pass@K），在 7B 参数模型上实现了与 540B Minerva 持平的数学推理能力（MATH 36.2% vs 33.6%），并首次在开源模型上证明了：
 1. **迭代式数据挖掘**（4轮 fastText 至饱和）可超越单轮方法（OpenWebMath）
-2. **免 value model 的 GRPO** 可节省 ~50% 显存，达到与 PPO 相当的性能
-3. **纯符号推理**（CoT）在 RL 训练后可达到工具辅助（PoT）的水平
-4. **迭代 RL**（自举式评分）是可行的，为 DeepSeek-R1 铺路
+2. **免 value model 的 GRPO** 可显著降低训练资源（论文未给具体比例），论文未做 GRPO 与 PPO 的性能对比
+3. **纯符号推理**（CoT）在 GSM8K 上 RL 后已超过 PoT（88.2% vs 86.7%），但在 MATH 上仍低于 PoT（51.7% vs 58.8%）
+4. **迭代 RL**（策略采样新数据 + 旧 RM 持续训练）是可行的，为 DeepSeek-R1 铺路
 
 DeepSeekMath 的技术遗产（GRPO、迭代式挖掘、Code→Math）已成为开源数学推理和 RLHF 的标准实践。
 

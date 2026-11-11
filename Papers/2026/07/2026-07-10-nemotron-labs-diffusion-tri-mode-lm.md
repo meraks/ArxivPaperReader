@@ -1,6 +1,6 @@
 # Nemotron-Labs-Diffusion: A Tri-Mode Language Model 统一自回归、扩散与自推测解码
 
-## arXiv:2607.05722 | NVIDIA Research | 2026-07-10
+## arXiv:2607.05722 | NVIDIA Research | 2026-07-08（arXiv v1: 2026-07-07）
 
 ---
 
@@ -11,10 +11,10 @@
 | 项目 | 内容 |
 |------|------|
 | **标题** | Nemotron-Labs-Diffusion: A Tri-Mode Language Model Unifying Autoregressive, Diffusion, and Self-Speculation Decoding |
-| **作者** | NVIDIA Research（Nemotron-Labs-Diffusion Team） |
+| **作者** | Yonggan Fu, Lexington Whalen, Abhinav Garg, Chengyue Wu 等 26 人（NVIDIA；部分作者兼 Georgia Tech/HKU/UChicago/MIT，含 NVIDIA 实习期间工作） |
 | **发表形式** | arXiv Preprint, 2026年7月 |
 | **核心Claim** | AR与Diffusion语言模型并非竞争范式，可在单一模型中联合训练实现三模解码，在精度和效率上同时超越SOTA开源AR和Diffusion LM |
-| **代码仓库** | [NVlabs/Nemotron-Labs-Diffusion](https://github.com/NVlabs/Nemotron-Labs-Diffusion) |
+| **代码仓库** | 论文未给出独立代码仓库；仅称训练/推理流程通过 Megatron Bridge 发布 |
 | **模型权重** | [HuggingFace Collection](https://huggingface.co/collections/nvidia/nemotron-labs-diffusion) |
 | **开源协议** | NVIDIA Open Model License |
 | **训练框架** | Megatron Bridge（已开源） |
@@ -28,13 +28,13 @@
 | 图表编号 | 内容 | 对应论文位置 |
 |---------|------|-------------|
 | Figure 1 | Tri-Mode 解码示意图 + 精度-吞吐量权衡 | Intro |
-| Figure 2 | 联合训练注意力模式布局（双流输入） | Section 2 |
-| Figure 3 | 训练损失曲线（α敏感性分析） | Section 2.4 |
-| Figure 4 | 三种推理模式流程图 | Section 3 |
-| Figure 5 | 递归动态压缩算法示意 | Section 4 |
-| Figure 6 | SOL vs Self-Speculation 对比 | Section 4 |
-| Figure 7 | 训练 Sampler 的 Pareto 前沿 | Section 6.1 |
-| Figure 8 | 多GPU推理效率对比 | Section 6.5 |
+| Figure 3 | 联合训练注意力模式布局（双流输入） | Section 2.2 |
+| Figure 4 | 训练损失曲线（α敏感性分析） | Section 2.4 |
+| Figure 5 | 三种推理模式流程图 | Section 3 |
+| Figure 6 | 递归动态压缩算法示意 | Section 4.1 |
+| Figure 7 | SOL vs Self-Speculation 对比 | Section 4.2 |
+| Figure 8 | 训练 Sampler 的 Pareto 前沿 | Section 6.1 |
+| Figure 9 | 多GPU推理效率对比 | Section 6.5 |
 | Table 1 | 训练技术消融（逐步叠加效果） | Section 2.3 |
 | Table 2 | α系数敏感性分析 | Section 2.4 |
 | Table 3 | Diffusion损失对AR精度的影响 | Section 2.4 |
@@ -211,7 +211,7 @@ $$
 
 1. **扩散模式具有显著的固有并行性**：B=32 时平均 TPF 达 7.60×，multilingual 和 coding 类别超过 10×
 2. **置信度采样的差距**：当前实际扩散模式仅 ~3× TPF，远低于 7.60× 的 SOL 上限
-3. **类别差异达 3.2×**：从 roleplay 的 3.49× 到 multilingual 的 11.26×，反映模板化内容的 token 级熵更低
+3. **类别差异达 3.2×**：从 roleplay 的 3.49× 到 multilingual 的 11.26×，作者推测这可能反映模板化内容的 token 级熵更低
 4. **SOL vs Linear SS**：在 acceptance rate 层面差距小（6.82× vs 7.60×），但考虑验证双前向后 real TPF 差距扩大为 6.02× vs 3.41×，**headroom 为 76.5%**
 5. **块长度权衡**：中等块长（B=8）取得最佳精度，更大块长并行性更高但精度下降
 
@@ -226,10 +226,10 @@ $$
 | 技术 | HumanEval | HumanEval+ | MBPP | MBPP+ | GSM8K | Minerva Math | Avg |
 |------|:---------:|:----------:|:----:|:-----:|:-----:|:----------:|:---:|
 | Block-wise attention（基线） | 39.02% | 37.80% | 53.40% | 67.72% | 82.87% | 44.58% | 54.23% |
-| + Global Loss Avg | 42.07% | 39.02% | 56.20% | 71.69% | 83.78% | 45.36% | +2.12% |
-| + DP-rank Varying Masking Ratios | 45.12% | 43.29% | 55.80% | 70.90% | 81.58% | 45.66% | +0.71% |
-| + Two-stage training | 58.54% | 52.44% | 53.00% | 73.81% | 83.17% | 55.84% | +5.74% |
-| + AR loss（完整） | 64.02% | 57.93% | 65.60% | 80.95% | 86.73% | 66.44% | +7.48% |
+| + Global Loss Avg | 42.07% | 39.02% | 56.20% | 71.69% | 83.78% | 45.36% | 56.35%（+2.12%） |
+| + DP-rank Varying Masking Ratios | 45.12% | 43.29% | 55.80% | 70.90% | 81.58% | 45.66% | 57.06%（+0.71%） |
+| + Two-stage training | 58.54% | 52.44% | 53.00% | 73.81% | 83.17% | 55.84% | 62.80%（+5.74%） |
+| + AR loss（完整） | 64.02% | 57.93% | 65.60% | 80.95% | 86.73% | 66.44% | 70.28%（+7.48%） |
 | **累积提升** | | | | | **+16.05%** |
 
 ### α系数敏感性
@@ -276,7 +276,7 @@ $$
 | **Nemotron-14B** | **AR** | **67.46%** | **1.00×** |
 | **Nemotron-14B** | **Linear SS** | **66.36%** | **5.96×** |
 
-Nemotron-Labs-Diffusion 在 3B 和 14B 规模均保持一致的精度-效率优势。TPF 随模型规模增长而提高（3B 4.36× → 8B 5.99× → 14B 5.96×）。
+Nemotron-Labs-Diffusion 在 3B 和 14B 规模均保持一致的精度-效率优势。TPF 随规模总体提高（3B 4.36× → 8B 5.99×；14B 5.96×，与 8B 基本持平；3B→14B 由 4.36× 提高到 5.96×）。
 
 ## 5.4 基础模型对比
 
@@ -307,14 +307,14 @@ Linear SS 模式在长回复（>200 token）达到 **7.45× TPF**，说明 VLM �
 
 | 方面 | Self-Speculation | Eagle3/MTP |
 |------|:----------------:|:----------:|
-| 草稿模型 | 本体模型扩散通路（无额外参数加载） | 独立轻量草稿模型 |
+| 草稿模型 | 本体模型扩散通路（无需独立草稿模型；LoRA 增强约 36M/0.4% 参数） | 独立轻量草稿模型 |
 | 草稿生成 | **并行**（一次性生成全部草稿 token） | 递归（逐个生成，需嵌入层+LM头） |
 | 接受长度 | 更高（利用扩散并行生成） | 受限于草稿模型容量 |
 | 部署复杂度 | 零额外模型加载 | 需加载和管理两个模型 |
 
 ## 6.2 多GPU部署加速比
 
-> **注**：以下数据整理自原文 Section 6.5 的 prose 描述及 Figure 8，原文未以单一表格形式呈现。
+> **注**：以下数据整理自原文 Section 6.5 的 prose 描述及 Figure 9，原文未以单一表格形式呈现。
 
 | GPU | 配置 | AR 吞吐 | Linear SS 吞吐 | 加速比 |
 |:---|:----:|:-------:|:-------------:|:------:|
@@ -365,7 +365,7 @@ LoRA 增强后 SS 平均接受长度 6.82（Eagle3 仅 2.75，MTP 4.24），在�
 - 更好的扩散采样器以弥合与 SOL 上限的差距
 - 更大块长度下保持精度的训练方法
 - 优化的 kernel 支持（如 FlexAttention 优化以减少 Quadratic SS 的 overhead）
-- 扩展到更大规模（70B+）
+- 扩展到更大规模（论文当前覆盖 3B/8B/14B，未给出具体规模目标）
 
 ## 7.3 局限性与讨论
 

@@ -14,7 +14,7 @@
 
 ### 问题背景
 
-传统长视频理解模型采用"watch-it-all"被动范式，对所有帧进行统一处理而不考虑查询难度，导致计算成本随视频时长线性增长。尽管已出现一些交互式框架，但它们通常依赖全局预扫描，上下文成本仍随视频长度扩展。
+传统长视频理解模型采用"watch-it-all"被动范式，对所有帧进行统一处理而不考虑查询难度，导致计算成本随视频序列长度超线性增长。尽管已出现一些交互式框架，但它们通常依赖全局预扫描，上下文成本仍随视频长度扩展。
 
 ### 核心方案
 
@@ -34,9 +34,9 @@ OmniAgent 是首个原生全模态（omni-modal）智能体，将视频理解形
 
 **超越更大模型**：LVBench 上 OmniAgent-7B 达到 50.5%，超过 Qwen2.5-VL-72B 的 47.3%（+3.2 percentage points）。
 
-**效率提升**：平均每视频处理帧数从 768 帧降至 203 帧，减少 73%。
+**效率提升**：相比 Qwen2.5-VL-72B 的 768 帧，OmniAgent 平均每视频仅处理 203 帧，减少约 73%。
 
-**测试时扩展**：VideoMME-Long 上将轮数从 6 增至 52 时性能提升 6.2 percentage points，在约 11.7 轮时达到饱和。
+**测试时扩展**：VideoMME-Long 上将最大轮数从 6 增至 52 时性能提升 6.2 percentage points；平均实际执行轮数在 K=52 时仍饱和于约 11.7 轮（准确率并未在此饱和）。
 
 ---
 
@@ -50,13 +50,13 @@ OmniAgent 是首个原生全模态（omni-modal）智能体，将视频理解形
 
 视频数据不仅包含空间维度（图像帧），还包含时间维度（帧序列）。对于时长数分钟甚至数小时的视频，传统"统一采样+全局编码"范式导致：
 
-- 计算成本随视频时长线性增长
+- 计算成本随视频序列长度超线性增长
 - 简单查询与复杂查询消耗相同资源
 - 长视频中的关键信息被大量无关帧稀释
 
 ### 现有主动/交互式方法的局限
 
-VideoAgent、VideoAgent2、VriptAgent 等交互式方法尝试通过分步采样减少计算量，但仍存在以下问题：
+VisProg、VideoAgent 等交互式/智能体方法尝试通过分步采样减少计算量，但仍存在以下问题：
 
 1. **全局预扫描依赖**：需要先对全视频进行初步扫描，无法完全避免与视频长度相关的计算
 2. **上下文成本扩展**：即使进行选择性采样，上下文窗口仍需容纳大量中间表示
@@ -83,12 +83,7 @@ OmniAgent 首次在主动感知框架中实现全模态联合理解。
 
 ### POMDP 形式化
 
-环境定义为 $\Omega = \{V, F, A, CL\}$：
-
-- $V$：原始视频流
-- $F$：视频帧集合（通过索引范围获取）
-- $A$：音频流
-- $CL$：视频片段（clip，包含帧和音频）
+环境 $\Omega$ 是将动作 $A_k$ 解析为新的瞬时感知 $E_k$ 的交互环境，只执行原始媒体抽取（帧、音频、片段）；论文并未将其定义为集合 $\{V,F,A,CL\}$。动作空间为 $\mathcal{A}=\{a_{\text{frames}}, a_{\text{audio}}, a_{\text{clip}}, a_{\text{answer}}\}$。
 
 智能体通过观察 $O_k$、推理 $T_k$、行动 $A_k$ 与环境交互，最多进行 $K$ 轮循环。
 
@@ -163,7 +158,7 @@ For k = 1 to K:
 2. **数值推理（NUM/SIZE）**：输出数值答案
 3. **时间定位（TR）**：输出时间范围区间
 
-**Best-of-N 轨迹合成**：教师模型（Qwen2.5-Omni-7B）进行多次探索，允许自纠错。例如，首次探索选择了错误帧，后续探索可以纠正该选择，形成"错误→恢复→正确"的轨迹。
+**Best-of-N 轨迹合成**：教师模型（如 Gemini-3.0-Pro）进行多次探索，允许自纠错。例如，首次探索选择了错误帧，后续探索可以纠正该选择，形成"错误→恢复→正确"的轨迹。
 
 **双阶段质量控制**：
 
@@ -196,27 +191,30 @@ Vanilla GRPO 在多轮场景下存在的问题：
 
 **核心思想**：对每个轮次 k，根据该轮的熵 $H_{i,k}$ 重新调整 advantage：
 
-$$Â_{i,k} = A_i · \frac{H_{i,k}}{\frac{1}{N_G} \sum_{j=1}^{N_G} \sum_{m=1}^{M} H_{j,m}}$$
+$$Â_{i,k} = A_i · \frac{H_{i,k}}{\frac{1}{N_G} \sum_{j=1}^{G} \sum_{m=1}^{K_j} H_{j,m}}$$
 
 其中：
 - $A_i$：轨迹级原始 advantage
-- $H_{i,k}$：轨迹 i 在轮次 k 的策略熵
-- $N_G$：group size（GRPO 中的采样组大小）
-- $M$：轨迹长度（轮次数）
+- $H_{i,k}$：轨迹 i 在轮次 k 的平均 token 熵
+- $G$：group size（GRPO 中的采样组大小）
+- $K_j$：轨迹 $j$ 的轮次数
+- $N_G=\sum_{j=1}^{G}K_j$：组内总轮次数
 
 **效果机制**：
 
 1. **正确轨迹中的高熵轮**：获得更大的正 advantage（奖励探索性正确决策）
 2. **错误轨迹中的高熵轮**：获得更大的负 advantage（惩罚混乱的猜测）
-3. **低熵轮**：保持原始 advantage（对于确定性操作不进行调整）
+3. **低熵轮**：advantage 按 $w_{i,k}=H_{i,k}/\bar{H}<1$ 缩小（并非保持不变）
 
 **损失函数**：带 clipping 的逐 token 重要性采样，使用 $Â_{i,turn(t)}$ 替代传统 advantage：
 
-$$L_{RL} = -\mathbb{E}_{\pi_\theta} \left[ \frac{\pi_\theta(a_t|o_t)}{\pi_{old}(a_t|o_t)} Â_{i,turn(t)} \right]$$
+$$L_{RL} = -\mathbb{E}_{\pi_\theta} \left[ \min\left(\rho_{i,t} Â_{i,turn(t)},\ \mathrm{clip}(\rho_{i,t}, 1-\epsilon, 1+\epsilon) Â_{i,turn(t)}\right) \right]$$
+
+其中 $\rho_{i,t}=\pi_\theta(a_t|o_t)/\pi_{old}(a_t|o_t)$。
 
 ### TAURA vs Vanilla GRPO
 
-实验结果表明，TAURA 在全部 10 个 benchmark 上优于 vanilla GRPO，特别是在时间定位任务上优势明显。
+消融实验（Table 4）中，TAURA 在报告的 5 个 benchmark（VideoMME-Long、LVBench、MLVU、OmniVideo、DailyOmni）上均优于 vanilla GRPO；论文未报告时间定位任务的该对比。
 
 ---
 
@@ -240,7 +238,7 @@ $$L_{RL} = -\mathbb{E}_{\pi_\theta} \left[ \frac{\pi_\theta(a_t|o_t)}{\pi_{old}(
 
 视频时长从数秒到 2+ 小时。
 
-### 主要结果（Table 1）
+### 主要结果（Table 1–3）
 
 **对比 Qwen2.5-Omni-7B baseline**：
 
@@ -261,10 +259,10 @@ $$L_{RL} = -\mathbb{E}_{\pi_\theta} \left[ \frac{\pi_\theta(a_t|o_t)}{\pi_{old}(
 
 **关键发现**：
 - 全部 10 个 benchmark 提升
-- 时间定位任务提升最显著（+24~38 percentage points）
-- 通用视频理解任务提升 2.3~7.5 percentage points
+- 时间定位任务提升最显著（+33.0~+38.1 percentage points）
+- 通用视频理解任务提升 +3.0~+12.9 percentage points（VSI-Bench +12.9、Minerva +8.0）
 
-### 超越更大模型（Table 2）
+### 超越更大模型（Table 1 / Figure 3）
 
 LVBench 上对比更大规模模型：
 
@@ -278,16 +276,16 @@ OmniAgent-7B 超越 10× 参数的 Qwen2.5-VL-72B（+3.2 percentage points）。
 
 ### 消融研究
 
-**双阶段质量控制效果**：
-- 结果验证 + 理性审计 > 仅结果验证 > 无质量控制
+**双阶段质量控制**：
+- 论文仅描述了结果验证 + 理性审计的两阶段过滤流程，未提供"仅结果验证"或"无质量控制"的消融对比
 - 理性审计有效过滤了"运气正确"的轨迹
 
 **TAURA vs Vanilla GRPO**：
-- TAURA 在全部 10 个 benchmark 上优于 vanilla GRPO
-- 时间定位任务优势最明显
+- TAURA 在消融的 5 个 benchmark（VideoMME-Long、LVBench、MLVU、OmniVideo、DailyOmni）上均优于 vanilla GRPO
+- 论文未报告时间定位任务的该对比
 
 **SFT 必要性**：
-- Agentic SFT > Vanilla SFT（无轨迹合成）> No SFT
+- Agentic SFT 在报告的全部指标上优于 Standard SFT 与无 SFT 基座；但 Standard SFT 在 LVBench 上反而低于基座（43.0%→41.6%）
 
 ### 效率分析
 
@@ -296,8 +294,8 @@ OmniAgent-7B 超越 10× 参数的 Qwen2.5-VL-72B（+3.2 percentage points）。
 - 减少 73%（565 帧）
 
 **测试时扩展（Test-Time Scaling）**：
-- VideoMME-Long：将最大轮数从 6 增至 52，性能提升 6.2 percentage points
-- 饱和点：约 11.7 轮后性能不再显著提升
+- VideoMME-Long：将最大轮数从 6 增至 52，性能提升 6.2 percentage points（53.4%→59.6%）
+- 平均实际执行轮数在 K=52 时仍饱和于约 11.7 轮；准确率随 K 增大持续提升，并非性能饱和
 - 正向扩展：更多轮次带来持续性能提升，未出现退化
 
 ---
@@ -417,8 +415,8 @@ gradient_accumulation: 4
 - 未来可探索流式处理与异步行动
 
 **超长视频性能**：
-- 当前评测最长视频约 2 小时
-- 更长视频（>2h）的极限性能尚未验证
+- 当前评测覆盖至约 2 小时 20 分钟（Table 5 最长分档 120–140 min）
+- 更长时间尺度尚未系统验证
 - 记忆容量与信息检索效率需进一步优化
 
 **多语言泛化能力**：

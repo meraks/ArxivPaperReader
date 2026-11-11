@@ -43,11 +43,11 @@
 
 **痛点1：推理慢（Slow Inference）**
 
-CoT 的推理速度受制于自回归生成的串行特性。对于一个需要 $T$ 步推理的任务，模型必须生成 $T$ 个中间步骤token，每一步的计算都依赖于前一步的隐藏状态。在 GSM8K 数据集上，标准 CoT 平均需要约27步推理，这意味着：
+CoT 的推理速度受制于自回归生成的串行特性。对于一个需要 $T$ 步推理的任务，模型必须生成 $T$ 个中间步骤 token，每一步的计算都依赖于前一步的隐藏状态。论文没有报告 GSM8K 上的平均推理步数，但报告 SFT w/ CoT 的首 token 延迟（TTFT）约为 RiM 的 27 倍：
 
-$$ \text{Time}_{\text{CoT}} \approx 27 \times \text{Time}_{\text{single forward pass}} $$
+$$ \text{Time}_{\text{CoT}} \approx 27 \times \text{Time}_{\text{RiM}} $$
 
-这在实时应用（如对话系统、交互式问题求解）中是不可接受的延迟。
+这里的 27 是延迟倍数，不是推理步数。这在实时应用（如对话系统、交互式问题求解）中是不可接受的延迟。
 
 **痛点2：Token 浪费（Token Budget Waste）**
 
@@ -154,7 +154,7 @@ $$ \mathcal{L}_{\text{S2}}(\theta) = -\sum_{k=1}^{K} \alpha_k \cdot \log p_\thet
 3. "然后我回忆加法运算"
 4. "5加3等于8"
 5. "现在我需要记住8，因为后面还要用它"
-6. ...（27个步骤后）...
+6. ...（很多步骤后）...
 
 **关键差异**：第二种方法对观察者（人类）更可解释，但对计算者（模型）来说是一种负担。RiM 的哲学是让模型回归第一种方式——在内部工作记忆中完成计算，只在必要时输出结果。
 
@@ -226,14 +226,14 @@ $$ I(\text{Internal State}) \xrightarrow{\text{Direct Computation}} I(\text{Answ
 - 使用连续隐藏状态 $\mathbf{h}_T$ 作为推理载体
 - 通过特殊的"thought token"将 $\mathbf{h}_T$ 重新注入模型
 - 仍然是自回归过程，每一步依赖前一步
-- 需要额外的 Stage 0 训练来学习"thought"的表征方式
+- 需要额外的 Stage 0 训练（在显式 CoT trace 上做监督预训练）
 
 **与 RiM 的对比：**
 | 维度 | Coconut | RiM |
 |------|---------|-----|
 | 推理载体 | 连续隐藏状态 | 离散记忆 token |
 | 自回归 | 是，$O(T)$ 步 | 否，1 次前向传播 |
-| 训练复杂度 | 3 阶段（Stage 0 + 1 + 2） | 2 阶段 |
+| 训练复杂度 | 多阶段（1–7 个 latent stage，另加可选 Stage 0；主对比为 3×2 + Stage 0） | 2 阶段（GPT-2 另加 Stage 0） |
 | 推理速度 | ~7× 慢于直接答案 | 与直接答案相同 |
 
 **局限性：** Coconut 仍然受限于自回归的串行特性，无法充分利用 Transformer 的并行计算能力。
@@ -324,7 +324,7 @@ $$ I(\text{Internal State}) \xrightarrow{\text{Direct Computation}} I(\text{Answ
 | 方法 | 推理载体 | 自回归 | 训练阶段 | 推理速度 | 结构化程度 |
 |------|----------|--------|----------|----------|------------|
 | **CoT** | 自然语言 token | 是 | 1 | 基线（1×） | 低 |
-| **Coconut** | 连续隐藏状态 | 是 | 3 | ~0.14× | 中 |
+| **Coconut** | 连续隐藏状态 | 是 | 3×2 + S0 | ~0.14× | 中 |
 | **DART** | 隐式隐藏状态 | 否 | 2 | ~0.5× | 低 |
 | **iCoT** | 隐式内部状态 | 否 | 1 | ~0.8× | 低 |
 | **PauseFT** | 填充 token | 否 | 1 | ~0.7× | 低 |
@@ -632,31 +632,28 @@ $$ \mathcal{L}_{\text{S1}}(\theta) = -\sum_{t=1}^{T} \lambda_t(s) \cdot \log p_\
 
 $\lambda_t(s)$ 的作用是 **逐步移除早期步骤的监督**，让模型学会"隐式化"推理过程。
 
-**退火公式：**
+**退火形式（报告的形式化）：**
+
+论文只说明 $\lambda_t(s)$ 从 1 线性降到 0、退火顺序由 $t$ 决定；下面的显式形式是报告为便于理解给出的示意：
 
 $$ \lambda_t(s) = \max\left(0, 1 - \frac{s}{s_{\text{total}} \cdot \tau(t)}\right) $$
 
 其中：
 - $s$：当前训练 step
 - $s_{\text{total}}$：Stage 1 的总训练 steps
-- $\tau(t)$：第 $t$ 步的退火时间表
+- $\tau(t)$：第 $t$ 步的相对退火速度
 
-**三种退火时间表：**
+**论文比较的加权方式：**
 
-1. **Uniform Schedule**（均匀时间表）：
-   $$ \tau(t) = 1, \quad \forall t $$
-   所有步骤同时开始退火。
+论文没有给出 $\lambda_t(s)$ 的显式公式或 Uniform / Linear / Relative-to-T 这类命名；它只报告了三种加权方式的定性比较：
 
-2. **Linear Schedule**（线性时间表）：
-   $$ \tau(t) = \frac{t}{T} $$
-   早期步骤（$t$ 小）先退火，晚期步骤（$t$ 大）后退火。
+1. **相对每个样本推理步数 $T$ 的 weighting**：**最优**，论文最终采用线性相对 schedule，使早期推理步骤的监督先被移除、后期步骤最后被移除。
 
-3. **Relative-to-T Schedule**（相对 $T$ 时间表）：
-   $$ \tau(t) = \frac{t}{T_{\max}} $$
-   其中 $T_{\max} = 13$（GSM8K 的最大推理步数）。
-   不同长度的问题有不同的退火速度。
+2. **相对最大步数的 absolute weighting**：对较短样本过早移除监督。
 
-**论文结果：** Relative-to-T schedule 表现最好。
+3. **no weighting**：略差，因为密集监督从未放松。
+
+**论文结果：** 相对每个样本 $T$ 的线性相对 schedule 表现最好。
 
 #### 为什么从 early steps 开始移除监督？
 
@@ -714,7 +711,7 @@ def train_stage_1(model, dataloader, num_epochs, T_max=13):
 **关键实现细节：**
 
 1. **不同长度样本的处理**：每个样本的 $T$ 不同，需要动态构建记忆块序列
-2. **Separate readout head**：Stage 1 为每个推理步骤使用独立的预测头，避免共享参数导致的混淆
+2. **共享输出层**：论文两阶段都使用标准 next-token prediction；每个 readout 只是序列中的一个监督位置，通过语言模型的常规输出层预测，不引入独立的预测头
 3. **Padding handling**：batch 中不同 $T$ 的样本需要 padding 到相同长度
 
 ### 3.4 Stage 2: Answer Refinement
@@ -755,9 +752,9 @@ $$ \mathcal{L}_{\text{S2}}(\theta) = -\sum_{k=1}^{K} \alpha_k \cdot \log p_\thet
 
 #### $\alpha_k$ 线性递增机制
 
-$\alpha_k$ 的作用是 **让后期记忆块承担更大的责任**。
+$\alpha_k$ 的作用是 **让后期记忆块承担更大的责任**。论文只说采用线性加权、给后期 memory block 更大权重 "performs slightly better"，未给出 $\alpha_k$ 的显式公式；下式、归一化和具体数值都是报告为便于理解给出的形式化。
 
-**递增公式：**
+**递增公式（报告的形式化）：**
 
 $$ \alpha_k = \frac{2k}{K(K+1)} $$
 
@@ -789,12 +786,12 @@ $$ \alpha_8 = \frac{16}{72} \approx 0.222 $$
 论文没有进行大规模的 $K$ 值搜索，但有几点考虑：
 
 1. **计算效率**：8 个块在推理时提供 8 个预测，可以集成（ensemble）提高精度
-2. **经验法则**：GSM8K 问题的平均推理步数约 8-10 步
+2. **经验法则**：GSM8K-Aug 的 trace 最长 13 步（Table 3），但训练样本以 1–4 步为主
 3. **成本权衡**：更多块 → 更多计算和内存，但收益递减
 
-**Ablation 研究结果：**
+**论文的 K 选择：**
 
-论文测试了 $K \in \{2, 4, 6, 8, 10, 12\}$，发现 $K=8$ 在精度和效率之间达到最佳平衡。
+论文没有做 $K$ 值的训练消融。Figure 6a 只在推理时改变 memory budget：块数 $K \in \{1, 2, 4, 8, 16, 32, 64\}$、每块 $M \in \{1, 2, 4, 8\}$；Stage 2 后精度约 43% 且在较宽预算范围内基本稳定。训练时固定 $K=8$，是为了与 DART 的 30 个 silent token 对齐而选定的，不是搜索出的最优点。
 
 #### Stage 2 训练循环伪代码
 
@@ -835,7 +832,7 @@ def train_stage_2(model, dataloader, num_epochs, K=8):
 **关键实现细节：**
 
 1. **优化器重置**：Stage 2 开始时重置优化器状态，避免 Stage 1 的学习率动量干扰
-2. **Single readout head**：Stage 2 使用共享的预测头（不同于 Stage 1 的独立头）
+2. **共享输出层**：Stage 2 的 readout 同样通过语言模型常规输出层做 next-token prediction；论文没有为 Stage 1 或 Stage 2 引入额外预测头
 3. **集成推理**：推理时可以结合所有 $K$ 个 readout 的预测（如投票或平均）
 
 ### 3.5 关键设计选择
@@ -857,24 +854,9 @@ $$ \mathbf{W}' = \mathbf{W} + \Delta\mathbf{W} = \mathbf{W} + \mathbf{B}\mathbf{
 
 **为什么 LoRA？**
 
-1. **参数效率**：只训练 $\approx 0.5\%$ 的参数（对于 Llama-3.2-3B）
+1. **参数效率**：只训练 rank-128 LoRA 适配器与 3 个 special-token embedding；论文未报告 LoRA 参数量或占比
 2. **内存效率**：不需要存储完整梯度的优化器状态
 3. **训练稳定性**：低秩适应减少了过拟合风险
-
-**参数量估算（Llama-3.2-3B）：**
-
-```
-原始参数：3B
-LoRA 参数 (r=128)：
-- Attention: 4 modules × 32 layers × d_model × r
-  = 4 × 32 × 3072 × 128 × 2 ≈ 100M
-- FFN: 2 modules × 32 layers × hidden_dim × r
-  = 2 × 32 × 8192 × 128 × 2 ≈ 130M
-总 LoRA 参数：≈ 230M
-占比：230M / 3B ≈ 7.7%
-```
-
-（注：这里假设双重投影，实际LoRA实现可能不同）
 
 #### Optimizer/Scheduler Reset
 
@@ -949,7 +931,7 @@ RiM 的核心不是复杂的架构创新，而是 **训练范式的转变**：
 
 1. **速度**：27× 推理加速（从自回归生成到单次前向）
 2. **效率**：零 token 浪费（中间步骤不占用输出预算）
-3. **精度**：在 GSM8K 上超越 CoT，在 GSM-Hard 上匹配 CoT
+3. **精度**：以更低延迟接近 CoT——any-block 潜力指标在部分模型上接近或略超 CoT，但可部署的 final-block 精度在 GSM8K 与 GSM-Hard 上都低于 CoT（见论文 Table 1/2）
 
 而实现这一切的，只是三个相互配合的设计：
 
@@ -1017,7 +999,7 @@ RiM 的实验设计围绕一个核心假设展开：**通过固定的记忆块�
 | **Stage 1 训练** | 6 epochs | 6 epochs | 6 epochs |
 | **Stage 2 训练** | 2 epochs | 2 epochs | 2 epochs |
 
-论文正文和附录没有报告具体 GPU 型号或端到端训练耗时，因此这里不列硬件时间估计。
+论文附录 D 报告使用 1 个节点、8 张 NVIDIA H200-SXM-144GB GPU（Appendix D, Experimental Details）；论文没有报告端到端训练耗时，因此这里不列完整训练时间估计。
 
 #### 评估指标
 
@@ -1044,8 +1026,8 @@ $$ \text{Speedup} = \frac{\text{Time}_{\text{baseline}}}{\text{Time}_{\text{RiM}
 | 方法 | 描述 | 推理方式 |
 |------|------|----------|
 | **SFT w/o CoT** | 监督微调，直接预测答案 | 单次前向 |
-| **SFT w/ CoT** | 监督微调，生成推理链+答案 | 自回归（~27步） |
-| **Coconut** | 使用连续隐藏状态作为思考 | 自回归（~7步） |
+| **SFT w/ CoT** | 监督微调，生成推理链+答案 | 自回归（TTFT 约为 RiM 的 27×） |
+| **Coconut** | 使用连续隐藏状态作为思考 | 自回归（TTFT 约为 RiM 的 7×） |
 | **DART** | 自蒸馏的隐式推理 | 单次前向 |
 | **RiM** | 固定记忆块的隐式推理 | 单次前向 |
 
@@ -1055,22 +1037,22 @@ $$ \text{Speedup} = \frac{\text{Time}_{\text{baseline}}}{\text{Time}_{\text{RiM}
 
 在 GSM8K 测试集上的主要结果：
 
-> **详细数值请参见论文原文 Table 1（Section 4.2）。** 以下为基于论文报告的核心结论总结：
+> **详细数值请参见论文原文 Table 1/2（Section 4.2）。** 以下为基于论文报告的核心结论总结：
 
-**关键发现（来自论文 Table 1）：**
+**关键发现（来自论文 Table 1/2）：**
 
-1. **RiM ≥ CoT**：在 GPT-2 和 Llama-3.2-1B 上，RiM 达到或超越标准 CoT 的准确率；在 Llama-3.2-3B 上，RiM 与 CoT 性能相当
+1. **RiM vs CoT**：可部署的 final-block RiM 在 GSM8K 上于所有模型都低于 SFT w/ CoT（GPT-2 33.6 vs 39.8，Llama-3.2-1B 42.1 vs 49.1，Llama-3.2-3B 48.8 vs 66.9）；只有 any-block 潜力指标在 GPT-2 / 1B 上接近或略超 CoT（39.5 / 51.4 vs 39.8 / 49.1），在 3B 仍低于 CoT（57.3 vs 66.9）
 2. **RiM ≥ Coconut**：在所有模型规模上，RiM 匹配或超越 Coconut 的隐式推理方法，提升幅度在 +2.5～+7.5 pp 范围内
 3. **RiM ≫ SFT w/o CoT**：RiM 相对于直接回答的 SFT baseline 提升 +12.6～+18.2 pp，证明了隐式推理的巨大价值
 4. **规模一致性**：从 GPT-2 到 Llama-3.2-3B，RiM 相对 direct-answer SFT 和 Coconut 的优势在不同模型族/规模上都稳定保持
 
 #### 精度提升的本质
 
-RiM 的优势不在于"比 CoT 算得更好"，而在于**以更少的计算代价达到相同或更好的推理质量**：
+RiM 的优势不在于"比 CoT 算得更好"，而在于**以更少的计算代价达到接近 CoT 的推理质量**：
 
-#### 为什么 RiM 能超越 CoT？
+#### 为什么 RiM 能以更低延迟接近 CoT？
 
-这是一个反直觉的结果——**移除显式推理步骤反而提高了精度**。论文通过后续的 PCA 分析和线性探针实验给出了部分解释，这里先列出三个核心假设：
+这是一个值得解释的结果——**移除显式推理步骤后，any-block 读出在部分模型上仍能接近或略超 CoT**。论文通过后续的 PCA 分析和线性探针实验给出了部分表示层面的证据，这里先列出三个可能解释：
 
 1. **假设1：语言作为瓶颈**
    - CoT 要求模型将内部数值状态"翻译"成自然语言
@@ -1087,16 +1069,16 @@ RiM 的优势不在于"比 CoT 算得更好"，而在于**以更少的计算代�
    - CoT 的所有步骤使用相同的生成机制
    - 专门化带来了更好的计算分工
 
-这些假设在后续章节中会进一步验证。
+这些假设只能获得表示层面的间接证据（见 4.5-4.7），并没有被论文直接验证。
 
 ### 4.3 GSM-Hard Generalization
 
 #### GSM-Hard 数据集
 
-GSM-Hard 是 GSM8K 的一个子集，包含：
-- 人工标注为"困难"的问题
+GSM-Hard 是 GSM8K 的困难变体（Gao et al., 2023），论文将其作为 OOD 测试集：
+- 由 GSM8K 测试题替换为更大的数值构造，而非人工标注的子集
 - 需要多步推理和复杂理解
-- 约 1.2K 问题
+- 约 1.3K 问题（论文正文未给出数量）
 
 #### 泛化性能结果
 
@@ -1104,13 +1086,13 @@ GSM-Hard 是 GSM8K 的一个子集，包含：
 
 **关键发现：**
 
-1. **匹配 CoT 精度**：RiM 在 GSM-Hard 上匹配或轻微超越 CoT 的精度水平
+1. **接近 CoT 精度**：GSM-Hard 上 final-block RiM 低于 CoT（7.8 / 10.5 / 12.0 vs 8.4 / 11.2 / 19.0）；any-block 在 GPT-2 / 1B 上略超（9.4 / 13.0 vs 8.4 / 11.2），在 Llama-3.2-3B 上仍明显低于 CoT（13.8 vs 19.0）
 2. **分布外泛化**：RiM 在 OOD 数据上保持推理能力，证明记忆块不是简单地记忆 GSM8K 的模式
 3. **与 Coconut/DART 对比**：RiM 在分布外场景下仍保持竞争优势
 
 **为什么 GSM-Hard 上的优势更小？**
 
-论文分析认为：
+论文没有对差距来源作归因分析；它只把 GSM-Hard 描述为 OOD、更难的问题集。以下是报告的推测，而非论文结论：
 - GSM-Hard 的问题需要更复杂的推理链
 - 固定 8 个记忆块可能不足以处理最困难的问题
 - CoT 的自回归特性允许动态调整推理深度
@@ -1150,9 +1132,9 @@ $$ \text{Input} = [\mathbf{x}] $$
 $$ \text{Step 1: Forward} \rightarrow \text{Generate } \mathbf{r}_1 $$
 $$ \text{Step 2: Forward} \rightarrow \text{Generate } \mathbf{r}_2 $$
 $$ \vdots $$
-$$ \text{Step 27: Forward} \rightarrow \text{Generate } \mathbf{y} $$
+$$ \text{Step } T\text{: Forward} \rightarrow \text{Generate } \mathbf{y} $$
 
-这是 **27 次串行前向传播**，每一步都必须等待前一步完成。
+这是 **$T$ 次串行前向传播**，每一步都必须等待前一步完成。
 
 #### 速度-精度权衡曲线
 
@@ -1250,59 +1232,58 @@ PC2
 
 1. **记忆块在学习有意义的表征**：如果记忆块只是随机噪声或捷径学习，PCA 不会显示如此清晰的聚类
 
-2. **推理是一个渐进过程**：早期记忆块的分离度低，晚期记忆块的分离度高，说明推理是逐步精炼的
+2. **推理是一个渐进过程**：论文展示各块表示变得 block-specific、sample-dependent，且答案在块间继续被精炼（Figure 6b）；论文没有报告"早期块分离度低于晚期块"这一比较
 
 3. **可解释性潜力**：未来可以通过分析记忆块的表征来理解模型的推理过程（类似于对人类工作记忆的神经科学研究）
 
 ### 4.6 消融实验 (Ablation Studies)
 
-论文进行了全面的消融研究，验证每个设计选择的必要性。以下总结关键发现（详细数值见论文 Table 3-5）：
+论文的消融证据主要来自 Figure 6a（推理预算）、Figure 9（Stage 切换）与 Figure 10（Coconut curriculum）。Table 3 是 GSM8K-Aug 的步数分布，Table 4 是主结果表，二者都不是消融表。
 
-#### 消融 1：记忆块数量 $K$
+#### 记忆块预算 $K$（推理时）
 
-**实验设置：** 固定 $M=2$，改变 $K \in \{0, 2, 4, 6, 8, 10, 12\}$
+**实验设置：** 训练时固定 $K=8$、$M=2$；Figure 6a 在推理时改变 $K \in \{1, 2, 4, 8, 16, 32, 64\}$ 与每块 $M \in \{1, 2, 4, 8\}$
 
-**关键发现（论文 Table 3）：**
-- $K=0$（直接回答，无记忆块）：baseline 性能
-- 随着 $K$ 增加，准确率持续提升，但呈现**收益递减**
-- $K=8$ 是论文选择的最优平衡点
-- 从 $K=8$ 到 $K=12$，进一步提升微乎其微
+**关键发现（论文 Figure 6a）：**
+- Stage 2 后精度约 43%，在较宽的 $K$、$M$ 预算范围内基本稳定
+- 因此固定的 final-block 读出可以可靠部署，不依赖某个精确预算
+- 训练时 $K=8$ 是为了与 DART 的 30 个 silent token 对齐而选定，不是消融得到的最优点
 
-#### 消融 2：记忆块大小 $M$
+#### 记忆块大小 $M$（推理时）
 
-**实验设置：** 固定 $K=8$，改变 $M$ 值
+**实验设置：** 训练时固定 $M=2$；$M$ 只在 Figure 6a 的推理预算中变化
 
-**关键发现（论文 Table 4）：**
-- $M=2$ 已充分：进一步增加 $M$ 没有显著提升精度
-- 推理速度对所有 $M$ 值基本保持不变（均为单次前向传播）
-- 论文最终选择 $M=2$，在精度和序列长度之间取得最佳平衡
+**关键发现：**
+- 论文没有 $M$ 的独立训练消融表（Table 4 是主结果表）
+- 训练时固定 $M=2$ 是为了对齐 Coconut 每个 stage 的 2 个 CT，而非由消融选出
+- 推理时改变 $M \in \{1, 2, 4, 8\}$，Stage 2 后精度在较宽范围内基本稳定
 
-#### 消融 3：退火时间表 $\lambda_t(s)$
+#### 消融 3：退火加权 $\lambda_t(s)$
 
-**实验设置：** 比较不同的 Stage 1 退火策略
+**实验设置：** 比较不同的 Stage 1 加权策略
 
-| 时间表 | 效果 |
+| 加权方式 | 效果 |
 |--------|------|
-| Uniform ($\lambda_t = 1$) | 最弱 — 所有步骤等权重 |
-| Linear ($\lambda_t = t/T$) | 中等 |
-| **Relative-to-T** ($\lambda_t(s) = 1 - s/(S \cdot t/T)$) | **最优** |
+| 相对每个样本推理步数 $T$ 的 weighting | **最优**（论文采用线性相对 schedule） |
+| 相对最大步数的 absolute weighting | 对较短样本过早移除监督 |
+| no weighting | 略差 — 密集监督从未放松 |
 
-**Relative-to-T 的优势：**
-- 不同长度的问题有不同的退火速度
-- 短问题（$T$ 小）快速退火；长问题（$T$ 大）慢速退火
-- 这种自适应性提供了更好的训练稳定性
+**相对 $T$ 加权的优势：**
+- 退火顺序按每个样本自己的推理步数 $t/T$ 决定
+- 论文报告 absolute weighting 会让短样本过早失去监督
+- 论文未给出这些策略的显式公式
 
-#### 消融 4：优化器重置
+#### 优化器/调度器重置（非消融）
 
-**关键发现：** 在 Stage 1 → Stage 2 切换时重置优化器状态和 scheduler 可带来显著的精度提升。这表明两个阶段的学习动态不同，需要独立的优化器状态。
+**论文说明：** 在 Stage 1 → Stage 2 切换时重置优化器状态和 scheduler（沿用 Deng et al. / Hao et al. 的做法）。论文没有为"重置 vs 不重置"提供消融或定量提升；Appendix E 的 Figure 9 是 Stage 切换时点（Stage 1 only、Stage 2 only、不同切换步）的消融，不是优化器重置消融。
 
-#### 消融 5：Stage 1 的必要性
+#### 消融 4：Stage 1 的必要性
 
-**关键发现：** 跳过 Stage 1 直接进行 Stage 2 训练（仅监督最终答案），性能远低于完整的两阶段训练。这表明 Stage 1 的"奠基工作空间"是不可替代的——仅靠最终答案的监督信号不足以为记忆块建立有效的推理表征。
+**关键发现：** 跳过 Stage 1 直接进行 Stage 2 训练（仅监督最终答案），性能远低于完整的两阶段训练（Figure 9）。这表明 Stage 1 的"奠基工作空间"是不可替代的——仅靠最终答案的监督信号不足以为记忆块建立有效的推理表征。
 
-#### 消融 6：LoRA Rank
+#### LoRA Rank
 
-**关键发现：** Rank-128 在参数效率和推理精度之间达到最佳平衡。更高 rank（如 256）仅带来边际提升，但参数量翻倍。
+**论文设置：** 论文只说明所有模型使用 rank-128 LoRA，没有报告 rank 消融，也没有 rank-256 的结果。
 
 ### 4.7 Linear Probe Analysis
 
@@ -1356,7 +1337,7 @@ $$ \hat{y} = \mathbf{w}^T \mathbf{h}_k + b $$
 
 ### 5.1 Three Hypotheses about Why RiM Works
 
-基于实验结果和理论分析，论文提出了三个假设来解释 RiM 的有效性。
+以下三个解释是报告基于论文的动机（语言为通信而非计算优化）和表示分析归纳出的假设，并非论文原文提出的三个结论；论文本身只给出 block-specific、sample-dependent 的表示层面证据。
 
 #### 假设1：语言作为低效的计算媒介（Language as Inefficient Computation Medium）
 
@@ -1382,8 +1363,10 @@ $$ \text{信息损失} = I_{\text{internal}} - I_{\text{language}} \approx 950 \
 
 $$ \text{CoT 的总损失} = \sum_{t=1}^{T} (I_{\text{internal}} - I_{\text{language}}) \approx 950 \times T \text{ bits} $$
 
-对于 $T=27$ 步的 CoT：
-$$ \text{总损失} \approx 950 \times 27 = 25,650 \text{ bits} $$
+对于一条 $T$ 步的 CoT：
+$$ \text{总损失} \approx 950 \times T \text{ bits} $$
+
+（论文没有报告平均推理步数，这里只给出随步数 $T$ 线性增长的示意。）
 
 **RiM 的优势：**
 
@@ -1401,9 +1384,9 @@ CoT 的自回归特性意味着第 $t$ 步的错误会传播并放大到第 $t+1
 
 假设每一步的正确率为 $p = 0.9$（90% 的步骤是正确的）：
 
-$$ P(\text{全链正确}) = p^T = 0.9^{27} \approx 0.059 = 5.9\% $$
+$$ P(\text{全链正确}) = p^T $$
 
-这意味着即使在单步 90% 正确率的情况下，27 步推理链完全正确的概率只有 5.9%。
+其中 $T$ 是推理步数（GSM8K-Aug 的 trace 最多 13 步，平均步数远小于此）。步数越多，全链正确率指数下降。
 
 **误差累积效应：**
 
@@ -1413,7 +1396,7 @@ Step 2:  ●━━━━━ 81% 正确（0.9^2）
 Step 3:   ●━━━━━ 73% 正确
 Step 4:    ●━━━━━ 66% 正确
 ...
-Step 27:       ●━ 5.9% 正确
+Step T:        ●━ p^T 正确
 ```
 
 **RiM 的优势：**
@@ -1483,8 +1466,8 @@ Coconut 是与 RiM 最相似的方法，但两者在关键设计上有本质差�
 | **载体来源** | 前一步的最终隐藏状态 | 固定的 token 序列 |
 | **自回归性** | 是，每步依赖前一步 | 否，单次前向传播 |
 | **推理速度** | ~7× Direct Answer | 1× Direct Answer |
-| **训练阶段** | 3（Stage 0 + 1 + 2） | 2（Stage 1 + 2） |
-| **辅助损失** | 需要 Stage 0 | 不需要 |
+| **训练阶段** | 1–7 个 latent stage（主对比 3×2）+ 可选 Stage 0 | 2（Stage 1 + 2；GPT-2 另加 Stage 0） |
+| **辅助损失** | 无（Stage 0 是显式 CoT 预训练阶段，不是辅助损失） | 不需要 |
 | **结构化程度** | 低（隐藏状态是无结构的） | 高（block-causal mask） |
 
 #### 深层差异1：离散 vs 连续表征
@@ -1546,12 +1529,11 @@ Step 1: Forward → Read answer from readout_8
 
 #### 深层差异3：训练复杂度
 
-**Coconut 的三阶段训练：**
+**Coconut 的多阶段训练（主对比为 3×2 + Stage 0）：**
 
 ```
-Stage 0: 学习"连续思考"的表征方式
-Stage 1: 用 CoT 数据监督思考过程
-Stage 2: 精炼最终答案
+Stage 0: 在显式 CoT trace 上监督训练（相当于 SFT w/ CoT，可选）
+Stage 1..S: 逐步用 CT 替换推理步骤（主对比 S=3，每个 stage 加 2 个 CT）
 ```
 
 - Stage 0 需要额外的数据和计算
@@ -1564,21 +1546,23 @@ Stage 1: 奠基工作空间（监督推理步骤）
 Stage 2: 精炼答案（监督最终答案）
 ```
 
-- 无需额外的 Stage 0
+- Llama 模型直接从 base checkpoint 开始，无需额外的 Stage 0；GPT-2 沿用 Coconut w/ Stage 0 的初始 Stage 0（Appendix D）
 - 只需要监督损失，训练简洁
 
-**为什么 RiM 可以跳过 Stage 0？**
+**为什么 Llama 模型可以跳过 Stage 0？**
 
 - 记忆 token 是离散的，有明确的"槽位"语义
 - 不需要学习"什么是思考"，只需要学习"如何在槽位中存储信息"
 
+（这几条是报告的推测；论文没有解释跳过 Stage 0 的原因。）
+
 #### 实验结果对比
 
-| 模型 | Coconut | RiM | 差距 |
+| 模型 | Coconut | RiM | GSM8K 差距（final-block vs Coconut w/ Stage 0） |
 |------|---------|-----|------|
-| GPT-2 | Coconut baseline | RiM ≥ Coconut | +1.6～+7.5pp |
-| Llama-3.2-1B | Coconut baseline | RiM ≥ Coconut | +1.6～+7.5pp |
-| Llama-3.2-3B | Coconut baseline | RiM ≥ Coconut | +1.6～+7.5pp |
+| GPT-2 | Coconut baseline | RiM ≥ Coconut | +2.5～+7.5pp |
+| Llama-3.2-1B | Coconut baseline | RiM ≥ Coconut | +2.5～+7.5pp |
+| Llama-3.2-3B | Coconut baseline | RiM ≥ Coconut | +2.5～+7.5pp |
 
 **分析：**
 
@@ -1603,7 +1587,7 @@ RiM 在社区中引发了一些关于可解释性和安全性的讨论。这一�
 
 **论文的回应：**
 
-1. **PCA 和线性探针分析**：论文证明了记忆块的表征是结构化的，可以线性预测推理中间状态
+1. **PCA 和线性探针分析**：论文展示了记忆块表示的结构化证据，并说明 readout 是否正确可被线性 probe 较好预测
 2. **可解释性潜力**：未来可以通过探针技术"读取"模型的推理过程
 3. **权衡**：在速度-精度-可解释性的三者权衡中，RiM 选择了前两者
 
@@ -1799,8 +1783,8 @@ RiM 的训练仍然需要 CoT 数据（Stage 1）和两阶段训练。
 | **方法层面** | 固定记忆块替代自回归 CoT | $M=2$ tokens/block, $K=8$ blocks |
 | **训练层面** | 两阶段课程学习 | Stage 1: 奠基工作空间<br/>Stage 2: 精炼答案 |
 | **架构层面** | Block-causal attention mask | 防止捷径学习，强制独立推理 |
-| **效率层面** | 单次前向推理 | 从 27 步自回归降到 1 次前向 |
-| **可解释性层面** | PCA + 线性探针分析 | 证明记忆块编码推理状态 |
+| **效率层面** | 单次前向推理 | 从多步自回归降到 1 次前向（论文报告 CoT 延迟约为 RiM 的 27×） |
+| **可解释性层面** | PCA + 线性探针分析 | 提供表示层面的证据：块表示 block-specific、sample-dependent，且可线性预测 readout 正确性 |
 
 ### 关键数字速查
 
@@ -1817,7 +1801,7 @@ RiM 的训练仍然需要 CoT 数据（Stage 1）和两阶段训练。
 
 ### 一句话总结
 
-**RiM 用固定的记忆块和两阶段课程学习，让 Transformer 在不生成中间推理步骤的情况下执行复杂推理，实现了与 CoT 相当（甚至更高）的精度，但速度快 27 倍。**
+**RiM 用固定的记忆块和两阶段课程学习，让 Transformer 在不生成中间推理步骤的情况下执行复杂推理；可部署的 final-block 精度低于 CoT，any-block 潜力指标在部分模型上接近或略超 CoT，而延迟约为 CoT 的 1/27。**
 
 ### 方法本质
 
@@ -1839,7 +1823,7 @@ RiM 的训练仍然需要 CoT 数据（Stage 1）和两阶段训练。
 │  手段3：两阶段课程学习                                   │
 │        └─ 训练范式：从单阶段监督转变为两阶段引导        │
 │                                                         │
-│  结果：精度相当 + 速度提升 27× + 零 token 浪费          │
+│  结果：延迟约 CoT 的 1/27 + 零中间 token 浪费           │
 │                                                         │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -1861,8 +1845,8 @@ RiM 的训练仍然需要 CoT 数据（Stage 1）和两阶段训练。
 推理计算方式
 │
 ├─ 自回归 (Autoregressive)
-│  ├─ CoT (27 步)
-│  └─ Coconut (7 步)
+│  ├─ CoT (自回归多步)
+│  └─ Coconut (自回归多步)
 │
 └─ 单次前向 (Single Forward)
    ├─ RiM (1 步) ←── 目标位置
@@ -1878,12 +1862,12 @@ RiM 的训练仍然需要 CoT 数据（Stage 1）和两阶段训练。
 
 2. **假设2：自回归的误差传播**
    - CoT 的错误会从第 $t$ 步传播到第 $t+1$ 步
-   - 27 步推理链完全正确的概率仅 ~5.9%
+   - 推理步数越多，全链完全正确的概率指数下降
    - RiM 的并行计算减少了误差累积
 
 3. **假设3：记忆块的专门化**
    - 8 个记忆块可以专门化（不同块负责不同子任务）
-   - 线性探针显示记忆块编码了推理中间状态
+   - 线性探针显示 memory-block 表示可线性预测对应 readout 是否正确
    - 专门化带来了计算分工和效率提升
 
 ### 适用场景判断
@@ -2048,7 +2032,8 @@ def create_block_causal_mask(
 ```python
 def lambda_schedule(t: int, T: int, s: int, S: int) -> float:
     """
-    Relative-to-T annealing schedule for Stage 1.
+    Annealing schedule for Stage 1 (report's formalization; the paper only
+    states a linear relative schedule without giving an explicit formula).
     λ_t(s) = max(0, 1 - s/(S * (t/T)))
     
     Removes supervision from early reasoning steps first.
@@ -2127,7 +2112,7 @@ def train_stage1(model, dataloader, tokenizer, special_token_ids,
 
 ```python
 def alpha_schedule(k: int, K: int) -> float:
-    """α_k = 2k/(K(K+1)) — linear increasing weights"""
+    """α_k = 2k/(K(K+1)) — linear increasing weights (report's formalization)"""
     return 2.0 * k / (K * (K + 1))
 
 def train_stage2(model, mem_emb, dataloader, tokenizer, special_token_ids,

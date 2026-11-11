@@ -2,7 +2,7 @@
 
 ## 论文元数据
 - 标题：FlashMemory-DeepSeek-V4: Lightning Index Ultra-Long Context via Lookahead Sparse Attention
-- 作者：Yan Wang, Qifan Zhang, Jiachen Yu, Tian Liang, Dongyang Ma, Xiang Hu, Zibo Lin, Chunyang Li, Zhichao Wang, Miao Peng, Nuo Chen, Jia Li, Yujiu Yang, Haitao Mi, Dong Yu (Tencent)
+- 作者：Yan Wang, Qifan Zhang, Jiachen Yu, Tian Liang, Dongyang Ma, Xiang Hu, Zibo Lin, Chunyang Li, Zhichao Wang, Miao Peng, Nuo Chen, Jia Li, Yujiu Yang, Haitao Mi, Dong Yu（来自 Independent Researchers、Tencent、HKUST (Guangzhou)、Tsinghua University；Tencent 为主要合作单位）
 - arXiv ID：2606.09079
 - 发表/提交日期：2026-06-08
 - 官方代码：https://github.com/libertywing/FlashMemory-DeepSeek-V4 (MIT License)
@@ -19,7 +19,7 @@ Lookahead Sparse Attention (LSA) = **预测性KV缓存压缩系统**，通过主
 
 ### 1.2 核心问题
 
-长上下文LLM推理面临**KV缓存内存瓶颈**。在500K token规模的推理中，仅KV缓存就需要7.5+ GB GPU内存，这严重制约了Agent应用（长期记忆、多轮对话）的实际部署。
+长上下文LLM推理面临**KV缓存内存瓶颈**。在500K token规模的推理中，论文实测 DS-V4-Flash 的 KV 缓存约 1.8 GB（Table 1）；若按标准 dense 模型估算，理论值可达 7.5+ GB。这严重制约了Agent应用（长期记忆、多轮对话）的实际部署。
 
 传统长上下文推理采用**全量dense attention**：所有历史token的Key-Value对都必须保留在GPU内存中，即使其中大部分在后续查询中永远不会被访问。这导致：
 - GPU内存随序列长度**线性增长**（O(N)）
@@ -74,17 +74,17 @@ LSA的训练策略突破性地**不需要加载DeepSeek-V4主干模型**：
 
 #### 贡献2：Backbone-free解耦训练
 
-设计了完全不需要加载massive backbone model的训练策略。将indexer建模为独立的dual-encoder，使用预计算表征进行训练，仅优化query projection矩阵（<0.1%参数量）。训练成本从"数百GPU天"降至"单个H20 GPU小时"。
+设计了完全不需要加载massive backbone model的训练策略。将indexer建模为独立的dual-encoder，使用预计算表征进行训练，仅优化query projection矩阵（<0.1%参数量）。传统端到端联合训练在计算上不可行，而该方案将训练成本降至"单个H20 GPU小时"（8×H20 集群一周完成约 500 次训练）。
 
 #### 贡献3：突破性效率实证
 
 在DeepSeek-V4-Flash上实现LSA，在LongBench-v2、LongMemEval、RULER三大基准上验证：
 - 平均KV缓存仅 **13.5%**（86.5%减少），500K时达 **90%+** 减少
-- 平均精度 **+0.6%**（76.9% → 77.5%），长上下文任务甚至提升更大
+- 平均精度 **+0.6%**（76.9% → 77.5%），长上下文任务总体提升（超长 LongBench-v2-L 最明显）
 
 ### 1.5 论文定位
 
-这是一篇**11页的技术报告**，来自Tencent团队。论文结构简洁，重点突出：
+这是一篇**11页的技术报告**，由 Tencent 主导的多机构团队完成。论文结构简洁，重点突出：
 - 清晰的问题定义（KV缓存内存瓶颈）
 - 创新的解决方案（LSA + backbone-free训练）
 - 扎实的实验验证（3个主要benchmark + 消融实验）
@@ -305,7 +305,7 @@ LSA系统由三个核心组件构成：
 | τ (retrieval interval) | 64 | 每生成64个token触发一次indexer |
 | 阈值 θ | 0.5 | sigmoid分数≥0.5则保留chunk |
 | Ensemble layers | l10, l12, l20 | 3个CSA layers的indexer ensemble |
-| Low-rank rank | 2048 | Query projection的LoRA秩 |
+| Low-rank rank | 2048 | Query projection 的低秩瓶颈维度（非 PEFT-LoRA） |
 
 ### 3.2 Memory Indexer设计
 
@@ -366,7 +366,7 @@ $$\text{keep}_s = \mathbb{1}[I_{t,s} \geq 0.5]$$
 
 分数≥0.5的chunks保留（keep=1），其余可offload。
 
-> **为什么阈值0.5？** Sigmoid自然中点，实验验证平衡保留率/压缩率。实际部署可调优。
+> **为什么阈值0.5？** Sigmoid 自然中点；论文说明该阈值来自初步探索性实验，明确未在替代值上做系统验证。实际部署可调优。
 
 ### 3.3 Ensemble聚合策略
 
@@ -416,7 +416,7 @@ Mean模式更保守，倾向于**保留更少chunks**，但可能丢失仅在单
 - **互补信号**：不同层捕获不同模式
 - **鲁棒性**：对单层的noise更robust
 
-实验结果显示，Ensemble比单层平均提升约2-3%精度。
+论文未报告 Ensemble 相对单层的精度增益；2.4 节只说明单层表征能力不足、8 层集成会召回 30%–49% 的历史条目并损害效率，最终选 3 层（l10/l12/l20）作为精度-效率折中。
 
 ### 3.4 类比理解：高速公路智能收费站
 
@@ -467,16 +467,16 @@ $$
 
 #### Step 3: Cross-layer Majority Voting (θ=3)（跨层多数投票）
 
-最后一步是跨层多数投票：只在至少 3 个 CSA 层中的 ≥2 层都将某个 chunk 标记为 relevant 时，才将其作为正样本：
+最后一步是跨层多数投票：只在全部 21 个 CSA 层（L=21）中至少有 θ=3 层将某个 chunk 标记为 relevant 时，才将其作为正样本：
 
 $$
 \text{Label}(s) = \begin{cases}
-\text{Positive} & \text{if } |\{l \in \{l10, l12, l20\} : s \in \mathcal{S}_t^{(l)}\}| \geq 2 \\
+\text{Positive} & \text{if } |\{l \in \{1,\dots,21\} : s \in \mathcal{S}_t^{(l)}\}| \geq 3 \\
 \text{Negative} & \text{otherwise}
 \end{cases}
 $$
 
-其中 $\{l10, l12, l20\}$ 是三个用于 ensemble 的 CSA 层，$\mathcal{S}_t^{(l)}$ 是层 $l$ 在 step 2 后的保留 chunks 集合。
+其中 $\mathcal{S}_t^{(l)}$ 是层 $l$ 在 step 2 后的保留 chunks 集合。注意：l10/l12/l20 是推理时 ensemble 的三层，不是训练标签投票的层集合。
 
 
 
@@ -531,7 +531,7 @@ Backbone-free 解耦训练的最大优势是**训练效率极高**：
 > - 前向传播 indexer（轻量级矩阵乘法）
 > - 反向传播更新 query projections（参数量极小）
 > 
-> 成本降低幅度：**从数百 GPU 天降至 1 GPU 小时**。
+> 成本对比：论文称传统端到端联合训练“计算上不可行”，而本方案在 8×H20 集群上约一周完成 ~500 次独立训练；未给出“数百 GPU 天”的量化数字。
 
 ---
 
@@ -541,7 +541,7 @@ Backbone-free 解耦训练的最大优势是**训练效率极高**：
 
 #### Backbone 模型
 
-本文使用的 backbone 是 **DeepSeek-V4-Flash**（DeepSeek-V4 的轻量版本），这是一个大规模 MoE 模型，支持超长上下文（最高 512K tokens）。
+本文使用的 backbone 是 **DeepSeek-V4-Flash**（DeepSeek-V4 的轻量版本），这是一个大规模 MoE 模型，支持百万级上下文；精度评测覆盖至 512K/500K，Figure 1 给出 1M 上下文的内存与算力数据。
 
 #### 评估基准
 
@@ -583,12 +583,13 @@ Backbone-free 解耦训练的最大优势是**训练效率极高**：
 
 #### 关键发现
 
-**Finding 1: FM-DS-V4 平均精度 +0.6%（76.9% → 77.5%），长上下文任务提升更大**
+**Finding 1: FM-DS-V4 平均精度 +0.6%（76.9% → 77.5%），在超长 LongBench-v2-L 上提升最明显**
 
 - LongBench-v2-L (493K): **+1.9 points** (70.0 vs 68.1)
 - LongMemEval-M (500K): **+0.9 points** (40.2 vs 39.3)
 - RULER (512K): **+1.3 points** (89.6 vs 88.3)
-- 短上下文(RULER 64K/128K)基本持平或微降（-0.3~-1.1 points）
+- 短上下文(RULER 64K/128K)基本持平（64K +0.3）或微降（128K -1.1 points）
+- 注意并非所有长上下文设置都提升：RULER 256K 为 **-2.3 points** (88.2 vs 90.5)
 
 > **核心假设验证**：LSA作为**attention denoiser**，过滤无关历史chunks，长上下文任务受益最大。
 
@@ -650,7 +651,7 @@ Recency Only / Random 10% 全面崩溃证明：**稀疏化必须query-aware**，
 
 **Conclusion 3: 超长上下文内存瓶颈已被突破**
 
-FM-DS-V4 在 500K 上下文仅用 **~0.17 GB**（baseline ~1.8 GB，**~9.5%**，减少90%+）。单张 H20 即可推理 500K 上下文。
+FM-DS-V4 在 500K 上下文仅用 **~0.17 GB**（baseline ~1.8 GB，**~9.5%**，减少90%+）。论文在 8×H20 的 PD 分离服务栈上验证了 500K/1M 上下文；每请求 KV 约 0.17 GB，但未验证单卡 H20 推理。
 
 
 
@@ -824,7 +825,7 @@ FlashMemory 的代码实现就像一个**预训练的 GPS 导航模块**：
 
 #### Limitation 2: MRCR Benchmark 严重退化：48.0% vs 76.0% (Baseline)
 
-根据论文正文，FlashMemory 在 **MRCR** (Multi-Resolution Comprehension and Reasoning) benchmark 上从 76.0% 降至 48.0%（**-28.0 points**）。这是一个严重退化，说明 LSA 在某些任务类型上存在根本性缺陷。
+根据论文正文，FlashMemory 在 **MRCR** (Multi-Range Context Retrieval) benchmark 上从 76.0% 降至 48.0%（**-28.0 points**）。这是一个严重退化，说明 LSA 在某些任务类型上存在根本性缺陷。
 
 **可能原因**：
 - MRCR 可能需要**高分辨率全局上下文**（所有 chunks 都相关），稀疏化会丢失关键信息
@@ -835,7 +836,7 @@ FlashMemory 的代码实现就像一个**预训练的 GPS 导航模块**：
 
 #### Limitation 3: 长度泛化上限：2× 训练上下文（512K）
 
-论文指出，LSA 的长度泛化能力受限于训练数据的上下文长度。训练时使用的最大上下文是 256K tokens（从 GitHub README 推断），因此模型在 **512K tokens**（2× 训练上下文）上表现良好，但在更长上下文（如 1M tokens）上可能退化。
+论文指出，LSA 的长度泛化能力受限于训练数据的上下文长度。最终发布的 indexer 在最长 **512K tokens** 的上下文上训练，论文称其可安全泛化到恰好 2× 训练上下文（即约 **1M tokens**），超过该边界（>1M）时精度可能骤降。
 
 
 
@@ -873,7 +874,7 @@ FlashMemory 的代码实现就像一个**预训练的 GPS 导航模块**：
 
 #### Future Work 3: 长度泛化突破：Beyond 2× Training Context
 
-当前 LSA 在 2× 训练上下文（512K）上有效，但更长上下文（1M+）可能退化。未来可以：
+当前 LSA 的训练上下文上限为 512K，可安全泛化到 2× 训练上下文（约 1M），但超过 1M 后可能退化。未来可以：
 
 1. **更长上下文的训练数据**：在 1M tokens 上下文上预计算 representations 并训练 indexer
 2. **Curriculum learning**：从短上下文（128K）逐步扩展到长上下文（1M），提升泛化能力
@@ -903,10 +904,12 @@ Backbone-free 训练虽然高效，但 frozen keys 限制了检索质量。未�
 
 ### 7.4 延伸阅读
 
-#### 核心论文（论文References节）
+#### 延伸阅读（报告作者补充）
+
+> 论文 References 仅含 [1] DeepSeek-V4、[2] Qwen3.5、[3] LongBench-v2、[4] LongMemEval、[5] RULER、[6] MRCR；以下 StreamingLLM/H2O/Quest/InfLLM 并非论文引用文献，为报告作者补充的背景阅读。
 
 1. **DeepSeek-V4 Technical Report** (deepseekv4)
-   - HuggingFace: `deepseek-ai/DeepSeek-V4-Flash`
+   - HuggingFace: `deepseek-ai/DeepSeek-V4-Pro`（技术报告）；实验 backbone 为 `deepseek-ai/DeepSeek-V4-Flash`
    - 重点：CSA架构、MoE设计、HCA压缩策略、Lightning Indexer
 
 2. **StreamingLLM** (Xiao et al., 2023)

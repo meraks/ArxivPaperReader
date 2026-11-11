@@ -1,11 +1,11 @@
 ## 第 1 章 概述
 
 > **论文**：Beyond the Stability-Exploration Dilemma: Environmental Regularization for LLM Policy Optimization（ERPO）
-> **作者**：Xianlei Zhou, Xiangdi Meng, Yu He, Tianyu Qi, Shuyan Guan, Xianli Zhang, Jian Zhang, Xin Li, Qika Lin, Jun Liu（Alibaba / 学术合作）
+> **作者**：Xianlei Zhou, Xiangdi Meng, Yu He, Tianyu Qi, Shuyan Guan, Xianli Zhang, Jian Zhang, Xin Li, Qika Lin, Jun Liu（AMAP, Alibaba Group / 西安交通大学 / 京东 / 北京师范大学 / 新加坡国立大学）
 > **arXiv ID**：2608.23311
-> **发表时间**：2026-08-26 提交 v1；会议标注 EMNLP 2026（HF Community 标注）
+> **发表时间**：2026-08-26（当前 arXiv v2）；会议标注 EMNLP 2026（HF Community 标注）
 > **许可**：未标注（arXiv 页面与论文 HTML 均无 license 标识）
-> **代码仓库**：https://github.com/alibaba/ERPO（论文声明地址；截至 2026-08-27 访问返回 404，代码尚未上传）
+> **代码仓库**：https://github.com/AlibabaResearch/ERPO（论文摘要声明地址；截至 2026-08-27 未能核验代码可用性）
 
 ### 1.1 一句话定位
 
@@ -36,7 +36,7 @@ ERPO（Environment-Regularized Policy Optimization）把 LLM 策略优化中的�
 1. **Query-KL 环境控制**：把模型查询似然视为可正则化的输入端统计量，引入 QKL 显式约束策略诱导查询分布 ρ_θ 相对 RL 前参考 ρ_θ0 的漂移；配套数据集静态（dataset-static）、参考派生（reference-derived）的逐查询权重，在降低方差的同时驯服高温采样行为。
 2. **Estimator-agnostic 实例化**：方法与梯度估计器解耦——只需在 GRPO / PPO / REINFORCE 风格 pipeline 上叠加 QKL 项与查询权重即可，论文给出统一的 PG surrogate 及三种算法的特化形式，改动量极小。
 3. **多温度稳定性评估协议**：用多温度采样（0.1–1.5）配合多指标套件（Pass@k、Pass@1、Avg@k）评估 RL 训练的稳定性，而不是只看单一温度下的 Pass@1——这套协议本身放大并量化了现有方法的高温崩溃问题。
-4. **六基准一致提升**：在 AIME24、AIME25、AMC、MATH500、Minerva、OlympiadBench 六个数学推理基准上，ERPO 替换标准 Policy-KL 正则后准确率一致提升。
+4. **六基准总体提升**：在 AIME24、AIME25、AMC、MATH500、Minerva、OlympiadBench 六个数学推理基准上，ERPO 替换标准 Policy-KL 正则后总体提升；Pass@32 的 Minerva 为唯一例外（ERPO 0.500 vs GRPO 0.516）。
 
 ### 1.3 关键结果速览
 
@@ -81,9 +81,9 @@ ERPO（Environment-Regularized Policy Optimization）把 LLM 策略优化中的�
 
 ### 2.3 被忽视的输入侧：查询分布漂移及其代价
 
-RLVR 训练中，训练查询的分布并非固定，而是由当前策略诱导：ρ_θ(q) = P_θ(q)，随策略每一步更新而演化。策略在采样与筛选意义上会不断偏向自己已强化的查询类型，查询分布随之收窄、偏离 RL 前的参考分布——一个无人约束的自我强化回路。
+RLVR 训练中，训练查询的分布并非固定，而是由当前策略诱导：ρ_θ(q) = P_θ(q)，随策略每一步更新而演化。这一策略诱导的查询分布会随策略更新而漂移，逐步偏离 RL 前的参考分布 ρ_θ0——一个无人约束的漂移过程。
 
-论文用两组实验量化了这个回路的代价（详见第 5 章）：
+论文用两组实验量化了这个漂移过程的代价（详见第 5 章）：
 
 - **Train–Eval gap（reward hacking 的量化表现）**：GRPO 训练奖励 77.3%，而评测仅 69.8%（Eval@TP1）/ 70.1%（Eval@TP2），平均 gap 6.47%（Table 4）；
 - **高温崩溃**：GRPO 的 checkpoint 轨迹在 Step-240 处 Eval@TP1 从约 75% 骤跌至 58.4%（Table 5）；1K 步长训练中，GRPO 在低温区（<1.0）约 240 步（epoch=15）内保持稳定，高温区约 400 步后率先退化，随后蔓延至全部温度。
@@ -147,7 +147,7 @@ $$\nabla_\theta R_{\mathrm{query}}(\theta) = \mathbb{E}_{q \sim \rho_\theta}\lef
 
 ### 3.4 参考派生的查询重加权
 
-仅有 QKL 还不够。论文进一步从期望等价形式出发：
+为降低估计方差并改善高温采样行为，论文进一步从期望等价形式出发引入查询重加权：
 
 $$J_{\mathrm{ERPO}}(\theta) = \mathbb{E}_{q \sim \rho_{\theta_0},\; o \sim \pi_\theta}\left[\, g(q, o) \,\right]$$
 
@@ -223,7 +223,7 @@ ERPO 的实验聚焦数学推理任务，训练数据采用 MATH 数据集中 Le
 
 评测沿用标准做法，在六个广泛使用的基准上评估：AIME24、AIME25、AMC、MATH500、Minerva、OlympiadBench。已有工作通常只报告 Avg@K、Pass@1、Pass@K 三类指标，且往往不指定、不控制推理采样温度——这会使结果不可比。ERPO 论文发现推理温度对性能影响显著，且该影响随训练推进而加剧。为控制该因素，所有模型固定训练步数，在 0.1 到 1.5 的温度范围内评测，并对该范围聚合报告。
 
-### 4.2 主结果：六个基准一致超越 GRPO
+### 4.2 主结果：六个基准总体超越 GRPO
 
 Table 1 汇总了 Avg@32、Pass@32、Pass@1 三种指标在六个基准上的结果，数值为 0.1–1.5 采样温度的平均值（论文 Table 1 / Figure 3）。
 
@@ -231,9 +231,9 @@ Table 1 汇总了 Avg@32、Pass@32、Pass@1 三种指标在六个基准上的结
 |:---|:---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 | **Avg@32** | Base | 0.087 | 0.030 | 0.246 | 0.340 | 0.058 | 0.099 | 0.143 |
 | | GRPO | 0.174 | 0.072 | 0.398 | 0.528 | 0.207 | 0.266 | 0.274 |
-| | ERPO | **0.218** | **0.110** | **0.478** | **0.677** | 0.214 | **0.316** | **0.336** |
+| | ERPO | **0.218** | **0.110** | **0.478** | **0.677** | **0.214** | **0.316** | **0.336** |
 | **Pass@32** | Base | 0.373 | 0.206 | 0.674 | 0.764 | 0.349 | 0.411 | 0.463 |
-| | GRPO | 0.471 | 0.287 | 0.768 | 0.850 | 0.516 | 0.558 | 0.575 |
+| | GRPO | 0.471 | 0.287 | 0.768 | 0.850 | **0.516** | 0.558 | 0.575 |
 | | ERPO | **0.509** | **0.342** | **0.820** | **0.904** | 0.500 | **0.593** | **0.611** |
 | **Pass@1** | Base | 0.090 | 0.038 | 0.264 | 0.342 | 0.062 | 0.099 | 0.149 |
 | | GRPO | 0.169 | 0.084 | 0.398 | 0.533 | 0.201 | 0.263 | 0.275 |
@@ -283,7 +283,7 @@ ERPO 的核心设计不依赖特定 PG 估计器。论文将 ERPO 概念进一�
 | ERPO（无重加权） | 81.60 | 81.60 | 79.00 | 2.60 | 80.90 | 38.00 |
 | ERPO（完整） | 79.40 | 80.60 | 75.20 | 8.60 | 78.74 | 37.90 |
 
-*表 5-1：Qwen-7B n=8 消融。GRPO* 表示仅使用查询重加权、不改变 KL 正则；前 3 行构成消融对比。*
+*表 5-1：Qwen-7B n=8 消融。GRPO* 表示仅使用查询重加权、不改变 KL 正则；第 2–4 行（GRPO、GRPO*、ERPO 无重加权）构成消融对比。*
 
 消融结论：
 - **仅查询重加权（GRPO*）**即可将 ≤1.0 均值从 GRPO 的 68.80 提升至 76.14——重加权本身就有显著收益；
@@ -327,7 +327,7 @@ ERPO 的核心设计不依赖特定 PG 估计器。论文将 ERPO 概念进一�
 
 ![Figure 4: 训练动态曲线（GRPO 与 ERPO 对比）](Figures/2026-08-27-erpo-environmental-regularization-policy-optimization-fig4.png)
 
-*图 4：训练动态——GRPO 高温区间率先退化后蔓延至全温度，ERPO 退化显著更小、高温区间甚至提升。*
+*图 4：训练动态——GRPO 的查询级 KL 漂移显著大于策略级，ERPO 将约束直接施加于查询分布；1K 步长期训练中的高温退化见 Figure 5/6。*
 
 ![Figure 8: 指标随解码温度变化（论文 Appendix B）](Figures/2026-08-27-erpo-environmental-regularization-policy-optimization-fig8.png)
 
@@ -354,7 +354,7 @@ GRPO 的训练-评测平均差距为 6.47 pp，且 Step-240 时评测准确率�
 
 ### 6.1 官方实现状态
 
-论文在摘要中声明源代码位于 https://github.com/alibaba/ERPO。截至本报告撰写时（2026-08-27），该仓库返回 404 Page not found——论文刚于 2026-08-26 提交，代码尚未公开。因此本章基于论文附录中的算法描述与实现细节整理复现要点，不引用任何实际代码文件。
+论文在摘要中声明源代码位于 https://github.com/AlibabaResearch/ERPO。截至本报告撰写时（2026-08-27），该仓库的代码可用性未能核验。因此本章基于论文附录中的算法描述与实现细节整理复现要点，不引用任何实际代码文件。
 
 ### 6.2 ERPO 的三步接入配方
 
@@ -414,7 +414,7 @@ QKL 的两种似然来源使其几乎零成本：ℓθ₀(q) 训练前对全数�
 
 以下为基于研究材料数据的报告补充，非论文自述：
 
-- **复现性受限**：官方仓库 https://github.com/alibaba/ERPO 截至 2026-08-27 访问返回 404（论文 2026-08-26 刚发布，代码尚未上传），第三方当前无法直接复现；
+- **复现性受限**：官方仓库 https://github.com/AlibabaResearch/ERPO 截至 2026-08-27 的代码可用性未能核验（论文 2026-08-26 刚发布），第三方当前无法确认可直接复现；
 - **高温崩溃被缓解、未被根除**：MATH500 温度 1.5 下，ERPO（含重加权）仅 8.60，α=5e-2 时 15.00——相对 GRPO 的 0.40 是量级上的改善（Table 2），但绝对性能仍然很低，"稳定–探索两难"在极端温度下只是被推远、并非消失；
 - **重加权并非在所有配置下净增益**：MATH500 温度 ≤1.0 均值上，ERPO 无重加权 80.90 略高于含重加权的 78.74（Table 2）——主增益来自 QKL，重加权的贡献更多体现在高温区间与方差控制，配置时不应默认开启；
 - **长训练证据有限**：长训练实验至 1K 步（240 步标准训练 + 延伸），更万步级、多 epoch 数据复用场景下 QKL 的行为未知；

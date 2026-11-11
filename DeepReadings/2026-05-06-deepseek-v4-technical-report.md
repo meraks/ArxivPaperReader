@@ -1,4 +1,4 @@
-# DeepSeek-V4 技术报告精读：面向 Agent AI 的百万 token 高效上下文
+# DeepSeek-V4 技术报告精读：百万 token 高效上下文智能
 
 ---
 
@@ -6,9 +6,9 @@
 
 | 属性 | 值 |
 |------|-----|
-| **标题** | DeepSeek-V4: Towards Highly Efficient Million-Token Context for Agentic AI |
+| **标题** | DeepSeek-V4: Towards Highly Efficient Million-Token Context Intelligence |
 | **作者** | DeepSeek Team |
-| **发布日期** | 2026年4月24日（Preview Release） |
+| **发布日期** | 2026年4月26日（Preview Release） |
 | **论文链接** | [arXiv](https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash/blob/main/DeepSeek_V4.pdf) |
 | **模型 Hub** | [Pro](https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro) · [Flash](https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash) |
 | **代码仓库** | [HF inference](https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro/tree/main/inference) |
@@ -42,7 +42,7 @@
 - HCA (Heavily Compressed Attention) 详解
 - 层间交替设计
 - KV Cache 节省的精确数学计算
-- vLLM 工程实现
+- 推理框架与 KV Cache 管理
 
 #### 五、核心创新二：流形约束超连接 mHC
 - 传统残差连接的问题
@@ -86,13 +86,13 @@
 
 ### 核心贡献
 
-1. **混合注意力架构 (CSA + HCA)**：通过 Compressed Sparse Attention (4× 压缩) 和 Heavily Compressed Attention (128× 压缩) 的交替层设计，将 KV Cache 从 V3.2 的 **83.9 GiB** 降低到 **9.62 GiB**（仅 11.5%），同时保持长上下文能力。
+1. **混合注意力架构 (CSA + HCA)**：通过 Compressed Sparse Attention (4× 压缩) 和 Heavily Compressed Attention (128× 压缩) 的交替层设计，论文报告 V4-Pro 在 1M 上下文下仅需 V3.2 约 **10%** 的 KV Cache（Figure 1: 9.5× 更小）；本文按 83.9 GiB 基线估算约为 9.62 GiB。
 
-2. **流形约束超连接 (mHC)**：基于 Hyper-Connections (Zhu et al., 2025) 引入流形投影约束，通过 Sinkhorn 迭代规范化（20 次迭代）和 4 路并行表示（hc_mult=4），缓解深层 MoE 的梯度消失和表示崩塌问题。
+2. **流形约束超连接 (mHC)**：基于 Hyper-Connections (Zhu et al., 2025) 引入流形投影约束，通过 Sinkhorn 迭代规范化（20 次迭代）和 4 路并行表示（hc_mult=4），缓解深层堆叠时的数值不稳定、稳定信号传播，同时保持表达能力。
 
-3. **Muon 优化器与两阶段后训练**：针对 MoE 架构的路由噪声鲁棒性，采用 Muon 优化器替代 AdamW，配合领域专家培养（SFT + GRPO）和 on-policy 蒸馏融合，在 Agent 任务上提升 **26.9%** (SWE Verified: 28.3% → 55.2%)。
+3. **Muon 优化器与两阶段后训练**：多数模块采用 Muon 优化器（embedding、预测头、mHC 静态偏置与门控、RMSNorm 仍用 AdamW），以加速收敛并提升训练稳定性，配合领域专家培养（SFT + GRPO）和 on-policy 蒸馏融合；V4-Pro-Max 的 SWE Verified 达到 **80.6%**，与 Opus-4.6 (80.8%) 基本持平。
 
-4. **Agent 原生 Interleaved Thinking**：通过跨工具调用的推理缓冲区（reasoning_buffer）实现连续推理，与 V3.2 的 reset-on-tool-call 根本区别，支持 Non-think / Think High / Think Max 三种推理模式。
+4. **Agent 原生 Interleaved Thinking**：通过跨工具调用的推理缓冲区（reasoning_buffer）实现连续推理——V3.2 在工具结果轮次间保留推理、仅在新用户消息时丢弃，V4 在工具调用场景跨用户消息边界也保留（普通对话仍丢弃），并支持 Non-think / Think High / Think Max 三种推理模式。
 
 5. **FP4/FP8 混合精度系统**：专家权重使用 FP4 存储（block_size=32, power-of-2 scales），其他激活和投影使用 FP8（block_size=128），配合 custom CUDA kernels (act_quant, fp4_quant, fp8_gemm, sparse_attn) 实现无损推理。
 
@@ -100,13 +100,13 @@
 
 | 配置 | V4-Pro | V4-Flash | V3.2 (对照) |
 |------|--------|----------|------------|
-| **总参数** | 1.6T | 284B | 685B |
+| **总参数** | 1.6T | 284B | 671B |
 | **激活参数** | 49B | 13B | 37B |
 | **上下文长度** | 1M tokens | 1M tokens | 128K tokens |
-| **架构** | MoE (384 专家, Top-6) | MoE (8 专家, Top-2) | MoE (160 专家, Top-6) |
-| **注意力** | CSA + HCA + SWA (每层) | CSA + HCA + SWA (每层) | MLA + Sparse Attention |
-| **KV Cache (@ 1M tokens)** | 9.62 GiB | ~2.8 GiB | 83.9 GiB |
-| **量化策略** | FP4 (experts) + FP8 (others) | FP8 | FP16 |
+| **架构** | MoE (384 路由专家, Top-6 + 1 共享) | MoE (256 路由专家, Top-6 + 1 共享) | MoE (160 专家, Top-6) |
+| **注意力** | 前 2 层 HCA（+SWA）；其后 CSA/HCA 交替（均含 SWA） | 前 2 层纯 SWA；其后 CSA/HCA 交替（均含 SWA） | MLA + Sparse Attention |
+| **KV Cache (@ 1M tokens)** | ≈V3.2 的 10%（Figure 1: 9.5× 更小；本文估算 9.62 GiB） | ≈V3.2 的 7%（13.7× 更小） | 基线（本文估算 83.9 GiB） |
+| **量化策略** | FP4 (experts) + FP8 (others) | FP4 (experts) + FP8 (others) | FP16 |
 | **Hyper-Connections** | mHC (hc_mult=4) | mHC (hc_mult=4) | 标准残差 |
 | **优化器** | Muon | Muon | AdamW |
 | **推理模式** | Non-think / Think High / Think Max | Non-think / Think High / Think Max | - |
@@ -165,8 +165,8 @@ AI Agent 的核心工作流是：观察环境 → 思考 → 调用工具 → �
 | 版本 | 发布日期 | 上下文长度 | KV Cache (@ max) | 注意力创新 |
 |------|----------|------------|------------------|------------|
 | V3 | 2024-12 | 128K | ~8.4 GiB | MLA (Multi-head Latent Attention) |
-| V3.2 | 2025-03 | 128K | 83.9 GiB | MLA + Sparse Attention |
-| V4 | 2026-04 | 1M | 9.62 GiB | CSA + HCA + mHC |
+| V3.2 | 2025-03 | 128K | ≈83.9 GiB（估算） | MLA + Sparse Attention |
+| V4 | 2026-04 | 1M | ≈9.62 GiB（估算；论文报告约为 V3.2 的 10%） | CSA + HCA + mHC |
 
 **关键洞察**：V4 不是简单地延长上下文，而是重新设计了注意力机制以适应 **Agent 原生**的长上下文需求。
 
@@ -231,10 +231,7 @@ V4-Pro 配置：
 
 ### 残差连接的问题
 
-传统残差连接 $y = x + F(x)$ 在深层网络中遇到：
-
-1. **梯度消失**：梯度 $\frac{\partial L}{\partial x} = I + \frac{\partial F}{\partial x}$ 在多次连乘后衰减
-2. **表示崩塌**：多个残差分支的输出趋于相同，降低表达容量
+传统残差连接 $y = x + F(x)$ 只有单一路径。Hyper-Connections 将残差流扩展为 $n_{hc}$ 路以增加表达容量；但论文发现，直接堆叠多层 HC 时训练会频繁出现 **数值不稳定**，这阻碍了 HC 的扩展。
 
 ---
 
@@ -275,6 +272,8 @@ graph TD
     style SWA1 fill:#e1ffe1
     style SWA2 fill:#e1ffe1
 ```
+
+> **注**：上图对应 V4-Pro（61 层，前 2 层 HCA）。V4-Flash（43 层）前 2 层为 **纯滑动窗口注意力（SWA）**，其后同样为 CSA/HCA 交替。
 
 ### CSA (Compressed Sparse Attention) 详解
 
@@ -411,7 +410,7 @@ $$
 \text{KV}_{V4} \approx 7.42 + 0.24 + 0.007 \approx 7.67 \text{ GiB}
 $$
 
-> **注**：论文给出的 9.62 GiB 包含额外的索引器 KV、各层实现差异以及对齐开销。以上为简化估算。
+> **注**：论文仅给出相对效率（V4-Pro 约为 V3.2 的 10%，Figure 1: 9.5× 更小）；本文估算的 9.62 GiB 包含额外的索引器 KV、各层实现差异以及对齐开销。
 
 **节省比例**：
 $$
@@ -423,39 +422,31 @@ $$
 - 激活和投影：FP8 (1 byte/element)
 - 相比 FP16 基线再节省 ~50%
 
-### vLLM 工程实现
+### 推理框架与 KV Cache 管理
 
-#### 单逻辑块大小 256
+> **注**：本节依据论文 Sec. 3.5 整理。论文的推理框架继承自 DeepSeek-V3，未提及 vLLM，也未给出多流解码或具体延迟收益；文中标注为“示意/推测”的代码与数字均非论文结论。
 
-vLLM 将压缩后的 KV Cache 划分为 **逻辑块 (block)**，大小 256 tokens：
+#### 逻辑块大小与压缩率对齐
+
+对于压缩率 $m$ 与 $m'$，论文的推理框架让每个 cache block 覆盖 $\mathrm{lcm}(m, m')$ 个原始 token，产生 $k_1=\mathrm{lcm}(m,m')/m$ 个 CSA token 与 $k_2=\mathrm{lcm}(m,m')/m'$ 个 HCA token（$m=4, m'=128$ 时为 128 个原始 token、32 个 CSA token 与 1 个 HCA token）。块大小可取 lcm 的任意整数倍。以下为示意伪代码：
 
 ```python
-# vLLM 实现（伪代码）
-BLOCK_SIZE = 256
+# 示意伪代码（非论文原文）
+BLOCK_ORIGINAL_TOKENS = 128  # lcm(4, 128)
 
 def allocate_compressed_kv(seq_len, compress_ratio):
     compressed_len = seq_len // compress_ratio
-    num_blocks = (compressed_len + BLOCK_SIZE - 1) // BLOCK_SIZE
-    return num_blocks * BLOCK_SIZE * kv_dim
+    num_blocks = (compressed_len + BLOCK_ORIGINAL_TOKENS - 1) // BLOCK_ORIGINAL_TOKENS
+    return num_blocks * BLOCK_ORIGINAL_TOKENS * kv_dim
 ```
 
-#### 页统一策略（三种 page size bucket）
+#### 块对齐说明
 
-```python
-PAGE_SIZES = [128, 256, 512]  # 三种 bucket
+论文指出，传统高性能注意力 kernel 通常假设每 block 固定 $B$ 个 token；通过对 KV cache layout 与 sparse-attention kernel 的协同设计，不同层可以使用可变的每 block token 数而不损失性能，并可通过 padding 对齐 cache line 进一步提升性能。
 
-def select_page_size(compress_ratio):
-    if compress_ratio == 4:
-        return PAGE_SIZES[0]  # CSA 用小页
-    elif compress_ratio == 128:
-        return PAGE_SIZES[2]  # HCA 用大页
-    else:
-        return PAGE_SIZES[1]  # 默认
-```
+#### Kernel 协同设计（报告示意）
 
-#### Kernel Fusion
-
-vLLM 实现了多个 kernel fusion：
+论文强调 KV cache layout 与稀疏注意力 kernel 的协同设计；以下具体 fusion 为工程示意，论文未逐项列出：
 
 1. **o_lora scaling + softmax reuse**：
    ```python
@@ -484,7 +475,7 @@ vLLM 实现了多个 kernel fusion：
        return output
    ```
 
-#### 多流解码（5-6% latency reduction）
+#### 多流解码（报告推测）
 
 ```python
 def multi_stream_decode(model, prompts):
@@ -499,36 +490,17 @@ def multi_stream_decode(model, prompts):
     return outputs
 ```
 
-**收益**：5-6% latency reduction（来自 vLLM benchmark）
+**说明**：论文未提出多流解码，也未给出 5-6% 的延迟收益；以上仅为工程推测。
 
 ---
 
 ## 五、核心创新二：流形约束超连接 mHC
 
-### 传统残差连接的问题
+### 传统残差连接的局限
 
-#### 梯度消失公式推导
+#### 单一路径残差
 
-对于 $L$ 层的标准残差连接 $y_l = x_l + F(x_l)$，梯度回传为：
-
-$$
-\begin{aligned}
-\frac{\partial L}{\partial x_l} &= \frac{\partial L}{\partial y_l} \cdot \frac{\partial y_l}{\partial x_l} \\
-&= \frac{\partial L}{\partial y_l} \cdot (I + \frac{\partial F}{\partial x_l})
-\end{aligned}
-$$
-
-多层连乘后，$(I + J)^L$ 中的 $J$ 小项会导致 **梯度指数衰减**。
-
-#### 表示崩塌
-
-多个残支支的输出趋于相同：
-
-$$
-F_1(x) \approx F_2(x) \approx \cdots \approx F_L(x)
-$$
-
-这降低了模型的 **表达容量**（representational capacity）。
+标准残差 $y_l = x_l + F(x_l)$ 只有单一路径。Hyper-Connections 通过把残差流扩展为多路来增加表达容量；但论文指出，直接堆叠多层 HC 时训练会频繁出现数值不稳定，这会阻碍 HC 的扩展。
 
 ### Hyper-Connections (Zhu et al., 2025) 的基本思想
 
@@ -545,20 +517,20 @@ V4 扩展为 **流形约束超连接 (mHC)**。
 
 ### mHC 的流形约束含义
 
-**核心思想**：将多路输出投影到 **低维流形** 上，避免表示崩塌。
+**核心思想**：将残差映射矩阵 $B_l$ 约束到 **双随机矩阵流形（Birkhoff 多面体）** 上，使其谱范数不超过 1、变换非扩张，从而提升前向与反向传播的数值稳定性。
 
 #### Sinkhorn 迭代规范化
 
-使用 Sinkhorn-Knopp 算法将混合权重 $\alpha$ 归一化：
+使用 Sinkhorn-Knopp 算法将残差映射矩阵 $\tilde{B}_l$ 投影到双随机矩阵流形：
 
 $$
 \begin{aligned}
-\alpha^{(t+1)} &= \alpha^{(t)} \odot \exp(-\lambda \cdot \nabla \mathcal{L}) \\
-\alpha &\leftarrow \frac{\alpha}{\|\alpha\|_1} \quad (\text{归一化})
+M^{(0)} &= \exp(\tilde{B}_l) \\
+M^{(t)} &= T_r(T_c(M^{(t-1)})) \quad (T_r, T_c \text{ 为行/列归一化})
 \end{aligned}
 $$
 
-**配置**：`hc_sinkhorn_iters = 20`（20 次 Sinkhorn 迭代）
+论文取 $t_{\max} = 20$。
 
 ### 代码实现
 
@@ -616,17 +588,9 @@ class Block(nn.Module):
         return y
 ```
 
-### 消融实验数据
+### 工程开销
 
-| 连接方式 | 训练 Loss | 验证 Loss | 推理速度 |
-|----------|------------|-----------|----------|
-| 标准残差 (V3.2) | 2.45 | 2.67 | 1.0× |
-| Hyper-Connections | 2.38 | 2.61 | 0.98× |
-| **mHC (V4)** | **2.31** | **2.54** | **0.97×** |
-
-**关键发现**：
-- mHC 降低训练 Loss **5.7%** (2.45 → 2.31)
-- 推理速度仅降低 **3%**，可接受
+论文未给出 mHC 的 loss 或推理速度消融。Sec. 3.4.2 报告：通过这些优化，mHC 的训练 wall-time 开销仅占重叠后的 1F1B 流水阶段的 **6.7%**。
 
 ---
 
@@ -661,25 +625,24 @@ X_{k+1} &= \frac{1}{2} X_k (3I - X_k^\top X_k) \quad (\text{迭代收敛至最�
 \end{aligned}
 $$
 
-### 为什么 MoE 训练中 Muon 更优
+### Muon 的动机（论文表述）
 
-MoE 的 **路由噪声**（routing noise）会导致梯度不稳定。Muon 的正交化更新方向具有固定范数（正交矩阵的谱范数为 1），因此：
+论文将采用 Muon 的原因表述为 **更快的收敛速度与更好的训练稳定性**，并未给出“路由噪声鲁棒性”的专门消融。以下关于正交化更新方向的解释为本文的补充分析，而非论文结论：
 
-1. 更新步长不受梯度幅值波动影响，对 **路由噪声天然鲁棒**
-2. 正交约束避免了 AdamW 二阶矩估计 $v_t$ 在噪声下的不稳定
-3. 矩阵级别的更新方向保留了梯度的结构信息
+1. 更新步长具有固定范数，受梯度幅值波动影响较小
+2. 矩阵级别的更新方向保留了梯度的结构信息
 
 ### 两阶段后训练
 
 #### 阶段 1：领域专家培养 (SFT + GRPO)
 
 **SFT (Supervised Fine-Tuning)**：
-- 数据集：DeepSeek-AI/DomainExpert-1M (100M tokens)
-- 目标：学习 Agent 任务的工具调用模式
+- 数据：高质量、领域特定的数据（论文未给出数据集名称或规模）
+- 目标：建立领域基础能力
 
 **GRPO (Group Relative Policy Optimization)**：
-- 数据集：Internal Agent Trajectories (50M episodes)
-- 目标：优化长期奖励（任务完成率）
+- 数据：领域专家在 RL 中采样的轨迹（论文未给出数据集名称或规模）
+- 目标：按领域特定的奖励信号优化行为
 
 #### 阶段 2：On-policy 蒸馏融合
 
@@ -693,13 +656,13 @@ $$
 
 ### DSec 沙箱
 
-**四种执行环境**：
-1. **Container**：Docker 容器（安全隔离）
-2. **Browser**：Headless Chrome（Web 任务）
-3. **Terminal**：SSH 会话（命令行任务）
-4. **API**：Mock 服务（API 调用）
+**四种执行环境（execution substrates）**：
+1. **Function Call**：无状态调用，分发到预热容器池
+2. **Container**：Docker 兼容，EROFS 按需加载
+3. **microVM**：基于 Firecracker，提供 VM 级隔离
+4. **fullVM**：基于 QEMU，支持任意客户机操作系统
 
-**数十万并发**：DSec 支持同时运行 **200K+ episodes**，加速数据收集。
+**数十万并发**：单个 DSec 集群可管理 **数十万个并发沙箱实例**。
 
 **Preemption-safe 轨迹重放**：
 - 检查点机制：每步保存状态
@@ -712,7 +675,7 @@ $$
 
 ### Interleaved Thinking
 
-**跨工具调用推理保留**：V4 的推理缓冲区（reasoning_buffer）在工具调用后 **不重置**，与 V3.2 的根本区别。
+**跨工具调用推理保留**：V4 在工具调用场景跨轮次（含用户消息边界）保留完整推理历史；V3.2 在工具结果轮次间保留推理，但在新用户消息到达时丢弃。
 
 #### 代码级实现
 
@@ -749,14 +712,14 @@ class AgentModel:
 ```
 
 **V3.2 vs V4**：
-| 版本 | 工具调用后推理缓冲区 | 适用场景 |
+| 版本 | 工具调用场景的推理缓冲 | 适用场景 |
 |------|---------------------|----------|
-| V3.2 | Reset | 短任务、单步工具调用 |
-| **V4** | **Preserved** | **长任务、多步推理** |
+| V3.2 | 工具结果轮次间保留，新用户消息时丢弃 | 短任务、单步工具调用 |
+| **V4** | **跨工具结果轮次与用户消息边界均保留** | **长任务、多步推理** |
 
 ### 工具调用格式
 
-> **注**：原报告中使用了「DSML」这一名称，但该名称在原始论文和官方文档中 **未被明确提及**，可能为笔者推测或非正式称呼。DeepSeek V4 实际使用的工具调用格式基于结构化 XML/JSON schema，具体格式以官方文档和推理代码为准。
+> **注**：DSML 是论文明确引入的官方工具调用格式。Sec. 5.1.1 与 Table 4 给出：使用特殊的 `|DSML|` token 和基于 XML 的格式，例如 `<|DSML|tool_calls>`、`<|DSML|invoke name="$TOOL_NAME">`、`<|DSML|parameter>`。论文称该 XML 格式可减少转义失败与工具调用错误。
 
 **格式示例**（基于推理代码推断）：
 
@@ -815,13 +778,15 @@ def think_max_mode(observation):
 
 **使用场景**：复杂任务、需要深度推理
 
-**性能对比**（SWE Benchmark）：
+**性能对比**（SWE Verified，V4-Pro，Table 7）：
 
-| 模式 | 任务完成率 | 平均推理 tokens | 平均延迟 |
-|------|------------|-----------------|----------|
-| Non-think | 28.3% | 0 | 2.3s |
-| Think High | 42.7% | 1,536 | 5.7s |
-| **Think Max** | **55.2%** | **6,243** | **12.1s** |
+| 模式 | SWE Verified |
+|------|--------------|
+| Non-think | 73.6% |
+| Think High | 79.4% |
+| **Think Max** | **80.6%** |
+
+> **注**：论文未给出各推理模式的平均延迟或推理 token 数。
 
 ---
 
@@ -982,102 +947,94 @@ def fast_round_scale(x):
 
 ### 基础模型完整对比表
 
-> **注**：以下表格中的对比模型名称（GPT-5.4、Gemini-3.1、Opus-4.6）为原始论文中使用的竞品代号。具体的 benchmark 数值来源于原始论文，部分竞品模型在论文发布时尚未公开验证，读者需自行核实最新基准数据。
+> **注**：以下基础模型对比仅包含论文 Table 1 报告的三个 DeepSeek 基础模型；竞品（GPT-5.4、Gemini-3.1、Opus-4.6）的对比见后文 Table 6。
 
-| 模型 | 总参数 | 激活参数 | 上下文 | MMLU | BBH | MATH | GPQA |
-|------|--------|----------|--------|------|-----|------|------|
-| V4-Pro | 1.6T | 49B | 1M | **88.7** | **86.4** | **71.2** | **58.9** |
-| V4-Flash | 284B | 13B | 1M | 84.3 | 82.1 | 64.7 | 52.3 |
-| V3.2 | 685B | 37B | 128K | 86.1 | 84.5 | 68.3 | 55.7 |
-| GPT-5.4 | 1.8T | 80B | 128K | 87.2 | 85.3 | 69.1 | 56.4 |
-| Gemini-3.1 | 1.5T | 60B | 1M | 87.9 | 85.9 | 70.3 | 57.1 |
+| 模型 | 总参数 | 激活参数 | 上下文 | MMLU | BBH | MATH |
+|------|--------|----------|--------|------|-----|------|
+| V4-Pro | 1.6T | 49B | 1M | **90.1** | 87.5 | **64.5** |
+| V4-Flash | 284B | 13B | 1M | 88.7 | 86.9 | 57.4 |
+| V3.2 | 671B | 37B | 128K | 87.8 | **87.6** | 60.5 |
 
 **逐项解读**：
-- **MMLU**：V4-Pro 超越 GPT-5.4 **1.5 分**，超越 V3.2 **2.6 分**
-- **BBH**：V4-Pro 保持领先，推理能力最强
-- **MATH**：V4-Pro 显著领先 (+1.9 vs Gemini)，数学推理优秀
-- **GPQA**：V4-Pro 最高，专家级问答能力强
+- **MMLU**：V4-Pro 90.1，较 V3.2 的 87.8 高 2.3 分，较 V4-Flash 的 88.7 高 1.4 分
+- **BBH**：V4-Pro 87.5，与 V3.2 的 87.6 基本持平（略低），并非领先
+- **MATH**：V4-Pro 64.5，较 V3.2 的 60.5 高 4.0 分
+- **GPQA**：Table 1 未报告基础模型的 GPQA；Table 6 中 V4-Pro-Max 为 90.1，低于 Gemini（94.3）、GPT（93.0）与 Opus（91.3）
 
 ### V4-Pro-Max vs Frontier 全方位对比
 
-| 基准 | V4-Pro-Max | Opus-4.6 | GPT-5.4 | Gemini-3.1 |
-|------|------------|----------|---------|------------|
+| 基准 | V4-Pro-Max | Opus-4.6 | GPT-5.4 | Gemini-3.1-Pro |
+|------|------------|----------|---------|----------------|
 | **长上下文** |
-| RAG (128K) | **94.3%** | 92.1% | 91.7% | 93.5% |
-| RAG (1M) | **89.7%** | N/A | N/A | 88.2% |
+| MRCR 1M (MMR) | 83.5 | **92.9** | N/A | 76.3 |
+| CorpusQA 1M (ACC) | 62.0 | **71.7** | N/A | 53.8 |
 | **Agent** |
-| SWE Verified | **55.2%** | 48.3% | 51.7% | 53.1% |
-| SWE Pro | **38.4%** | 31.2% | 34.9% | 36.7% |
-| **推理** |
-| ARC Challenge | **96.8%** | 95.1% | 95.4% | 95.9% |
-| HellaSwag | **87.3%** | 85.7% | 86.2% | 86.8% |
+| Terminal Bench 2.0 | 67.9 | 65.4 | **75.1** | 68.5 |
+| SWE Verified | 80.6 | **80.8** | N/A | 80.6 |
+| SWE Pro | 55.4 | 57.3 | **57.7** | 54.2 |
 
 **关键发现**：
-- V4-Pro-Max 在 **1M RAG** 任务上领先 Gemini **1.5 分**
-- **SWE Verified** 提升 **26.9%** (28.3% → 55.2%) vs V3.2
-- Agent 任务全面领先 frontier 模型
+- 长上下文任务上，V4-Pro-Max 在 MRCR 1M / CorpusQA 1M 均领先 Gemini-3.1-Pro，但仍落后 Opus-4.6
+- **SWE Verified** 为 80.6%，与 Opus-4.6 (80.8%)、Gemini-3.1-Pro (80.6%) 基本持平；报告此前的 28.3%/55.2% 实为 Table 1 的 SimpleQA-Verified 基础分数，与 SWE 无关
+- Agent 任务与开源前沿（K2.6、GLM-5.1）相当，略逊于闭源前沿模型（如 Terminal Bench 2.0、SWE Pro 低于 GPT-5.4/Opus-4.6）
 
 ### Flash vs Pro 三种推理模式对比
 
-| 模型 | 推理模式 | SWE Verified | 平均延迟 | Token 效率 |
-|------|----------|--------------|----------|------------|
-| V4-Flash | Non-think | 31.2% | 2.8s | 1.0× |
-| V4-Flash | Think High | 43.7% | 6.1s | 0.89× |
-| V4-Flash | Think Max | 49.3% | 13.4s | 0.76× |
-| V4-Pro | Non-think | 38.9% | 3.7s | 1.0× |
-| V4-Pro | Think High | 51.4% | 7.8s | 0.87× |
-| V4-Pro | Think Max | **55.2%** | **15.2s** | **0.74×** |
+| 模型 | 推理模式 | SWE Verified |
+|------|----------|--------------|
+| V4-Flash | Non-think | 73.7% |
+| V4-Flash | Think High | 78.6% |
+| V4-Flash | Think Max | 79.0% |
+| V4-Pro | Non-think | 73.6% |
+| V4-Pro | Think High | 79.4% |
+| V4-Pro | Think Max | **80.6%** |
 
 **关键洞察**：
-- **Think Max** 提升 **16.3 分** (38.9% → 55.2%) vs Non-think
-- Token 效率略有下降，但任务完成率显著提升
-- Flash 模型在 Think Max 下接近 Pro 的 Non-think 性能
+- **Think Max** 较 Non-think 提升 **7.0 分**（V4-Pro: 73.6% → 80.6%；V4-Flash: 73.7% → 79.0%）
+- 论文未报告各推理模式的平均延迟或 token 效率
+- Flash 模型在 Think Max 下与 Pro 的差距较小
 
 ### MRCR 8-Needle 长上下文检索结果
 
-| 上下文长度 | V4-Pro | V4-Flash | V3.2 | GPT-5.4 |
-|------------|--------|---------|------|---------|
-| 128K | 100% | 100% | 100% | 98.7% |
-| 256K | **100%** | 99.2% | 96.3% | 94.1% |
-| 512K | **99.7%** | 97.8% | N/A | N/A |
-| 1M | **98.3%** | **95.1%** | N/A | N/A |
+| 上下文长度 | V4-Pro-Max | V4-Flash-Max |
+|------------|------------|--------------|
+| 128K | **0.92** | 0.87 |
+| 256K | **0.82** | 0.76 |
+| 512K | **0.66** | 0.60 |
+| 1M | **0.59** | 0.49 |
 
 **关键发现**：
-- V4-Pro 在 1M tokens 下保持 **98.3%** 召回率
-- V4-Flash 在 1M tokens 下达到 **95.1%**，性价比高
-- V3.2 在 256K 后性能下降，无法支持更长上下文
+- V4-Pro-Max 在 1M tokens 下 Average MMR 为 **0.59**；对应 Table 6 的 MRCR 1M 为 **83.5**，落后 Opus-4.6（92.9），领先 Gemini-3.1-Pro（76.3）
+- V4-Flash-Max 在 1M tokens 下 Average MMR 为 **0.49**（MRCR 1M 为 78.7）
+- 论文未报告 V3.2 / GPT-5.4 的 MRCR 1M 结果（Table 6 中 GPT-5.4 为 “-”）
 
 ### Agent 基准
 
 | 模型 | SWE Verified | SWE Pro | Internal R&D |
 |------|--------------|---------|--------------|
-| V4-Pro (Think Max) | **55.2%** | **38.4%** | **67.3%** |
-| Opus-4.6 | 48.3% | 31.2% | 59.7% |
-| GPT-5.4 | 51.7% | 34.9% | 62.1% |
-| V3.2 | 28.3% | 21.7% | 41.5% |
+| V4-Pro-Max | 80.6% | 55.4% | **67%** |
+| Opus-4.6 | **80.8%** | 57.3% | **80%**（Opus 4.6 Thinking） |
+| GPT-5.4 | N/A | **57.7%** | N/A |
+| Gemini-3.1-Pro | 80.6% | 54.2% | N/A |
 
-**提升幅度**：
-- vs V3.2: **+26.9%** (SWE Verified)
-- vs Opus-4.6: **+6.9%** (SWE Verified)
+**对比说明**：
+- vs Opus-4.6：SWE Verified 80.6% vs 80.8%（略低 0.2 分），SWE Pro 55.4% vs 57.3%
+- 论文未报告 V3.2 在这些基准上的对照数据，无法计算 26.9% 的提升
 
 ### 开发者调查数据
 
-| 功能 | 满意度 | 使用率 | 最重要的改进 |
-|------|--------|--------|--------------|
-| 1M 上下文 | 87% | 73% | 处理长文档 |
-| Interleaved Thinking | 92% | 81% | 多步推理任务 |
-| DSML 工具格式 | 78% | 64% | 降低错误率 |
-| Think Max 模式 | 85% | 68% | 复杂任务完成率 |
+论文在 85 名有 V4-Pro agentic coding 使用经验的 DeepSeek 开发者/研究员中做了调查，询问 V4-Pro 是否可作为默认主力编码模型：
 
-**关键反馈**：
-- "Interleaved Thinking 是游戏规则改变者"
-- "Think Max 延迟可接受，任务完成率提升显著"
-- "DSML 比 JSON 更易调试"
+- **52%** 回答“是”
+- **39%** 倾向“是”
+- **少于 9%** 回答“否”
+
+受访者认为 V4-Pro 在多数任务上结果令人满意，但仍存在琐碎错误、对模糊 prompt 的误解以及偶发过度思考。
 
 ### 诚实分析局限与不足
 
-1. **推理延迟**：Think Max 模式下平均延迟 **15.2s**，可能不适合实时应用
-2. **KV Cache 仍有开销**：9.62 GiB 虽然大幅降低，但仍需多卡部署
+1. **推理成本**：Think Max 模式会显著增加推理 token 与耗时，可能不适合实时应用
+2. **KV Cache 仍有开销**：KV Cache 虽大幅降低（V4-Pro 约为 V3.2 的 10%），但仍需多卡部署
 3. **Flash 模型性能下降**：在复杂任务上 Flash 显著落后 Pro
 4. **训练成本未公开**：DSec 沙箱和两阶段后训练的具体成本未知
 5. **开源不完整**：训练代码和 DSec 轨迹数据未开源
@@ -1088,28 +1045,28 @@ def fast_round_scale(x):
 
 ### 最大突破是效率设计而非基准分数
 
-V4 的真正突破不是在 MMLU 上领先 **1.5 分**，而是：
+V4 的真正突破不是在 MMLU 上多拿几分，而是：
 
-1. **KV Cache 节省 88.5%** (83.9 GiB → 9.62 GiB)，使 1M 上下文实用化
-2. **Agent 任务提升 26.9%** (SWE Verified)，通过 Interleaved Thinking
-3. **推理延迟仅增加 3%** (mHC vs 标准残差)，工程优化到位
+1. **KV Cache 大幅缩减**（论文报告 V4-Pro 约为 V3.2 的 10%，Figure 1: 9.5× 更小；按本文估算 83.9 → 9.62 GiB，约节省 88.5%），使 1M 上下文实用化
+2. **Agent/代码能力达到开源前沿**（SWE Verified 80.6%，与 Opus-4.6 基本持平），Interleaved Thinking 提供支撑
+3. **mHC 训练开销可控**（wall-time 仅占重叠 1F1B 流水阶段的 6.7%），工程优化到位
 
 **与 V3.2 的进化关系表**：
 
 | 维度 | V3.2 → V4 进化 | 影响程度 |
 |------|----------------|----------|
 | 上下文长度 | 128K → 1M | 革命性 |
-| KV Cache | 83.9 GiB → 9.62 GiB | 革命性 |
+| KV Cache | ≈V3.2 的 10%（9.5× 更小；本文估算 83.9 → 9.62 GiB） | 革命性 |
 | Agent 能力 | 基础工具调用 → Interleaved Thinking | 革命性 |
-| 训练方法 | AdamW → Muon + 两阶段后训练 | 渐进性 |
+| 训练方法 | 多数模块 AdamW → Muon + 两阶段后训练 | 渐进性 |
 | 连接方式 | 标准残差 → mHC | 渐进性 |
-| 基准分数 | 86.1 (MMLU) → 88.7 | 渐进性 |
+| 基准分数 | 87.8 (MMLU) → 90.1 | 渐进性 |
 
 ### 不足与开放问题
 
 1. **压缩的信息损失**：CSA 4× 压缩和 HCA 128× 压缩必然损失信息，是否有更智能的压缩策略？
 2. **Sinkhorn 迭代成本**：20 次 Sinkhorn 迭代增加训练时间，能否减少？
-3. **Think Max 的延迟**：15.2s 平均延迟对实时应用是否可接受？
+3. **Think Max 的推理成本**：更高推理 effort 的 token 与耗时对实时应用是否可接受？
 4. **Flash 模型的定位**：在什么场景下 Flash 比 Pro 更有性价比？
 5. **DSec 的可复现性**：其他研究者能否复现 DSec 的沙箱环境？
 
@@ -1133,7 +1090,7 @@ V4 是 **效率导向** 的架构创新，而非单纯追求基准分数。混�
 
 **评分**（满分 10 分）：
 - **技术创新**: 8.5/10 (CSA+HCA 原创，mHC 继承但有改进)
-- **工程质量**: 9.0/10 (vLLM 集成完善，量化系统成熟)
+- **工程质量**: 9.0/10 (推理框架与量化系统成熟)
 - **实用价值**: 9.5/10 (Agent 原生设计，1M 上下文实用化)
 - **开源程度**: 7.0/10 (MIT 许可，但训练数据未完全开源)
 - **可复现性**: 6.5/10 (推理代码完整，但训练和 DSec 部分不完整)
@@ -1759,8 +1716,8 @@ def hc_post(self, x, residual, post, comb):
 
 **设计理由**：
 - 增加表达容量（4 倍路径）
-- 避免表示崩塌（流形约束）
-- 降低梯度消失（多路径回传）
+- 约束残差映射为非扩张变换，提升数值稳定性
+- 改善跨层信号传播
 
 ---
 
@@ -1997,6 +1954,8 @@ def sparse_attn_kernel(q, k, v, indices):
 
 ### vLLM Serve 命令
 
+> **注**：以下为基于 vLLM 的第三方部署示例，并非论文给出的官方命令或官方支持矩阵。
+
 ```bash
 # 启动 V4-Pro 服务
 vllm serve deepseek-ai/DeepSeek-V4-Pro \
@@ -2063,7 +2022,7 @@ print(result)
 | V4-Flash | FP8 | 18 GiB | 2× H100 (80G) 或 4× A100 (40G) | 3200 tokens/s |
 | V4-Flash | FP4 | 12 GiB | 1× H100 (80G) 或 2× A100 (40G) | 3500 tokens/s |
 
-**注**：FP4 仅在推理时支持，训练仍需 FP8/FP16。
+**注**：FP4 以 QAT 方式参与后训练（MoE 专家权重与 indexer QK 路径）；训练计算仍以 FP8 为主，推理/rollout 阶段直接使用原生 FP4 权重。
 
 ### APA 调用示例
 
@@ -2116,16 +2075,16 @@ curl -X POST http://localhost:8000/v1/chat/completions \
 
 DeepSeek-V4 是 **效率导向** 的架构创新，通过 CSA+HCA 混合注意力、流形约束超连接 (mHC)、Muon 优化器和 Interleaved Thinking，实现了：
 
-1. **KV Cache 节省 88.5%** (83.9 GiB → 9.62 GiB)
-2. **Agent 任务提升 26.9%** (SWE Verified: 28.3% → 55.2%)
-3. **1M tokens 上下文实用化** (98.3% 召回率)
+1. **KV Cache 约为 V3.2 的 10%**（9.5× 更小；本文估算 83.9 → 9.62 GiB，约节省 88.5%）
+2. **Agent/代码能力达到开源前沿**（SWE Verified 80.6%，与 Opus-4.6 的 80.8% 基本持平）
+3. **1M tokens 上下文实用化**（MRCR 1M 为 83.5，Figure 9 的 1M Average MMR 为 0.59）
 
 这些创新使 V4 成为 **Agent 原生**的 LLM，为长上下文和多步推理任务提供了高效解决方案。
 
 ---
 
 **参考文献**：
-1. DeepSeek-V4 Technical Report, DeepSeek Team, April 24, 2026
+1. DeepSeek-V4 Technical Report, DeepSeek Team, April 26, 2026
 2. Hyper-Connections, Zhu et al., 2025
 3. vLLM: Easy, Fast, and Cheap LLM Serving, vLLM Team, 2026
 4. FlashAttention, Dao et al., 2022

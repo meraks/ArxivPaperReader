@@ -1,7 +1,7 @@
 # Complex KDA 精读：理解并增强 Kimi Delta Attention 的表达力
 
 > **论文**：Complex KDA: Understanding and Enhancing the Expressivity of Kimi Delta Attention
-> **作者**：Julien Siems*、Riccardo Grazzi*、Korbinian Pöppel*、Arber Zela、Jaisidh Singh、Timur Carstensen、Aaron Klein、Antonio Orvieto、Jenia Jitsev、Volkan Cevher、Frank Hutter（OpenEuroLLM：弗莱堡大学 / MPI-IS Tübingen / EPFL 等；\* 共同一作）
+> **作者**：Julien Siems*、Riccardo Grazzi*、Korbinian Pöppel*、Jaisidh Singh、Arber Zela、Timur Carstensen、Jenia Jitsev、Frank Hutter、Volkan Cevher、Antonio Orvieto、Aaron Klein（OpenEuroLLM：弗莱堡大学 / MPI-IS Tübingen / EPFL 等；\* 共同一作）
 > **arXiv ID**：2609.24797（v1）
 > **发表时间**：2026-09-21
 > **代码仓库**：https://github.com/OpenEuroLLM/ComplexKDA（MIT；模型：https://huggingface.co/collections/openeurollm/complexkda）
@@ -27,17 +27,17 @@
 
 ### 1.2 核心贡献
 
-1. **CKDA 结构与谱论证**：CKDA = KDA + 两个既有范围扩展的组合——通道级符号 gate $\alpha_{t,i} \in [-1,1]$（Sarrof et al. 2024）与 Householder 系数 $\beta_t \in [0,2]$（Grazzi et al. 2025）。论文首次刻画 GDN 与 KDA 的表达力差异：标量 gate 与一切矩阵交换、KDA 的正 gate 相似于对称阵，两者谱全为实数；符号 gate + 扩展 $\beta$ 打破该限制，产生复特征值（平面旋转 = 两个反射的复合，旋转角为镜像线夹角 $\theta$ 的两倍）。
+1. **CKDA 结构与谱论证**：CKDA = KDA + 两个既有范围扩展的组合——通道级符号 gate $\alpha_{t,i} \in [-1,1]$（Sarrof et al. 2024）与 Householder 系数 $\beta_t \in [0,2]$（Grazzi et al. 2025）。论文刻画 GDN 与 KDA 的表达力差异：标量 gate 与一切矩阵交换、KDA 的正 gate 相似于对称阵，两者谱全为实数；符号 gate + 扩展 $\beta$ 打破该限制，产生复特征值（平面旋转 = 两个反射的复合，旋转角为镜像线夹角 $\theta$ 的两倍）。
 2. **转移矩阵的完全刻画（Theorem 1、Proposition 2）**：每个正交 diagonal-plus-rank-one（DPR1）矩阵恰是某个 CKDA 转移矩阵（signed-Householder 形式 $A = (I - 2\mathbf{k}\mathbf{k}^\top)S$）；RWKV-7 的非对称 rank-one 项在正交情形不增加任何可达转移。Proposition 2 给出符号-幅度分解（缩放 + 单平面旋转）。
 3. **状态跟踪表达力（Theorem 3/4/5）**：单层 CKDA 跟踪所有同构于 $SO(3)$ 有限子群的有限群（循环群 $\mathbb{Z}_n$、二面体群 $D_n$ 在 $d=2$；$A_4$、$S_4$ 在 $d=3$；$A_5$ 用 $d=4$ 多对一解码器）；非扩张 + 单复对谱限制下（含 CKDA 与 DeltaProduct $k \le 3$）单层无法跟踪 $S_5$（有限可达性假设）；3 层 CKDA 解决任意有限群词问题，$\beta>2$ 时 3 层识别全部正则语言 / 模拟 WFA（PP 精度），比 DeltaNet / GDN 的 4 层少 1 层。
 4. **谱上限与乘积普适性（Theorem 8/9、Proposition 10）**：CKDA 及一切非扩张 DPR1 转移至多含 1 个非实共轭特征值对，且两个范围扩展均必要；任意 $n$ 维非扩张矩阵可写成至多 $\max\{1,2n-2\}$ 个 CKDA 因子之积，正交矩阵至多 $\max\{1,n-1\}$ 个因子（该界最优，$n$-循环置换矩阵是紧例）。
-5. **大规模实验**：S3 / S4 / A5 词问题外推最强（单层表达力覆盖 $SO(3)$ 有限子群，与 DeltaProduct k=2 相当）；音频周期波形延拓；语言建模 Nemotron-CC 340M / 15B 上 CKDA spread 52.30% vs KDA 51.32%，FineWeb-Edu 1.3B / 100B 上 54.06% vs 54.09%（持平）；RULER 非混合下显著强于 KDA bounded gate；scaling law 上 CKDA / KDA 全尺度优于 Transformer 基线，无交叉点。
+5. **大规模实验**：S3 / S4 词问题外推最强（A5 仅在单独理论初始化设置下外推；单层表达力覆盖 $SO(3)$ 有限子群，与 DeltaProduct k=2 相当）；音频周期波形延拓；语言建模 Nemotron-CC 340M / 15B 上 CKDA spread 52.30% vs KDA 51.32%，FineWeb-Edu 1.3B / 100B 上 54.06% vs 54.09%（持平）；RULER 非混合下显著强于 KDA bounded gate；scaling law 上 CKDA / KDA 全尺度优于 Transformer 基线，无交叉点。
 6. **高效内核**：三种实现——PyTorch gauge 变量替换（不改 kernel）、Triton 融合、TileLang 混合——保留约 96–97% 的标准 KDA 吞吐；对 DeltaProduct2 的吞吐竞争力论文不做内在优势声明。
 7. **可解释性（Figure 7/10）**：训练中模型自发使用负 gate（主要前层）与 $\beta>1$（前两层为主），复特征值对集中在前两层；1.3B 标准初始化（gate 接近 1）下仍学到利用扩展范围。
 
 ### 1.3 关键结果速览
 
-- **状态跟踪**：S3 / S4 / A5 群词问题长度外推为全部对比方法中最强；单层表达力覆盖 $SO(3)$ 全部有限子群，与每 token 复合两个 Householder 的 DeltaProduct k=2 相当。
+- **状态跟踪**：S3 / S4 群词问题长度外推在测试的 KDA 范围设置中最强（A5 需单独理论初始化设置）；单层表达力覆盖 $SO(3)$ 全部有限子群，与每 token 复合两个 Householder 的 DeltaProduct k=2 相当。
 - **音频周期延拓**：外推至训练长度 136 之外的长度 264 仍保留高 SNR；Transformer 退化，GRU 仍最优。
 - **语言建模（Nemotron-CC 340M / 15B，Avg）**：CKDA spread 52.30% vs KDA（$\alpha \in [0,1]$、$\beta \in [0,1]$）51.32%（+0.98 pp），为该实验块最高；对照 Dense Attention 50.90%、GDN 49.79%、DeltaProduct k=2 48.44%。
 - **语言建模（FineWeb-Edu 1.3B / 100B）**：CKDA 平均下游精度 54.06% vs KDA bounded gate 54.09%（持平，−0.03 pp）；CKDA 领先 GDN-2（53.11%）0.95 pp、SWA-hybrid Transformer（50.86%）3.20 pp。
@@ -65,7 +65,7 @@
 
 ### 2.4 相关工作脉络
 
-复数/旋转递归并非新想法：S4、LRU 用复对角表示，RotRNN 用旋转递归，Mamba-3 引入复动力学，Selective RoPE 给门控注意力加输入相关旋转——但 RoPE 型旋转固定在 block-diagonal 坐标平面内，乘积无法重定向旋转平面（Prop 10 的对照）。MDN 加动量态产生二阶复共轭特征值，SFDA 用显式相位/衰减 gate。CKDA 的独特之处：保持一阶、实数、DPR1、非扩张的 KDA 递归，仅靠两个既有参数范围扩展（Sarrof 2024 的符号 gate、Grazzi 2025 的 $\beta \in [0,2]$）的组合就获得旋转。RWKV-7 / GDN-2 用非对称秩一项 $D(\alpha) - k(v \odot k)^\top$，Theorem 1 表明这在正交情形不增加任何可达转移。
+复数/旋转递归并非新想法：S4 用复 DPLR、LRU 用复对角表示，RotRNN 用旋转递归，Mamba-3 引入复动力学，Selective RoPE 给门控注意力加输入相关旋转——但 RoPE 型旋转固定在 block-diagonal 坐标平面内，乘积无法重定向旋转平面（Prop 10 的对照）。MDN 加动量态产生二阶复共轭特征值，SFDA 用显式相位/衰减 gate。CKDA 的独特之处：保持一阶、实数、DPR1、非扩张的 KDA 递归，仅靠两个既有参数范围扩展（Sarrof 2024 的符号 gate、Grazzi 2025 的 $\beta \in [0,2]$）的组合就获得旋转。RWKV-7 / GDN-2 用非对称秩一项 $D(\alpha) - k(v \odot k)^\top$，Theorem 1 表明这在正交情形不增加任何可达转移。
 
 ## 第 3 章 Complex KDA：从对称性破缺到平面旋转
 
@@ -75,7 +75,7 @@
 
 $$A_t = (I - \beta_t \mathbf{k}_t \mathbf{k}_t^\top)\,\mathrm{Diag}(\boldsymbol{\alpha}_t)$$
 
-其中 $\mathbf{k}_t$ 为归一化 key，$\beta_t \in [0,1]$ 为 delta-rule 学习率（Householder 系数），$\boldsymbol{\alpha}_t \in [0,1]^n$ 为通道级遗忘 gate。转移是「自由定向的广义 Householder 反射 × 轴对齐的逐坐标缩放」。对角分解视角（论文式 (3)）：$D(\alpha) = \prod_i (I - \beta_i e_i e_i^\top)$，每个因子是法向 $e_i$、学习率 $\beta_i = 1 - \alpha_i$ 的轴对齐广义 Householder 变换；$\beta_i = 1$（即 $\alpha_i = 0$）时为精确坐标反射。
+其中 $\mathbf{k}_t$ 为归一化 key，$\beta_t \in [0,1]$ 为 delta-rule 学习率（Householder 系数），$\boldsymbol{\alpha}_t \in [0,1]^n$ 为通道级遗忘 gate。转移是「自由定向的广义 Householder 反射 × 轴对齐的逐坐标缩放」。对角分解视角（论文式 (3)）：$D(\alpha) = \prod_i (I - \beta_i e_i e_i^\top)$，每个因子是法向 $e_i$、学习率 $\beta_i = 1 - \alpha_i$ 的轴对齐广义 Householder 变换；$\beta_i = 2$（即 $\alpha_i = -1$）时为精确坐标反射。
 
 ### 3.2 对称性论证
 
@@ -87,7 +87,7 @@ $$A_t = (I - \beta_t \mathbf{k}_t \mathbf{k}_t^\top)\,\mathrm{Diag}(\boldsymbol{
 
 $$(1-\alpha)^2\cos^2 2\theta + 4\alpha < 0$$
 
-其中 $\theta$ 为 key 的方向角。$\alpha \ge 0$ 时谱必实；$\alpha < 0$ 时适当 $\theta$ 出现复共轭对，特征值之积为 $-\alpha$，随 $\alpha \to -1$ 移向单位圆。端点 $\alpha = -1, \beta = 2$ 处转移为两个反射 $H_{e_1} H_k$ 之积——旋转 $2\theta$。
+其中 $\theta$ 为 key 的方向角。$\alpha \ge 0$ 时谱必实；$\alpha < 0$ 时适当 $\theta$ 出现复共轭对，特征值之积为 $-\alpha$，随 $\alpha \to -1$ 移向单位圆。端点 $\alpha = -1, \beta = 2$ 处转移为两个反射 $H_k H_{e_1}$ 之积——旋转 $2\theta$。
 
 ### 3.4 CKDA 定义
 
@@ -134,15 +134,15 @@ CKDA 与 DeltaProduct2 的单层表达力等级相同，但实现路径不同：
 
 关键读法：① GDN 标量 gate 谱恒实，跟踪 $\mathbb{Z}_n/D_n$ 需 2 层、$S_4/A_5$ 需 4 层，而 CKDA 全部 1 层——「channel-wise gate 提供第二个反射」的直接收益；② Theorem 4 的谱障碍（×1 FR）覆盖 CKDA 与 $k \le 3$ 的 DeltaProduct，是结构性上限而非构造技巧不足；③ Gated DeltaProduct 每个 token 复合 $k$ 个 Householder 因子，$k \ge 2$ 即可 1 层覆盖 $S_4/A_5$、$k \ge n-1$ 覆盖 $S_n$，但复特征值对上限为 ⌊k/2⌋——CKDA 以单因子 + 单复对达到 $k=2$ 的覆盖面。
 
-### 4.3 与其他复动力学路线的对比（论文 Table 3 要点）
+### 4.3 与其他复动力学路线的对比（论文 Table 3 及第 2 章相关工作）
 
-MDN（动量态二阶动力学）与 SFDA（显式相位/衰减 gate + chunk-WY）也能产生复特征值，但分别引入辅助递归状态和显式相位 gate；CKDA 保持一阶、实数、DPR1 递归，是「零结构成本」的复动力学来源。Mamba-3 的 SISO/MIMO 复动力学、Adaptive Unitary SSM 的输入相关酉转移则属于对角/可对角化族，与 DPR1 族的对比维度不同。
+论文 Table 3 只比较 CKDA、MDN、SFDA：MDN（动量态二阶动力学）与 SFDA（显式相位/衰减 gate + chunk-WY）也能产生复特征值，但分别引入辅助递归状态和显式相位 gate；CKDA 保持一阶、实数、DPR1 递归，是「零结构成本」的复动力学来源。Mamba-3 的 SISO/MIMO 复动力学、Adaptive Unitary SSM 的输入相关酉转移（二者见第 2 章相关工作，不在 Table 3 中）则属于对角/可对角化族，与 DPR1 族的对比维度不同。
 
 ## 第 5 章 实验结果与分析
 
 ### 5.1 实验设置总览
 
-论文在四个维度验证：有限群状态跟踪（$S_3$/$S_4$/$A_5$ 词问题，单层，训练长度 32、评估到 512，3 种子取最优，acc 从 chance(0) 到 perfect(1) 缩放）、周期音频波形延拓（单层，8 帧 half-bar cue 后零输入延拓）、语言建模（340M/15B Nemotron-CC、1.3B/100B FineWeb-Edu、6 级 scaling ladder）、RULER 检索。训练配置：340M 用 AdamW、lr $5 \times 10^{-4}$、全局 batch 64、WSD 调度（2000 步 warmup、末 20% cooldown）、wd 0.1、$(\beta_1,\beta_2)=(0.9,0.95)$；1.3B 遵循 GDN-2 配方；状态跟踪实验用 Muon（2D 序列层参数）+ AdamW（适配器）。混合模型用 3:1（循环:注意力）full gated attention 无 RoPE（NoPE），与基线报告值的 1:1 SWA 配方不同，不可直接对比。关键实验细节：DeltaNet 遗留的 SiLU 激活（key/query 投影）会把 key 推向正值、与需要跨符号 key 的旋转机制冲突——状态跟踪实验全部移除 SiLU，语言建模做了消融。
+论文在四个维度验证：有限群状态跟踪（$S_3$/$S_4$/$A_5$ 词问题，单层，训练长度 32、评估到 512，3 种子取最优，acc 从 chance(0) 到 perfect(1) 缩放）、周期音频波形延拓（单层，8 帧 half-bar cue 后零输入延拓）、语言建模（340M/15B Nemotron-CC、1.3B/100B FineWeb-Edu、6 级 scaling ladder）、RULER 检索。训练配置：340M 用 AdamW、lr $5 \times 10^{-4}$、全局 batch 64、WSD 调度（2000 步 warmup、末 20% cooldown）、wd 0.1、$(\beta_1,\beta_2)=(0.9,0.95)$；1.3B 遵循 GDN-2 配方；状态跟踪实验用 Muon（G.2）；音频实验用 Muon（2D 序列层参数）+ AdamW（其余参数，G.3）。混合模型用 3:1（循环:注意力）full gated attention 无 RoPE（NoPE），与基线报告值的 1:1 SWA 配方不同，不可直接对比。关键实验细节：DeltaNet 遗留的 SiLU 激活（key/query 投影）会把 key 推向正值，给负分量带来角度先验、可能造成优化偏置，但并非表示上的限制——状态跟踪实验全部移除 SiLU，语言建模做了消融。
 
 ### 5.2 状态跟踪与长度外推
 
@@ -186,7 +186,7 @@ MDN（动量态二阶动力学）与 SFDA（显式相位/衰减 gate + chunk-WY�
 关键读法：
 
 - CKDA（54.06%）与 KDA bounded gate（54.09%）平均下游精度持平（−0.03 pp）；CKDA 在 LMB ppl（10.08 vs 10.53）、LMB acc（51.66% vs 50.46%）、ARC-c（39.08% vs 38.40%）领先，WinoGrande 落后（58.88% vs 61.33%）。
-- CKDA 优于其他全部纯循环基线：比 GDN-2（53.11%）高 0.95 pp，比 KDA 原版（52.28%）高 1.78 pp，比 SWA-hybrid Transformer（50.86%）高 3.20 pp。
+- CKDA 优于其他全部纯循环基线：比 GDN-2（53.11%）高 0.95 pp，比 KDA 原版（52.28%）高 1.78 pp；并比混合基线 SWA-hybrid Transformer（50.86%）高 3.20 pp。
 - 「KDA, bounded gate (ours)」与「KDA」两行的差异来自训练配方（Kimi safe sigmoid gate）与复现设置，非架构差异；ours 混合行与基线混合行的配方差异同理。
 
 ### 5.4 小模型消融（340M/15B Nemotron-CC + 45B FineWeb）
@@ -195,7 +195,7 @@ Nemotron-CC 块（Avg %）：Dense Attention 50.90、DeltaProduct k=2 48.44、DP
 
 FineWeb 45B 块（Avg %）：KDA(α∈[0,1], β∈[0,2]) 51.60 / no-SiLU 51.85；CKDA：standard 51.81、no-SiLU 51.90、spread 51.60、spread no-SiLU 51.94、**spread+β-spread 52.21（该块最高）**。
 
-两点结论：① CKDA 的收益依赖符号 gate 的 spread 初始化（正负各半）——standard 初始化下 gate 接近 1，收益缩水；② 单独扩展 β 而不加符号 gate（GDN β[0,2] 49.64 < GDN 49.79；KDA β[0,2] 50.58 < KDA 51.32）在该规模不带来收益，复特征值需要两个扩展同时在场，与理论一致。
+两点结论：① 在 Nemotron-CC 块，CKDA 的收益依赖符号 gate 的 spread 初始化（正负各半）——standard 初始化下 gate 接近 1，收益缩水（52.30 vs 51.10）；但 FineWeb 45B 块中 spread 为 51.60%、低于 standard 51.81%，论文强调差异不大且依赖配置；② 单独扩展 β 而不加符号 gate（GDN β[0,2] 49.64 < GDN 49.79；KDA β[0,2] 50.58 < KDA 51.32）在该规模不带来收益，复特征值需要两个扩展同时在场，与理论一致。
 
 ### 5.5 RULER 长上下文检索（1.3B/100B，acc%，500 样本/格）
 
@@ -212,7 +212,7 @@ FineWeb 45B 块（Avg %）：KDA(α∈[0,1], β∈[0,2]) 51.60 / no-SiLU 51.85�
 
 （S1/S2/S3 = S-NIAH-1/2/3，MK = MK-NIAH-1；ours 混合行只评估 ≤4K——attention 层训练长度；报告值来自 Hatamizadeh et al. 2026。）
 
-非混合设定下 CKDA 对 KDA bounded gate 全面优势：S-NIAH-1 4K 100.0% vs 94.0%、8K 87.8% vs 68.8%；S-NIAH-3 1K 94.4% vs 7.4%；MK-NIAH-1 2K 46.6% vs 26.2%。论文对「为何无扩展 gate 的 KDA 在其复现中 RULER 明显更差」保留为开放问题（S-NIAH 对 prompt 格式敏感，差值部分来自指令遵循不足）。混合设定下 CKDA+attn 的 4K 内 S-NIAH 读数低于 KDA+attn，但 MK-NIAH 2K/4K（94.4%/94.4% vs 60.2%/63.8%）大幅领先——多 key 检索上符号 gate 优势明显。
+非混合设定下 CKDA 对 KDA bounded gate 总体优势明显，但并非全面领先：S-NIAH-1 4K 100.0% vs 94.0%、8K 87.8% vs 68.8%；S-NIAH-3 1K 94.4% vs 7.4%；MK-NIAH-1 2K 46.6% vs 26.2%；但 S-NIAH-2 2K/4K 上 CKDA 为 99.8%/88.6%，低于 KDA bounded 的 100.0%/97.6%。论文对「为何无扩展 gate 的 KDA 在其复现中 RULER 明显更差」保留为开放问题（S-NIAH 对 prompt 格式敏感，差值部分来自指令遵循不足）。混合设定下 CKDA+attn 的 4K 内 S-NIAH 读数低于 KDA+attn，但 MK-NIAH 2K/4K（94.4%/94.4% vs 60.2%/63.8%）大幅领先——多 key 检索上符号 gate 优势明显。
 
 ### 5.6 Scaling Laws 与可解释性
 
@@ -278,6 +278,6 @@ CPU 冒烟测试端到端跑通两个实验包：`reproduce_state_tracking.py --
 | 分离 erase/write | Gated DeltaNet-2（Hatamizadeh et al. 2026） | 未来工作：与 CKDA 组合（CKDA 保持加性更新结构未动） |
 | Householder 组合 | DeltaProduct（Siems et al. 2025） | 表达力对齐对象；Thm 4 的谱障碍共同适用（k≤3） |
 | 负特征值 | Grazzi et al. 2025 | $\beta \in [0,2]$ 扩展的出处；U 系构造 |
-| 复动力学 | Mamba-3、MDN、SFDA、Adaptive Unitary SSM | 对比路线（论文 Table 3） |
+| 复动力学 | MDN、SFDA（论文 Table 3）；Mamba-3、Adaptive Unitary SSM（相关工作） | 对比路线 |
 | 多层构造 | Peng et al. 2025、Merrill et al. 2026a | clock–buffer–accumulator 框架与 WFA 适配 |
 | Scaling laws | Ajroldi et al. 2026（OpenEuroLLM）、Beck et al. 2026（xLSTM） | CKDA/KDA 无交叉点 vs xLSTM 报告的 over-training 交叉 |

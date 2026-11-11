@@ -1,14 +1,16 @@
 > **论文**：A Programming Paradigm for Spatiotemporal Composability
 > **作者**：Yifan Shi, Wei Zhang, Tianyi Cui（北京大学；DeepSeek-AI）
-> **arXiv ID**：无（GitHub 预印本，2026-08-13）
+> **arXiv ID**：2608.25512（2026-08-13；所审 PDF 本身未印 arXiv 编号）
 > **发表时间**：2026-08-13
 > **代码仓库**：https://github.com/cordiverse/cordis
+>
+> **版本说明**：本报告的章节结构、定义/定理编号、Figure 1/2 与规则集依据作者早期草稿。所审 arXiv:2608.25512 版（Typst，2026-08-26，92 页）已有改动，阅读时以该版为准：§4.2 直接给出唯一四状态 Figure 1（Inactive、Reloading、Active、Unloading）与 9 条规则（O-Insert、O-Retire、O-Remove、L-Begin、L-Iter、L-Finish、L-Divert、L-Leave、L-Unload；无独立 L-Reload/L-Raise，失败机制见 §4.4 的 aborting L-Divert）；元理论编号为 Theorem 64（Preservation，§4.3.1）、Theorem 68 / Corollary 69（§4.3.2）、Theorem 70 / 71（§4.3.3）、Theorem 73（Progress，§4.3.4，界为 (K+3)(V(n)+1)）、Theorem 80（Confluence，§4.3.5）；正文 82 页（References 起于第 83 页），含 46 个编号定义（最高至 81；Definition 49 为 fiber 定义，四状态生命周期在 §4.2.2 引入而非编号定义）与 10 个算法。下文保留原稿编号、规则与图号。
 
 ## 第 1 章 概述
 
 ### 1.1 论文定位
 
-本论文是一篇纯形式化编程语言（PL）理论论文：将经典的效应与共效应概念从编译期类型系统提升为运行时机制，为插件系统与自进化 agent harness 中的动态组合提供「时空可组合性」的形式基础，并给出元理论证明与参考实现 Cordis。该论文是 DeepSeek Harness（deepseek-ai/deepseek-harness，142k★，MIT）「Everything is a Plugin」架构的理论基础——DeepSeek Harness 官方 README 声明 "powered by Cordis, whose design is described in A Programming Paradigm for Spatiotemporal Composability"，Cordis 文档（cordis-primer）亦托管于 deepseek-harness.github.io。
+本论文是一篇纯形式化编程语言（PL）理论论文：将经典的效应与共效应概念从编译期类型系统提升为运行时机制，为插件系统与自进化 agent harness 中的动态组合提供「时空可组合性」的形式基础，并给出元理论证明与参考实现 Cordis。该论文由 DeepSeek-AI 与北京大学合作完成，面向自演化 agent harness 等动态组合场景。（论文正文与参考文献未提及 DeepSeek Harness 仓库、其 README 引文、142k★ 或 MIT 许可，cordis-primer 亦非论文内容。）
 
 论文针对的问题域是动态组合：组件在运行时加载、卸载、重配置。传统组合是静态的——函数调用、模块导入、类继承在编译期解析并在整个执行期固定；静态组合拥有丰富的形式框架，而动态组合的理论基础长期欠发达，现行实践依赖以重启为手段、丢弃运行时状态的粗粒度机制。
 
@@ -19,7 +21,7 @@
 
 论文的解法路径为四步：将效应提升为可逆效应、将共效应提升为反应式共效应（局部形式）；将两种上下文统一为单一上下文类型，构成编程范式；将机制组合为组件概念并给出动态组合演算及其元理论（全局形式）；以 Cordis 元框架实现并在 Koishi（4000+ 社区插件）上验证。
 
-论文共 8 章，正文约 80 页（References 起始于第 80 页），含 74 个编号定义、编号至 73 的定理/引理序列、10 条演算规则、10 个算法。
+论文共 8 章，正文约 82 页（References 起始于第 83 页，PDF 共 92 页），含 46 个编号定义（最高至 81）、编号至 80 的定理/引理序列、9 条演算规则、10 个算法（本报告下文的结构与编号依据作者早期草稿，详见版本说明）。
 
 **论文图表总览**
 
@@ -118,7 +120,7 @@ $$
 
 即运行 n 的累加器只撤回 n 自己的贡献，得到「从未开始」的状态（≈ 忽略控制字段）；episode 关闭时（Corollary 62）γ^{u+1} 同样 ≈-等于该状态——撤回一个组件对其它 fiber 的效果为零。成对独立性由 §3.3.2 卸载：全部效应走共效应操作且键可交换时自动成立（Theorem 42 的迭代器推广）。
 
-**Theorem 63（Ordering）与 Theorem 64（Resolution coherence）。** L-Begin 仅在依赖满足处发生：step^t = L-Begin(m) ⇒ γ^t ⊨ d_m。若消费者 m 的承诺视图将键 k 解析到提供者 n（ω_m(k) = n），则 n 的 episode 严格包含 m 的 episode：b < b′ 且（若闭合）u′ < u，且在整个区间内 σ_n^t(k) = σ_n^{b′}(k) 保持稳定——消费者在自己的卸载全程仍可读取正在撤回的依赖。Theorem 64 保证转换期间每次迭代针对同一解析 ω：目标视图一旦变化，L-Divert/L-Raise 立即将 fiber 带出转换。
+**Theorem 63（Ordering）与 Theorem 64（Resolution coherence）。** L-Begin 仅在依赖满足处发生：step^t = L-Begin(m) ⇒ γ^t ⊨ d_m。若消费者 m 的承诺视图将键 k 解析到提供者 n（ω_m(k) = n），则 n 的 episode 严格包含 m 的 episode：b < b′ 且（若闭合）u′ < u，且在整个区间内 k ∈ dom(σ_n^t)，σ_n^t(k) 只可能由声明 k 的 fiber 在 k 上的操作改变——消费者在整个 episode 内都能读到该键，但其值并非恒定。Theorem 64 保证转换期间每次迭代针对同一解析 ω：目标视图一旦变化，L-Divert/L-Raise 立即将 fiber 带出转换。
 
 **Theorem 66（Progress）。** 在前置关系
 
@@ -134,7 +136,7 @@ $$
 
 其中 V(n) 为 n 的目标视图翻转次数；每个极大生命周期步序列终止于静止状态。
 
-**Theorem 73（Confluence）——论文核心成就。** 在成对独立与组件在其提供集上完全（Definition 69）的条件下，到达静止状态的任意步序列满足：(1) canonical form——该状态可由「按 ⊲ 拓扑序对支持集 A 中每个 fiber 各取一个 episode、编排步骤保持原序」的序列到达；(2) confluence——取相同编排步骤的任意两个序列到达 ≃ 与 ≈ 相关的状态。即**动态历史不留痕迹**：运行期经历过的全部加载、卸载、替换、回退，对静止状态的影响与一开始就静态装配最终组合完全相同。论文将其类比为增量计算中 change propagation 相对于从头求值的一致性。该定理是加载器增量调和（§5.2.1）与「把 Cordis 应用当作静态装配来推理」的许可证。
+**Theorem 73（Confluence）——论文核心成就。** 在成对独立与组件在其提供集上完全（Definition 69）的条件下，到达静止状态的任意步序列满足：(1) canonical form——该状态可由「按 ⊲ 拓扑序对支持集 A 中每个 fiber 各取一个 episode、编排步骤保持原序」的序列到达；(2) confluence——取相同编排步骤的任意两个序列到达 ≃ 与 ≈ 相关的状态。即**动态历史不留痕迹**：运行期经历过的全部加载、卸载、替换、回退，对静止状态的影响，在撤回条目名字之外、经换名后由 ≃ 与 ≈ 关联的意义上，与一开始就静态装配最终组合一致（并非逐字相同的状态）。论文将其类比为增量计算中 change propagation 相对于从头求值的一致性。该定理是加载器增量调和（§5.2.1）与「把 Cordis 应用当作静态装配来推理」的许可证。
 
 演算的生命周期状态随控制流复杂化而扩展。基础两状态模型（Figure 1）：
 
@@ -1258,9 +1260,9 @@ $$
 
 1. $\omega_m^t(k) = n$；
 2. $b < b'$，且 $[b, u]$ 关闭时 $u' < u$——提供者的 episode 严格包含解析到它的消费者的 episode；
-3. $k \in \operatorname{dom}(\sigma_n^t)$ 且 $\sigma_n^t(k) = \sigma_n^{b'}(k)$——消费者整个活动期内该键的值不变。
+3. $k \in \operatorname{dom}(\sigma_n^t)$，且 $\sigma_n^t(k)$ 只可能由声明 $k$ 的 fiber 在 $k$ 上的操作改变——消费者整个活动期内都能读到该键，但其值并非恒定。
 
-**证明思路。** 首款是 L-Begin 的前提 $\operatorname{target}_m^t \neq \bot$，由 Definition 46 给出 $\gamma^t \models d_m$。(1) 是 Lemma 54(2)。(2) 中 $b'$ 处的 L-Begin 写入 $\omega_m^{b'} = \operatorname{target}_m^{b'-1}$、其值为提供者，故 $\theta_n^{b'} = \mathsf{Active}(-, -)$；而 $b$ 处的 L-Begin 留 $\theta_n^b = \mathsf{Reloading}(-, -, -)$，故 $b \neq b'$ 且 $b < b'$。设 $[b, u]$ 关闭且 $u \leq u'$：则 $\operatorname{installed}_m^u$ 且 $\omega_m^u(k) = n$，即 $\operatorname{relied}_n^u$，被 $u$ 处的 L-Unload 否定，故 $u' < u$。(3) 中 $n$ 在 $[b', u']$ 内不被 L-Unload 作用（由 (2) 与 Lemma 54(4)），$\theta_n^{b'} = \mathsf{Active}$ 使 L-Leave 是唯一可作用于 $n$ 的规则且其 $\Psi^t = \mathrm{id}_{\Gamma}$，Lemma 54(1) 给出 $\sigma_n$ 在该区间不变。$\square$
+**证明思路。** 首款是 L-Begin 的前提 $\operatorname{target}_m^t \neq \bot$，由 Definition 46 给出 $\gamma^t \models d_m$。(1) 是 Lemma 54(2)。(2) 中 $b'$ 处的 L-Begin 写入 $\omega_m^{b'} = \operatorname{target}_m^{b'-1}$、其值为提供者，故 $\theta_n^{b'} = \mathsf{Active}(-, -)$；而 $b$ 处的 L-Begin 留 $\theta_n^b = \mathsf{Reloading}(-, -, -)$，故 $b \neq b'$ 且 $b < b'$。设 $[b, u]$ 关闭且 $u \leq u'$：则 $\operatorname{installed}_m^u$ 且 $\omega_m^u(k) = n$，即 $\operatorname{relied}_n^u$，被 $u$ 处的 L-Unload 否定，故 $u' < u$。(3) 中 $n$ 在 $[b', u']$ 内不被 L-Unload 作用（由 (2) 与 Lemma 54(4)），$\theta_n^{b'} = \mathsf{Active}$ 使 L-Leave 是唯一可作用于 $n$ 的规则且其 $\Psi^t = \mathrm{id}_{\Gamma}$，Lemma 54(1) 给出 $k \in \operatorname{dom}(\sigma_n^t)$ 在该区间保持；对 $\sigma_n(k)$ 的写入只能是声明 $k$ 的 fiber 在 $k$ 上的操作（所审版 Theorem 70(3)）。$\square$
 
 **Theorem 64（解析一致性，Resolution coherence，式 (59)）** 设 $n$ 的 episode $[b, u]$ 在 $b$ 开启且 $\omega_n^b = \omega$，则 $\theta_n$ 在该 episode 的初始区间 $[b, r]$ 上为 $\mathsf{Reloading}(-, -, -)$，且转换的每次迭代都针对同一解析 $\omega$：
 
@@ -1745,7 +1747,7 @@ Algorithm 10 事务性模块重载
 
 ### 5.3 案例研究:Koishi
 
-Koishi 是基于 Cordis 的开源聊天机器人应用框架。四年开发累积 4000+ 社区贡献插件,从 IM 适配器、数据库驱动到管理控制台与终端用户功能。其规模与多样性使其成为 Cordis 动态可组合性在生产环境中的代表性验证。
+Koishi 是基于 Cordis 的开源聊天机器人应用框架。四年开发累积 4000+ 社区贡献插件,从 IM 适配器、数据库驱动到管理控制台与终端用户功能。其规模与多样性使其成为 Cordis 动态可组合性在生产环境中的代表性验证。需要说明，Koishi 当前基于 Cordis v3；本文提出的是 Cordis v4（论文脚注 4），两者共享核心组合模型，故本例验证的是该共享模型，而非 v4 的加载器实现。
 
 **元框架的表达力与通用性。** Koishi 作为服务端 bot 运行,每个功能都实现为 §5.1 上下文原语之上的插件;Koishi 自身只贡献聊天机器人领域的词汇。同一模型重现于完全不同的运行时:Koishi 的 web 控制台是第二个独立的 Cordis 应用,其插件组合的是浏览器与用户界面的原语,而非服务器的。上述迥异的场景确立 §3 模型的两条性质。(1) 表达力:其原语足以承载一个完整的生产系统,宿主框架只供给领域词汇。(2) 通用性:它固定效应与共效应如何组合,而把含义留给每个应用,故既不预设特定领域、也不预设特定运行时。
 
@@ -1926,4 +1928,4 @@ Cordis 以 TypeScript 实现,上下文范式却是语言无关的:时空可组�
 - 重载不迁移状态。HMR 逆转旧效应、从干净状态重新应用,组件自身的内存状态不跨重载存活(§7.3);DSU 式前向迁移的叠加是未来工作。
 - 循环依赖只报告不消除。依赖环使涉及的组件永久不激活,运行时在加载时可报告(§6.5);编译期检测要等共效应规约进入类型系统(§6.7)。
 
-**展望。** 论文结论(§8)指出最具吸引力的未来验证方向:自演化 agent harness(§1.2.2),其中 AI agent 持续生成并替换自己的 harness 组件、几乎无人监督。在该场景应用 Cordis,将验证快速组件替换之下完全恢复的时间保证,与频繁拓扑变化之下依赖协调的空间保证,并论证该范式作为 agent harness 及其它自治系统中可恢复、可协调、持续自演化之基础的可适用性。
+**展望。** 论文结论(§8)指出一个有吸引力的未来验证方向:自演化 agent harness(§1.2.2),其中 AI agent 持续生成并替换自己的 harness 组件、几乎无人监督。在该场景应用 Cordis,将验证快速组件替换之下完全恢复的时间保证,与频繁拓扑变化之下依赖协调的空间保证,并论证该范式作为 agent harness 及其它自治系统中可恢复、可协调、持续自演化之基础的可适用性。

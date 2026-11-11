@@ -41,7 +41,7 @@ SoftMoE 的第二项贡献是可学习的全局约束专家预算。传统 MoE �
 
 Dense Transformer 扩展受推理成本线性增长制约。Kaplan et al. (2020) 和 Hoffmann et al. (2022) 的 scaling laws 表明，模型性能随参数量、数据量和计算量呈现幂律关系，但密集模型推理时需激活全部参数，成本随规模线性增加，部署难度大。Mixture-of-Experts 通过条件计算突破此限制：将网络划分为多个专家模块，每个 token 仅路由至少量专家，推理时激活参数量远小于总参数量，实现"大参数、小计算"的扩展路径。
 
-MoE 思想可追溯至 Jacobs et al. (1991) 和 Jordan & Jacobs (1994) 的混合专家网络，其核心是门控网络（gating network）动态选择专家处理输入。Shazeer et al. (2017) 将 MoE 引入 Transformer，在自然语言处理任务中首次展示条件计算的规模效益。Fedus et al. (2022) 提出 Switch Transformer，简化负载均衡策略，将专家数扩展至数千，在 1.6T 参数下达到优于密集模型的性能。Lepikhin et al. (2021) 的 GShard 进一步沿此方向推进，但这些工作均沿用 hard top-k 路由，未触及不可微性的根本限制。
+MoE 思想可追溯至 Jacobs et al. (1991) 和 Jordan & Jacobs (1994) 的混合专家网络，其核心是门控网络（gating network）动态选择专家处理输入。Shazeer et al. (2017) 提出稀疏门控 MoE 层，在大规模神经语言模型中展示条件计算的规模效益。Fedus et al. (2022) 提出 Switch Transformer，简化负载均衡策略，将专家数扩展至数千，在 1.6T 参数下达到优于密集模型的性能。Lepikhin et al. (2021) 的 GShard 进一步沿此方向推进，但这些工作均沿用 hard top-k 路由，未触及不可微性的根本限制。
 
 Hard top-k 的不可微性在训练-推理间制造梯度不匹配。训练时，路由器权重 $W_g$ 通过 softmax 的 surrogate gradient 更新，但实际专家选择由 TopK 算子执行，梯度在离散边界截断。这种不匹配使路由器无法精确学习"哪些专家应被激活"，只能依赖间接信号。推理时，固定 $k$ 导致对所有输入（无论难易）强制激活相同数量专家，计算资源无法动态分配。此外，均匀的层间分配（每层 $k$ 个专家）忽略了 Transformer 层的功能差异：前层处理局部句法，后层处理全局语义，可能需要不同专家容量。
 
@@ -193,8 +193,8 @@ $$\frac{\partial T(z)}{\partial z} = \begin{cases}
 
 关键创新在于：截断基于 threshold $\tau$ 而非 rank $k$。这意味着不同 token 可能激活不同数量的专家：
 
-- 对于"简单" token，gate 得分集中在前几个专家，大部分 $\tilde{p}_i < \tau$ → 仅激活 1–2 个专家
-- 对于"困难" token，gate 得分分布更平坦，更多 $\tilde{p}_i > \tau$ → 可能激活 3–5 个专家
+- 对于"简单" token，路由权重可集中在单个专家上，大部分 $\tilde{p}_i < \tau$ → 仅激活少量专家
+- 对于"困难" token，权重分布更平坦，更多 $\tilde{p}_i > \tau$ → 可激活多个专家（每层上界为 $\lceil k_i \cdot \alpha \rceil$，$\alpha \in \{2,4\}$）
 
 相比之下，Sparse MoE的TopK强制每个token激活恰好k个专家，无论输入难度。
 
@@ -377,7 +377,7 @@ Zero-shot下游任务评估：
 
 - **PIQA (Physical Interaction Question Answering)**: 常识推理
 - **HellaSwag**: 常识句子补全
-- **ARC-E (Abstraction and Reasoning Corpus, Easy)**: 抽象推理
+- **ARC-E (AI2 Reasoning Challenge, Easy subset)**: 小学科学问答
 
 ## 5.2 SoftMoE\* vs Sparse MoE: 效率与性能权衡
 
@@ -414,11 +414,11 @@ Zero-shot下游任务评估：
 
 ### 5.2.3 自适应激活模式
 
-Figure 4展示了SoftMoE\*训练过程中活跃专家数的演化：
+Figure 4（右侧）展示了SoftMoE\*训练过程中每 token 每层平均活跃专家数的演化；token 级激活分布见 Figure 1（中部）：
 
-- **训练早期**: 活跃专家数波动较大，模型探索不同分配策略
-- **训练中期**: 活跃专家数收敛到稳定分布，平均接近k
-- **训练后期**: 某些token激活1-2个专家，某些token激活3-4个专家，呈现输入依赖的自适应模式
+- **训练早期**: 平均活跃专家数波动较大，模型探索不同分配策略
+- **训练中后期**: 平均活跃专家数随训练演化并趋于稳定，但可显著偏离初始 k（如 SoftMoE\*-1 约3.8、SoftMoE\*-2 约3.6、SoftMoE\*-1.5 约1.8，而 k 分别为1/2/1.5）
+- **输入依赖的激活**: 不同 token 可激活不同数量的专家（Figure 1 中部），而非所有 token 共享同一固定值
 
 相比之下，Sparse MoE的活跃专家数始终恒定为k（每个token激活恰好k个专家）。
 
@@ -437,9 +437,9 @@ SoftMoE\*的效率增益源自differentiability带来的两个优势：
 
 Figure 1（底部）与 Figure 6 展示了 learned allocation 收敛后的层间分配模式（以 $K=2L$ 为例，$L=10$ 层）：
 
-- **浅层 (Layer 1-3)**: 每层仅激活1-2个专家
-- **中层 (Layer 4-7)**: 每层激活约2个专家
-- **深层 (Layer 8-10)**: 最后3层激活3-4个专家，吸收约50%总预算
+- **浅层与中层 (Layer 1-7)**: 每层约1.0-1.2个专家
+- **Layer 8**: 约2.3个专家
+- **深层 (Layer 9-10)**: 约4.9与5.4个专家；论文正文概括为最后3层合计吸收约50%总预算
 
 这一非均匀分配与BERT probing研究结论一致 (Tenney et al.):
 - 浅层处理句法特征，需要较少专家容量
@@ -450,7 +450,7 @@ Figure 1（底部）与 Figure 6 展示了 learned allocation 收敛后的层间
 Figure 6 展示了层间分配参数 $k_l$ 随训练步数的演化（Figure 5 则对比含/不含 learned allocation 的训练 loss 与每层活跃专家数）：
 
 - **0-5k steps**: 初始均匀分配（每层约2个专家）
-- **5-25k steps**: 预算迅速向深层重新分配，最后3层从2个专家增加到3-4个
+- **5-25k steps**: 预算迅速向深层重新分配，最后两层 $k_l$ 从约2升至约5（Layer 8 约2.3）
 - **25k+ steps**: 分配基本稳定，微小波动
 
 ### 5.3.3 性能与计算trade-off
@@ -476,11 +476,11 @@ C4数据集上的完整对比 (Table 1):
 
 ### 5.3.4 层间异质性的理论解释
 
-从信息论角度理解：
-- **浅层**: 编码局部句法模式，信息熵较低，少量专家即可覆盖
-- **深层**: 整合全局上下文和任务知识，信息熵较高，需要更多专家容量
+论文将这一现象与 BERT probing 研究（Tenney et al., 2019; Jawahar et al., 2019）的结论类比：
+- **浅层**: 编码局部句法模式，少量专家即可覆盖
+- **深层**: 整合全局上下文和任务知识，需要更多专家容量
 
-SoftMoE 通过学习 $k_l$ 自动发现这一结构，无需人工设计。
+（上述直观解释并非论文原文；论文仅将其与 BERT probing 结论类比，未给出信息论/熵论证。）SoftMoE 通过学习 $k_l$ 自动发现这一结构，无需人工设计。
 
 ## 5.4 Downstream任务性能
 
@@ -522,11 +522,11 @@ PIQA评估物理交互常识推理：
 | SoftMoE\* (k=1, α=4) | 72.91 | Sparse MoE (k=4) | 71.60 |
 | SoftMoE (k=2, α=2) | 72.03 | Sparse MoE (k=2) | 71.98 |
 
-在C4上，SoftMoE\* ($k=1$, $\alpha=4$) 达到最优 72.91%，相比 Sparse MoE ($k=4$) 的 71.60% 提升 1.31 个百分点。OWT 上 soft routing 也 consistently 优于或匹配 Sparse MoE。
+在C4上，SoftMoE\* ($k=1$, $\alpha=4$) 达到最优 72.91%，相比 Sparse MoE ($k=4$) 的 71.60% 提升 1.31 个百分点。OWT 上 soft routing 在多数配置中优于或匹配 Sparse MoE。
 
 ### 5.4.3 ARC-E
 
-ARC-E评估抽象推理能力：
+ARC-E评估小学科学问答能力：
 
 **OWT 预训练：**
 
@@ -549,9 +549,9 @@ OWT 上 SoftMoE（含 learned allocation，$k=2$, $\alpha=2$）达到最强 38.2
 综合Table 1数据，观察：
 
 - **最佳预训练 loss 配置通常对应较强下游表现**：OWT 上 SoftMoE\* ($k=1$, $\alpha=4$) loss 最低 (2.70)；同数据集上 ARC-E 最高 (38.27%) 来自 SoftMoE ($k=2$, $\alpha=2$，含 learned allocation)
-- **Soft routing的优势在下游任务更明显**: 尽管loss提升可能仅为0.01-0.02，下游任务提升可达1-2个百分点
+- **Soft routing的优势可体现在下游任务**: 部分配置在 loss 小幅改善的同时，HellaSwag/PIQA 等下游指标有所提升，幅度因配置而异；论文仅指出最佳预训练 loss 配置倾向于在这些基准上表现最强，未给出固定的百分点映射
 
-这表明soft routing不仅优化perplexity，更提升表征的迁移能力。
+论文将这一现象解释为 soft routing 的收益可传递到任务级性能。
 
 ---
 

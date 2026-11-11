@@ -156,7 +156,7 @@ $$\mathrm{Read}(M, q) = \sum_{i \in \mathrm{TopK}(q)} g_i(q)\, v_i$$
 4. 逐层 shared expert 与专家输出合并（combine）；
 5. 写回残差。
 
-关键点在于第 3 步与第 1 步的关系：每一轮表示更新（一个 DecoderLayer）都会执行一次 Memory 查询。相比 Looped Transformer 需要整个网络循环一轮才完成一次迭代，Mobius 在极少数层内就完成一次「查询—融合—更新」，迭代频率高出一个量级；同时每次查询面对的是全量 Memory 的分区视图，而不是该层私有的知识。
+关键点在于第 3 步与第 1 步的关系：每一轮表示更新（一个 DecoderLayer）都会执行一次 Memory 查询。相比 Looped Transformer 需要整个网络循环一轮才完成一次迭代，Mobius 在极少数层内就完成一次「查询—融合—更新」，迭代频率更高；同时每次查询面对的是全量 Memory 的分区视图，而不是该层私有的知识。
 
 ### 3.4 混合注意力底座与 MTP
 
@@ -295,7 +295,7 @@ CPT 路线的意义在于工程可行性：不需要从零重训 35B，而是把
 
 *图 4：平均输出长度对比——Mobius 在各 benchmark 上的 CoT 输出显著短于基线，是吞吐提升的直接来源。*
 
-加速的机制分解为两项：输出 token 数下降（Dynamic Latent Reasoning 把迭代搬进表示空间）与 MTP 推测解码（深层一次产出多 token draft，且接受率高，见 5.7 节 Fig 8）。
+论文把加速归因于两项：推理时更灵活的激活路径（共享存储带来的 Backward Residual Connection）与更动态的潜在空间迭代（Dynamic Latent Reasoning），它们共同产生更短更精炼的输出；MTP 推测解码可能也有贡献（深层一次产出多 token draft，且接受率高，见 5.7 节 Fig 8），但论文未给出消融拆分。
 
 ### 5.5 Table 2：逐步 trace 对比
 
@@ -329,13 +329,13 @@ $$\rho_{\text{MMLU-Pro}} = \frac{516}{2364} \approx 21.8\%$$
 
 *图 6：左为 Mobius-7B 从头训练（激活分布较均匀），右为 Intern-S2-Mobius-35B 持续预训练（激活范围更宽但仍保留块对角模式）。*
 
-2. **组合泛化 toy task（Fig 7，附录 C）**：采用 Physics of LLM 设定，500 实体单跳 + 400 实体双跳训练，100 实体双跳测试。未来版本的 Mobius 收敛更快、最终分数更高，为 Backward Residual Connection 增强跨层组合泛化提供了受控证据。
+2. **组合泛化 toy task（Fig 7，附录 C）**：采用 Physics of LLM 设定，500 实体单跳 + 400 实体双跳训练，100 实体双跳测试。未来版本的 Mobius 收敛更快、最终分数更高，为跨层组合泛化提供了受控 toy task 上的旁证；但该实验未做组件消融，论文也未把收益单独归因于 Backward Residual Connection。
 
 ![Figure 7: 组合泛化 toy task 收敛曲线](Figures/2026-08-18-intern-s2-mobius-fig7.png)
 
 *图 7：组合泛化任务上 Mobius（未来版本）与 Transformer 的收敛对比——Mobius 收敛更快且最终分数更高。*
 
-3. **逐层预测 lens（Fig 8，附录 E）**：Mobius 的中间层预测与目标更对齐，$t+1$ 至 $t+5$ 的五 token draft 全部被接受；基线的第三位 draft 被拒，仅两 token 接受前缀。这直接解释了 MTP 推测解码在 Mobius 上的高接受率与吞吐收益。
+3. **逐层预测 lens（Fig 8，附录 E）**：Mobius 的中间层预测与目标更对齐，$t+1$ 至 $t+5$ 的五 token draft 全部被接受；基线的第三位 draft 被拒，仅两 token 接受前缀。这与 MTP 推测解码在 Mobius 上的高接受率相符；论文只表示这可能有利于多 token 预测，并未测量吞吐或作出因果归因。
 
 ![Figure 8: 逐层预测 lens 对比](Figures/2026-08-18-intern-s2-mobius-fig8.png)
 
@@ -478,7 +478,7 @@ python -m sglang.launch_server \
 
 Transformers 路线通过远程代码（trust_remote_code）加载。推荐采样参数：top_p=1、top_k=50、min_p=0.0、temperature=0.8。
 
-推测解码的算法名在不同框架中分别叫 qwen3_5_mtp / mtp / NEXTN，命名沿用了 MTP 头的部署惯例；结合 Fig 8（五 token draft 全接受 vs 基线两 token 后被拒），MTP 的高接受率是 4× 端到端加速中不可省略的组成部分。Fig 8 展示的 $t+1$ 至 $t+5$ 是 MTP 头支持的最大预测跨度（论文层析实验的评估上限），而部署推荐 draft tokens=4 是保守配置——只取前 4 个位置的草稿参与验证，换取更低的草稿生成开销与更高的接受裕度，两者并不矛盾（见第 3.4 节「一次迭代可以产出 $t+1$ 至 $t+5$ 的多 token draft」）。
+推测解码的算法名在不同框架中分别叫 qwen3_5_mtp / mtp / NEXTN，命名沿用了 MTP 头的部署惯例；结合 Fig 8（五 token draft 全接受 vs 基线两 token 后被拒），MTP 的高接受率与这一加速方向相符；但论文未做 MTP 消融，不能把高接受率称为 4× 端到端加速中不可省略的组成部分。Fig 8 展示的 $t+1$ 至 $t+5$ 是 MTP 头支持的最大预测跨度（论文层析实验的评估上限），而部署推荐 draft tokens=4 是保守配置——只取前 4 个位置的草稿参与验证，换取更低的草稿生成开销与更高的接受裕度，两者并不矛盾（见第 3.4 节「一次迭代可以产出 $t+1$ 至 $t+5$ 的多 token draft」）。
 
 ### 6.5 二次开发注意事项
 
@@ -546,7 +546,7 @@ Memory 的容量与推理路径的深度解耦后，知识参数可以驻留 SSD
 ### 8.5 局限
 
 1. **存在落后项**。UGD hard（73.02 vs 78.02 分）与 HLE（19.11 vs 22.40 分）落后于基线。HLE 在 64K 推理长度设置下评估，UGD hard 为 128K。CoT 压缩对特定任务形态的代价尚未被论文定量解释 [VERIFY: 论文对该回归的归因未包含在研究材料中]。
-2. **CPT 路由先验的残留**。附录 B 显示 35B 持续预训练模型的专家激活保留了源 checkpoint 层组织的块对角痕迹，从头训练的均匀激活才是架构的「理想态」；CPT 路线以效率换纯度，长程影响未知。
+2. **CPT 路由先验的残留**。附录 B 显示 35B 持续预训练模型的专家激活保留了源 checkpoint 层组织的块对角痕迹，从头训练可能更充分地利用共享专家池，但论文指出这是否转化为更强能力仍需同规模受控评估；CPT 路线则保留了源 checkpoint 的路由先验，长程影响未知。
 3. **数据效率解释停留在假设层面**。跨层参数冗余的定量测量、知识压缩率的直接度量均未给出，62.6% 这一数字的机理支撑仍属推断。
 4. **关键训练细节未公开**。SFT 数据、RL 算法与奖励设计、训练硬件与并行策略在研究材料中均缺席，复现需要对官方仓库与后续技术报告的持续跟踪 [VERIFY: 待官方 Technical Report 补充]。
 5. **收益与 MTP 耦合**。近 4× 的端到端加速同时来自输出缩短与推测解码，二者的贡献拆分（例如关闭 MTP 后的纯架构收益）未在材料中给出 [VERIFY: 消融数据缺失]。

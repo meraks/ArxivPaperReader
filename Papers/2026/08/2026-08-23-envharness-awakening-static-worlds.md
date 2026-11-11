@@ -1,7 +1,7 @@
 # EnvHarness 精读：Awakening Static Worlds for Agent Learning（arXiv:2608.19880）
 
 > **论文**：EnvHarness: Awakening Static Worlds for Agent Learning
-> **作者**：Chengsong Huang（Washington University in St. Louis）, Zifeng Wang, Rujun Han, Jun Yan, Yanfei Chen, Zoey CuiZhu, Ke Jiang, Han Yu, Yufan Zhuang, Yifei Ming, Bhavana Dalvi Mishra, Jiaxin Huang, Burak Gokturk, Tomas Pfister, Chen-Yu Lee（Google Cloud AI Research）, Peng Xia（UNC Chapel Hill）, Jiaqi Pan（Google Cloud）
+> **作者**：Chengsong Huang, Jiaxin Huang（Washington University in St. Louis）, Zifeng Wang, Rujun Han, Jun Yan, Yanfei Chen, Zoey CuiZhu, Ke Jiang, Han Yu, Yufan Zhuang, Yifei Ming, Bhavana Dalvi Mishra, Burak Gokturk, Tomas Pfister, Chen-Yu Lee（Google Cloud AI Research）, Peng Xia（UNC Chapel Hill）, Jiaqi Pan（Google Cloud）
 > **arXiv ID**：2608.19880（2026-08-20 v1）
 > **发表时间**：2026-08-20
 > **许可协议**：Apache-2.0
@@ -45,7 +45,7 @@ EnvHarness（Environment Harness）是一个**包装而非创作**（wrapping, n
 
 ### 1.3 关键结果速览
 
-- ALFWorld（技能学习范式）：avg 68.3% vs Original Envs 62.4%（**+5.9 分**）；OOD 70.4% vs 61.4%（**+9.0 分**，全文最大提升）；相对 GenEnv avg +5.7 分、OOD +8.5 分。
+- ALFWorld（技能学习范式）：avg 68.3% vs Original Envs 62.4%（**+5.9 分**）；OOD 70.4% vs 61.4%（**+9.0 分**，主结果（Table 2）中的最大提升）；相对 GenEnv avg +5.7 分、OOD +8.5 分。
 - SWE-bench Verified：SR 52.58% vs Original 49.88%（**+2.70 分**）；AS（平均步数）49.61 vs 55.01，相对减少 **9.8%**；相对 SWE-smith SR +2.46 分。
 - SpreadsheetBench：Pass@1 49.15% vs Original 45.88%（**+3.27 分**）。
 - OfficeQA：EM 56.20% vs Original 54.40%（+1.80 分）。
@@ -206,7 +206,7 @@ $$H(E, t; \pi) = (w_k \circ \cdots \circ w_1)(E)$$
 
 ### 5.2 主结果：技能学习
 
-Table 2 与 Table 3 汇总五个 benchmark 的主结果（均为 3 次独立运行均值）：
+Table 2 与 Table 3 汇总五个 benchmark 的主结果（Table 2 注明为 3 次独立运行均值；Table 3 只标注标准差）：
 
 **Table 2 | ALFWorld 与 WebArena 上的技能来源对比（单位：%，越高越好）**
 

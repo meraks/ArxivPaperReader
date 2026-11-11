@@ -264,14 +264,14 @@ $$\mathcal{L} = \mathcal{L}_{\text{MLM}} + \mathcal{L}_{\text{NSP}}$$
 
 #### Fine-tuning 设置
 
-所有 GLUE 任务的 fine-tuning 超参数搜索范围（Appendix A.3）：
+所有 GLUE 任务的 fine-tuning 设置（Section 4.1）：
 
-- **Batch size**: `{16, 32}` 中基于 Dev set 选择
-- **Epochs**: `{2, 3, 4}` 中基于 Dev set 选择
-- **Learning rate**: `{5e-5, 3e-5, 2e-5}` 中基于 Dev set 选择
+- **Batch size**: 固定为 32
+- **Epochs**: 固定为 3
+- **Learning rate**: `{5e-5, 4e-5, 3e-5, 2e-5}` 中基于 Dev set 选择
 - **Dropout**: 始终固定为 0.1
 
-其余超参数与预训练保持一致。论文建议直接对上述组合做网格搜索，选择在开发集上表现最优的模型。
+其余超参数与预训练保持一致。Appendix A.3 另给出跨任务的通用建议范围（Batch size `{16, 32}`、Epochs `{2, 3, 4}`、Learning rate `{5e-5, 3e-5, 2e-5}`），并建议对所有组合做网格搜索、选择在开发集上表现最优的模型。
 
 对于单句分类任务,取 [CLS] token 的最终隐藏向量 $C \in \mathbb{R}^H$,通过分类层 $W \in \mathbb{R}^{K \times H}$($K$ 为类别数)计算类别概率。BERT_LARGE 在小规模数据集上偶尔出现不稳定现象,此时采用 random restarts 策略。
 
@@ -320,7 +320,7 @@ Human: Test EM 86.9, F1 89.5。
 
 | System | Accuracy |
 |--------|:--------:|
-| OpenAI GPT | 75.0% |
+| OpenAI GPT | 78.0% |
 | BERT_BASE (Dev) | 81.6% |
 | BERT_LARGE (Dev) | 86.6% |
 | Human (expert)† | 85.0% |
@@ -348,7 +348,7 @@ BERT_LARGE 在 NER 任务上"与 SOTA 方法相比具有竞争力"（performs co
 
 Table 5 在 5 个任务上对四种预训练配置进行了 Dev Set 消融比较：
 
-| System | MNLI-m (Acc) | QNLI (Acc) | MRPC (F1) | SST-2 (Acc) | SQuAD (F1) |
+| System | MNLI-m (Acc) | QNLI (Acc) | MRPC (Acc) | SST-2 (Acc) | SQuAD (F1) |
 |--------|:------------:|:----------:|:---------:|:-----------:|:----------:|
 | BERT_BASE | 84.4 | 88.4 | 86.7 | 92.7 | 88.5 |
 | No NSP | 83.9 | 84.9 | 86.5 | 92.6 | 87.9 |
@@ -383,7 +383,7 @@ Table 5 在 5 个任务上对四种预训练配置进行了 Dev Set 消融比较
 **关键发现：**
 
 - 更大的模型在所有四个数据集上都带来了严格的准确率提升，即便对于仅有 3,600 条标注训练样本且与预训练任务差异较大的 **MRPC** 也是如此。
-- 论文认为这是首次令人信服地证明：在充分预训练的前提下，将模型扩展到极限规模同样能为**极小规模的下游任务**带来显著收益。此前 Peters et al. (2018b) 将 bi-LM 从 2 层扩至 4 层、Melamud et al. (2016) 将隐藏维度从 200 增至 600 时均未得出明确的正向结论——论文推测这是因为他们采用了 feature-based 方法；而 fine-tuning 方式使下游任务能直接受益于更大、更具表达力的预训练表示。
+- 论文认为这是首次令人信服地证明：在充分预训练的前提下，将模型扩展到极限规模同样能为**极小规模的下游任务**带来显著收益。此前 Peters et al. (2018b) 将 bi-LM 从 2 层扩至 4 层只得到混合结果、Melamud et al. (2016) 报告隐藏维度从 200 增至 600 有增益但继续增至 1,000 未带来进一步提升——论文推测这是因为他们采用了 feature-based 方法；而 fine-tuning 方式使下游任务能直接受益于更大、更具表达力的预训练表示。
 - 同时论文指出，相比于已有文献中最大的 Transformer 模型（如 Vaswani et al. 的 100M 参数 encoder，或 Al-Rfou et al. 的 235M 参数模型），BERT_BASE（110M）和 BERT_LARGE（340M）的规模在当时已属极端。
 
 ### 6.3 Feature-based Approach
@@ -391,7 +391,7 @@ Table 5 在 5 个任务上对四种预训练配置进行了 Dev Set 消融比较
 | 方法 | F1 |
 |------|:--:|
 | Fine-tuned | 96.4 |
-| Feature-based (ELMo-style weighted) | 95.6 |
+| Feature-based (second-to-last hidden) | 95.6 |
 | Feature-based (last 4 layers concat) | 96.1 |
 
 ### 6.4 MLM Masking 策略消融
@@ -429,7 +429,7 @@ BERT 的提出对自然语言处理领域产生了深远影响:
 ### 8.2 Limitations
 
 - Pre-training / Fine-tuning 不一致(80/10/10 部分缓解)
-- 计算成本高昂(4 Cloud TPUs, ~4 天)
+- 计算成本高昂（BERT_BASE：4 Cloud TPUs / 16 chips；BERT_LARGE：16 Cloud TPUs / 64 chips；各约 4 天）
 - NSP 有效性存疑(后续研究如 RoBERTa 发现移除 NSP 后性能可持平)
 
 ### 8.3 Training Details 与 GPT 对比
@@ -438,7 +438,7 @@ BERT 的提出对自然语言处理领域产生了深远影响:
 |--------|------|-----|
 | Training steps | 1M | 1M |
 | Batch size | 256 (128K words/batch) | 32K words |
-| Learning rate | 1e-4 | 5e-5(统一) |
-| Task-specific lr | 从 Dev set 选择 | 无 |
+| 预训练 learning rate | 1e-4 | 文中未给出 |
+| Fine-tuning learning rate | 从 Dev set 选择（任务自适应） | 统一 5e-5 |
 
-BERT 与 GPT 同样训练 1M steps,但 BERT 使用了更大的 batch(4 倍)与更高的 base learning rate,以及任务自适应的 fine-tuning 策略。
+BERT 与 GPT 同样训练 1M steps,但 BERT 使用了更大的 batch(4 倍),并在 fine-tuning 时采用任务自适应的 learning rate(GPT 统一使用 5e-5)。

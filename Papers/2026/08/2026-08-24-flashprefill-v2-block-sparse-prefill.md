@@ -26,7 +26,7 @@ FlashPrefill V2 是一个面向长上下文 LLM serving 的 block-sparse prefill
 | **Table 1** | RULER 分数 + 注意力算子相对 FA2 的加速比（3 模型 × 6 长度） | 第 5 章 |
 | **Table 2** | LongBench 全部 21 个任务对比（3 模型 × 7 方法） | 第 5 章 |
 | **Table 3** | 各序列长度下的注意力密度（needle-in-a-haystack 测量） | 第 5 章 |
-| **Table 4** | 端到端 TTFT（SGLang，3 模型 × 4 batch size × 128K） | 第 5 章 |
+| **Table 4** | 端到端 TTFT（SGLang，3 模型 × 4 batch size × 6 序列长度 4K–128K） | 第 5 章 |
 | **Table 5** | 开放回路 serving 结果（Poisson 到达 1-16 req/s） | 第 5 章 |
 | **Table 6** | chunked prefill 兼容性（8K/16K chunk） | 第 5 章 |
 | **Table 7** | 与 HPC-Ops BSA 的设计差异对比 | 第 5 章 |
@@ -37,9 +37,9 @@ FlashPrefill V2 是一个面向长上下文 LLM serving 的 block-sparse prefill
 
 论文将 V1 到 V2 的演进组织为三个正交维度——精度、算子性能、系统可部署性——分别对应 FlashPrefill V1 遗留的三个不足（见 2.4 节）。
 
-**贡献一：均值校正项，使稀疏剪枝的近似误差降到二阶**
+**贡献一：均值校正项，消除稀疏剪枝的零阶近似误差**
 
-V1 的 max 动态阈值（$\text{thresh}_I = \alpha \cdot \max_J \text{Score}_{I,J}$）直接丢弃未选中块，softmax 中被截断的概率质量没有任何补偿，精度随稀疏度恶化且不可控。V2 对每个被剪枝块 $J$ 用均值池化统计量（$\bar{k}_J$、$\bar{v}_J$）构造校正项，将 $|B_J| e^{\bar{s}_J} \bar{v}_J$ 同时注入输出估计的分子与分母：
+V1 的 max 动态阈值（$\text{thresh}_I = \alpha \cdot \max_J \text{Score}_{I,J}$）直接丢弃未选中块，softmax 中被截断的概率质量没有任何补偿，精度随稀疏度恶化且不可控。V2 用零阶均值校正（该代理贡献思想亦见于 SOL-Attn [15]）对每个被剪枝块 $J$ 用均值池化统计量（$\bar{k}_J$、$\bar{v}_J$）构造校正项，将 $|B_J| e^{\bar{s}_J} \bar{v}_J$ 注入分子、$|B_J| e^{\bar{s}_J}$ 注入分母：
 
 $$\hat{O} = \frac{\sum_{J \in \mathcal{S}} \sum_i e^{s_i} v_i + \sum_{J \notin \mathcal{S}} |B_J|\, e^{\bar{s}_J} \bar{v}_J}{\sum_{J \in \mathcal{S}} \sum_i e^{s_i} + \sum_{J \notin \mathcal{S}} |B_J|\, e^{\bar{s}_J}}$$
 
@@ -51,7 +51,7 @@ V1 的 CUDA 算子停留在 FA2 世代的工程水准。V2 按 FlashAttention-3/
 
 - **PackGQA 内存布局**：将 Q 从 $L \times H_q \times d$ 重排为 $(gL) \times H_{kv} \times d$（$g$ 为 GQA 组数），每个 KV block 被 query tile 的所有行消费，index 元数据规模随 $g$ 缩小，decode 侧 KV staging 最多节省 $g$ 倍搬运；
 - **warp specialization 的 producer–consumer 流水线**：1 个 producer warpgroup 以 TMA 加载数据、2 个 consumer warpgroup 执行 wgmma，经 warpgroup 寄存器重分配衔接；consumer 内部以 pingpong 交替 GEMM 与 online-softmax；
-- **FP8（e4m3）执行**：$\tilde{P}$ 以 $2^8$ 偏移用满 [0, 256] 动态范围；针对 wgmma K-major B 操作数约束做寄存器重排（shfl + byte_perm）；$\tilde{V}$ 以列主零拷贝转置（LDSM → byte-permute → STSM）；
+- **FP8（e4m3）执行**：$\tilde{P}$ 以 $2^8$ 偏移用满 [0, 256] 动态范围；针对 wgmma K-major B 操作数约束做寄存器重排（shfl + byte_perm）；$\tilde{V}$ 列主时天然满足 K-major 布局、零拷贝消费，行主时由 producer 以 LDSM.T → byte-permute → STSM 即时转置；
 - **index-driven CSR 遍历与单趟融合**：反向遍历序匹配 dense schedule 的降序访问，producer 与 consumer 无同步地独立评估同一序列；running max 与 block energies 在线融合、直接写入 index buffer，消除独立 score buffer 与第二趟 GEMM；针对 heavy-tail tiles 的稀疏感知负载均衡（block-sparse 路径总是允许 KV split，设备端按因果负载降序排序）。
 
 效果：128K 下算子级相对 FA2 加速 27.19×（BF16，Qwen3-30B-A3B）/ 47.26×（FP8），相对 FA3/4 对齐的 dense 基线仍有 17.54×（BF16）/ 30.49×（FP8）；显著超过先前 training-free 稀疏方法（FlashPrefill V1 18.7×、FlexPrefill 5.4×、XAttention 3.4×、MInference 2.8×）。
@@ -336,7 +336,7 @@ FlashPrefill V2 作为标准注意力后端集成进 SGLang。两阶段流水线
 
 ### 5.2 RULER 精度与算子加速
 
-Table 1 报告 RULER 分数（左）与端到端注意力算子相对 FA2 的加速比（右）。三个模型上 V2 平均分距 Full 注意力均在 1.1 分以内（Llama-3.1-8B 87.79 vs 88.82、Qwen3-4B 86.23 vs 87.06、Qwen3-30B-A3B 91.76 vs 92.05），FP8 变体仅额外损失 0.4-1.2 分。差距在 128K 最大——该处密度低于 5%——但 V2 仍保持在 Full 注意力的 1.8 分以内。同时，含索引选择的稀疏算子已在 4K 超越 FA2，128K 时达 BF16 27.2×-27.5×、FP8 47.3×-47.6×。
+Table 1 报告 RULER 分数（左）与端到端注意力算子相对 FA2 的加速比（右）。三个模型上 V2 平均分距 Full 注意力均在 1.1 分以内（Llama-3.1-8B 87.79 vs 88.82、Qwen3-4B 86.23 vs 87.06、Qwen3-30B-A3B 91.76 vs 92.05），FP8 变体仅额外损失 0.4-1.2 分。差距并非在所有模型上都在 128K 最大（Llama-3.1-8B 的 64K 差距达 3.2 分）；128K 时 V2 仍保持在 Full 注意力的 1.8 分以内。同时，含索引选择的稀疏算子已在 4K 超越 FA2，128K 时达 BF16 27.2×-27.5×、FP8 47.3×-47.6×。
 
 **Table 1（节选）：RULER 平均分与 128K 加速比**
 
@@ -536,7 +536,7 @@ Apache-2.0。捆绑/衍生第三方项目：`flashprefill_ops/` 衍生自 FlashA
 
 ### 7.1 极端稀疏下的残余精度损失
 
-均值校正将剪枝误差压到二阶，但并未归零。整体上 V2 与 Full attention 的 RULER 平均差距在 1.1 分以内（Llama-3.1-8B：87.79 vs 88.82；Qwen3-4B：86.23 vs 87.06；Qwen3-30B-A3B：91.76 vs 92.05），FP8 再额外损失 0.4–1.2 分；但在 128K、密度低于 5% 的极端稀疏区间，残余差距扩大到 ≤1.8 分（Llama-3.1-8B 128K：72.08 vs 73.82，差 1.74 分）。阈值扫描给出更清晰的边界：$\alpha = 0.2$（密度 5.2%）时 FP8 为 80.12 分，距 Full 的 82.81 差 2.7 分——校正让精度对 $\alpha$ 几乎不敏感（80.12–80.75 区间平坦），却不能完全抹平极端压缩下的信息损失。对需要全局精确聚合的任务，残余损失是否可接受仍需按业务逐案评估。
+均值校正消除了剪枝的零阶误差（残余为块内协方差项），但并未归零。整体上 V2 与 Full attention 的 RULER 平均差距在 1.1 分以内（Llama-3.1-8B：87.79 vs 88.82；Qwen3-4B：86.23 vs 87.06；Qwen3-30B-A3B：91.76 vs 92.05），FP8 再额外损失 0.4–1.2 分；但在 128K、密度低于 5% 的极端稀疏区间，残余差距扩大到 ≤1.8 分（Llama-3.1-8B 128K：72.08 vs 73.82，差 1.74 分）。阈值扫描给出更清晰的边界：$\alpha = 0.2$（密度 5.2%）时 FP8 为 80.12 分，距 Full 的 82.81 差 2.7 分——校正让精度对 $\alpha$ 几乎不敏感（80.12–80.75 区间平坦），却不能完全抹平极端压缩下的信息损失。对需要全局精确聚合的任务，残余损失是否可接受仍需按业务逐案评估。
 
 ### 7.2 chunked prefill 下的索引重复计算
 
@@ -552,7 +552,7 @@ V2 的 index 阶段针对当前累积的 KV 前缀一次性执行；当 serving 
 
 $$\frac{C_{\text{idx}} + C_{\text{corr}}}{C_{\text{attn}}} = O\!\left(\frac{2-\rho}{2\rho B}\right)$$
 
-其中 $\rho$ 为选中密度、$B$ 为块大小。该比值随密度降低而增大——恰恰在最稀疏（理论收益最大）的工况下，辅助开销占比最高：$\rho = 4\%$、$B = 128$ 时约为 19%。运行时测量（Fig 6）同样显示校正路径的开销随稀疏度上升：稀疏度 ≤50% 时校正占 attention 阶段 5%–14%，90% 稀疏时增至 BF16 18% / FP8 27%（64K 下 3.6–4.5 ms），因为被剪枝块越多、需要校正的块越多。这意味着实际净收益恒小于密度倒数所暗示的理论上限，且 FP8 下（主计算更快）辅助开销的相对占比更高。
+其中 $\rho$ 为选中密度、$B$ 为块大小。该比值随密度降低而增大——恰恰在最稀疏（理论收益最大）的工况下，辅助开销占比最高：$\rho = 4\%$、$B = 128$ 时约为 19%。运行时测量（Fig 6）显示校正的绝对额外延迟很小且随稀疏度上升而下降（稠密极限最多 12.2 ms，90% 稀疏时 3.6–4.5 ms）；但其相对占比随稀疏度上升：稀疏度 ≤50% 时校正占 attention 阶段 5%–14%，90% 稀疏时增至 BF16 18% / FP8 27%——这是因为稀疏主计算本身变小，而非被校正块数增加。这意味着实际净收益恒小于密度倒数所暗示的理论上限，且 FP8 下（主计算更快）辅助开销的相对占比更高。
 
 ### 7.5 硬件与生态边界
 

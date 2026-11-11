@@ -1,7 +1,7 @@
 # 精读：Training Foundation Models with a Single Algorithm
 
 > **论文**：Training Foundation Models with a Single Algorithm
-> **作者**：Yuda Song、Alvin Zhang、Fahim Tajwar、Daman Arora、Jeff Schneider、Daniel Khashabi、Ruslan Salakhutdinov、J. Andrew Bagnell、Aarti Singh、Andrea Zanette（CMU / Meta）
+> **作者**：Yuda Song、Alvin Zhang、Fahim Tajwar、Daman Arora、Jeff Schneider、Daniel Khashabi、Ruslan Salakhutdinov、J. Andrew Bagnell、Aarti Singh、Andrea Zanette（CMU / Johns Hopkins University / Aurora Innovation）
 > **arXiv ID**：2610.40564
 > **发表时间**：2026-10-29（preprint，67 页 / 31 图 / 22 表；HuggingFace Daily Papers 2026-11-01 收录）
 > **许可协议**：代码 Apache 2.0
@@ -19,8 +19,8 @@
 |------|------|---------|
 | **Figure 1** | unified training 循环总览与 vs staged 对比 | 第 2 章 |
 | **Figure 2** | 系统架构：generator / shared buffer / 异步 trainer 与统一数据格式 | 第 4 章 |
-| **Figure 3** | staged 与 unified 的数据暴露调度示意 | 第 5 章 |
-| **Figure 4** | 124M 受控设置下混合配置 × 最终精度/覆盖 | 第 5 章 |
+| **Figure 3** | 统一训练的数据组成示意（C.8：midtraining 混入预训练，RL 期混用三类数据） | 第 5 章 |
+| **Figure 4** | 124M 受控设置下混合配置 × 最终精度（pass@1） | 第 5 章 |
 | **Figure 5** | 受控设置 compute–accuracy 前沿（报告引用原图） | 第 5 章 |
 | **Figure 6** | RL 前初始化的 retention 对比（held-out loss + 5 基准均值） | 第 5 章 |
 | **Figure 7** | 0.76B 真实数据：混合比例 0–5% 扫描 | 第 6 章 |
@@ -71,7 +71,7 @@
 对训练的科学理解同样是按阶段分头发展的：
 
 - **Pretraining scaling laws**（Kaplan et al. 2020；Hoffmann et al. 2022 的 compute-optimal 分析）刻画了数据量、计算量与模型性能的关系；
-- **RL scaling**（Nimmaturi et al. 2025；Khatri et al. 2026；Tan et al. 2026）研究 RL 阶段内部的 scaling 行为；
+- **RL scaling**（Nimmaturi et al. 2026；Khatri et al. 2026；Tan et al. 2026）研究 RL 阶段内部的 scaling 行为；
 - **跨阶段 transfer 与交互**（Hernandez et al. 2021 的 transfer 研究；Isik et al. 2025；Runwal et al. 2026；Shen et al. 2026）表明早期训练决策会影响后续学习。
 
 结果是：对「整个训练生命周期中的决策如何**联合**决定最终模型能力」所知甚少——每个阶段内部有局部规律，但缺少一个能把全流程决策放在一起评判的框架。论文原文的表述是：现有理解按阶段发展，"we know much less about how decisions made throughout training jointly determine the capabilities of the final model"。
@@ -369,7 +369,7 @@ RL 开始前，统一初始化（五种混合强度全部）在 held-out 预训�
 
 ### 5.5 RL 前的视角：midtraining 的价值在「支持后续学习」
 
-RL 前的直接评测（App C.5）给出一个反直觉对照：staged 模型在 Base 精度上高于任何统一初始化，但 RL 后被统一训练反超；统一初始化在 RL 前对更大谜题的泛化也有限（最大混合仅 2.34% 与 0.75% pass@16）。**用 RL 前精度评价 midtraining 质量会得出与最终结果相反的结论**——必须看它对后续学习的支持程度，这正需要统一框架提供的联合视角。
+RL 前的直接评测（App C.5）给出一个反直觉对照：staged 参考配置在 Base 精度上高于任何统一初始化，但 RL 后被最优统一模型反超；统一初始化在 RL 前对更大谜题的泛化也有限（最大混合仅 2.34% 与 0.75% pass@16）。**仅凭 RL 前精度评价 midtraining 质量可能选不出最终最优的初始化**——必须看它对后续学习的支持程度，这正需要统一框架提供的联合视角。
 
 ### 5.6 损失组合方式与预训练数据回放
 
@@ -399,7 +399,7 @@ RL 前的直接评测（App C.5）给出一个反直觉对照：staged 模型在
 
 通用能力：MMLU 37.00%、SciQ 51.00%、ARC-Challenge 31.23%、held-out midtraining loss 1.4352 nats/token（24 组件等权平均，360 万评测 token）。
 
-### 6.2 混合比例扫描：精度不掉、保持单调改善
+### 6.2 混合比例扫描：数学精度基本持平、保持单调改善
 
 App D.2 把混合比例从 0% 扫到 5%（0% 是「同一异步 trainer、零混合」的纯 RL 控制组）：
 

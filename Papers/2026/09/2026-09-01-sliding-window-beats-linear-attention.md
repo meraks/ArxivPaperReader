@@ -9,28 +9,28 @@
 
 ### 1.1 一句话定位
 
-本文首次将"带 attention sinks 的 Sliding Window Attention（SWA，window-size $w=64$、sink 数 $s=4$）"作为直接基线，与 12 种后训练（post-training）线性注意力方法在 11 个预训练 LLM（1.3B–70B 参数）上系统对比，证明这个 0 token 后训练、0 个后训练阶段的 training-free 方案可恢复教师模型 MMLU 性能的 93.2%、六基准平均性能的 99.0%，并在长上下文任务（S-NIAH、BABILong）上取得后训练线性注意力 2–10 倍的准确率，因此强烈建议实践者直接切换 SWA 而非后训练线性模型来降低推理内存成本。
+本文首次将"带 attention sinks 的 Sliding Window Attention（SWA，window-size $w=64$、sink 数 $s=4$）"作为直接基线，与 12 种后训练（post-training）线性注意力方法在 11 个预训练 LLM（1.3B–72B 参数）上系统对比，证明这个 0 token 后训练、0 个后训练阶段的 training-free 方案可恢复教师模型 MMLU 性能的 93.2%、六基准平均性能的 99.0%，并在长上下文任务（S-NIAH、BABILong）上取得后训练线性注意力 2–10 倍的准确率，因此强烈建议实践者直接切换 SWA 而非后训练线性模型来降低推理内存成本。
 
 ### 论文图表总览
 
 | 编号 | 内容 | 章节 |
 |------|------|------|
-| **Figure 1** | 三类 attention mask 示意：Full Attention (FA)、LoLCATs/Liger-GLA（线性注意力 + SWA 混合）、带 sinks 的 SWA | 第 3 章 |
+| **Figure 1** | 三类 attention mask 示意：Full Attention (FA)、LoLCATs/Liger-GLA（线性注意力 + SWA 混合）、带 sinks 的 SWA | 2.1 节 |
 | **Figure 2** | 四种注意力（FA、SWA、Linear、Linear+SWA 即 LoLCATs）在 128–256K context 下的解码吞吐（tokens/s）与内存成本（KV cache 或循环状态，MiB） | 第 4 章 |
-| **Figure 3** | Figure 2 的补充细节图：各 attention 类型的速度与内存随 context（128–256K）变化曲线（含 SWA 窗口 64/128/256/512 全部变体） | 第 4 章 |
-| **Figure 4** | 四种注意力（FA、SWA、Linear、Linear+SWA）在 128–256K context 下的 FLOPs 对比 | 第 4 章 |
+| **Figure 3** | Figure 2 的补充细节图：各 attention 类型的速度与内存随 context（128–256K）变化曲线（含 SWA 窗口 64/128/256/512 全部变体） | 附录 A.4 |
+| **Figure 4** | 四种注意力（FA、SWA、Linear、Linear+SWA）在 128–256K context 下的 FLOPs 对比 | 附录 A.4 |
 | **Table 1** | 13 行方法汇总（12 种后训练线性化方法 + SWA(64,4)）：后训练 token 数、阶段数、MMLU-5shot 恢复率 (%)、六基准平均恢复率 (%) | 第 1、4 章 |
-| **Table 2** | 各蒸馏线性化模型、教师模型、教师 + SWA（sink=4，window 64 或 128）在 6 个基准上的完整分数 (%)，标出最佳非教师模型 | 第 4 章 |
-| **Table 3** | S-NIAH 准确率：context 0.5K/1K/2K/4K × window 128/256/512，基座 Llama 3.1 8B，对比 SWA、LoLCATs、Liger-GLA | 第 4 章 |
-| **Table 4** | BABILong 准确率（QA1–QA5 平均）：context 0K/1K/2K/4K、window 256，对比 SWA 与 LoLCATs | 第 4 章 |
-| **Table 5** | 作者自行后训练的新线性化模型（LoLCATs 式两阶段蒸馏，约 0.1B token cleaned-Alpaca；attention 变体 GLA、Gated DeltaNet、QRWKV6；基座 Qwen3、Phi-4-mini-reasoning、Phi-4-reasoning-plus）与 training-free SWA(64,4) 的对比 | 第 4 章 |
-| **Table 6** | BABILong 完整结果：QA1–QA5 各子任务在 0K–4K context 上的明细 | 第 4 章 |
+| **Table 2** | 各蒸馏线性化模型、教师模型、教师 + SWA（sink=4，window 64）在 6 个基准上的完整分数 (%)，标出最佳非教师模型 | 第 4 章 |
+| **Table 4** | S-NIAH 准确率：context 0.5K/1K/2K/4K × window 128/256/512，基座 Llama 3.1 8B，对比 SWA、LoLCATs、Liger-GLA | 第 4 章 |
+| **Table 5** | BABILong 准确率（QA1–QA5 平均）：context 0K/1K/2K/4K、window 256，对比 SWA 与 LoLCATs | 第 4 章 |
+| **Table 7** | 作者自行后训练的新线性化模型（LoLCATs 式两阶段蒸馏，约 0.1B token cleaned-Alpaca；attention 变体 GLA、Gated DeltaNet、QRWKV6；基座 Qwen3、Phi-4-mini-reasoning、Phi-4-reasoning-plus）与 training-free SWA(64,4) 的对比 | 附录 A.2 |
+| **Table 8** | BABILong 完整结果：QA1–QA5 各子任务在 0K–4K context 上的明细 | 附录 A.3 |
 
 ### 1.2 核心贡献
 
-1. **补上缺失的基线对比**：首次把带 sinks 的 training-free SWA 与后训练线性注意力在同一口径（学生/教师性能恢复率）下直接对比，覆盖 SUPRA、Hedgehog、LoLCATs、Liger-GLA、MOHAWK、Mamba in the Llama、DiJiang、ARWKV、Llamba、QLinAtt、QRWKV6、QRWKV7 共 12 种方法、11 个预训练模型（Phi-1.5-1.3B 至 Llama 3.1-70B / Qwen2.5-72B-Instruct / QwQ，1.3B–70B 参数），短上下文与长上下文基准兼备。
+1. **补上缺失的基线对比**：首次把带 sinks 的 training-free SWA 与后训练线性注意力在同一口径（学生/教师性能恢复率）下直接对比，覆盖 SUPRA、Hedgehog、LoLCATs、Liger-GLA、MOHAWK、Mamba in the Llama、DiJiang、ARWKV、Llamba、QLinAtt、QRWKV6、QRWKV7 共 12 种方法、11 个预训练模型（Phi-1.5-1.3B 至 Llama 3.1-70B / Qwen2.5-72B-Instruct / QwQ，1.3B–72B 参数），短上下文与长上下文基准兼备。
 2. **短上下文结论**：SWA(64,4) 以 0 token 后训练、0 阶段实现 MMLU-5shot 恢复率 93.2%（13 行方法中最高）与六基准平均恢复率 99.0%（仅次于 QRWKV6 的 99.1%，后者需 350–700M token、3 个阶段）；在 11 组模型对比中有 9 组取得最佳平均下游性能（Table 2）。
-3. **长上下文结论**：S-NIAH 4K context 下 SWA 恢复全注意力准确率的 17.2–23%，而 LoLCATs 准确率至多 5.8%、Liger-GLA 至多 0.8%（Table 3）；BABILong 4K 下 SWA 恢复基线性能的 25%（绝对准确率 15%）而 LoLCATs 仅 5%（3%）（Table 4）；摘要级结论为长上下文任务 SWA 达线性注意力的 2–10 倍。
+3. **长上下文结论**：S-NIAH 4K context 下 SWA 恢复全注意力准确率的 17.2–23%，而 LoLCATs 准确率至多 5.8%、Liger-GLA 至多 0.8%（Table 4）；BABILong 4K 下 SWA 恢复基线性能的 25%（绝对准确率 15%）而 LoLCATs 仅 5%（3%）（Table 5）；摘要级结论为长上下文任务 SWA 达线性注意力的 2–10 倍。
 4. **方法论纠偏**：指出既有线性注意力论文大多只与无 sink 的 SWA 比较（论文原文 "most linear attention papers only compare linear-attention to regular (sink-free) SWA"），而无 sink 的 SWA 在首批 token 移出窗口后会灾难性崩溃，因此这类对比不成立；同时指出后训练线性化模型的长上下文行为此前研究不足。
 5. **系统效率实测**：在 4 层 Transformer（embedding 维 1024、16 个 head × 64 维、batch 1、float16、NVIDIA RTX PRO 6000 Blackwell Max-Q）上于 128–256K context 实测四种注意力的速度与内存（Figure 2）：FA 解码吞吐在 context 超过 1K 后随长度下降，SWA 全程最快且内存达到 window-size 后恒定，window=64 时内存低于 Linear、Linear+SWA（LoLCATs）与 window=512 的 SWA，据此给出工程建议——直接切换 SWA 而非后训练线性模型。
 
@@ -42,10 +42,10 @@
 - 六基准（MMLU-5shot、ARC-C、ARC-E、HellaSwag、PIQA、Winogrande）平均恢复率：SWA 为 99.0%，QRWKV6 为 99.1%，LoLCATs 为 97.5%，Liger-GLA 为 92.0%，Hedgehog 为 73.9%。
 - 11 组模型对比中 SWA 平均下游性能 9 组最佳；例外为 Phi-1.5-1.3B 上 LoLCATs 62.5% 对 SWA 62.4%，Qwen2.5-32B-Instruct 上 QRWKV6 77.3%（持平教师）对 SWA 76.6%；MMLU 唯一失利为 Llama2.0-7B 上 DiJiang 40.7% 对 SWA 39.8%（Table 2）。
 
-**长上下文推理（Table 3 / Table 4）**
+**长上下文推理（Table 4 / Table 5）**
 
-- S-NIAH（基座 Llama 3.1 8B，context 0.5K–4K，window 128/256/512）：所有 window 与 context 组合下 SWA 得分均不低于对手；4K 时 SWA 恢复全注意力准确率的 17.2–23%，LoLCATs 至多 5.8%、Liger-GLA 至多 0.8%（Table 3）。
-- BABILong（基座 Llama 3.1 8B，window 256）：2K 时 SWA 19% 对 LoLCATs 10%，4K 时 SWA 15% 对 LoLCATs 3%（恢复率 25% 对 5%）；0K 时 LoLCATs 56% 略高于 SWA 55%，两者恢复基线性能 74–76%，1K 时 22% 对 20%（Table 4）。
+- S-NIAH（基座 Llama 3.1 8B，context 0.5K–4K，window 128/256/512）：所有 window 与 context 组合下 SWA 得分均不低于对手；4K 时 SWA 恢复全注意力准确率的 17.2–23%，LoLCATs 至多 5.8%、Liger-GLA 至多 0.8%（Table 4）。
+- BABILong（基座 Llama 3.1 8B，window 256）：2K 时 SWA 19% 对 LoLCATs 10%，4K 时 SWA 15% 对 LoLCATs 3%（恢复率 25% 对 5%）；0K 时 LoLCATs 56% 略高于 SWA 55%，两者恢复基线性能 74–76%，1K 时 22% 对 20%（Table 5）。
 - 摘要级结论：长上下文任务（Needle-in-a-Haystack 与 BABILong）上 SWA 准确率为线性注意力后训练方法的 2–10 倍。
 
 **速度与内存（Figure 2，context 128–256K）**
@@ -121,7 +121,7 @@ $$\mathbf{x}_t=\frac{\sum_{i=\max(1,t-w+1)}^{t}\exp(\mathbf{q}_t\mathbf{k}_i^\to
 
 | 参数 | 取值 | 说明 |
 | --- | --- | --- |
-| $w$（窗口大小） | 64–512 | 短上下文主配置 64（Table 1/2），长上下文实验取 128/256/512（Table 3/4） |
+| $w$（窗口大小） | 64–512 | 短上下文主配置 64（Table 1/2），长上下文实验取 128/256/512（Table 4/5） |
 | $s$（sink 数） | 恒为 4 | 遵循 Xiao et al. (2024) 的简单修复，不做调参 |
 | 后训练 tokens | 0 | 不更新任何参数 |
 | 后训练阶段数 | 0 | 无 LoRA、无蒸馏、无权重替换 |
@@ -131,7 +131,7 @@ $$\mathbf{x}_t=\frac{\sum_{i=\max(1,t-w+1)}^{t}\exp(\mathbf{q}_t\mathbf{k}_i^\to
 
 ### 3.3 对比协议：模型、基准与公平性原则
 
-**基座模型**：11 个预训练 LLM，参数跨度 1.3B–70B，每个基座对应其文献中已有的线性化 student：
+**基座模型**：11 个预训练 LLM，参数跨度 1.3B–72B，每个基座对应其文献中已有的线性化 student：
 
 | 基座模型 | 参数规模 | 对比的线性化方法（student） |
 | --- | --- | --- |
@@ -162,7 +162,7 @@ $$\mathbf{x}_t=\frac{\sum_{i=\max(1,t-w+1)}^{t}\exp(\mathbf{q}_t\mathbf{k}_i^\to
 
 ### 4.1 基座模型
 
-论文在 11 个预训练基座模型上对比训练-free SWA 与线性注意力后训练方法，模型规模覆盖 1.3B 至 70B：
+论文在 11 个预训练基座模型上对比训练-free SWA 与线性注意力后训练方法，模型规模覆盖 1.3B 至 72B：
 
 | 模型族 | 模型 | 参数量 |
 |--------|------|--------|
@@ -200,7 +200,7 @@ $$\mathbf{x}_t=\frac{\sum_{i=\max(1,t-w+1)}^{t}\exp(\mathbf{q}_t\mathbf{k}_i^\to
 
 ### 5.1 短上下文：性能恢复率对比（Table 1）
 
-Table 1 汇总了各方法相对 Teacher 基线的性能恢复率（student 分数 ÷ teacher 分数）。SWA(64, 4) 以 **0 token 后训练**取得 93.2% 的 MMLU 恢复率与 99.0% 的平均恢复率，是唯一同时在这两项上领先的配置：
+Table 1 汇总了各方法相对 Teacher 基线的性能恢复率（student 分数 ÷ teacher 分数）。SWA(64, 4) 以 **0 token 后训练**取得 93.2% 的 MMLU 恢复率与 99.0% 的平均恢复率，MMLU 恢复率在全部 13 行方法中最高，平均恢复率与 QRWKV6 的 99.1% 基本持平：
 
 | 方法 | 后训练 Tokens | Stages | MMLU 恢复 (%) | 平均恢复 (%) |
 |------|:---:|:---:|:---:|:---:|
@@ -332,9 +332,9 @@ Table 2 给出 11 个基座模型 × 6 基准的完整数值。列序：MMLU (5-
 - 值得注意的反常现象：QwQ-32B 上 SWA(64,4) 的 6 项指标与 Teacher 完全相同（79.9/55.6/81.0/84.1/79.8/70.5），说明该模型窗口内注意力覆盖已足以复现全部评估性能。
 - 线性注意力方法在部分模型上出现**灾难性退化**（如 Llama3.0-8B 上 Hedgehog 平均仅 53.1、GLA 在 Qwen3-8B 上仅 51.3），而 SWA 从未出现此类塌缩。
 
-### 5.3 附录 A.2：自训线性注意力变体（Table 5）
+### 5.3 附录 A.2：自训线性注意力变体（Table 7）
 
-作者以 ~0.1B tokens 的 cleaned-Alpaca 两阶段蒸馏自行训练线性注意力变体（Gated DeltaNet、GLA、QRWKV6），结论一致：SWA 全面优于，线性变体几乎全部塌缩至随机水平附近：
+作者以 ~0.1B tokens 的 cleaned-Alpaca 两阶段蒸馏自行训练线性注意力变体（Gated DeltaNet、GLA、QRWKV6），结论一致：SWA 全面优于，线性变体在 MMLU 上塌缩至随机水平附近：
 
 **Qwen3-8B**
 
@@ -366,9 +366,9 @@ Table 2 给出 11 个基座模型 × 6 基准的完整数值。列序：MMLU (5-
 | GLA | 23.7 | 45.0 | 75.9 | 60.0 | 74.3 | 52.8 | 55.3 |
 | QRWKV6 | 25.7 | 40.1 | 72.7 | 57.3 | 74.6 | 53.2 | 53.9 |
 
-三个现代架构上，Gated DeltaNet/GLA/QRWKV6 经 0.1B tokens 蒸馏后平均分全部落在 45.7-56.1 区间（接近或低于随机水平），而 SWA(64,4) 保持在 Teacher 的 96-99% 水平。
+三个现代架构上，Gated DeltaNet/GLA/QRWKV6 经 0.1B tokens 蒸馏后平均分全部落在 45.7-56.1 区间（高于六基准约 33% 的随机平均），而 SWA(64,4) 平均恢复约 98.7-99.3%。
 
-### 5.4 长上下文：S-NIAH（Table 3）
+### 5.4 长上下文：S-NIAH（Table 4）
 
 基座模型为 Llama 3.1 8B，对比 SWA、LoLCATs(+SWA)、Liger-GLA(+SWA) 在窗口 128/256/512 与上下文 0.5K-4K 下的 S-NIAH-1/2/3 表现：
 
@@ -387,7 +387,7 @@ Table 2 给出 11 个基座模型 × 6 基准的完整数值。列序：MMLU (5-
 
 在**所有窗口大小与上下文长度**下，SWA 的得分均 ≥ 线性注意力方法。4K 上下文下，SWA 恢复了全注意力准确率的 **17.2%-23%**（S-NIAH-3），而 LoLCATs 最高仅 5.8%、Liger-GLA 最高仅 0.8%——差距达 3-20 倍。
 
-### 5.5 长上下文：BABILong（Table 4）
+### 5.5 长上下文：BABILong（Table 5）
 
 BABILong 平均（QA1-QA5 均值，窗口 256，基座 Llama 3.1 8B）：
 
@@ -399,7 +399,7 @@ BABILong 平均（QA1-QA5 均值，窗口 256，基座 Llama 3.1 8B）：
 
 短上下文（0K-1K）下 LoLCATs 略高（56 vs 55、22 vs 20），但上下文拉长后 SWA 优势显著扩大：2K 时 19 vs 10，4K 时 **15 vs 3**。相对全注意力基线：0K 时两者恢复 74%–76%；4K 时 SWA 恢复 **25%**，LoLCATs 仅恢复 **5%**。
 
-完整的 QA1-QA5 分任务结果见附录（Table 6）：
+完整的 QA1-QA5 分任务结果见附录（Table 8）：
 
 | 模型 | QA1 (0K/1K/2K/4K) | QA2 | QA3 | QA4 | QA5 |
 |------|:---:|:---:|:---:|:---:|:---:|
@@ -419,16 +419,16 @@ BABILong 平均（QA1-QA5 均值，窗口 256，基座 Llama 3.1 8B）：
 
 论文的核心实证结论可以概括为三条：
 
-1. **短上下文**：训练-free 的 SWA(64, 4) 在 11 个模型上平均恢复 Teacher 性能的 99.0%，与需要 350M-100B tokens 后训练的 SOTA 线性注意力方法（QRWKV6 99.1%）持平，且以 0 训练成本胜出；
+1. **短上下文**：训练-free 的 SWA(64, 4) 在 11 个模型上平均恢复 Teacher 性能的 99.0%，与需要 350–700M token、3 个阶段后训练的 SOTA 线性注意力方法（QRWKV6 99.1%）持平，且以 0 训练成本胜出；
 2. **长上下文**：SWA 对线性注意力后训练的领先从 2 倍到 10 倍不等（S-NIAH 4K：SWA 17.2-23% vs LoLCATs ≤5.8%；BABILong 4K：15 vs 3），线性注意力在长上下文上几乎完全失效；
-3. **效率**：SWA 无需后训练、无需专用 kernel，解码速度最快，内存随窗口封顶——是「性能 × 成本」权衡下的最优解。
+3. **效率**：SWA 无需后训练、无需专用 kernel，解码速度最快，内存随窗口封顶——在短上下文 log-likelihood 基准上是「性能 × 成本」权衡下的最优解；但生成任务需要更大窗口（$w=64$ 在 GSM8K 上崩塌，论文报告 $w=512$ 才在各基座上取得最佳平均）。
 ## 第 6 章 局限性与结论
 
 ### 6.1 局限性
 
 1. **仅评估 training-free SWA**：本文所有 SWA 结果均来自零后训练的直接 mask 替换，因此报告的是该路线的 performance 下界。既有工作已表明后训练可以继续抬升 SWA 上限——SWAA（Yu et al., 2025）对 SWA 做后训练，gpt-oss（Agarwal et al., 2025）使用可学习 attention sinks——而本文的对比尚未触及这些增强配置。
 2. **未考虑 FA 混合架构**：部分层保留全注意力、其余层线性化（或 SWA 化）的混合模型未纳入对比（见 3.3 节公平性原则），其在内存-性能权衡中的位置留待后续。
-3. **覆盖范围有限**：结论基于 1.3B–70B 参数、6 项短上下文基准与 2 项长上下文基准，未评估超大规模模型、agentic 工作流以及多模态/视频等场景。
+3. **覆盖范围有限**：结论基于 1.3B–72B 参数、6 项短上下文基准与 2 项长上下文基准，未评估超大规模模型、agentic 工作流以及多模态/视频等场景。
 4. **跨模态先例待检验**：视频扩散领域已有 Sliding Tile Attention 的正面先例——在 HunyuanVideo 上取得 3.53× 速度提升并恢复 97% VBench 分数——提示局部窗口注意力思想可迁移至时空 token 序列，但本文未做多模态实验。
 
 ### 6.2 未来工作
@@ -439,10 +439,10 @@ BABILong 平均（QA1-QA5 均值，窗口 256，基座 Llama 3.1 8B）：
 
 ### 6.3 结论
 
-本文在 11 个基座模型（1.3B–70B）、6 项短上下文基准与 2 项长上下文基准上，首次将带 4 个 attention sinks 的 training-free SWA 与 12 种后训练线性注意力方法置于同一恢复率口径下对比，得到三个层次的结论：
+本文在 11 个基座模型（1.3B–72B）、6 项短上下文基准与 2 项长上下文基准上，首次将带 4 个 attention sinks 的 training-free SWA 与 12 种后训练线性注意力方法置于同一恢复率口径下对比，得到三个层次的结论：
 
-1. **短上下文**：SWA(64, 4) 以 0 token 后训练、0 个后训练阶段恢复教师模型六基准平均性能的 99.0%（MMLU-5shot 恢复 93.2%，为 Table 1 全部 13 行方法中最高），在 11 组模型对比中 9 组取得最佳平均下游性能，优于或持平所有需要 20M–100B token 后训练的线性化方法。
+1. **短上下文**：SWA(64, 4) 以 0 token 后训练、0 个后训练阶段恢复教师模型六基准平均性能的 99.0%（MMLU-5shot 恢复 93.2%，为 Table 1 全部 13 行方法中最高），在 11 组模型对比中 9 组取得最佳平均下游性能，整体上优于或持平绝大多数需要 20M–100B token 后训练的线性化方法（例外见 5.2 节）。
 2. **长上下文**：SWA 的优势进一步放大——S-NIAH 4K context 下 SWA 恢复全注意力准确率的 17.2–23%，而 LoLCATs 至多 5.8%、Liger-GLA 至多 0.8%；BABILong 4K 下 SWA 恢复基线的 25% 对 LoLCATs 的 5%；摘要级结论为长上下文任务上 SWA 准确率达后训练线性注意力的 2–10 倍。
 3. **效率**：SWA 解码吞吐全程最高（快于 Linear、Linear+SWA 与各窗口配置的对比组），KV cache 内存增长至 window-size 后恒定，且无需后训练流程与专用 kernel。
 
-据此作者给出强实践建议：为降低推理内存成本，应直接切换到 SWA with sinks 而非后训练线性模型——在 $w=64$、$s=4$ 的配置下，以封顶于 64 个 token 的固定 KV 内存与全程最高的解码吞吐，即可保留 99.0% 的平均短上下文性能，并获得长上下文上 2–10 倍于后训练线性注意力的准确率。
+据此作者给出强实践建议：为降低推理内存成本，应直接切换到 SWA with sinks 而非后训练线性模型。在短上下文 log-likelihood 基准上，$w=64$、$s=4$ 即以封顶于 64 个 token 的固定 KV 内存与全程最高的解码吞吐保留 99.0% 的平均性能；长上下文实验使用 $w=128/256/512$（BABILong 为 256），并获得 2–10 倍于后训练线性注意力的准确率。生成任务（GSM8K/HumanEval）则需要更大窗口，$w=64$ 会在 GSM8K 上崩塌，论文报告 $w=512$ 才在各基座上取得最佳平均。

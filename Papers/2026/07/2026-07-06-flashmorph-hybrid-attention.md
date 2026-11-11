@@ -1,7 +1,7 @@
 # Morphing into Hybrid Attention Models：FlashMorph 方法与实验分析
 
 > **论文标题**: Morphing into Hybrid Attention Models  
-> **作者**: Disen Lan (Fudan University), Jianbin Zheng, Yuxi Ren, Xin Xia, Xuanda Wang, Xuefeng Xiao (ByteDance Seed), Xipeng Qiu† (Fudan University), Yu Cheng† (The Chinese University of Hong Kong)  
+> **作者**: Disen Lan (Fudan University / ByteDance Seed；工作完成于 ByteDance Seed), Jianbin Zheng, Yuxi Ren, Xin Xia, Xuanda Wang, Xuefeng Xiao (ByteDance Seed), Xipeng Qiu† (Fudan University), Yu Cheng† (The Chinese University of Hong Kong)  
 > **发表**: arXiv:2606.30562, 2026年6月  
 > **分类**: cs.CL  
 > **代码**: https://github.com/LanDisen/FlashMorph  
@@ -25,25 +25,25 @@ Transformer 架构是大语言模型（LLM）的核心骨干，但其 softmax at
 | **搜索方法** | PostNAS | 训练超网后搜索最优子结构 | 需训练超网并评估大量子结构，选择成本 50B tokens |
 | **逐层打分** | KL-LS | 逐层独立替换后计算 KL 散度排序 | 孤立评估单层重要性，忽略层间互补与冗余；成本 20B tokens |
 | **逐层评估** | HALO | 逐层替换并评估性能损失后排序 | 仍需逐层操作；成本 234M tokens，仍较大 |
-| **本文方法** | **FlashMorph** | 联合优化 gate 值实现全局最优选择 | 仅需 20M tokens，且考虑层间依赖 |
+| **本文方法** | **FlashMorph** | 联合优化 gate 值，在全局混合配置下选择 | 仅需 20M tokens，且考虑层间依赖 |
 
 ### 1.3 核心贡献
 
-1. **问题形式化新视角**：首次将混合层选择形式化为**预算约束的子集优化问题**，突破固定模式分配和孤立逐层打分的局限，揭示了层间依赖关系对选择结果的根本影响
+1. **问题形式化新视角**：将混合层选择形式化为**预算约束的子集优化问题**，突破固定模式分配和孤立逐层打分的局限，并在选择中考虑层间依赖关系
 2. **FlashMorph 方法**：构建**可变形模型（morphable model）**，冻结 full-attention backbone 和 linear-attention 分支的全部权重，仅联合优化逐层 gate 值 + 线性化正则化。在大幅降低选择成本的同时，通过联合优化天然捕捉了层间的互补性与冗余性
 3. **极致效率**：仅需 **20M tokens** 完成层选择（对比 HALO 的 234M、KL-LS 的 20B、PostNAS 的 50B），且选择成本随模型规模增长保持稳定
-4. **全面验证**：在 Qwen3 系列（0.6B/1.7B/8B/30B-A3B）× 三种线性注意力变体（Lightning Attention-2、GLA、GDN）上验证，覆盖长上下文检索（NIAH、RULER）、常识推理（ARC、PIQA、HellaSwag、WinoGrande）和召回密集型任务（SQuAD、FDA、SWDE）
+4. **全面验证**：在 Qwen3 系列上验证：0.6B/1.7B 覆盖三种线性注意力变体（Lightning Attention-2、GLA、GDN），8B/30B-A3B 在 HypeNet 设置（Lightning）下验证，覆盖长上下文检索（NIAH、RULER）、常识推理（ARC、PIQA、HellaSwag、WinoGrande）和召回密集型任务（SQuAD、FDA、SWDE）
 5. **开源**：完整代码已在 GitHub（github.com/LanDisen/FlashMorph）发布
 
 ### 1.4 方法对比总览
 
-| 方法 | 选择成本 (tokens) | 非孤立选择 | 基于优化 | 大规模可扩展 |
-|------|:----------------:|:---------:|:--------:|:----------:|
-| Uniform | N/A | ✗ | ✗ | ✓ |
-| PostNAS | 50B | △ | ✓ | ✗ |
-| KL-LS | 20B | ✗ | ✓ | ✗ |
-| HALO | 234M | ✗ | ✗ | △ |
-| **FlashMorph（本文）** | **20M** | **✓** | **✓** | **✓** |
+| 方法 | 选择成本 (tokens) | 非孤立选择 | 基于优化 |
+|------|:----------------:|:---------:|:--------:|
+| Uniform | N/A | ✗ | ✗ |
+| PostNAS | 50B | △ | ✓ |
+| KL-LS | 20B | ✗ | ✓ |
+| HALO | 234M | ✗ | ✗ |
+| **FlashMorph（本文）** | **20M** | **✓** | **✓** |
 
 ## Ch2 研究背景与动机
 
@@ -163,7 +163,7 @@ $$\mathcal{L}_{\text{total}} = \mathcal{L}_{\text{align}} + \lambda \mathcal{L}_
 - 在 1K–16K token 上下文中，在 1000 个候选深度点上随机插入 **10 个随机生成 passkey**（每 key 含 32 词）
 - 模型需在序列末尾**逐一召回全部 10 个 passkey**
 - 该数据**仅用于优化 gate**，不更新模型权重
-- 合成数据避免了真实数据的分布偏差，提供了密集的长程检索监督
+- 合成数据提供了密集、针对性的长程检索监督（避免通用语言建模目标被局部依赖主导）
 
 ### 3.5 离散化与后续训练
 
@@ -244,7 +244,7 @@ Require: Full-attention model M_full (L layers); training data D;
 |------|:-------:|:--------------------------------:|:--------------------------------:|:--------------------------------:|
 | Qwen3 原版 | — | 100/100/0/0 | 100/98.8/0/0 | 99.8/96.4/0/0 |
 | Uniform | N/A | 99.8/99.6/99.6/100 | 71.8/86.8/28.4/19.2 | 58.6/59.4/16.4/27.8 |
-| PostNAS | 50B | 99.2/99.4/99.8/99.2 | 96.8/95.6/78.0/73.8 | 56.4/51.2/57.2/57.6 |
+| PostNAS（层选择取自 [11]） | 50B | 99.2/99.4/99.8/99.2 | 96.8/95.6/78.0/73.8 | 56.4/51.2/57.2/57.6 |
 | KL-LS | 20B | 98.6/98.6/98.0/94.4 | 62.2/68.6/47.4/34.6 | 22.8/4.0/9.4/3.8 |
 | HALO | 234M | 99.8/100/100/100 | 99.6/98.6/95.0/95.2 | 86.4/90.8/67.4/52.8 |
 | **FlashMorph** | **20M** | **100/100/100/100** | **99.6/100/98.2/88.2** | **96.6/95.4/94.4/73.2** |
@@ -262,7 +262,7 @@ FlashMorph 在 1.7B 上以仅 20M tokens 的选择成本（HALO 的 1/11.7、Pos
 | | HALO | 97.6/98.6/99.4/99.0 | 94.8/79.4/61.2/27.6 | 47.0/17.8/12.0/0.8 |
 | | **FlashMorph** | **98.6/96.2/94.0/91.4** | **70.2/53.6/21.4/9.6** | **32.6/38.2/24.6/18.2** |
 
-在 8B 上，FlashMorph 的 NIAH-Single-3 表现远超所有基线（99.4%/98.2%/92.4%/94.0% vs HALO 的 89.8%/85.2%/75.0%/50.8%）。在 30B-A3B 上 FlashMorph 略弱于其他方法，作者归因于 MoE 架构中层间依赖更为复杂。
+在 8B 上，FlashMorph 的 NIAH-Single-3 表现远超所有基线（99.4%/98.2%/92.4%/94.0% vs HALO 的 89.8%/85.2%/75.0%/50.8%）。在 30B-A3B 上 FlashMorph 弱于基线（如 NIAH-Single-2 128K/256K 为 21.4/9.6，低于 HALO 的 61.2/27.6）；论文未分析这一差距的原因。
 
 ### 4.3 常识推理与召回任务
 
@@ -300,7 +300,7 @@ FlashMorph 在 1.7B 上以仅 20M tokens 的选择成本（HALO 的 1/11.7、Pos
 | | HALO | 26.5 | 62.0 | 71.2 | 53.2 |
 | | **FlashMorph** | **38.4** | **71.3** | **76.7** | **62.1** |
 
-FlashMorph 在常识推理上保持与最强基线**持平或略优**（差距 ≤0.6 分），但在召回密集型任务上持续领先，在 GDN 变体上 Recall Avg. 达 62.1（vs KL-LS 60.6、HALO 53.2）。
+FlashMorph 在常识推理上与最强基线基本持平（0.6B 上差距 ≤0.5 分，Lightning 下低 0.5 分），但在召回密集型任务上持续领先，在 GDN 变体上 Recall Avg. 达 62.1（vs KL-LS 60.6、HALO 53.2）。
 
 ### 4.4 推理效率分析
 
@@ -331,7 +331,7 @@ FlashMorph 的混合模型可处理 **512K prefill + 1M decode**，而原版 Qwe
 
 | 方法 | 选择成本 (tokens) | FLOPs | GPU 小时 | 相比 FlashMorph 倍数 |
 |------|:----------------:|:-----:|:--------:|:-----------------:|
-| PostNAS | 50B | 8.0×10²⁰ | 2561.3 | **1219.7×** |
+| PostNAS（数据由 [23] 计算） | 50B | 8.0×10²⁰ | 2561.3 | **1219.7×** |
 | KL-LS | 20B | 2.5×10²⁰ | 1071.8 | **510.4×** |
 | HALO | 234M | 6.5×10¹⁷ | 15.4 | **7.3×** |
 | **FlashMorph** | **20M** | **2.5×10¹⁷** | **2.1** | **1×** |
@@ -368,7 +368,7 @@ FLOPs 对比：FlashMorph（2.5×10¹⁷）vs HALO（6.5×10¹⁷）— 仅 **38
 1. **合成数据依赖性**：层选择阶段依赖合成的 passkey 检索数据。虽然 LM 监督也有效（RULER 57.2–61.6），但合成数据效果更好（59.0–64.7）。对超出合成数据分布的检索模式（如跨文档推理、多跳推理）的适应性有待验证
 2. **大规模评估有限**：在 8B 和 30B-A3B 规模上仅与 Uniform 和 HALO 对比（PostNAS/KL-LS 在此规模复制成本过高），且仅在 HypeNet 设置下评估。MoE 架构（30B-A3B）下 FlashMorph 的优势不显著，可能需针对 MoE 调整方法
 3. **线性注意力变体覆盖**：当前验证了 Lightning Attention-2、GLA、GDN 三种变体，对更新的线性注意力架构（如 Mamba-3、HGRN2）和状态空间模型的兼容性未测试
-4. **蒸馏阶段仍有 Token 开销**：虽然层选择仅需 20M tokens（0.02B），但后续蒸馏（1B tokens）和长上下文微调（1B tokens）需要总约 2.02B tokens 的迁移成本
+4. **蒸馏阶段仍有 Token 开销**：虽然层选择仅需 20M tokens（0.02B），但整个四阶段转换流程（320M 对齐 + 20M 选择 + 1B 蒸馏 + 1B 微调）总计约 2.34B tokens 的迁移成本
 5. **1.7B 以上无法完全复现基线**：在 8B/30B-A3B 上因 PostNAS/KL-LS 的计算成本过高而无法复制其所有结果，仅维持与 HALO 和 Uniform 的对比
 
 ### 5.2 未来方向
@@ -381,7 +381,7 @@ FLOPs 对比：FlashMorph（2.5×10¹⁷）vs HALO（6.5×10¹⁷）— 仅 **38
 
 ### 5.3 总结
 
-FlashMorph 将 Transformer-to-hybrid conversion 中的层选择从启发式孤立打分升级为**基于联合优化的全局最优选择**，在仅需 20M tokens（2.1 GPU hours）选择成本下，实现了 NIAH 全长度完美召回（100%）、1.56–2.81× 推理加速，且选择成本仅为 HALO 的 1/11.7、KL-LS 的 1/1000、PostNAS 的 1/2500。这项工作为将现有 Transformer 高效转化为混合注意力模型提供了实用且可扩展的方案，代码已开源于 github.com/LanDisen/FlashMorph。
+FlashMorph 将 Transformer-to-hybrid conversion 中的层选择从启发式孤立打分升级为**基于联合优化的全局混合配置选择**，在仅需 20M tokens（2.1 GPU hours）选择成本下，在 Qwen3-1.7B 的 NIAH-Single-1 上实现全长度完美召回（100%）、1.56–2.81× 推理加速，且选择成本仅为 HALO 的 1/11.7、KL-LS 的 1/1000、PostNAS 的 1/2500。这项工作为将现有 Transformer 高效转化为混合注意力模型提供了实用且可扩展的方案，代码已开源于 github.com/LanDisen/FlashMorph。
 
 ## 附录A：FlashMorph 完整超参数配置
 
@@ -424,4 +424,4 @@ response Based on the content of the book, what is the first passkey to the vaul
 
 ## 附录C：相关工作对比
 
-FlashMorph 与现有方法的根本区别在于其**联合优化**框架。现有方法（KL-LS、HALO）的逐层打分本质上假设各层重要性可加性分解，但实际中层的功能存在高度耦合——例如，前几层（token 嵌入到语义抽象）和后几层（输出生成）的功能不同，中间层可能有冗余。FlashMorph 通过联合优化 gate 值，自动发现这种结构化模式：实验发现 FlashMorph 选择的 top 层往往集中在中间层（如 Qwen3-0.6B + Lightning 下，层 1、16、21 为 top-3），这与「中间层对上下文信息整合最关键的」直觉一致。
+FlashMorph 与现有方法的根本区别在于其**联合优化**框架。现有方法（KL-LS、HALO）的逐层打分本质上假设各层重要性可加性分解，但实际中层的功能存在高度耦合——例如，前几层（token 嵌入到语义抽象）和后几层（输出生成）的功能不同，中间层可能有冗余。FlashMorph 通过联合优化 gate 值，自动发现这种结构化模式：实验发现 FlashMorph 选择的 top 层分布并不均匀，既包含首层 1 也包含中间层（如 Qwen3-0.6B + Lightning 下 top-3 为 1、16、21）。

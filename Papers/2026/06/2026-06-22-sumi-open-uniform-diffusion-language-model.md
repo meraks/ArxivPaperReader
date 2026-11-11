@@ -22,7 +22,7 @@ Sumi 是首个在 7B 参数规模和 1.5T token 预训练预算下，从零开�
 1. **首次大规模 UDLM 从零预训练**：Sumi 在 7B 参数/1.5T token 规模下完成从零预训练，是首个达到此规模的统一扩散语言模型
 2. **全面的开源发布**：模型权重、中间检查点、完整训练配方、数据混合规格全部公开
 3. **与 AR 模型的竞争性对比**：在知识、推理、编程基准上与同 token 预算的 AR 模型 (Falcon-7B、Llama 2-7B、OLMo-7B) 性能相当
-4. **诚实的不足报告**：在常识基准上显著弱于 AR 模型，归因于教育偏重 (education-heavy) 的数据混合策略
+4. **诚实的不足报告**：在常识基准上显著弱于 AR 模型，论文指出教育偏重 (education-heavy) 的数据混合可能是原因之一，但未直接验证这一归因
 
 ### 训练资源
 
@@ -32,7 +32,7 @@ Sumi 是首个在 7B 参数规模和 1.5T token 预训练预算下，从零开�
 
 ### 模型性能概览
 
-在知识基准 (MMLU 51.1)、推理 (GSM8K* 32.8)、编程 (HumanEval* 22.6) 上与同规模 AR 模型竞争，但在常识推理 (RACE 41.4) 上明显偏弱。
+在知识基准 (MMLU 51.1)、推理 (GSM8K* 32.8)、编程 (HumanEval* 22.6) 上与同规模 AR 模型竞争，但在常识基准 (PIQA 66.4、HellaSwag 60.0、WinoGrande 60.0) 上明显偏弱；RACE 41.4 属于通用知识，且为同 protocol 模型中的最佳值。
 
 ---
 
@@ -103,9 +103,9 @@ Sumi 采用标准 LLaMA 风格架构，关键配置如下：
 | Dropout | 不使用 |
 | Attention Sink | off-by-one softmax |
 
-**RoPE 基频选择**：θ=500,000 相比标准 RoPE 的 10,000 更大，使得低频位置的高频编码更细致，有助于模型学习长距离依赖。这是 Sumi 能够从 1,184 扩展到 4,864 序列长度的重要因素。
+**RoPE 基频配置**：论文将 RoPE 的 θ 设为 500,000。中期训练阶段将序列长度从 1,184 扩展到 4,864；论文未将这一扩展归因于 RoPE 基频选择。
 
-**off-by-one softmax**：在 softmax 计算前为 logits 增加一个小的偏置项，防止注意力 logits 全部集中在特定 token 上（attention sink 现象）。这一技术此前在 AR 模型的长期推理中被证明有效。
+**off-by-one softmax**：在注意力 softmax 的分母中额外加 1（等价于增加一个零 logit），以缓解 attention sink 现象。
 
 #### 架构变体
 
@@ -120,7 +120,7 @@ Sumi 的数学基础是广义插值离散扩散 (Generalized Interpolating Discr
 1. **前向过程**：从均匀噪声分布采样，逐步向数据 $x_0$ 添加噪声
 2. **反向过程**：学习去噪网络 $p_\theta(x_{t-1}|x_t)$ 逐步恢复干净数据
 
-Sumi 的关键改进是 **SNR-reparameterized ELBO**——将 GIDD 的证据下界重新参数化为信噪比 (Signal-to-Noise Ratio) 的函数。这一重参数化使得：
+Sumi 采用 von Rütte et al. (2026) 的 **SNR-reparameterized ELBO**——将 GIDD 的证据下界重新参数化为信噪比 (Signal-to-Noise Ratio) 的函数。这一重参数化使得：
 - 噪声调度 (noise schedule) 与模型优化解耦
 - 不同噪声水平的学习目标可以通过 SNR 统一衡量
 - 训练更加稳定，对噪声调度超参数的选择更鲁棒
@@ -183,7 +183,7 @@ Sumi 的预训练数据全部来自 **llm-jp-corpus-v4** 和 **v4.1** ——日�
 - **swallow_code_v2**：Python 编程数据
 - **en_fineweb-rescored** (v4.1)：FineWeb 文档经教育评分后重新排序
 
-**教育评分机制**：使用 Qwen3-32B 模型对 FineWeb 文档的教育价值进行评分（从 0 到 5），然后将评分最高的子集作为预训练数据。这一筛选策略使得 Sumi 的预训练数据偏向于教科书、教程、学术文章等高教育价值内容。
+**教育评分机制**：遵循 FineWeb-Edu 方法，使用由 Qwen3-32B 标注蒸馏出的轻量分类器为 FineWeb 文档标注教育分数（0–5），然后将评分最高的子集作为预训练数据。这一筛选策略使得 Sumi 的预训练数据偏向于教科书、教程、学术文章等高教育价值内容。
 
 ### 4.2 中期训练数据混合
 
@@ -198,18 +198,18 @@ Sumi 的预训练数据全部来自 **llm-jp-corpus-v4** 和 **v4.1** ——日�
 
 **关键调整**：
 - **代码降采样**：原始 `nemotron_pretraining_code_v2` 有 491B token，被显著降采样到 63B token，以避免编程数据过度主导
-- **数学增强**：从 `en_megamath-web-pro-max-oss` 添加高质量数学数据，经过 math_score 过滤，最终仅 74.3B token
+- **数学增强**：从 `en_megamath-web-pro-max-oss` 添加高质量数学数据，按 math_score 过滤后最多保留 48.9B token；加上其他数学数据，中期训练的数学桶合计 74.3B token
 - **推理过滤**：仅保留长度 ≤ 4,096 tokens 的推理样本，丢弃过长样本（约 55% 被过滤）
 
 ### 4.3 教育偏重策略的影响
 
-教育偏重数据混合的最直接后果是 **常识基准性能显著偏弱**：
+与教育偏重数据混合相关的突出表现是 **常识基准性能显著偏弱**（论文称数据混合是 likely contributor，但未直接验证归因）：
 
 - PIQA: 66.4 (vs Falcon-7B 80.5, Llama 2-7B 78.7)
 - HellaSwag: 60.0 (vs Falcon-7B 76.3, Llama 2-7B 76.2)
 - WinoGrande: 60.0 (vs Falcon-7B 71.6, OLMo-7B 71.3)
 
-这些差距不能仅用 token 预算解释（Llama 2-7B 2T vs Sumi 1.5T 差距不大），而更可能是数据分布差异。论文明确指出，教育偏重数据混合是主因但不是唯一原因——UDLM 本身的生成范式也可能影响常识任务表现。
+这些差距不能仅用 token 预算解释（Llama 2-7B 2T vs Sumi 1.5T 差距不大），而更可能是数据分布差异。论文称教育偏重数据混合是该差距的 likely contributor，并明确提醒该差距过大、不能仅归因于数据组成；论文未声称 UDLM 生成范式会影响常识任务表现，也未直接验证这一归因。
 
 **教育偏重同时带来正面效应**：在知识密集任务（MMLU 51.1）、数学推理（GSM8K 32.8）、编程（HumanEval 22.6）上，Sumi 在同 protocol 模型中实现了最优或接近最优的性能。
 
@@ -255,25 +255,17 @@ LLaDA-8B 和 Llama 3-8B 作为参考模型，但使用不同的评估 protocol�
 | | HellaSwag | 60.0 | **76.3** | 76.2 | 75.6 |
 | | WinoGrande | 60.0 | 71.6 | **74.7** | 71.3 |
 
-注：带 * 的任务使用 generation 模式评估（5-shot）。**加粗** 表示同 protocol 模型中的最佳值（LLaDA-8B 和 Llama 3-8B 使用不同 protocol，未在表中列出）。
+注：带 * 的任务使用 generation 模式评估，shot 数各不相同（GSM8K 4、BBH 3、HumanEval 0、MBPP 3）。**加粗** 表示同 protocol 模型中的最佳值（LLaDA-8B 和 Llama 3-8B 使用不同 protocol，未在表中列出）。
 
-在知识基准（MMLU）上，Sumi-7B 达到 51.1%，在同 protocol 模型中表现最佳。推理与数学基准中，GSM8K* 达到 32.8%。编程基准 HumanEval* 达到 22.6%，同样在同 protocol 模型中领先。常识基准（PIQA、HellaSwag、WinoGrande）上 Sumi-7B 显著弱于所有 AR 基线，这一差距被归因于教育偏重的数据混合。
+在知识基准（MMLU）上，Sumi-7B 达到 51.1%，在同 protocol 模型中表现最佳。推理与数学基准中，GSM8K* 达到 32.8%。编程基准 HumanEval* 达到 22.6%，同样在同 protocol 模型中领先。常识基准（PIQA、HellaSwag、WinoGrande）上 Sumi-7B 显著弱于所有 AR 基线，论文称教育偏重的数据混合是该差距的 likely contributor（未直接验证归因）。
 
 ### 5.3 Canvas 长度敏感性分析
 
-Canvas 长度对模型性能的影响因任务而异。GSM8K 对 canvas 长度最为敏感，不同长度下的性能波动较大。这表明需要较长的上下文窗口来支持多步推理。部分常识任务对 canvas 长度相对不敏感，较短的 canvas 即可达到稳定性能。
+Canvas 长度对模型性能的影响因任务而异。GSM8K 对 canvas 长度最为敏感，不同长度下的性能波动较大。这表明需要较长的上下文窗口来支持多步推理。该分析覆盖 GSM8K、HumanEval、MBPP、BBH-Logic3 四个生成任务，不含常识任务；其余三个任务退化更温和，且集中在短 canvas，长 canvas 下趋于平稳。
 
 长 canvas（训练长度 2.5 倍以内）对大部分任务仍保持流畅性。GSM8K 在短 canvas 下性能急剧下降，在长 canvas 下也出现波动。编程任务仅在短 canvas 下性能下降，长 canvas 下仍表现良好。
 
-### 5.4 Token 预测类别分布
-
-对比分析自回归（AR）模型与扩散模型的 token 预测分布：
-- AR 模型倾向于频繁预测高频 token
-- Sumi 和 LLaDA 的 token 预测分布更加均匀
-
-这一差异反映了扩散模型的去噪机制与 AR 模型的因果性生成机制的本质不同。
-
-### 5.5 与 AR 模型的对比
+### 5.4 与 AR 模型的对比
 
 Sumi 与同规模 AR 模型的关键对比：
 
@@ -411,7 +403,7 @@ generated_text = tokenizer.decode(output.sequences[0], skip_special_tokens=True)
 
 #### 常识性能偏弱
 
-Sumi 最显著的局限是常识基准上的弱势——PIQA 66.4%、HellaSwag 60.0%、WinoGrande 60.0%，均低于所有同 protocol AR 模型。论文归因于教育偏重数据混合，但也指出 UDLM 的生成范式本身可能不是常识任务的最优选择。作者计划通过 SFT 来缓解这一问题。
+Sumi 最显著的局限是常识基准上的弱势——PIQA 66.4%、HellaSwag 60.0%、WinoGrande 60.0%，均低于所有同 protocol AR 模型。论文称教育偏重数据混合是该差距的 likely contributor，并提醒该差距过大、不能仅归因于数据组成；论文未声称 UDLM 生成范式会影响常识任务表现，也未直接验证这一归因。论文提到将发布 instruction-tuned 版本，但未将其与这一差距直接关联。
 
 #### Canvas 长度约束
 
@@ -419,11 +411,11 @@ Sumi 最显著的局限是常识基准上的弱势——PIQA 66.4%、HellaSwag 6
 
 #### 分隔符锚定机制
 
-当前方案需要将 `<|endoftext|><|beginoftext|>` 分隔符锚定在 `max_new_tokens` 位置后，这是一种临时约束——因为 Sumi 的预训练没有使用注意力掩码 (attention mask)，模型无法区分 prompt 区域和生成区域。作者计划发布 SFT 版本来缓解这一限制。
+当前方案需要将 `<|endoftext|><|beginoftext|>` 分隔符锚定在 `max_new_tokens` 位置后，这是一种 workaround——训练时未使用 attention mask，因为追求吞吐，且所用硬件上最快的 kernel 不支持自定义注意力掩码。论文提到将发布 instruction-tuned 版本，但未将其与这一限制直接关联。
 
 #### 生成质量问题
 
-由于 UDLM 的去噪本质，Sumi 的生成质量在某些任务上不如 AR 模型流畅。去噪过程可能在长序列中累积误差，导致生成的 token 之间出现语义不一致。SFT 可以直接改善生成质量。
+论文以 Falcon-7B 困惑度作为流畅度的粗略代理，仅观察到 canvas 长度超出训练区间时生成流畅度下降（短 canvas 最明显，GSM8K 在长 canvas 下也退化）。论文未与 AR 模型直接比较生成质量，也未声称 SFT 可直接改善生成质量。
 
 #### Scaling 规律未充分研究
 
@@ -435,14 +427,14 @@ Sumi 最显著的局限是常识基准上的弱势——PIQA 66.4%、HellaSwag 6
 
 LLaDA 是掩码扩散语言模型，在 8B/2T 规模上达到与 Llama 3-8B 竞争的性能。与 Sumi 不同，LLaDA 使用的是一次填充 (fill-in-one-shot) 的掩码扩散策略，一旦 token 被填充就不允许修改。阅读 LLaDA 有助于理解掩码扩散与统一扩散的差异。
 
-#### DiffusionGemma (Wang et al., 2025)
+#### DiffusionGemma (DeepMind, 2026)
 
 DiffusionGemma 是从预训练 Gemma 模型适配的 UDLM。与 Sumi "从零预训练" 不同，它使用了 AR 预训练权重作为初始化。比较两者可以分离"从零训练"和"模型适配"的影响。
 
-#### UDLM (Ou et al., 2025)
+#### GIDD / 统一扩散 (von Rütte et al., 2025, 2026)
 
-原始 UDLM 论文，提出了 uniform diffusion 的基本框架和计算最优配置。Sumi 在其基础上扩展到 7B/1.5T 规模。结合阅读可以理解 UDLM 从理论到工程的演变路径。
+von Rütte et al. (2025) 提出了 generalized interpolating discrete diffusion (GIDD) 框架，von Rütte et al. (2026) 给出其 SNR 重参数化形式与计算最优/scaling 分析。Sumi 在其基础上扩展到 7B/1.5T 规模。结合阅读可以理解 UDLM 从理论到工程的演变路径。
 
 #### Discrete Diffusion Foundations
 
-Austin et al. (2021) D3PM、Campbell et al. (2022) 连续时间离散扩散、Ou et al. (2025) GIDD。这些 foundational work 提供了离散扩散的数学基础，理解它们有助于深入理解 Sumi 的 SNR-reparameterized ELBO。
+Austin et al. (2021) D3PM、Campbell et al. (2022) 连续时间离散扩散、von Rütte et al. (2025) GIDD。这些 foundational work 提供了离散扩散的数学基础，理解它们有助于深入理解 Sumi 的 SNR-reparameterized ELBO。

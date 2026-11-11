@@ -22,7 +22,7 @@ Chain-of-Thought (CoT) Prompting 通过在 few-shot prompt 中加入中间自然
 | # | 贡献 | 意义 |
 |---|------|------|
 | 1 | **提出 Chain-of-Thought Prompting 方法** | 在 few-shot 示例中加入 `<input, 推理链, output>` 三元组，让模型展示中间推理过程 |
-| 2 | **发现推理能力的涌现性** | 推理能力的提升仅在 ~100B+ 参数规模的模型上出现，小模型 (<100B) 无增益甚至受损 |
+| 2 | **发现推理能力的涌现性** | 推理能力的提升主要在 ~100B+ 参数规模上显著出现；多数 <10B 的模型无增益甚至受损 |
 | 3 | **覆盖多领域推理任务** | 在算术 (GSM8K: 17.9%→56.9%)、常识 (Sports: 95.4% CoT, 超人类)、符号 (Last Letter OOD: ~63% CoT) 三类推理上均有效 |
 | 4 | **消融验证自然语言中间步骤的不可替代性** | 纯方程、纯计算量（点号）、answer-after-CoT 均无法复现增益 |
 | 5 | **验证鲁棒性** | 不同标注者、不同 prompt 风格、不同示例数量均稳定优于标准 prompting |
@@ -33,14 +33,14 @@ Chain-of-Thought (CoT) Prompting 通过在 few-shot prompt 中加入中间自然
 |------|--------|:--------:|:---:|:----:|
 | 算术推理 | GSM8K | 17.9% | **56.9%** | +39.0% |
 | 算术推理 | MAWPS | 79.2% | **93.3%** | +14.1% |
-| 常识推理 | Sports Understanding | —¹ | **95.4%** | — |
-| 常识推理 | StrategyQA | 68.6% | **75.6%**² | +7.0% |
+| 常识推理 | Sports Understanding | 80.5%¹ | **95.4%** | +14.9% |
+| 常识推理 | StrategyQA | 68.6% | **77.8%**² | +9.2% |
 | 符号推理 | Last Letter (OOD) | 0.0% | **~63%**³ | ~+63% |
 | 符号推理 | Coin Flip (OOD) | ~54.8% | **~90%**³ | ~+35% |
 
-> ¹ Sports Understanding 的 Standard 基线论文未给出 PaLM 540B 确切数值；84% 为人类基线，95.4% 为 PaLM 540B CoT 结果。  
-> ² 论文正文明确给出 StrategyQA PaLM 540B CoT 为 **75.6%**（而非 77.8%），见 Section 3.3: "outperforming the prior state of the art on StrategyQA (75.6% vs 69.4%)"。  
-> ³ Last Letter 与 Coin Flip OOD 结果论文仅在 **Figure 8** 以曲线形式展示，未提供 PaLM 540B 精确表格数值；上表数值为读图估算，仅供参考。
+> ¹ Sports Understanding 的 PaLM 540B Standard 基线为 80.5%（Table 4）；84% 为人类基线，95.4% 为 PaLM 540B CoT 结果。  
+> ² 论文 Table 4 给出 StrategyQA PaLM 540B CoT 为 **77.8%**；正文 Results 段另称 75.6% vs prior SOTA 69.4%，二者在论文中不一致。  
+> ³ Last Letter 与 Coin Flip OOD 数值取自 Table 5（PaLM 540B）：Last Letter OOD:3 94.8%、OOD:4 63.0%；Coin Flip OOD:3 98.6%、OOD:4 90.2%。
 
 ---
 
@@ -73,7 +73,7 @@ Chain-of-Thought (CoT) Prompting 通过在 few-shot prompt 中加入中间自然
 | 维度 | 已有工作 | CoT Prompting |
 |------|---------|---------------|
 | 训练要求 | 需要 finetuning 数据集 | 0 额外训练数据 |
-| 模型兼容性 | 特定模型 finetune | 通用，适用于所有 LLM |
+| 模型兼容性 | 特定模型 finetune | 适用于足够大的 off-the-shelf LLM（小模型无效） |
 | 推理格式 | 输出答案 | 输出推理链 + 答案 |
 | 适用任务 | 通常单领域 | 算术/常识/符号任务通用 |
 | 可解释性 | 无中间步骤 | 自然语言推理过程 |
@@ -106,7 +106,7 @@ A: Roger started with 5 balls. 2 cans of 3 tennis balls each is 6 tennis balls. 
 
 **① 分解能力 (Decomposition)**：CoT 让模型将多步问题分解为可管理的中间步骤。这对于需要多个运算步骤的问题（如 GSM8K）尤其重要——每一步的计算相对简单，但步骤数量决定了难度。
 
-**② 可解释性 (Interpretability)**：推理链为模型行为提供窗口。可以检查模型"哪里错了"——是计算错误、步骤遗漏还是语义理解偏差。论文对 LaMDA 137B 的错误分析发现：50% 的错误推理链"几乎正确"（仅小误差），54% 存在语义错误。
+**② 可解释性 (Interpretability)**：推理链为模型行为提供窗口。可以检查模型"哪里错了"——是计算错误、步骤遗漏还是语义理解偏差。论文对 LaMDA 137B 的错误分析发现：46% 的错误推理链"几乎正确"（仅小误差），其余 54% 存在语义/连贯性错误。
 
 **③ 广泛适用性 (Broad Applicability)**：因为 CoT 使用自然语言作为推理媒介，它天然适用于任何可以用语言描述推理过程的任务。论文验证了三个完全不同的推理领域：算术（数学题）、常识（需要世界知识）、符号（抽象规则操作）。
 
@@ -157,14 +157,15 @@ CoT 与以下已有概念的关键区别：
 
 **涌现性**：这是论文最重要的发现之一。
 
-| 模型规模 | ~8B | ~62B | ~175B/137B | ~540B |
-|----------|:---:|:----:|:----------:|:-----:|
-| GPT-3 标准 | ~5% | ~10% | ~18% | — |
-| GPT-3 CoT | ~5% | ~15% | **~37%** | — |
-| PaLM 标准 | ~4% | ~8% | — | ~18% |
-| PaLM CoT | ~4% | ~12% | — | **~57%** |
+| 模型 | 参数规模 | GSM8K 标准 | GSM8K CoT |
+|------|:---:|:---:|:---:|
+| GPT-3 | 6.7B | 4.0% | 2.4% |
+| GPT-3 | 175B | 15.6% | **46.9%** |
+| PaLM | 8B | 4.9% | 4.1% |
+| PaLM | 62B | 9.6% | **29.9%** |
+| PaLM | 540B | 17.9% | **56.9%** |
 
-对于 <100B 的模型，CoT 几乎没有效果甚至略微降低性能。从 62B→175B（GPT-3）和 62B→540B（PaLM）的跃迁中，CoT 的增益才**涌现**出来。这成为 LLM 涌现能力研究的一个标志性案例。
+从 6.7B→175B（GPT-3）和 62B→540B（PaLM）的跃迁中，CoT 的增益才**涌现**出来；但 PaLM 62B 已在 GSM8K 上从 9.6% 提升到 29.9%。论文正文称增益主要在 ~100B 量级显现，Appendix A.1 则指出多数 <10B 模型甚至受损。这成为 LLM 涌现能力研究的一个标志性案例。
 
 ### 4.3 常识推理结果
 
@@ -173,35 +174,35 @@ CoT 的语言属性使其天然适用于常识推理。
 | 数据集 | 任务描述 | Standard | CoT | 关键观察 |
 |--------|---------|:--------:|:---:|---------|
 | **CSQA** | 常识问答（5选1） | 78.1% | 79.9% | 选择范式限制了 CoT 的增益（增益极小） |
-| **StrategyQA** | 是/否策略推理 | 68.6% | **75.6%** | 需要多步推理的数据集获益最大（论文正文: 75.6% vs 69.4% SOTA） |
-| **Date Understanding** | 自然语言日期计算 | 58.1% | **71.1%** | 强烈的多步计算需求 |
-| **Sports Understanding** | 运动场景推理 | —¹ | **95.4%** | 超过人类表现 (84%)，PaLM 540B Standard 基线未在论文给出 |
-| **SayCan** | 机器人指令排序 | 82.5% | 83.5% | 相对简单，天花板效应 |
+| **StrategyQA** | 是/否策略推理 | 68.6% | **77.8%** | 多跳推理数据集有明显增益（+9.2%；正文另称 75.6% vs 69.4% SOTA）；增益最大的是 Date (+16.3%) 与 Sports (+14.9%) |
+| **Date Understanding** | 自然语言日期计算 | 49.0% | **65.3%** | 强烈的多步计算需求（+16.3%） |
+| **Sports Understanding** | 运动场景推理 | 80.5%¹ | **95.4%** | 超过人类表现 (84%)，增益 +14.9% |
+| **SayCan** | 机器人指令排序 | 80.8% | 91.7% | 仍有约 +10.9% 的增益 |
 
 **Sports Understanding 的超人表现**（95.4% vs 人类 84%）是一个令人惊讶的结果——模型通过 CoT 的逐步推理在此任务上超越了人类被试。但这也提示 CoT 在相对简单的任务上可能过度计算。
 
-> ¹ 论文 Table 4 给出的 PaLM 540B Standard prompting 在 Sports Understanding 上的数值未在正文明确列出；80.5% 可能来自其他模型配置，此处标注为 — 以免误导。
+> ¹ Sports Understanding 的 PaLM 540B Standard 数值为 Table 4 的 80.5%；84% 为人类基线。
 
 ### 4.4 符号推理与长度泛化
 
 最具启发性的部分：
 
 **Last Letter Concatenation**（取姓名的最后一个字母并拼接）：
-- 域内 (In-Domain, 2个词)：标准 prompting 约 40%，CoT **99%+**
+- 域内 (In-Domain, 2个词)：标准 prompting 7.6%，CoT **99.4%**
 - **域外泛化 (OOD, 4个词)**：标准 prompting **0%**，CoT **~63%¹**
 - **域外泛化 (OOD, 更长)**：CoT 仍表现出有意义的外推能力
 
 **Coin Flip**（判断硬币是否朝上）：
-- 域内：标准约 90%，CoT **99%+**
+- 域内：标准 98.1%，CoT **100.0%**
 - **域外 (4步)**：标准 ~54.8%，CoT **~90%¹**
 
-> ¹ OOD 结果论文仅在 **Figure 8** 以曲线形式展示（PaLM 系列），未提供精确表格数值；上述数值为读图估算。Appendix Table 5 仅给出 LaMDA 137B 的数值。
+> ¹ OOD 数值取自 Table 5（PaLM 540B）：Last Letter OOD:3 94.8%、OOD:4 63.0%；Coin Flip OOD:3 98.6%、OOD:4 90.2%（Table 5 同时含 LaMDA 各行）。
 
 **这些结果的关键意义**：CoT 本质上让模型**按步骤计算**，而非记忆训练集中出现的模式。当模型可以一步步操作符号时，它对未见过的更长序列也能泛化——这是单纯记忆无法做到的。
 
 ### 4.5 错误分析
 
-论文对 LaMDA 137B 在 GSM8K 上的输出做了人工分析。50 个正确答案中，50/50 的推理链逻辑正确（仅 2 个偶然正确）。
+论文对 LaMDA 137B 在 GSM8K 上的输出做了人工分析。50 个正确答案中，仅 1 个偶然答对（推理过程错误），其余 49 个的推理链在逻辑和数学上均正确（其中 5 个有小瑕疵但逻辑连贯）。
 
 50 个错误答案中：
 - **46% "几乎正确"**：小误差导致答案错误
@@ -213,7 +214,7 @@ CoT 的语言属性使其天然适用于常识推理。
   - 错误的推理方向
   - 完全无关的推理
 
-在更大模型（PaLM 540B）上，许多"几乎正确"的错误被修正——说明**规模扩展主要修复了小误差类错误**，而语义类错误需要更大的模型或更好的 prompt。
+在更大模型（PaLM 540B）上，许多错误被修正——Appendix A.1 显示从 PaLM 62B 扩展到 540B 修复了全部三类错误中的相当一部分（语义理解 6/20、缺一步 12/18、其他 4/7），不限于小误差类。
 
 ---
 
@@ -233,7 +234,7 @@ CoT 的语言属性使其天然适用于常识推理。
 
 ### 5.2 核心消融发现
 
-**方程 only**：去掉自然语言，仅用数学方程作为中间步骤。在简单问题上（MAWPS +6.9%）有帮助，但在复杂问题上（GSM8K -0.9%）无效。说明自然语言提供了方程无法捕捉的问题理解能力。
+**方程 only**：去掉自然语言，仅用数学方程作为中间步骤。在简单问题上（MAWPS +6.9%）有帮助，但在复杂问题上（GSM8K -1.1%）无效。说明自然语言提供了方程无法捕捉的问题理解能力。
 
 **Variable compute (dots)**：用与方程长度等量的"."替代推理链。这个条件控制"计算量"的变量——结果：**无改善**。这证明 CoT 不是通过"给模型更多计算步骤"起作用的，而是自然语言推理步骤的语义内容本身是关键。
 
@@ -243,31 +244,31 @@ CoT 的语言属性使其天然适用于常识推理。
 
 论文测试了多种 prompt 变体：
 
-**不同标注者**：三位独立标注者编写 CoT 示例（A: 作者/论文版本；B: 简洁风格；C: 详细风格）。
+**不同标注者**：三位标注者编写 CoT 示例（A: 作者/论文版本；B、C: 另外两位独立撰写推理链的共同作者；简洁风格是 A 的另一版本）。
 
-**结果**：**所有风格的 CoT 都优于标准 prompting**。但有趣的是，B 和 C 在某些任务上优于 A（GSM8K 上 A 14.3% vs B 27.4% vs C 25.5%），这可能是由于过拟合实验者偏差的消除。
+**结果**：**所有风格的 CoT 都优于标准 prompting**。B 和 C 在 GSM8K 上分别为 15.5% 和 17.6%（A 为 14.3%）；27.4%/25.5% 是 Date Understanding 上的 B/C 结果。
 
-**不同示例数量**：从 2 个到 8 个示例，CoT 一致优于标准 prompting。更多示例 → 更好性能，但边际收益递减。
+**不同示例数量**：从 1 个到 8 个示例，CoT 相对标准 prompting 的增益保持稳健（Figure 11）。
 
-**不同示例顺序**：多次随机重排示例顺序，结果稳定。
+**不同示例顺序**：多次随机重排示例顺序，绝大多数任务结果稳定（例外：Coin Flip 的示例顺序方差较大）。
 
 **使用 GSM8K 训练集随机选示例**（非手工编写）：仍然优于标准 prompting。
 
-### 5.4 外部验证器
+### 5.4 外部计算器
 
-与 Finetuned GPT-3 Verifier 组合（论文的 Figure 4 补充分析）：
+与外部 Python 计算器组合（Appendix B / Table 1）：
 
-论文还测试了在 CoT 生成的推理链之后，使用外部计算器验证算术步骤（post-hoc arithmetic）：
-- GSM8K: 56.9% → 58.6% (+1.7%)
-- 增益有限：说明 CoT 的主要价值在推理过程和方程构造，而非基本的算术运算精度
+论文还测试了在 CoT 生成的推理链之后，用 Python eval 作为外部计算器重新计算其中的算术步骤（post-hoc arithmetic）：
+- PaLM 540B GSM8K: 56.9% → 58.6% (+1.7%)
+- 该增益在 GSM8K 上有限；论文指出在多数任务/模型上外部计算器可显著提升（如 UL2 20B GSM8K 4.4→6.9、LaMDA 137B 14.3→17.8）
 
 ---
 
 ## 第6章：Prompt 代码与使用示例
 
-### 6.1 GSM8K 完整 8-shot CoT Prompt
+### 6.1 GSM8K 8-shot CoT Prompt 的结构（改写版）
 
-论文附录 A.1 提供了完整的 CoT prompt 示例。以下是其核心结构：
+论文附录 G（Table 20）提供了完整的 CoT prompt 示例。以下是其核心结构（改写版）：
 
 ```
 Q: There are 15 trees in the grove. Grove workers will plant trees in the grove today. After they are done, there will be 21 trees. How many trees did the grove workers plant today?
@@ -313,16 +314,16 @@ A: Roger started with 5 balls. 2 cans of 3 tennis balls each is 6 tennis balls. 
 
 ### 6.4 常识推理 Prompt 示例
 
-常识推理使用不同的 CoT 示例。以 Sports Understanding 为例：
+常识推理使用不同的 CoT 示例。以 Sports Understanding 为例（Table 27）：
 
 ```
-Q: Is it true that the Super Bowl is a type of basketball championship game?
-A: The Super Bowl is the annual championship game of the National Football League (NFL). Basketball has different championships like the NBA Finals. So the answer is no.
+Q: Is the following sentence plausible? "Kyle Palmieri was called for slashing."
+A: Kyle Palmieri is a hockey player. Being called for slashing is part of hockey. So the answer is yes.
 
-Q: Can a gorilla win a chess tournament against a professional chess player?
-A: A gorilla is not capable of playing chess at a professional level because they lack the cognitive abilities for strategic board games. So the answer is no.
+Q: Is the following sentence plausible? "Joao Moutinho caught the screen pass in the NFC championship."
+A: Joao Moutinho is a soccer player. The NFC championship is part of American football, not soccer. So the answer is no.
 
-[4 examples total]
+[8 examples total；论文正文称取 BIG-bench 前 10 条作为示例]
 ```
 
 ### 6.5 Python 调用示例
@@ -354,8 +355,8 @@ print(response.choices[0].text)
 
 | 维度 | Standard Prompting | CoT Prompting |
 |------|:------------------:|:-------------:|
-| 每次推理 token 数 | ~50-100 | ~300-1000 |
-| 推理时间 | 快 | 慢 3-10x |
+| 每次推理 token 数 | 较少 | 较多（需生成推理链） |
+| 推理时间 | 快 | 较慢（需生成推理链） |
 | Prompt 构建成本 | 低（仅答案） | 中（需写推理链） |
 | 可解释性 | 无 | 高 |
 
@@ -365,13 +366,13 @@ print(response.choices[0].text)
 
 ### 7.1 论文自身讨论的局限性
 
-**计算成本**：CoT 生成推理链需要 3-10x 更多的生成 token，增加了推理延迟和计算开销。这个问题在后续工作中通过蒸馏（distillation）、更好解码策略等方式部分缓解。
+**计算成本**：CoT 生成推理链需要显著更多的生成 token，增加了推理延迟和计算开销（论文未给出具体倍数）。这个问题在后续工作中通过蒸馏（distillation）、更好解码策略等方式部分缓解。
 
 **不可靠的推理链**：模型可能生成流畅但逻辑错误的推理链，同时仍输出正确答案。这降低了 CoT 作为可解释性工具时的可靠性。后续工作发现，Verifier 和 Self-Consistency 可以缓解此问题。
 
 **有限的数据适用性**：对于其他领域（如代码生成、数学证明、逻辑规划），需要领域专家人工构建 CoT 示例，成本较高。
 
-**涌现性的双刃剑**：小模型无法受益于 CoT，将其限制在 ~100B+ 模型的范围内。
+**涌现性的双刃剑**：多数小模型（<10B）无法受益于 CoT，增益主要在 ~100B+ 模型上显现。
 
 ### 7.2 方法层面的局限
 
@@ -410,7 +411,7 @@ CoT Prompting 催生了整个 reasoning 研究范式。以下是直接衍生的�
 
 **推理计算量分配**：CoT 开创了"让模型在推理时花更多 token 思考"的范式。o1 系列模型将这一概念推向极致——在内部执行数万 token 的隐式推理链。
 
-**涌现性作为模型能力的边界**：CoT 的涌现性特征提示我们，某些能力是规模的闸门（scale threshold）——低于阈值则完全不存在，高于阈值则自然显现。这影响了后续对 Scaling Law 的讨论。
+**涌现性作为模型能力的边界**：CoT 的增益难以从小模型外推，在 ~100B 量级显著显现；这可能提示某些能力与规模相关，但并非严格的阈值。这影响了后续对 Scaling Law 的讨论。
 
 **Prompt Engineering 作为科学研究**：CoT 证明精心设计的 prompt 可以达到甚至超过 finetuning 的效果。这在当时是革命性的——它开辟了 prompt engineering 作为一个严肃的研究子领域。
 

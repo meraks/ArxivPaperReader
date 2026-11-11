@@ -9,7 +9,7 @@
 
 ### 1.1 一句话定位
 
-Mint-Agent 是一组**金融原生（finance-native）的 agentic 基础模型**：它不把金融能力视为通用 agent 之上的提示工程或事后补丁，而是让数据构建、执行 harness 与训练算法三个层面围绕同一份**可恢复证据契约（recoverable evidence contract）**协同设计，使模型产出的每一个金融答案都能被还原为"权威证据 + 可复现计算"的完整链条。论文发布两个旗舰模型——Mint-Ag（27B，基座 Qwen3.6-27B）与 Mint-Cu（9B，基座 Qwen3.5-9B），在 7 个专业金融基准上与 frontier 闭源模型、开源 agentic 模型及通用 deep research 模型同台评测，并系统给出成本、轨迹与失败模式分析。论文无官方代码实现，模型权重未公开，评测所用均为第三方基准仓库（vals-ai finance-agent v1.1/v2、DeepResearch、ASearcher、OpenResearcher）。
+Mint-Agent 是一组**金融原生（finance-native）的 agentic 基础模型**：它不把金融能力视为通用 agent 之上的提示工程或事后补丁，而是让数据构建、执行 harness 与训练算法三个层面围绕同一份**可恢复证据契约（recoverable evidence contract）**协同设计，使模型产出的每一个金融答案都能被还原为"权威证据 + 可复现计算"的完整链条。论文发布两个旗舰模型——Mint-Ag（27B，基座 Qwen3.6-27B）与 Mint-Cu（9B，基座 Qwen3.5-9B），在 7 个专业金融基准上与 frontier 模型、开源 agentic 模型及通用 deep research 模型同台评测，并系统给出成本、轨迹与失败模式分析。论文无官方代码实现，模型权重未公开；评测使用公开基准与基线系统：FinanceAgentBench v1.1/v2 使用 vals-ai 官方 harness，FinSearchComp 上 Mint 模型与前沿模型使用作者自研 MintHarness，Tongyi-DeepResearch/ASearcher/OpenResearcher 使用各自官方 inference harness。
 
 ### 论文图表总览
 
@@ -67,7 +67,7 @@ agentic 基础模型的演进可概括为四个阶段：**工具调用**（模�
 
 ### 2.2 Financial Intelligence：从领域适配到可验证推理
 
-金融智能的研究重心经历了两次迁移。**领域适配阶段**以金融语料上的继续训练与指令微调为主，评测以单轮问答为主——FinanceBench 上 frontier 模型已达 82.00%–90.00%（Mint-Ag 91.33%），问答式基准接近饱和，区分度有限。**可验证推理阶段**要求计算过程与证据链本身可检验：RFC-Bench（财报变更四标签分类：numerical/flipping/sentiment/causal，论文报告 Task-2 分类精度）、FAB v1.1/v2（多步 agentic 金融任务）、FinSearchComp（带时间截止的竞争性信息检索）。
+金融智能的研究重心经历了两次迁移。**领域适配阶段**以金融语料上的继续训练与指令微调为主，评测以单轮问答为主——FinanceBench 上 frontier 模型已达 82.00%–90.00%（Mint-Ag 91.33%），问答式基准接近饱和，区分度有限。**可验证推理阶段**要求计算过程与证据链本身可检验：RFC-Bench（反事实金融误导类型四标签分类：numerical/flipping/sentiment/causal，论文报告 Task-2 分类精度）、FAB v1.1/v2（多步 agentic 金融任务）、FinSearchComp（带时间截止的竞争性信息检索）。
 
 任务形态也从"回答问题"升级为"完成分析师工作"：FAB v1.1/v2 的 frontier 上限仅 72.00%/56.79%，FinSearchComp T3 最高 54.07%，长程分析师级任务远未解决。而**可审计性是金融领域的刚性需求**——无法回溯证据与计算的答案没有落地价值。论文案例研究给出范式：TSMC 2025 年 3 月季度收入预测 NT$825,110 百万，最终偏差 NT$8,010 百万可复现（37 步轨迹，保留有效 Q1 2025 guidance、恢复 2022–2024 窗口后重算历史 3 月增长率）；BKR 收购案从 definitive proxy 锁定未受影响收盘价 $171.65、22.3% 溢价与 $325M 协同比率（对收入与 SG&A 双口径）均可复现。
 
@@ -75,7 +75,7 @@ agentic 基础模型的演进可概括为四个阶段：**工具调用**（模�
 
 deep research 有两条实现路线：**harness 系统**（在闭源或编码模型外挂检索与执行框架，如 Codex (GPT-5.6) 与 Cursor 系列）与**训练内化**（把检索-执行行为训进权重，如 Tongyi-DeepResearch、OpenResearcher、ASearcher）。Table 2 的数据揭示"自主性 ≠ 可信"：
 
-- 通用 deep research 模型在金融可验证任务上大幅崩塌：OpenResearcher-30B-A3B BizFinBench 10.71%、FinanceBench 50.00%、RFC-Bench 22.00%；Tongyi-DeepResearch-30B-A3B FinanceBench 42.67%、RFC-Bench 57.67%；ASearcher-32B FAB v1.1 24.00%、v2 3.70%、T3 4.07%——自主检索能力并未转化为金融正确性；
+- 通用 deep research 模型在部分金融可验证任务上明显落后：OpenResearcher-30B-A3B BizFinBench 10.71%、FinanceBench 50.00%、RFC-Bench 22.00%；Tongyi-DeepResearch-30B-A3B FinanceBench 42.67%、RFC-Bench 57.67%；ASearcher-32B FAB v1.1 24.00%、v2 3.70%、T3 4.07%——自主检索能力并未在所有这些任务上转化为金融正确性；但 Tongyi-DeepResearch-30B-A3B 在 FinSearchComp T2 仍达 72.15%，高于所有 frontier 模型（最高 GLM-5.2 68.49%），论文的论点是自主性本身不足以保证可信，而非全面崩塌；
 - harness 型编码 agent 呈两极：Codex (GPT-5.6) 与 Cursor 系在 FinSearchComp T2 拿到 77.63%–81.74% 的顶尖成绩，但 Cursor (Grok 4.5) RFC-Bench 仅 63.33%、Cursor (Composer 2.5) 69.67%，金融专业推理仍是短板。
 
 论文的回应是：自主性必须被证据约束——执行侧用 MintHarness 的证据账本与门控，训练侧用证据路径奖励（正确外观的答案若证据路径不可恢复则无奖励）。
@@ -84,9 +84,9 @@ deep research 有两条实现路线：**harness 系统**（在闭源或编码模
 
 金融错误的三个典型来源——**非权威源**（引用不可考）、**错期间**（数据窗口与查询时间不符）、**单位混淆**（口径与量纲错配）——都不是知识缺失，而是证据纪律缺失。论文因此把"正确答案"重新定义为一份**可恢复证据 + 可复现计算的声明**，并以 recoverable evidence contract 落实到三处：
 
-- **数据侧**：证据图的 provenance 映射 $\rho$、时间索引面 $W_{t\_cut}$、含期间与单位约束的推导校验 $C_\kappa$；
+- **数据侧**：证据图的 provenance 映射 $\rho$、时间索引面 $W_{t\_cut}$；
 - **执行侧**：Evidence Ledger 记录带来源定位符的类型化证据，失败检索路径与支持证据分开记录；
-- **学习侧**：奖励函数把"证据路径可回放"作为得分的必要条件。
+- **学习侧**：奖励函数把"证据路径可回放"作为得分的必要条件，验证器 $C_\kappa$ 在 $R_{atom}$ 中回放推导（含期间与单位约束）。
 
 失败模式分析佐证了这一动机：FAB v2 上主导错误为证据提取（M5，18.5%），v1.1 上为答案遗漏（M10，18%）——瓶颈集中在证据闭环而非知识缺失，正是证据契约的攻击点。
 
@@ -264,7 +264,7 @@ $$ A^{\mathrm{MOPD}}_{t}=\operatorname{sg}\!\left[\log\pi^{T}_{\mathcal{T}}(z_{t
 
 ![Figure 5: Twin-specialist training and integration pipeline](Figures/2026-08-25-mint-agent-finance-native-agentic-models-fig5.png)
 
-*图5：推理与执行双专家分别经 SFT→RLVR 训练后，通过 TIES 权重合并与多教师 OPD 蒸馏为统一策略——MOPD 按任务来源路由教师，修复合并行为干扰。*
+*图5：推理专家经 SFT→RLVR、执行专家经 SFT→critical-step OPD→RLVR 训练后，通过 TIES 权重合并与多教师 OPD 蒸馏为统一策略——MOPD 按任务来源路由教师，修复合并行为干扰。*
 ## 第 6 章 实验评估与结果分析
 
 ### 6.1 实验设置
@@ -273,7 +273,7 @@ $$ A^{\mathrm{MOPD}}_{t}=\operatorname{sg}\!\left[\log\pi^{T}_{\mathcal{T}}(z_{t
 
 Mint-Cu（9B）与 Mint-Ag（27B）分别以 Qwen3.5-9B 和 Qwen3.6-27B 为基座模型，通过第 5 章描述的"双专家 + 多教师集成"管线训练得到。对照模型分三组：
 
-- **前沿闭源模型**：Gemini-3.5-Flash、Claude Opus 4.8、GPT-5.6-Sol、GLM-5.2、MiniMax-M3、Kimi-K2.7-Code、DeepSeek-V4-Pro、DeepSeek-V4-Flash、MiMo-V2.5-Pro、Qwen3.7-Plus；
+- **前沿模型（Frontier models）**：Gemini-3.5-Flash、Claude Opus 4.8、GPT-5.6-Sol、GLM-5.2、MiniMax-M3、Kimi-K2.7-Code、DeepSeek-V4-Pro、DeepSeek-V4-Flash、MiMo-V2.5-Pro、Qwen3.7-Plus；
 - **开源模型**：Agents-A1-35B、Nex-N2-mini、ASearcher-32B、OpenThinkerAgent-32B、OpenResearcher-30B-A3B、Tongyi-DeepResearch-30B-A3B；
 - **Agent 系统**：Codex（GPT-5.6）、Cursor（Grok 4.5）、Cursor（Composer 2.5）。
 
@@ -410,9 +410,9 @@ v1.1 上占主导的答案遗漏类似"执行闭环破裂"——有用的中间�
 
 从论文描述可还原的工程要点：
 
-- **训练成本结构**：双专家各自从同一基座出发（SFT → RLVR），集成阶段仅需 TIES 合并 + MOPD 蒸馏，无需训练第三个从头模型；MOPD 的教师路由（原子任务→π_R、长程任务→π_A）使蒸馏信号按任务来源分配，避免两个教师在同一样本上竞争；
+- **训练成本结构**：双专家各自从同一基座出发（π_R：SFT → RLVR；π_A：SFT → critical-step OPD → RLVR），集成阶段仅需 TIES 合并 + MOPD 蒸馏，无需训练第三个从头模型；MOPD 的教师路由（原子任务→π_R、长程任务→π_A）使蒸馏信号按任务来源分配，避免两个教师在同一样本上竞争；
 - **跨 tokenizer 蒸馏**：Critical-Step OPD 采用 GOLD 风格的最小块 token 对齐（学生 Qwen tokenizer 与教师 DeepSeek-V4-Pro tokenizer 不同），块级 log-likelihood 按学生 token 位置分发；
-- **验证器即奖励**：R_atom 与 R_long 均为 {0,1} 硬验证（答案等价 × 证据可支撑 × 推导可回放），LLM 仅参与 SFT trace 择优与关键轮次标注，训练信号本身不依赖 LLM judge 打分；
+- **验证器即奖励**：R_atom 与 R_long 均为 {0,1} 硬验证（答案等价 × 证据与推导可回放；R_long 还要求合法 MintHarness 动作并遵守截止 t_cut），LLM 仅参与 SFT trace 择优与关键轮次标注，训练信号本身不依赖 LLM judge 打分；
 - **难度自适应课程**：初始池排除 p_j^(0) > 0.8 的已稳定任务，在线刷新活跃批 B_m={0<p<1}（全对/全错组不提供相对信号，延迟处理）。
 
 ## 第 8 章 局限性与延伸阅读

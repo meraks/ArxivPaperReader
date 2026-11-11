@@ -16,7 +16,7 @@
 
 ### 一句话总结
 
-TokenMizer 将 LLM 会话历史建模为**类型化知识图谱**（14 种节点 × 7 种边），通过混合提取管线增量填充图谱，在上下文窗口溢出前将其序列化为紧凑的「恢复块」（平均仅 **78 tokens** —— 比基线小 2×），同时保持**更高的决策回忆率**（+9–17 pp），使长周期 LLM 任务可以在不修改应用代码的情况下无限延续。
+TokenMizer 将 LLM 会话历史建模为**类型化知识图谱**（14 种节点 × 7 种边），通过混合提取管线增量填充图谱，在上下文窗口溢出前将其序列化为紧凑的「恢复块」（标准层 **201–302 tokens，均值 254.3**），同时在任务回忆率上与基线持平（75.6%），并在**决策回忆率**（85.0% vs 70.0%，+15 pp）与文件回忆率（100% vs 91.7%）上更高，使长周期 LLM 任务可以在不修改应用代码的情况下延续。
 
 ### 问题背景
 
@@ -26,19 +26,19 @@ TokenMizer 将 LLM 会话历史建模为**类型化知识图谱**（14 种节点
 - 以 **~950 tokens/turn** 的典型消耗速率，一次会话在仅 **16 轮**后就溢出上下文窗口。
 - 溢出的瞬间，关键结构化信息 —— **架构决策、任务状态转换、文件修改历史、错误/解决方案配对** —— 被静默丢弃。
 
-> **类比理解**：传统的上下文管理就像一本没有目录、没有章节标题、没有索引的小说。当你读到第 20 章时，第 3 章做的人物关系判断已经被撕掉了。TokenMizer 相当于在阅读过程中自动构建一个结构化的「人物关系图 + 情节时间线」，在第 16 章时把它塞进一张便利贴 —— 78 个 token 足以告诉你「谁和谁是什么关系，现在剧情到哪了，哪些伏笔还没回收」。
+> **类比理解**：传统的上下文管理就像一本没有目录、没有章节标题、没有索引的小说。当你读到第 20 章时，第 3 章做的人物关系判断已经被撕掉了。TokenMizer 相当于在阅读过程中自动构建一个结构化的「人物关系图 + 情节时间线」，在第 16 章时把它塞进一张便利贴 —— 约 254 个 token（实测均值）足以告诉你「谁和谁是什么关系，现在剧情到哪了，哪些伏笔还没回收」。
 
-### 7 项核心贡献
+### 核心贡献
 
 | # | 贡献 | 说明 |
 |---|------|------|
-| 1 | **类型化图谱 Schema** | 14 种节点类型 + 7 种边类型 + 状态生命周期，正式定义了会话状态的语义结构 |
-| 2 | **混合提取管线** | V1（34 条正则，0.5ms，$0）+ V2 改进（扩展触发词/模糊匹配/复合拆分），可选 LLM 升级路径 |
+| 1 | **类型化图谱 Schema** | 14 种节点类型 + 7 种边类型 + 8 状态生命周期，正式定义了会话状态的语义结构 |
+| 2 | **混合提取管线** | 确定性正则启发式默认启用（含复合句与 CSV 决策拆分），可选后台 LLM 提取（未评估） |
 | 3 | **三级检查点系统** | Critical(≤100 tok) / Standard(≤300 tok) / Full(≤600 tok)，带图谱 diff |
-| 4 | **8 层压缩管线** | 47.3% token 缩减，零外部依赖（仅填充移除即贡献 31.2%） |
-| 5 | **语义嵌入缓存** | 受控 10 查询工作负载上 70% 命中率（初步结果） |
-| 6 | **21 会话开源 Benchmark** | 5 领域含 ground-truth 标注，定义 token 效率指标 η |
-| 7 | **会话特征相关性分析** | 更长会话从结构化检查点获益比例更大 |
+| 4 | **生产形态服务层** | 透明 OpenAI 兼容代理、SSE 流式、安全中间件、9 个 provider 适配器、压缩与语义缓存（压缩/缓存未测量） |
+| 5 | **决策转换记录** | trigger / reason / evidence / confidence delta，独立持久化，形成决策审计轨迹 |
+| 6 | **3 会话开源 Benchmark** | 3 个合成会话含 ground-truth 标注，全部数值可追溯到单一版本化结果文件，定义 token 效率指标 η |
+| 7 | **检查与互操作接口** | 监控面板、D3/HTML/Obsidian 导出、MCP 检查点/恢复工具 |
 
 ### 方法速览
 
@@ -49,21 +49,21 @@ TokenMizer 将 LLM 会话历史建模为**类型化知识图谱**（14 种节点
 TokenMizer 流程：
   Turn 1-14：透明代理，增量填充知识图谱
   Turn 14：累计 tokens ≥ 85% MECW → 触发检查点
-           → 图谱序列化为 78-token 恢复块
+           → 图谱序列化为标准层恢复块（实测均值约 254 tokens）
            → 恢复块 + 最近 2 条消息 → 替换旧上下文
   Turn 15+：在恢复的图结构基础上继续会话 ✓
 ```
 
 ### 关键结果
 
-| 指标 | TokenMizer V2 | 最佳基线 | 优势 |
-|------|--------------|---------|------|
-| 恢复块大小 (avg) | **78 tokens** | 159 tokens (Sliding Window) | **2.1× 更小** |
-| 决策回忆率 | **46.6%** | 38% (Naive Summary) | **+8.6 pp** |
-| 任务回忆率 | 51.0% | 50% (Sliding Window) | +1.0 pp |
-| 文件回忆率 | 58.7% | 60% (Sliding Window) | -1.3 pp |
+| 指标 | TokenMizer v0.3.1 | Plain-summary 基线 | 差异 |
+|------|-------------------|--------------------|------|
+| 任务回忆率 | 75.6% | 75.6% | 持平 |
+| 决策回忆率 | **85.0%** | 70.0% | **+15.0 pp** |
+| 文件回忆率 | **100%** | 91.7% | **+8.3 pp** |
+| 恢复块大小 (mean) | **254.3 tokens**（201–302） | 未记录 | 未作 token 经济性比较 |
 
-**核心结论**：没有一个基线保留了决策的「为什么」。滑动窗口可能保留技术的名称，但丢失了选择它而不是替代方案的**理由**。TokenMizer 用一半的 token 成本做到了这一点。
+**核心结论**：基线（全转录关键词扫描）在任务上与图提取持平，但在决策上落后 —— 它可能保留技术的名称，却丢失了选择它而不是替代方案的**理由**；文件回忆率因存在天花板效应而难以区分。作者明确说明 n=3，结果仅具方向性。
 
 ---
 
@@ -77,7 +77,7 @@ LLM 上下文窗口的失效不是瞬间发生的，而是呈现三种退化模�
 - **问题**：早期内容往往包含最重要的信息 —— 目标定义、架构决策、技术选型。
 - 在第 16 轮被截断的可能是第 3 轮做出的「用 Redis 而非 PostgreSQL」的决策及其理由。
 
-**(2) 摘要（Summarization）**：通过 LLM 自身压缩历史。ACC (Anthropic) 达到 22.7% 的压缩率。
+**(2) 摘要（Summarization）**：通过 LLM 自身压缩历史。ACC（Smith & Park, 2026）用 LLM 调用压缩会话内上下文，论文未报告压缩率。
 - **问题**：LLM 摘要无法可靠区分已完成和进行中的任务，也无法保留决策的「为什么」。
 - 摘要的输出是平面自然语言文本，丢失了类型化关系和状态生命周期。
 
@@ -122,7 +122,7 @@ $L = 1 - \frac{1}{3}(R_{\text{task}} + R_{\text{dec}} + R_{\text{file}})$
 **Token 效率（Token Efficiency）**：
 $\eta = \frac{\text{mean recall}}{|R|/100}$
 
-这个指标归一化了回忆率与恢复块 token 成本，使不同会话和领域的方法可以公平比较。**调试会话**被发现是最高效率的领域 —— 其结构化状态（错误→修复→验证）天然适合图表示。
+这个指标归一化了回忆率与恢复块 token 成本，使不同会话的方法可以公平比较。在 3 个基准会话上，η 分别为 **0.29、0.32、0.46（均值 0.35）**。
 
 ---
 
@@ -140,11 +140,11 @@ class NodeType(str, Enum):
     ERROR       = "error"       # 错误（可修复）
     TEST        = "test"        # 测试（可运行）
     SCHEMA      = "schema"      # 数据模式（可演化）
-    METRIC      = "metric"      # 指标（可追踪）
     # Decision nodes — 记录选择
     DECISION    = "decision"    # 技术决策（如 "Redis over PostgreSQL"）
     DEPENDENCY  = "dependency"  # 依赖关系
     API         = "api"         # API 端点
+    ENDPOINT    = "endpoint"    # 服务端点
     # Context nodes — 无状态背景
     GOAL        = "goal"        # 会话目标
     ENVIRONMENT = "environment" # 运行环境
@@ -153,7 +153,7 @@ class NodeType(str, Enum):
     AGENT       = "agent"       # Agent 身份
 ```
 
-### 3.2 状态生命周期（仅 Action nodes）
+### 3.2 状态生命周期（8 状态）
 
 ```
          ┌─────────┐
@@ -169,9 +169,14 @@ class NodeType(str, Enum):
 ┌─────────┐ ┌──────┐ ┌──────────┐
 │COMPLETED│ │FAILED│ │ MODIFIED  │
 └─────────┘ └──────┘ └──────────┘
+
+修订状态（决策可被修订）：
+SUPERSEDED  被更新决策取代，保留在历史中
+INVALIDATED 被明确否定/取消，恢复时作为警告提示
+ARCHIVED    仍有效但不再相关，从恢复块隐藏
 ```
 
-状态转换是单调的 —— 降级被拒绝（`STATUS_ORDER` 字典确保 `COMPLETED` 永远不会回退到 `PENDING`）。
+核心转换是单调的 —— 降级被拒绝（`STATUS_ORDER` 字典确保 `COMPLETED` 永远不会回退到 `PENDING`）；`MODIFIED` 作为向后兼容别名保留。
 
 > **类比理解**：状态生命周期相当于给每个会话元素装了一个「红绿灯」。绿灯=COMPLETED（可以通过了），黄灯=IN_PROGRESS（正在处理），红灯=FAILED（需要关注）。传统平面文本方法无法区分这三种状态 —— 它们只看到文字，看不到信号灯。
 
@@ -182,7 +187,7 @@ class EdgeType(str, Enum):
     DEPENDS_ON  = "depends_on"   # 任务 A 依赖任务 B
     RELATED_TO  = "related_to"   # 概念关联
     IMPLEMENTS  = "implements"   # 文件实现某功能
-    FIXES       = "fixes"        # 提交/修复解决某错误
+    FIXES       = "fixes"        # 文件修复解决某错误
     BLOCKS      = "blocks"       # 阻塞关系
     PART_OF     = "part_of"      # 部分-整体
     SUPERSEDES  = "supersedes"   # 替代关系
@@ -192,7 +197,7 @@ class EdgeType(str, Enum):
 - `TASK:"setup Redis"` —[`DEPENDS_ON`]→ `DECISION:"Redis over PostgreSQL"`
 - `FILE:"src/cache.py"` —[`IMPLEMENTS`]→ `TASK:"setup Redis"`
 - `ERROR:"connection timeout"` —[`BLOCKS`]→ `TASK:"setup Redis"`
-- `COMMIT:"a3f2b1"` —[`FIXES`]→ `ERROR:"connection timeout"`
+- `FILE:"src/auth.py"` —[`FIXES`]→ `ERROR:"422 response on login"`
 
 ### 3.4 去重与修剪策略
 
@@ -262,14 +267,15 @@ class GraphMemory:
 
 提取管线的输入是 LLM 响应的纯文本，输出是类型化的图节点。这本质上是**从非结构化文本中提取结构化事实**的问题。
 
-TokenMizer 采用**双轨策略**：
-- **V1（启发式）**：34 条正则表达式，延迟 0.5ms，成本 $0
-- **V2（改进启发式）**：四项优化，延迟不变，召回率显著提升
-- **未来路径（LLM）**：将最后 3 条消息发送给小型模型进行提取（未在当前版本评估）
+TokenMizer 的默认路径是**确定性启发式**（`graph_memory/hybrid_extractor.py`）：针对 task、decision、file、error、environment、endpoint 触发模式的编译正则管线，含复合句拆分与 CSV 决策拆分。它不做任何推理调用，成本为 $0。
+- **默认（启发式）**：编译正则管线，8.1–529.9 ms/会话
+- **未来路径（LLM）**：将最近消息发送给小型模型以结构化 JSON 提示提取（未在本文评估）
 
-### 4.2 V1 基线：34 条正则
+### 4.2 正则提取示例
 
 ```python
+# 触发模式类别（task / decision / file / error / environment / endpoint）
+# 以下为常见模式示意，非论文中的完整模式表
 _COMPLETED = re.compile(
     r'(?:Completed|Implemented|Fixed|Added)[:\s]+(.+?)(?:\.|$)', re.I)
 _IN_PROGRESS = re.compile(
@@ -277,64 +283,38 @@ _IN_PROGRESS = re.compile(
 _PENDING = re.compile(
     r'(?:Need to|TODO|Will|Next)[:\s]+(.+?)(?:\.|$)', re.I)
 _DECISION = re.compile(
-    r'(?:Decided|Using|Running|Chose|Selected)[:\s]+(.+?)(?:\.|$)', re.I)
+    r'(?:Decided|Using|Chose|Selected)[:\s]+(.+?)(?:\.|$)', re.I)
 _FILE = re.compile(
     r'([\w./][\w./\-]*\.(?:py|js|ts|jsx|tsx|yaml|yml|json|md|go|rs|tf|toml|sh))', re.I)
 ```
 
-V1 的 34 条正则覆盖了最常见的文本模式。它是**零成本**的基线，但受限于两个固有问题：
-1. **触发词覆盖不足**：只能识别精确匹配的动词（如 "Completed"），无法识别变体
-2. **无模糊匹配**：提取出的标签（如 "set up Redis cache for session management"）无法与 ground-truth 标注中的简短表述（如 "redis setup"）匹配
+该管线是**零推理成本**的默认路径，但受限于显式措辞：
+1. **只能识别显式触发词**：如 "Decided: ..."、"Completed: ..."，无法覆盖隐式表达（"let's go with Redis"）
+2. **基准对启发式有利**：3 个会话全部使用显式命令式措辞，论文明确警告不要将结果外推到隐式表述的会话（L2）
 
-### 4.3 V2 四项改进
+### 4.3 复合句与 CSV 决策拆分
 
-**改进 1：扩展触发词表（+9 动词，0pp task recall）**
+论文的默认提取器包含两项结构性处理（与「模糊匹配」无关）：
+- **复合句拆分**：在句号后拆分复合标签，使 "Setup Redis. Configure Nginx" 被识别为两个独立任务。
+- **CSV 决策拆分**：对逗号和 `and` 分隔的决策进行拆分。
 
-新增：`Deployed, Resolved, Migrated, Launched, Shipped, Published, Done, Finished, Updated`
-
-这一改进本身**未产生直接的任务回忆率提升**，但它**使模糊匹配成为可能** —— 更多提取出的候选标签为模糊匹配提供了原料。
-
-**改进 2：模糊标签匹配（+33pp task recall）—— 主导改进**
-
-这是论文最关键的技术贡献。将提取的冗长标签与 ground-truth 中的简洁标注匹配。
+论文**没有报告提取器消融**：既没有 V1/V2 对比，也没有对触发词、拆分等单项的消融数字。**模糊匹配不是提取器的改进项**，而是评测的评分协议（Definition 5）：标签 a、b 匹配当且仅当 a ⊆ b、b ⊆ a，或 ≥3 字符 token 集合的重叠比例 ≥50%。论文明确说明该协议对图方法和基线**同样适用**（"The identical protocol scores both methods"）。
 
 ```python
-# Source: github.com/Shweta-Mishra-ai/tokenmizer/blob/main/tokenmizer/graph_memory/extractor_v2.py
-
-def fuzzy_match(a: str, b: str) -> bool:
-    """
-    匹配冗长的提取标签与简洁的 ground-truth 标注。
-    论文 Definition 5: 子串包含 或 ≥50% token 重叠。
-    ≥3 字符过滤器防止常见短词（"a", "in", "the"）膨胀重叠分数。
-    """
-    a, b = a.lower(), b.lower()
-    if a in b or b in a:          # 情况 1: 子串包含
+# 评分协议（Definition 5 / Appendix），非提取器代码
+def _fuzzy_match(a: str, b: str) -> bool:
+    a, b = a.lower().strip(), b.lower().strip()
+    if a in b or b in a:
         return True
-    wa = set(re.findall(r'\w{3,}', a))  # 仅 ≥3 字符 token
+    wa = set(re.findall(r'\w{3,}', a))
     wb = set(re.findall(r'\w{3,}', b))
     if not wa or not wb:
         return False
     shorter = wa if len(wa) <= len(wb) else wb
-    return len(wa & wb) / len(shorter) >= 0.5  # 情况 2: 50% 重叠
+    return len(wa & wb) / len(shorter) >= 0.50
 ```
 
-**消融结果**显示了模糊匹配的关键性：
-
-| 配置 | Task Recall |
-|------|-----------|
-| V2 完整 | 51.0% |
-| V2 无模糊匹配 | 18.0% |
-| **Δ（模糊匹配贡献）** | **+33.0 pp** |
-
-> **类比理解**：模糊匹配相当于给手工标注和自动提取之间架了一座桥。手工标注者写下 "redis setup"，LLM 助手说 "I've completed setting up a Redis cache for session management" —— 传统精确匹配判定为不匹配（0%），模糊匹配看到 2/2 tokens 重叠 → 判定匹配（100%）。没有这座桥，大部分提取的标签都是「精确标记，但被判定为未命中」。
-
-**改进 3：复合句拆分（0pp task recall）**
-
-在句号后拆分复合标签（`re.split(r'.\s+(?=[A-Z])', label)`），使 "Setup Redis. Configure Nginx" 被识别为两个独立任务。
-
-**改进 4：CSV 决策拆分（轻微回归）**
-
-对逗号和 `and` 分隔的决策进行拆分。作者指出这导致决策回忆率的**轻微回归** —— 拆分可能将 "Python and FastAPI" （一个完整的技术栈决策）错误地拆分为两个独立决策。
+> **类比理解**：模糊匹配相当于给手工标注和自动提取之间架了一座桥。手工标注者写下 "redis setup"，LLM 助手说 "I've completed setting up a Redis cache for session management" —— 传统精确匹配判定为不匹配（0%），模糊匹配看到 2/2 tokens 重叠 → 判定匹配（100%）。但这是**评测口径**，两种方法都享受同样的匹配宽松度，因此并不构成 TokenMizer 相对基线的优势。
 
 ### 4.4 GraphValidator：置信度评分
 
@@ -366,9 +346,9 @@ GraphValidator 是**成本控制机制** —— 每条正则匹配都产生候�
 
 ### 4.5 提取管线延迟分析
 
-- V1/V2 启发式提取：**0.5ms** 延迟
-- GraphValidator 评分：**内存计算，可忽略**
-- LLM 提取器（未来）：预计 **100–500ms**，需额外推理成本
+- 启发式提取：**8.1–529.9 ms/会话**（3 会话基准，均值 187.2 ms，中位数 23.6 ms）
+- 18 轮会话为 529.9 ms，是 10 轮会话中位数的 22×，论文明确表示原因待 profiling（L7）
+- LLM 提取器（未来路径）：未在本文评估
 
 ---
 
@@ -425,7 +405,7 @@ def to_resume_block(self, budget: int = 300) -> str:
     return "\n".join(lines)
 ```
 
-**序列化示例输出（78 tokens）**：
+**序列化示例输出（示意，非实测规模；标准层实测均值约 254 tokens）**：
 ```
 [CHECKPOINT: data-science-project]
 DONE: explore dataset shape, handle null values
@@ -464,100 +444,75 @@ class CheckpointManager:
         return ckpt
 ```
 
-### 5.4 8 层压缩管线
+### 5.4 压缩管线（未测量）
 
-TokenMizer 的压缩管线在序列化**之后**运行，进一步缩减恢复块的 token 数。
+TokenMizer 的压缩引擎对**大输入**应用分级启发式（AI 填充词移除、保序去重、空白归一化、语言感知注释剥离、带保护近期窗口的历史修剪、文件类型感知截断），并可在语义相似度质量门后可选启用 LLMLingua 系列神经阶段；输出修剪器在非流式路径上压缩冗长响应。
 
-| 层 | 类型 | 描述 | 贡献 |
-|----|------|------|------|
-| 1 | 启发式 | 填充词移除 (filler removal) | **31.2%** |
-| 2 | 启发式 | 冗余空格压缩 | 3.1% |
-| 3 | 启发式 | 短标签合并 | 2.8% |
-| 4 | 启发式 | 已完成任务批量折叠 | 4.5% |
-| 5 | 启发式 | 环境事实去重 | 3.0% |
-| 6 | 启发式 | 文件路径前缀压缩 | 2.7% |
-| 7 | 可选神经 | LLMLingua-2 token 重要性评分 | 未独立测量 |
-| 8 | 可选神经 | LongLLMLingua 选择性保留 | 未独立测量 |
-
-**启发式总计**：47.3% token 缩减（零外部依赖，零推理成本）
+**论文明确的范围说明**：v0.3.1 结果文件**不含任何压缩或缓存测量**，因此本文不对这两个子系统作定量声明（Section V-C；L6）。
 
 ---
 
-## Ch6: 实验评估与消融分析
+## Ch6: 实验评估与结果分析
 
 ### 6.1 实验设置
 
-**Benchmark**: 21 个会话，横跨 5 个领域：
+**Benchmark**: 3 个合成会话（heuristic-only 提取，单一 plain-summary 基线）：
 
-| 领域 | 会话数 | 特点 |
-|------|--------|------|
-| Software Engineering | 6 | 显式命令式措辞，清晰的文件路径 |
-| Data Science | 5 | 探索性分析，迭代实验 |
-| DevOps | 4 | 基础设施配置，依赖关系密集 |
-| Research | 3 | 隐式推理，长段落，少显式动作标记 |
-| Debugging | 3 | 错误-修复-验证循环，高度结构化 |
+| 会话 | 领域 | 轮数 | GT 任务/决策/文件 |
+|------|------|------|-------------------|
+| fastapi_auth | Backend auth service | 18 | 5/5/5 |
+| react_dashboard | Frontend dashboard | 10 | 3/5/4 |
+| ml_pipeline | ML training pipeline | 10 | 3/4/4 |
 
-每个会话有 ground-truth 标注（任务、决策、文件），由单一标注者（作者本人）提供 —— 这是论文承认的限制之一。
+所有会话使用显式命令式措辞（"Decided: ..."），对启发式提取有利，由此产生的天花板效应在论文 Section XI 讨论。每个会话由作者标注（任务、决策、文件）；作者自建会话、ground truth 与提取器构成论文承认的三重冲突（L4）。
 
 ### 6.2 对比基线
 
-| 方法 | Task Recall | Decision Recall | File Recall | Avg Tokens |
-|------|------------|-----------------|-------------|------------|
-| Naive Truncation | 45% | 35% | 55% | 165 |
-| Sliding Window | 50% | 30% | **60%** | 159 |
-| Naive Summary | 42% | 38% | 48% | 170 |
-| **TokenMizer V2** | **51%** | **47%** | 59% | **78** |
+单一基线是 **plain-summary**：对拼接后的完整转录做关键词扫描 —— 决策用技术名词匹配、文件用路径模式、任务用完成标记片段，近似「总结这段对话」会浮现的内容。作者明确给出两个**偏向基线**的说明：它读取完整转录、没有 token 预算；其技术关键词表与 ground-truth 决策词表高度重叠。LLM 摘要、MemGPT 式记忆、检索等更强基线留作未来工作。
+
+| 方法 | Task Recall | Decision Recall | File Recall |
+|------|------------|-----------------|-------------|
+| Plain-summary 基线 | 75.6% | 70.0% | 91.7% |
+| **TokenMizer v0.3.1** | 75.6% | **85.0%** | **100%** |
 
 **关键观察**：
 
-1. **TokenMizer 用一半的 token 成本达到最高决策回忆率**。这是最重要的结果 —— 决策回忆率是「结构化记忆质量」的核心指标，因为它衡量的是「是否保留了**为什么**」而非「**什么**」。
+1. **任务回忆率完全持平**（75.6%）：在显式完成标记下，关键词扫描与结构化提取同样能恢复任务。
 
-2. **文件回忆率的比较持平**（59% vs 60%）。文件路径天然可以通过滑动窗口保留（文件名出现在最近的对话中），这不意外。
+2. **决策回忆率分离两种方法**（85.0% vs 70.0%，均值 +15.0 pp；两个有差异的会话分别 +20 与 +25 pp）。决策回忆率是「结构化记忆质量」的核心指标，因为它衡量的是「是否保留了**为什么**」而非「**什么**」。
 
-3. **所有基线的决策回忆率都远低于任务回忆率** —— 因为决策信号往往出现在会话早期，先被截断或摘要化丢失。
+3. **文件回忆率图为 100%、基线 91.7%**，但论文指出此处很可能存在天花板效应，需要更难会话来可靠区分。按 Eq. (1)，平均信息保留率为 86.9%（图）vs 79.1%（基线）。
 
 ### 6.3 Token 效率指标 η
 
-$\eta = \frac{\text{mean recall}}{|R|/100}$
+$\eta = \frac{1-L}{|R|/100} = \frac{\text{mean recall}}{|R|/100}$
 
-| 领域 | η (TokenMizer) | 说明 |
-|------|---------------|------|
-| Debugging | 最高 | 错误-修复循环天然适合图表示 |
-| Software Engineering | 高 | 显式命令式措辞 → 高提取质量 |
-| DevOps | 中 | 依赖关系密集，图结构获益 |
-| Data Science | 中低 | 探索性分析，迭代概念 |
-| Research | 最低 | 隐式推理，无显式动作标记 |
+论文只报告了 3 个会话的 η，**没有按领域分解**：
 
-### 6.4 消融实验
+| 会话 | RT (tokens) | η |
+|------|------------|---|
+| fastapi_auth | 302 | 0.29 |
+| react_dashboard | 260 | 0.32 |
+| ml_pipeline | 201 | 0.46 |
+| **均值** | **254.3** | **0.35** |
 
-| 消融配置 | Task Recall | Δ |
-|----------|------------|-----|
-| V2 完整 | 51.0% | — |
-| V2 - 模糊匹配 | 18.0% | **-33.0 pp** |
-| V2 - 扩展触发词 | 51.0% | 0.0 pp |
-| V2 - 化合物拆分 | 51.0% | 0.0 pp |
-| V2 - CSV 拆分 | ~50% | -1.0 pp |
+### 6.4 消融与归因
 
-**核心发现**：模糊标签匹配是**唯一显著改进**（+33 pp task recall）。其他三项改进为模糊匹配提供了更多「弹药」（候选标签），但匹配算法本身才是决定性因素。
+论文**没有报告提取器消融**（无 V1/V2 对比，也无模糊匹配、触发词、拆分等单项消融）。模糊匹配是评测的评分协议（Definition 5），而非提取器的改进项，且对图方法和基线同样适用。论文对结果的归因是定性的：在显式完成标记下任务回忆率持平，差异集中在决策回忆率。
 
-### 6.5 领域变化分析
+### 6.5 论文承认的局限
 
-**高表现领域（Software Engineering）**：
-- 显式的命令动词（"Implement the user authentication module"）
-- 清晰的文件路径模式
-- 决策表述明确（"Let's use PostgreSQL for this"）
+- **n=3 合成会话**：冒烟级基准，均值仅作方向参考（L1）。
+- **有利措辞与天花板效应**：所有会话使用启发式所针对的显式命令式风格；文件回忆率 100%、两个决策回忆率接近 100%，基准无法在顶部区分（L2）。
+- **单一弱基线**：读取完整转录、关键词表与 ground-truth 重叠（L3）。
+- **作者自建一切**：会话、ground truth、提取器同一人完成，可能因共享词汇抬高回忆率（L4）。
+- **精度未报告**：结果文件只持久化 recall（L5）。
+- **延迟扩展未 profiling**：18 轮会话的 529.9 ms 原因未定（L7）。
+- **无端到端恢复指标**：实体回忆只是代理（L8）。
 
-**低表现领域（Research）**：
-- 隐式推理（"The attention pattern distribution suggests..."）
-- 无命令式标记
-- 概念随时间演化，不是完成/未完成的二元状态
+### 6.6 语义缓存（未测量）
 
-### 6.6 语义缓存结果（初步）
-
-在受控 10 查询工作负载上：
-- **Hit rate**: 70%
-- 实现：sentence-transformer embeddings + cosine similarity threshold
-- 评价：初步结果，未在大规模工作负载上验证
+实现为 sentence-transformer embeddings + cosine 相似度阈值（默认 0.92），带 LRU 驱逐与 TTL；但 v0.3.1 结果文件**不含缓存测量**，论文不对命中率作任何声明（Section V-C；L6）。
 
 ---
 
@@ -565,10 +520,11 @@ $\eta = \frac{\text{mean recall}}{|R|/100}$
 
 ### 7.1 已知局限
 
-1. **Synthetic benchmark**：21 个会话由作者构建和标注，未覆盖真实生产环境的多样性和噪声。
+1. **Synthetic benchmark**：仅 3 个合成会话，由作者构建和标注，未覆盖真实生产环境的多样性和噪声。
 2. **Single annotator**：ground-truth 标注由单一标注者完成，可能存在标注一致性偏差。
 3. **LLM 提取器未评估**：已实现但未评估，对隐式推理场景可能显著改善。
-4. **Decision CSV 拆分回归**：~1pp 的决策回忆率下降。
+4. **压缩/缓存未测量**：v0.3.1 结果文件无压缩率或缓存命中率，论文不作定量声明。
+5. **精度未报告**：运行器计算 precision，但结果文件只持久化 recall。
 
 ### 7.2 部署配置
 
@@ -594,8 +550,8 @@ cache:
 ### 7.3 延伸阅读
 
 - **MECW**: Paulsen, 2025
-- **MemGPT**: Packer et al., 2024
-- **LLMLingua-2**: Pan et al., 2024
+- **MemGPT**: Packer et al., 2023
+- **LLMLingua / LongLLMLingua**: Jiang et al., 2023
 - **GraphRAG**: Edge et al., 2024
 
 ---

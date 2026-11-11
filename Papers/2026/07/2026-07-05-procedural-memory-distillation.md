@@ -68,7 +68,7 @@ SDPO（Self-Distillation Policy Optimization）是近期的重要进展。SDPO �
 现有记忆相关工作可以分为两类：
 
 - **推理时记忆系统**（RAG、MemGPT、Memory-Bank、A-MEM）：在推理时依赖外部检索来补充上下文。这类方法引入了推理时的延迟和存储依赖，且外部记忆的检索质量直接影响模型输出。
-- **技能蒸馏方法**（SkillRL、Skill-SD、Mem2Evolve）：将经验蒸馏为技能并在推理时复用，但记忆往往是离线构建的、静态的，无法随策略演化而自适应更新。
+- **技能蒸馏方法**（SkillRL、Skill-SD、Mem2Evolve）：将经验蒸馏为可复用的技能/记忆并在推理时依赖这些外置产物，而非在训练中作为教师脚手架内化到策略参数中。
 
 PMD 的关键洞察是：**记忆应该是一个训练脚手架，而不是推理依赖**。在训练过程中，记忆帮助教师提供更强的监督信号；训练结束后，记忆被完全内化到模型权重中，推理时无需任何外部检索。
 
@@ -255,7 +255,7 @@ PMD 的训练循环如 Algorithm 1 所述：
 
 ### 6.1 局限性
 
-1. **计算开销**：PMD 比 SDPO 引入了额外的记忆构建和检索开销——需要嵌入模型进行行为聚类、LLM 进行行为提炼、以及更大的教师 prompt 上下文。文中使用的 GPT-5.4 做行为提炼在 warm-up 后每训练步调用一次，对于大规模训练可能成本较高。
+1. **计算开销**：PMD 比 SDPO 引入了额外的记忆构建和检索开销——需要嵌入模型进行行为聚类、LLM 进行行为提炼、以及更大的教师 prompt 上下文。文中使用的 GPT-5.4 做行为提炼在 warm-up 后每训练步最多调用一次，对于大规模训练可能成本较高。
 
 2. **任务域限制**：实验仅在两个 domain（科学多选题和代码生成）上验证。对于开放式生成任务（如创意写作）、需要真实人类偏好的任务（RLHF 场景），PMD 的有效性尚未验证。
 
@@ -283,4 +283,4 @@ PMD 的训练循环如 Algorithm 1 所述：
 
 ---
 
-*本报告基于 arXiv:2607.01480 "Procedural Memory Distillation: Online Reflection for Self-Improving Language Models" 撰写。所有数据均来自论文原文 Table 2、Table 3 及正文。*
+*本报告基于 arXiv:2607.01480 "Procedural Memory Distillation: Online Reflection for Self-Improving Language Models" 撰写。所有数据均来自论文原文 Table 2–4、Table 11 及正文/附录。*

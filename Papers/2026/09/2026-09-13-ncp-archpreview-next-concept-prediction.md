@@ -43,7 +43,7 @@ NCP-ArchPreview 把语言模型内部自发涌现的语义抽象从"下一 token
 
 ### 1.2 核心贡献
 
-1. **首个万亿 token 尺度的 latent-space 语言模型验证**：在 OLMo-3-7B 之上构造 8.94B 参数的 NCP-ArchPreview（16 层 Token Encoder + 8 层 Concept Module + 16 层 Token Decoder），从预训练起点即启用 NCP，跨 5.73T token 完成验证——相比 ConceptLM 的 1.5B 从零训练与 8B 续训，规模推进了一个量级以上。
+1. **目前最大规模的万亿 token 级 latent-space 语言模型验证**：在 OLMo-3-7B 之上构造 8.94B 参数的 NCP-ArchPreview（16 层 Token Encoder + 8 层 Concept Module + 16 层 Token Decoder），从预训练起点即启用 NCP，跨 5.73T token 完成验证——相比 ConceptLM 的 1.5B 从零训练与 8B 续训，规模提升至 8.9B。
 2. **乘积量化构造离散概念词表**：每个概念被切为 $S = 32$ 段，每段一个含 $N = 128$ 个码字（维度 128）的 codebook，定义 $N^S = 128^{32}$ 种组合，在不使用巨型单体 codebook 的前提下扩大离散概念空间；概念词表直接从 Token Encoder 的 hidden state 学习，不依赖外部编码器。
 3. **可微的概念预测路径**：Concept Module 对每段 codebook 输出分布，并取分布下的**码字加权期望**作为预测概念，既保持完全可微，又把输出约束在已学码本空间内，避免连续回归目标的自由漂移。
 4. **层级残差路由（IRC + CRC）**：IRC 允许模块内跨深度组合状态（初始化退化为标准残差），CRC 以目标状态条件化的 softmax 系数 + 对角缩放跨模块传递表示；1B 消融显示相对无层级残差的参照降低 0.0323 loss，额外解析训练 FLOPs 仅 +0.051%。
@@ -309,7 +309,7 @@ $$W_t = W_{t-1} - \eta_t\left( \lambda_{\mathrm{Muon}} \frac{O_t}{\sqrt{\max(d_{
 - **backbone 与数据**：以 OLMo-3-7B 为 backbone，遵循 OLMo-3 的分阶段数据课程。Stage-1 使用 **Dolma 3 Mix**，Stage-2 在 **Dolma 3 Dolmino** 上继续训练；Stage-1 累计 **5.73T token**，Stage-2 中训 **100B token**。
 - **评测协议**：沿用 OLMo-Core 中的 OLMo 评测协议，覆盖 30 个 benchmark family，包括 MMLU、GSM8K、MATH-500、HumanEval、MBPP、ARC、HellaSwag 等，考察事实知识、数学推理、代码生成、常识推理、阅读理解与语言建模能力。主表（Table 1）把 26 个 higher-is-better 指标与 10 个 lower-is-better 似然（BPB）指标分开，BPB 均值单独计算且不计入 Overall AVG；Overall AVG 是 26 个组成指标的**无权平均**，而非各分段 AVG 的平均。
 - **NCP-ArchPreview 配置**：hidden 4096 / FFN 11,008 / 32 heads；32 个 token 级 Transformer 层均分为 16 层 Token Encoder 与 16 层 Token Decoder；Concept Module 8 层、chunk size 4；VQ 32 个 codebook × 128 条目 × 维度 128；概念表示通过归一化残差在**每个** decoder 层注入；总参数约 8.94B；最大上下文 8,192 token。
-- **域适应数据**（用于 5.4 节）：从 Stage-1 checkpoint 出发分别在 Magicoder（code）、Orca-Math（math）、TriviaQA-RC（knowledge）上继续训练。
+- **域适应数据**（用于 6.1 节）：从 Stage-1 checkpoint 出发分别在 Magicoder（code）、Orca-Math（math）、TriviaQA-RC（knowledge）上继续训练。
 
 ### 5.2 训练动力学：loss 优势与收敛加速
 
@@ -440,11 +440,11 @@ Table 12 给出的缩放梯子共 27 个配置点（1e19: 5 点、3e19: 5 点、
 
 VQ 相对 LoRA 吞吐高 1.50×、相对 Full 高 2.02×。值得注意的是 VQ 与 LoRA **都只优化 17M 参数**，但 VQ 吞吐高 50%——差异来自 LoRA 需要经过适配器路径的回传与额外激活，而 VQ 只更新 codebook 与预测头。显存方面 VQ 占用最低（32.4%，相对 Full −64%、相对 LoRA −34%），单卡 MBS=2 时 VQ 51.6%、LoRA 87.9%、Full 直接 OOM。
 
-综合起来，+VQ 的工程定位很清楚：**参数量效率接近 LoRA，但吞吐、显存与抗遗忘都更好；代价是目标域增益不如全量训练**。
+综合起来，+VQ 的工程定位很清楚：**参数量效率接近 LoRA，但吞吐、显存与抗遗忘都更好；代价是除代码域外，目标域增益不如全量训练**。
 
 ### 6.2 与多 token 预测（MTP）的关系
 
-5.2 节观察到 NCP 的概念表示含有对多 token 预测有用的信息。论文在 **3B 规模**上做了受控对比：3B-scale NCP-ArchPreview 组织为 8 层 Token Encoder + 4 层 Concept Module + 7 层 Token Decoder；为公平比较，把 OLMo-3-3B 的 16 层也按 8/1/7 分组并在对应深度加上**相同的层级残差连接**，记作 OLMo-3-3B + Residual。四个变体（两种架构 × 是否加 MTP 层）都在预训练语料的前 150B token 上训练。MTP 层遵循 DeepSeek-V3 的做法：主模型保留 NTP 目标，新增层预测"后两个位置"的 token，损失权重 0.3。
+论文 Section 5.2 的结果提示 NCP 的概念表示含有对多 token 预测有用的信息。论文在 **3B 规模**上做了受控对比：3B-scale NCP-ArchPreview 组织为 8 层 Token Encoder + 4 层 Concept Module + 7 层 Token Decoder；为公平比较，把 OLMo-3-3B 的 16 层也按 8/1/7 分组并在对应深度加上**相同的层级残差连接**，记作 OLMo-3-3B + Residual。四个变体（两种架构 × 是否加 MTP 层）都在预训练语料的前 150B token 上训练。MTP 层遵循 DeepSeek-V3 的做法：主模型保留 NTP 目标，新增层预测后第二个位置的 token，损失权重 0.3。
 
 | 模型 | 平均 LM loss（前 150B token） | Δ vs. OLMo-3 + Residual | 训练 FLOPs | Δ FLOPs |
 |:---|:---:|:---:|:---:|:---:|
@@ -490,7 +490,7 @@ Stage-2 出现"loss 更低但下游更差"的背离（5.6 节）后，论文构�
 - **构建方式**：从 **177,202** 条专家轨迹（跨 **63** 个来源、**6** 个域）构造扩展 held-out 集，对应约 **100M** teacher-suffix token；所有轨迹由**同一个冻结的 Qwen3.7-Plus teacher** 按统一生成协议产出。prompt、专家后缀、来源标识与能力标注在评测候选 checkpoint 之前就固定，保证每个配方在完全相同的评分视图上比较（无效生成被剔除，另保留一个更严格的 trusted 子集做敏感性分析）。
 - **评分口径**：item 级分数先在来源内平均，来源级均值再在能力叶节点内平均，即 source-balanced 评分，避免单一来源主导。
 - **对照**：三个匹配预算的 Stage-2 配方（V1/V2/V3），外加 Stage-1 checkpoint 作为跨阶段参照（不参与配方选择）。
-- **结果**：代理指标（source-balanced 轨迹 NLL）与下游表现之间拟合出很强的关系——例如 function-generation 能力叶到 HumanEval 的映射报告 $\mathbf{R^2 = 0.999}$。论文同时强调口径必须匹配任务格式：HellaSwag 就是反例，其 task-native 评分统计量与 NLL 的关系明显偏离趋势，说明"用错统计量"会破坏代理指标的可解释性。
+- **结果**：代理指标（source-balanced 轨迹 NLL）与下游表现之间拟合出很强的关系——例如 function-generation 能力叶到 HumanEval 的映射报告 $\mathbf{R^2 = 0.999}$。论文同时强调口径必须匹配任务格式：HellaSwag 就是反例——对这类多选题，source-balanced NLL 不是合适的代理统计量，task-native 的 choice margin 才能区分 V2/V3 与 V1。
 - **实用结论**：一个新的中训配方可以用**单次冻结前向**、通过比较其能力级 NLL 与 task-native 统计量来筛查。
 
 ## 第 7 章 代码实现与工程细节
@@ -594,7 +594,7 @@ Stage-2 出现"loss 更低但下游更差"的背离（5.6 节）后，论文构�
 ### 8.3 与相关工作的定位
 
 - **层级/潜在语言建模**：Hourglass Transformer 与 MegaByte 使用固定层级结构（预定义多尺度分辨率或 byte patch）；BLT、DLCM、H-Net 使用动态或输入自适应分块；ContextLM 学习预测式上下文嵌入。这些工作主要改变**计算粒度或潜在单元的构造机制**。
-- **抽象级预测目标**：Joint-Embedding Predictive Architectures（JEPA）在图像（I-JEPA）与视频（V-JEPA / V-JEPA 2）上取得成功，Large Concept Model 把整句映射到共享连续嵌入空间做抽象级自回归；ConceptLM 是本文最直接的来源——它首次提出 NCP 作为离散概念级目标，学习乘积量化概念词表并与语言模型联合训练，但只从零训练到 **1.5B** 参数、并以续训方式给一个 8B 模型加上 NCP。
+- **抽象级预测目标**：Joint-Embedding Predictive Architectures（JEPA）在图像（I-JEPA）与视频（V-JEPA / V-JEPA 2）上取得成功，Large Concept Model 把整句映射到共享连续嵌入空间做抽象级自回归；ConceptLM 是本文最直接的来源——它引入 NCP 作为离散概念级目标，学习乘积量化概念词表并与语言模型联合训练，但只从零训练到 **1.5B** 参数、并以续训方式给一个 8B 模型加上 NCP。
 - **本文的差异**：NCP-ArchPreview 是在 OLMo-3-7B 基础上、**从预训练开始**就启用 NCP、跨 5.73T token 的 8.9B 实现。用一句话概括贡献边界：它把 ConceptLM 的机制从"概念验证规模"推到"万亿 token 规模"，并提供参数量/计算量对齐的对照证据。
 - **残差连接谱系**：DenseFormer（输入无关的跨深度平均权重）、DeepCrossAttention（输入相关权重 + 深度交叉注意力）、MUDDFormer（按 query/key/value/residual 分别预测 token 条件化稠密连接权重）、Attention Residuals（对前序层输出做 softmax 注意力，含 blockwise 变体）、Depth-Attention（在自注意力内部混合更早的 value 状态）。本文的 IRC 采用 MUDDFormer 的单流 DD 表述以实现模块内全历史复用；CRC 则额外提供**目标条件化**的跨模块深度选择。
 - **多 token 预测**：MTP 为多个未来 token 加辅助头，但损失仍锚定在单个表面 token 上；本文的 NCP 把监督对象换成显式离散概念，并在 3B 对照中显示两者收益可叠加。

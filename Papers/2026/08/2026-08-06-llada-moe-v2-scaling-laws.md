@@ -49,7 +49,7 @@
 | MultiPL-E (SFT) | 67.52% | 66.60% | 45.00% (Chat) | 超过 Qwen3 |
 | 共享专家比 S | 33.3% | 0%（无共享） | — | dLLM 最优值 |
 
-**要点**：LLaDA MoE v2 是首个由 dLLM 专用 scaling law 引导设计的大规模 MoE 扩散语言模型。其核心价值不在绝对性能超越 Qwen3，而在于证明「AR 的 scaling 经验不能直接迁移到 MoE dLLM」这一论断，并以 65% 的 token 预算逼近了强 AR 基线的能力边界。
+**要点**：LLaDA MoE v2 是由 dLLM 专用 scaling law 引导设计的大规模 MoE 扩散语言模型。其核心价值不在绝对性能超越 Qwen3，而在于证明「AR 的 scaling 经验不能直接迁移到 MoE dLLM」这一论断，并以 65% 的 token 预算逼近了强 AR 基线的能力边界。
 ## 第 2 章 研究背景与动机
 
 ### 2.1 扩散语言模型（dLLM）
@@ -62,7 +62,7 @@ $$\mathcal{L}(\theta) = -\mathbb{E}_{x_0, t, x_t}\left[\frac{1}{t}\sum_{i=1}^{L}
 
 该目标上界数据的负对数似然。推理时从全掩码序列出发，通过迭代去噪逐步揭开 token——每步可并行解码多个 token，这是 dLLM 相对 AR 模型的核心优势，也为加速推理提供了空间（KV cache 复用、并行解码、投机解码等）。
 
-近年 dLLM 已从「从零训练的掩码扩散模型」与「从预训练 AR checkpoint 适配」两条路线追平强 AR 模型的能力，成为未来语言建模的候选范式。但已有 dLLM scaling 研究几乎全部聚焦 dense 架构（SMDM、Quokka、DLMs、Ling 的 dense 部分等），MoE dLLM 的 scaling 行为仍是空白。
+近年 dLLM 已从「从零训练的掩码扩散模型」与「从预训练 AR checkpoint 适配」两条路线追平强 AR 模型的能力，成为未来语言建模的候选范式。但已有 dLLM scaling 研究几乎全部聚焦 dense 架构（SMDM、Quokka、DLMs、Sahoo et al. 2026 等），MoE dLLM 的 scaling 行为仍是空白。
 
 ### 2.2 MoE Transformer 与三个架构参数
 
@@ -272,7 +272,7 @@ LLaDA MoE v2 30B-A3B 与五个代表基线的对比。规模最匹配的基线�
 | LiveCodeBench v6 | 31.86% | 39.87% | 16.18%† | 14.87%† | 2.53%† | 49.18% |
 | BigCodeBench | 41.84% | 33.86% | 21.23%† | 18.33%† | 13.42%† | 45.70% |
 
-> 注：\* 表示官方报告结果；† 表示在论文统一评估配置下复现的结果；无标注项表示各模型官方/统一评估一致。多选任务（MMLU、MMLU-Pro、CEval、CMMLU、HellaSwag）用条件似然评估，其余为条件生成。
+> 注：\* 表示取自 Qwen3 原论文的报告结果；† 表示取自 LLaDA MoE 7B-A1B 原论文的报告结果（表 4 中 † 表示取自 SDAR 原论文）；无标注项为论文优先采用的官方结果，官方结果缺失时改用统一评估配置（原文未逐项区分）。多选任务（MMLU、MMLU-Pro、CEval、CMMLU、HellaSwag）用条件似然评估，其余为条件生成。
 
 **分析**：
 
@@ -402,11 +402,11 @@ $$\lambda = \mathbb{E}_{r(h) \sim \mathcal{N}(0, I_{n_e})}\left[\frac{\sqrt{n_s}
 4. **激活比的最优值未精确定位**：论文表明「更稀疏越好」的趋势，但 30B-A3B 的 A=9.09% 是离散候选网格中的选择而非连续最优；在最小计算预算下次低激活比反而优于最稀疏配置，说明极端稀疏在大预算下是否持续有利仍需更大规模的验证。
 5. **中文知识基准差距**：CEval/CMMLU 与 Qwen3 差距较大（−11.39 / −8.36 pp），可能源于中文数据配比或模型容量分配，论文未对此做专门分析。
 6. **开源状态不明**：未提供代码或权重，复现成本高；数据管线（语料配比、清洗细节）未公开。
-7. **对比基线的评估口径差异**：部分基线值为官方报告（\*），部分为统一评估复现（†），跨模型比较存在评估配置差异的固有噪声。
+7. **对比基线的评估口径差异**：部分基线值为原论文报告（\* 为 Qwen3 原论文，† 在表 3 为 LLaDA MoE 7B-A1B、在表 4 为 SDAR 原论文），其余为本文统一评估配置或官方结果（原文未逐项区分），跨模型比较存在评估配置差异的固有噪声。
 
 ### 7.2 与相关工作的关系
 
-- **LLaDA 系列**：从 LLaDA（dense 8B，2.3T tokens）到 LLaDA MoE（7B-A1B，21T tokens）到本文 LLaDA MoE v2（30B-A3B，23.5T tokens），本文首次用 dLLM 专用 scaling law 指导大规模 MoE 扩散模型设计，而非继承 AR 实践
+- **LLaDA 系列**：从 LLaDA（dense 8B，2.3T tokens）到 LLaDA MoE（7B-A1B，21T tokens）到本文 LLaDA MoE v2（30B-A3B，23.5T tokens），本文用 dLLM 专用 scaling law 指导大规模 MoE 扩散模型设计，而非继承 AR 实践
 - **其他 MoE dLLM**：DMoE（可学习 block experts）、Expert-choice routing（自适应计算）等早期工作继承 AR 架构选择，本文系统刻画了 dLLM 专属的最优配置
 - **Scaling law 对比基准**：Kaplan（0.73/0.27）、Chinchilla（0.49/0.51）、DeepSeek LLM（0.5243/0.4757）、Llama 3（0.463/0.537）、SMDM（dense dLLM，0.634/0.366）、Quokka（0.514/0.486）、DLMs（0.566/0.434）、Ling（dense AR 0.5422/0.4578、MoE AR 0.5095/0.4905）——本文的 0.475/0.525 是 dLLM 研究中数据侧倾斜最大的前沿（全表对比中 AR Llama 3 的 0.537 更大）
 

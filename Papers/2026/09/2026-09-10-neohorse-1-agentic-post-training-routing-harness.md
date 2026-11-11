@@ -27,7 +27,7 @@ NeoHorse-1 提出把**部署侧的 routing harness** 当作递归自我改进（
 | **Table 1** | 4B 轨道主结果（10 项基准、6 个模型） | 第 5 章（表1） |
 | **Table 2** | 9B 轨道主结果（10 项基准、6 个模型） | 第 5 章（表2） |
 | **Table 3** | routing-harness 数据 vs 公开 Toucan 数据 | 第 5 章（5.4.1） |
-| **Table 4–6** | 附录三段案例（排期报告、时间泄漏审计、Gomoku）的执行与产物证据 | 第 5 章（5.3 节文字归纳） |
+| **Table 5–7** | 附录三段案例（排期报告、时间泄漏审计、Gomoku）的执行与产物证据 | 附录 B（本报告 5.3 节归纳） |
 
 ### 1.2 核心贡献
 
@@ -44,7 +44,7 @@ NeoHorse-1 提出把**部署侧的 routing harness** 当作递归自我改进（
 ### 1.3 关键结果速览
 
 - **10 项基准**（agentic 端到端执行、工具使用与交互、coding、指令遵循）无权重宏平均：**4B 从 58.94% 提升到 64.87%（+5.93 pp）**，**9B 从 65.60% 提升到 69.04%（+3.44 pp）**。
-- 两个规模上增益最集中的是**交互与执行密集**的任务：VitaBench（4B +10.50 pp、9B +11.00 pp）、PinchBench（+6.14 / +7.70 pp）、WorkBuddy（4B +9.79 pp，9B 仅 +0.55 pp）、QwenClaw（+6.21 / +4.69 pp）；而静态指令遵循几乎没有增益（IFEval：4B +1.29 pp、9B −0.37 pp，是 9B 轨道唯一的负增量）。
+- 两个规模上增益最集中的是 **harness-based agent 任务与 coding 基准**：VitaBench（4B +10.50 pp、9B +11.00 pp）、HumanEval（+9.75 / +5.49 pp）、PinchBench（+6.14 / +7.70 pp）、WorkBuddy（4B +9.79 pp，9B 仅 +0.55 pp）、QwenClaw（+6.21 / +4.69 pp）；4B 的 IFBench 也有 +5.00 pp，而 9B 的静态指令遵循基本持平（IFEval −0.37 pp、IFBench 0.00 pp，IFEval 是 9B 轨道唯一的负增量）。
 - **NeoHorse-1-4B 在 4/10 项基准上取得该列最优**（$\tau^2$-Bench 88.46%、PinchBench 77.33%、WorkBuddy 34.41%、QwenClaw 44.68%）并取得 4B 轨道最佳平均分；**NeoHorse-1-9B 同样在 4/10 项取得最优**（BFCL v4 67.43%、$\tau^2$-Bench 90.82%、PinchBench 82.25%、QwenClaw 48.73%），平均分 69.04% 为两表全部 12 个被评模型中最高（领先次优的 Muse-Glimmer-30B 1.18 pp）。
 - **同尺寸基座差距被大幅压缩**：NeoHorse-1-4B（64.87%）与 Qwen3.5-9B（65.60%）的平均分差仅 0.73 pp，而训练前的 Qwen3.5-4B 与 Qwen3.5-9B 相差 6.66 pp；逐项看，4B 后训练模型在 10 项中有 5 项高于 9B 基座。
 - **数据来源对比**：在相同的路由引导配方下，自采 routing-harness 轨迹在五项可比基准上的平均为 70.57%，公开合成工具 agent 数据集 Toucan 为 64.32%，**高出 6.26 pp**。
@@ -74,7 +74,7 @@ NeoHorse-1 提出把**部署侧的 routing harness** 当作递归自我改进（
 | 脉络 | 代表工作 | 论文的差异点 |
 |:-----|:---------|:-------------|
 | 轨迹 SFT | FireAct、AgentTuning、Agent-FLAN、AgentBank、Llama 3 的迭代 SFT + 拒绝采样 + DPO | 不把轨迹当固定教师策略的模仿对象，而是按能力需求组织成课程 |
-| On-policy distillation | OPD（学生在自生成状态上接受教师 logits）、教师轨迹蒸馏 | 把 OPD 接在路由引导的阶段化材料上，教师随学生刷新，使蒸馏成为递归改进而非一次性压缩 |
+| On-policy distillation | OPD（学生在自生成状态上接受教师 logits）、教师轨迹蒸馏 | 把 OPD 接在路由引导的阶段化材料上，教师保持固定、rollout（学生）checkpoint 随训练刷新，使蒸馏贴合学生演进中的行为而非一次性压缩 |
 | Agentic RL / harness 研究 | Search-R1、ReTool、RAGEN、Agent Lightning v1.0、Co-Harness、SWE-agent、Terminal-Lego | 不引入额外 reward 目标，而是改变数据构成；把 harness 从「交互容器」提升为「监督信号源」 |
 
 值得注意的一个选择是：论文**没有走 RL 路线**（既非 RLVR 也非 agentic RL），而是停留在监督式配方（掩码 SFT + OPD）加数据侧闭环。这既有工程上的理由（SFT/蒸馏的信号密度与稳定性优于稀疏的结果奖励），也带来方法上的代价——第 7 章会指出，论文因此缺少一个明确的「能力上限提升」机制，其增益更接近「把已有能力对齐到部署形态」。
@@ -321,7 +321,7 @@ $$\mathcal{L}_{\mathrm{R\text{-}OPD}}^{(j)}(\theta)=\mathbb{E}_{\substack{\mathc
 | IFEval | +1.29 pp | −0.37 pp |
 | 平均 | +5.93 pp | +3.44 pp |
 
-这张派生表揭示了一个论文正文只是概括提到的规律：**增益与「是否需要与环境反复交互」强相关**。在两个规模上，VitaBench（+10.50 / +11.00 pp）、PinchBench（+6.14 / +7.70 pp）这类多轮执行任务的提升最大，而 IFEval（+1.29 / −0.37 pp）这类静态指令遵循任务几乎没有增益，9B 上甚至出现唯一一处负增量。这与 5.3 节轨迹分析的定性观察一致：后训练改变的主要是「闭环执行的组织方式」，而不是单点知识或指令记忆。
+这张派生表补充了论文正文的概括：**增益在 harness-based agent 任务与 coding 基准上尤为明显**——VitaBench（+10.50 / +11.00 pp）在两个规模上都是最大增量，WorkBuddy（4B +9.79 pp）与 HumanEval（+9.75 / +5.49 pp）同样居前，4B 的 PinchBench（+6.14 pp）与 IFBench（+5.00 pp）也可观；9B 的指令遵循基本持平（IFEval −0.37 pp、IFBench 0.00 pp），9B 上仅 IFEval 出现负增量。因此不能把增益简单归因于「是否需要反复交互」——单轮代码生成同样有大增益。这与 5.3 节轨迹分析的定性观察方向一致：后训练改变的主要是「闭环执行的组织方式」，而不是单点知识或指令记忆。
 
 ### 5.3 轨迹分析：提升发生在哪一层
 
@@ -375,7 +375,7 @@ $$\mathcal{L}_{\mathrm{R\text{-}OPD}}^{(j)}(\theta)=\mathbb{E}_{\substack{\mathc
 
 - **可比性**：作者自测的模型共享 harness、工具接口、上下文上限与交互预算，这点较好；但表中带 `∗` 的条目（Nanbeige-4.2-3B 的 LCB v6 = 72.50%）来自官方报告，不同评测管线，直接与自测值比较时应打折。
 - **统计稳健性**：只有三个基准跑了 3 次取均值，PinchBench 与 VitaBench **单次运行**。VitaBench 恰好是本文增益最大的基准之一（4B +10.50 pp、9B +11.00 pp），单次运行叠加「judge 模型被替换为 DeepSeek-V4-Flash」两项因素，使该列的增量需要谨慎解读。
-- **基准性质**：QwenClawBench、WorkBuddy Bench、PinchBench 均围绕 OpenClaw 生态，而论文正是以 OpenSquilla（同一生态的 harness）作为 agent harness——训练与评测共享交互范式，这可能夸大了在这几项上的迁移优势。
+- **基准性质**：QwenClawBench 与 PinchBench 围绕 OpenClaw 生态，论文正是以 OpenSquilla（同一生态的 harness）作为这两项的 agent harness；WorkBuddy Bench 则使用其官方原生 harness（论文未称其属于该生态）。因此前两项上训练与评测共享交互范式，这可能夸大了迁移优势。
 - **规模效应**：NeoHorse-1-9B 相对 Qwen3.5-9B 的平均增益（+3.44 pp）小于 4B 轨道（+5.93 pp），且指令遵循列出现负值，说明该配方在较强基座上的边际收益更窄，这一点论文自己也承认（「marginal benefits concentrated more heavily on interactive execution」）。
 
 ## 第 6 章 代码与部署
@@ -471,11 +471,11 @@ tools = [{"type": "function", "function": {
 
 **（3）路由信号的自洽性验证不完整。** 论文承认实际服务的层级不能当难度标签，并改用「首条受监督 assistant 响应之前重新估计」的需求分数。但论文没有报告该分数与任何独立难度度量（如任务成功率、人工难度标注）的相关性，也没有展示三阶段切分后各阶段样本的真实难度分布。「路由分数是能力需求的有效代理」这一前提，目前是设计假设而非被验证的结论。
 
-**（4）评测的生态内生性。** 六项 agentic 基准中有三项（QwenClawBench、PinchBench、WorkBuddy Bench）与训练/评测所用的 harness（OpenSquilla）同属 OpenClaw 生态。模型是在这套交互范式下被训练的，评测也在这套范式下进行，因此这几项上的大增益可能部分来自「格式与流程的适配」而非通用 agent 能力的提升。跨生态的验证（如 SWE-bench 类真实仓库任务、或与 OpenClaw 无关的 OS 级任务）在本文中缺席。
+**（4）评测的生态内生性。** 六项 agentic 基准中有两项（QwenClawBench、PinchBench）与训练/评测所用的 harness（OpenSquilla）同属 OpenClaw 生态。模型是在这套交互范式下被训练的，评测也在这套范式下进行，因此这两项上的大增益可能部分来自「格式与流程的适配」而非通用 agent 能力的提升。跨生态的验证（如 SWE-bench 类真实仓库任务、或与 OpenClaw 无关的 OS 级任务）在本文中缺席。
 
 **（5）多模型对比的统计口径。** 10 项基准中有 3 项为 3 次运行取均值，2 项仅单次运行，其余 5 项沿用官方协议。对单次运行的 PinchBench（9B 领先次优 7.70 pp）与 VitaBench（4B +10.50 pp 但绝对值 32.00% 仍低于 Agents-A1-4B 的 39.25%）这两列，增量结论的稳健性弱于其他列。
 
-**（6）规模效应与「4B 追平 9B」的表述需要分列理解。** 论文第 5 章的表述是 4B 已在若干基准上追平或超过 9B 基座；逐列核对支持这一说法（5/10 项严格更高），但平均分仍差 0.73 pp，且在 BFCL v4、WorkBuddy、LCB v6 三项上落后 3.09–5.71 pp。更准确的说法是：后训练使 4B 在**交互密集型**指标上追平大一号基座，而在**函数调用与代码**类指标上仍有可见差距。
+**（6）规模效应与「4B 追平 9B」的表述需要分列理解。** 论文第 5 章的表述是 4B 已在若干基准上追平或超过 9B 基座；逐列核对支持这一说法（5/10 项严格更高），但平均分仍差 0.73 pp，且在 BFCL v4、WorkBuddy、LCB v6 三项上落后 3.09–5.71 pp。更准确的说法是：后训练使 4B 在**交互密集型**指标上追平大一号基座，但在函数调用（BFCL v4）与挑战性代码基准（LCB v6）等三项上仍有 3.09–5.71 pp 的差距；HumanEval 上 4B 反而高 4.27 pp，因此代码类指标并非一边倒落后。
 
 **（7）数据侧规模曲线上限未知。** Figure 7 的良好走势建立在五项目标基准的 2.14 pp 提升上，且曲线未显示反转。论文据此提出数据量应按能力画像分配，但没有给出「何时应该停止加数据」的判据，也没有报告不同能力维度各自的缩放斜率——这使得「数据量作为分配决策」目前更像一条设计原则而非可操作的调度策略。
 

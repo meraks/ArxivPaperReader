@@ -68,7 +68,7 @@ Mixture-of-Experts（MoE）架构是当前大语言模型扩展的核心手段�
 
 两派工作共享的仪器是**域标签语料上的选择计数**：准备若干带有人工域标签的语料（例如以 GitHub 语料对应 code、以 arXiv 语料对应学术文本），让模型在其上前向推理，统计每个专家在各域语料上被选中（fire）的频率，再比较频率分布的偏移，进而判断专家是否"偏好"某个域。
 
-这一仪器实现简单、无需接触模型内部，因而在 DeepSeek-V3、OLMoE、Mixtral、OpenMoE 等彼此独立的分析中被反复使用。但论文指出：两派的分歧只出现在对同一类统计量的解读上，仪器本身此前未受到系统检视；若仪器带有系统性偏差，两派结论会一同被波及，争论便无从裁决。论文把这一偏差拆为四个具体的缺陷。
+这一仪器实现简单、无需接触模型内部，因而在 DeepSeek-V3、OLMoE、Mixtral、OpenMoE 等彼此独立的分析中被反复使用。但论文指出：两派的结论都建立在同一类统计量之上；若仪器带有系统性偏差，两派结论会一同被波及，争论便无从裁决。论文把这一偏差拆为四个具体的缺陷。
 
 ### 2.3 选择计数仪器的四个缺陷
 
@@ -416,7 +416,7 @@ Dominance graph 把"哪个专家主要驱动哪些 latent"压缩为一张可整�
 
 两项数据层面的限制：
 
-- **Qwen3 的预训练配比未披露**。实验章节把域级专家分配的不均衡与训练数据占比联系起来的解读——以 Llama 3 报告的终版配比（约 25% 数学与推理 token、17% code token、50% 通识）为旁证——在所研究的模型上无法核验，只能停留在 conjecture。论文同时指出，提高 code 与数学数据占比是当前预训练管线的常见做法，但"域分配反映数据配比"这一读法本身不可检验。
+- **Qwen3 的预训练配比未披露**。实验章节把域级专家分配的不均衡与训练数据占比联系起来的解读——以 Llama 3 报告的终版配比（约 25% 数学与推理 token、17% code token、50% 通识）为旁证——在所研究的模型上无法核验，只能停留在 conjecture。论文同时指出，提高 code 与数学数据占比是当前预训练管线的常见做法，但"域分配反映数据配比"这一读法在当前所研究的模型上无法核验。
 - **统计在自选语料上计算**。论文测得的是"本文语料上的路由"，而非"模型训练数据上的路由"；语料选择的自由度构成结果外部效度的一个边界。
 
 ### 7.3 单模型、三层、无因果干预
@@ -427,7 +427,7 @@ Dominance graph 把"哪个专家主要驱动哪些 latent"压缩为一张可整�
 
 ### 7.4 延伸阅读
 
-- **Gao et al., *Scaling and Evaluating Sparse Autoencoders*, ICLR 2025**：TopK SAE 与 auxiliary loss 的训练配方；本文 SAE 的激活函数、aux 损失系数（1/32）与初始化实践均直接沿用此文。
+- **Gao et al., *Scaling and Evaluating Sparse Autoencoders*, ICLR 2025**：TopK SAE 与 auxiliary loss 的训练配方；本文 SAE 的激活函数、aux 损失系数（1/32）直接沿用此文（初始化实践则遵循 Conerly et al. 与 Ameisen et al.）。
 - **Templeton et al., *Scaling Monosemanticity*, Transformer Circuits Thread, 2024**：把字典学习推到前沿模型、百万级 latents 并系统评估可解释性的里程碑；本文"百万 latent 可用"的前提。
 - **Herbst et al., *The Expert Strikes Back*, arXiv:2604.02178, 2026**：与本文最接近的专家级解读工作；对照阅读可看清"预设聚类网格打分"与"SAE 无监督单位直读"的方法论差异（本文 2.6 节）。
 - **Marks et al., *Sparse Feature Circuits*, ICLR 2025**：以 latent 为节点、跨层追踪可编辑因果图的工作；与本文的单层内精确分解沿不同轴展开，方向互补。

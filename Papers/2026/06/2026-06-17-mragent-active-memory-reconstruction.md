@@ -59,7 +59,7 @@ Tags作为语义桥梁，实现两阶段检索：
 
 ### 关键结果速览
 
-LOCOMO benchmark（50个长期对话，~35个会话，~300轮对话，~200个QA问题）：
+LOCOMO benchmark（50个长期对话，每个对话最多~35个会话，平均~300轮对话，~200个QA问题）：
 - MRAgent (Gemini-2.5-Flash): J score 84.21
 - Mem0 (最优baseline): J score 68.31
 - 相对提升：23.3%
@@ -87,7 +87,7 @@ LongMemEval benchmark（~500个问题，~115K tokens历史）：
 | 推理集成 | 检索与推理分离，固定检索结果 | 记忆访问融入推理循环，每步检索依赖当前推理状态 |
 | 多跳能力 | N-hop邻居扩展（预定义，固定路径） | 动态路径探索，根据需要终止或深入 |
 | 理论保证 | 无 | Theorem 4.1: 主动检索严格强于被动检索 |
-| Token效率 | 高（A-Mem 632k） | 低（118k） |
+| Token消耗 | 高（A-Mem 632k） | 低（118k） |
 
 
 ---
@@ -125,9 +125,9 @@ LLM在记忆密集型任务上表现远弱于逻辑推理任务。这一"锯齿�
 - 语义漂移：查询的embedding表示可能与目标记忆的表示差异较大（如query用"夏天"检索，记忆中用"July"记录）
 - 一次性决策：无法多步适应，必须一次性决定所有检索项
 
-#### 2. 基于图的记忆检索（A-Mem, Zep, MemoryOS）
+#### 2. 基于图的记忆检索（A-Mem, Zep, LiCoMemory）
 
-**机制**：预构建记忆图（节点=记忆单元，边=语义/时间关联），通过N-hop邻居扩展检索。
+**机制**：预构建记忆图（节点=记忆单元，边=语义/时间关联），通过N-hop邻居扩展检索。（MemoryOS 属于分层/持久记忆系统，论文将其与 Mem0 等归为 hierarchical and persistent memory，而非图检索。）
 
 **局限**：
 - 预定义扩展策略：N固定（如2-hop或3-hop），无法根据推理需要动态调整深度
@@ -158,7 +158,7 @@ $$\pi_{\mathrm{p}}(x) = \{v_1, v_2, \ldots, v_T\}$$
 被动检索将top-k结果一次性聚合（concatenation或summarization），无法区分相关与无关记忆。随着k增加：
 - 相关信息占比下降，噪声主导
 - LLM注意力分散在无关内容上，降低推理质量
-- 即使增加检索预算（k从5增到50），性能反而下降
+- 固定聚合会随检索预算增加引入更多噪声，可能降低推理质量（论文未给出 k=5→50 的具体实验）
 
 主动检索通过迭代剪枝解决：每步检索后由LLM判断相关性，仅保留相关分支，无关路径提前终止。
 
@@ -305,13 +305,13 @@ CTC 图记忆架构进一步组织为三个互补的记忆层，灵感来自认�
 
 - **连接相关事件**：主题节点作为 hub，连接所有属于该主题的事件节点。这支持 top-down 推理：当查询与某主题相关时，agent 可以先定位主题节点，然后通过主题连接访问所有相关事件，而不需要从 cues 开始逐层检索。
 
-- **动态更新**：抽象层随着新事件的加入而动态演进。当新模式出现或旧模式不再相关时，主题节点会被创建、合并或删除，保持抽象层的时效性。
+- **静态构建**：论文结论节明确说明，当前实现采用静态构建，不随时间更新或整合记忆；抽象层不做增量创建、合并或删除，记忆图随交互累积单调增长。
 
 抽象层在认知神经科学中没有直接对应物，但类似于图式 (schema) 或脚本 (script) 概念，即组织化的事件知识结构。在 MRAgent 中，抽象层提供了高层索引，加速对大规模对话历史的检索。
 
 ### 3.2.4 三层协作机制
 
-三个记忆层通过专门的 φ 算子连接，形成层次化的检索网络：
+论文仅明确定义了 top-down 的 $\phi_{\tau \to e}$（Table 4 另给出若干工具映射）；下列其余跨层算子为报告作者按图结构外推，非论文原文定义：
 
 **$\phi_{\tau \to e}(\tau)$**：从主题节点下沉到相关事件节点。给定一个主题（例如 "货运咨询"），该算子返回所有属于该主题的事件。这支持 top-down 推理：agent 先识别问题主题，再访问相关具体事件。
 
@@ -354,11 +354,11 @@ CTC 图记忆架构的构建不依赖人工标注，而是通过自动化流水�
 **步骤 4：主题节点生成**
 
 主题节点通过总结共享主题的事件簇生成：
-- **相似事件聚类**：系统周期性分析最近添加的事件，通过 tags 和 cues 的相似度识别事件簇。
+- **相似事件聚类**：系统分析事件集合，通过 tags 和 cues 的相似度识别事件簇。
 - **主题归纳**：对于每个事件簇，LLM 生成一个主题描述 τ_i，总结该簇的共享主题。例如，从多次航班咨询事件中归纳主题 "国际货运流程咨询"。
-- **主题连接**：新创建的主题节点被连接到所有支持它的事件节点，通过 $\phi_{\tau \to e}$ 和 $\phi_{e \to \tau}$ 算子实现双向访问。
+- **主题连接**：新创建的主题节点被连接到所有支持它的事件节点，可通过 $\phi_{\tau \to e}$ 从主题访问相关事件（反向的 $\phi_{e \to \tau}$ 为报告外推）。
 
-主题生成可以是增量式的（每次新事件后检查是否需要创建新主题）或批处理式的（定期分析积累的事件）。
+论文未说明主题生成的具体调度方式（增量或批处理）；结论节称整体采用静态构建。
 
 ### 3.3.2 Cue-Tag-Event 关系构建
 
@@ -372,13 +372,7 @@ CTC 图记忆架构的构建不依赖人工标注，而是通过自动化流水�
 
 ### 3.3.3 记忆更新策略
 
-记忆图不是静态构建后即固定，而是随着新对话的进行持续更新：
-- **增量添加**：新事件通过相同的蒸馏流水线添加到图中，生成新的三元组关系
-- **语义层更新**：当新事件支持或修正现有语义知识时，对应的语义节点被更新
-- **主题演进**：当新模式出现时创建新主题，当旧主题不再相关时标记为过时
-- **冲突解决**：当新信息与现有语义知识冲突时（例如用户改变了偏好），系统通过时间戳保留历史版本，确保语义知识反映最新状态
-
-这种动态更新机制使记忆图能够适应长期对话中的信息变化，保持记忆的时效性和准确性。
+论文的结论节明确指出，当前实现采用静态构建，不随时间更新或整合记忆，记忆图随交互累积单调增长。因此论文不包含增量添加、语义层更新、主题合并/删除或基于时间戳的冲突解决机制；作者将自适应构建、轻量级记忆维护列为未来工作。
 
 
 ---
@@ -388,7 +382,7 @@ CTC 图记忆架构的构建不依赖人工标注，而是通过自动化流水�
 
 ## 4.1 重建框架定义
 
-MRAgent 的核心创新在于将记忆检索从静态的 "retrieve-then-reason" 转变为动态的 "active reconstruction"。该过程被形式化为一个受控的马尔可夫决策过程，其中 agent 通过多轮迭代逐步重建与查询相关的记忆内容。
+MRAgent 的核心创新在于将记忆检索从静态的 "retrieve-then-reason" 转变为动态的 "active reconstruction"。该过程被形式化为一个序列决策过程（sequential decision process），其中 agent 通过多轮迭代逐步重建与查询相关的记忆内容。
 
 ### 4.1.1 重建状态
 
@@ -411,7 +405,7 @@ agent 可以执行的记忆遍历动作集合定义为 $\mathcal{A} = \{\Pi_1, \
 前向遍历对应传统的记忆检索流程，从索引逐渐定位到具体内容。
 
 **反向遍历动作**（从内容发现新索引）：
-- **$\Pi_{v \to (c,g)}$**：从已检索的 content 反向提取新的 cues 和 tags。给定 $\mathcal{V}^{(t)}$ 中的 contents，分析其文本内容，提取其中包含的 cues 和 tags，并将它们加入 $\mathcal{Z}^{(t+1)}$。例如，从检索到的对话段落中发现新的实体、时间或属性描述符。
+- **$\Pi_{v \to (c,g)}$**：从已检索的 content 激活与其相连的既有 cues 和 tags。给定 $\mathcal{V}^{(t)}$ 中的 contents，按 Eq. (9) 在记忆图中查询与这些 contents 相连的 $(c', g')$ 关系，并将它们加入 $\mathcal{Z}^{(t+1)}$。例如，从检索到的对话段落出发，访问图中已索引的实体、时间或属性 cues。
 
 反向遍历是 MRAgent 的关键创新，它使 agent 能够在检索过程中发现新的查询线索，扩展检索路径。这模拟了人类记忆检索中的联想过程：访问一个记忆会触发对相关记忆的联想。
 
@@ -467,7 +461,7 @@ LLM 从查询中提取关键 cues $C_q$。例如，对于查询 "用户通常在
 
 - **前向遍历**：如果 $\mathcal{A}^{(t)}$ 包含 $\Pi_{c \to g}$，系统对 $\mathcal{Z}^{(t)}$ 中的每个 cue c 应用 $\phi_{c \to g}(c)$，获取所有关联 tags。如果包含 $\Pi_{(c,g) \to v}$，系统对每个 (c, g) 对应用 $\phi_{(c,g) \to v}(c, g)$，获取候选 contents。
   
-- **反向遍历**：如果 $\mathcal{A}^{(t)}$ 包含 $\Pi_{v \to (c,g)}$，系统对 $\mathcal{Z}^{(t)}$ 中的每个 content v 分析其文本，提取其中包含的 cues 和 tags（通过 LLM 或规则提取器），并将这些新索引加入候选集合。
+- **反向遍历**：如果 $\mathcal{A}^{(t)}$ 包含 $\Pi_{v \to (c,g)}$，系统对 $\mathcal{Z}^{(t)}$ 中的每个 content v 查询记忆图中与它相连的 cues 和 tags（Eq. 9 的图关系查询），并将这些索引加入候选集合。
   
 - **候选集合生成**：所有执行结果合并为 $\widetilde{\mathcal{Z}}^{(t+1)} = \bigcup_{a \in \mathcal{A}^{(t)}} \Pi_a(\mathcal{Z}^{(t)})$。这是中间结果，尚未经过 LLM 路由。
 
@@ -598,7 +592,7 @@ $$\mathcal{H}^{\mathrm{LM}}_{\mathrm{passive}}(T) \subsetneq \mathcal{H}^{\mathr
 
 - **检索效率**：对于相同的检索预算 T（例如允许访问的内容数），主动策略可以表达更复杂的检索函数。这意味着在有限资源下，MRAgent 可以回答需要多跳推理的问题，而被动系统会因预算耗尽而失败。
   
-- **错误率降低**：被动策略在早期错误选择后无法纠正，错误会累积。主动策略通过反馈机制可以在后续步骤中修正方向，降低整体错误率。这解释了 MRAgent 在多跳推理任务上的显著提升（LOCOMO 上相对提升 23.3%）。
+- **错误率降低**：被动策略在早期错误选择后无法纠正，错误会累积。主动策略通过反馈机制可以在后续步骤中修正方向，降低整体错误率。这解释了 MRAgent 在 LOCOMO 上的整体性能优势（Gemini backbone 整体 J 相对提升 23.3%）；多跳子类的相对增益要小得多。
   
 - **成本节约**：由于主动策略可以用更少的访问达到相同精度，MRAgent 在实践中显著降低了 token 消耗（实验中 118k vs A-Mem 的 632k）。这与理论预测一致：主动检索通过 "按需访问" 避免了被动检索的 "过度检索"。
 
@@ -616,7 +610,7 @@ $$\mathcal{H}^{\mathrm{LM}}_{\mathrm{passive}}(T) \subsetneq \mathcal{H}^{\mathr
 
 实验在两个长程记忆benchmark上评估：
 
-**LOCOMO**：包含50个对话，平均每个对话约35个session，约300个turns，每个对话约200个QA pairs。该benchmark专注于多轮对话中的长程依赖问题。
+**LOCOMO**：包含50个对话，每个对话最多约35个session（原文：up to 35 sessions），平均约300个turns，每个对话约200个QA pairs。该benchmark专注于多轮对话中的长程依赖问题。
 
 **LongMemEval-S**：包含约500个问题，历史记录约115K tokens。该benchmark评估超长上下文中的记忆检索能力。
 
@@ -625,7 +619,7 @@ $$\mathcal{H}^{\mathrm{LM}}_{\mathrm{passive}}(T) \subsetneq \mathcal{H}^{\mathr
 实验对比了五种强baseline：
 - **RAG**：基础检索增强生成，使用vector store进行one-shot top-k检索
 - **A-Mem**：结构化笔记 + 图记忆系统
-- **MemoryOS**：三层记忆架构（episodic, semantic, abstraction）
+- **MemoryOS**：三层记忆架构（short-term, mid-term, long-term persona）
 - **LangMem**：向量数据库 + 动态记忆更新
 - **Mem0**：增量事实提取系统
 
@@ -662,7 +656,7 @@ Claude backbone：
 - Mem0: 69.02
 - **MRAgent: 88.32** （相对LangMem提升12.4%）
 
-MRAgent在两个backbone上均取得最优性能，证明该方法的有效性不依赖于特定LLM。
+MRAgent 在两个测试 backbone（Gemini-2.5-Flash、Claude-Sonnet-4.5）上均取得最优性能；论文未验证其他 LLM，因此不能断言有效性不依赖任意具体 LLM。
 
 ### 5.2.2 LongMemEval benchmark
 
@@ -681,7 +675,7 @@ MRAgent相对最优baseline提升32%，证明在超长上下文场景中的有�
 - **Open-domain**：需要利用外部知识
 - **Single-hop**：简单事实检索
 
-主动重建机制在复杂推理任务（multi-hop）上优势最明显，因为多次迭代能够逐步积累证据。
+Figure 6 显示 multi-hop 查询从多轮迭代中受益明显（召回随轮次提升 >30%），因为多次迭代能够逐步积累证据；但从 Table 1 的整体 J 看，multi-hop 的增益并非各问题类型中最大。
 
 
 ---
@@ -705,7 +699,7 @@ MRAgent的token消耗最低（118k），远低于A-Mem（632k）和LangMem（3,2
 2. **轻量构建阶段**：复杂关系推理延迟到检索阶段，以query-specific方式执行
 3. **语义引导剪枝**：通过associative tag引导检索方向，在访问昂贵episodic内容前过滤无关路径
 
-运行时间方面，MRAgent（586.11s）与最快baseline（Mem0: 533.29s）相当，但准确率显著更高（+23.3%）。
+运行时间方面，MRAgent（586.11s）与最快baseline（Mem0: 533.29s）相当；在 LongMemEval 上其准确率相对最强 baseline 提升 32%（23.3% 是 LOCOMO Gemini backbone 上整体 J 的相对增益，见 5.2 节）。
 
 
 ---
@@ -720,7 +714,7 @@ MRAgent的token消耗最低（118k），远低于A-Mem（632k）和LangMem（3,2
 - **CTE** (Cue–Tag–Episode)：引入tag作为语义桥梁
 - **CTC** (Cue–Tag–Content)：完整三层结构
 
-每种变体在两种设定下评估：
+CE 只在无推理设定下评估；CTE/CTC 的推理设定对应 Figure 5 中的 w/o Semantic 与 MRAgent 蓝色柱：
 - 无推理（绿色）：被动one-shot检索
 - 有推理（蓝色）：主动多步重建
 
@@ -730,7 +724,7 @@ MRAgent的token消耗最低（118k），远低于A-Mem（632k）和LangMem（3,2
 
 2. **关联tag提供有效语义引导**：在无推理设定下，性能从CE→CTE→CTC单调提升，证明tag作为语义桥梁的价值。
 
-3. **事件层和语义层互补**：移除语义层（CE vs CTE）导致清晰性能下降，证明两层结构的必要性。
+3. **事件层和语义层互补**：移除语义层（Figure 5 蓝色柱中的 w/o Semantic vs MRAgent）导致清晰性能下降，证明语义层的必要性。
 
 
 ---
@@ -950,6 +944,10 @@ Otherwise, continue exploring.
 
 ## 7.1 局限性
 
+论文结论节明确列出的局限有两条：**（1）深度相关延迟**——关系推理被推迟到检索阶段，重建成本随探索深度增长，需要多步遍历的查询延迟高于单次检索；**（2）静态构建与存储增长**——当前实现不随时间更新或整合记忆，记忆图随交互累积单调增长，长期部署的存储开销上升。
+
+以下为报告作者补充的分析（非论文原文立场）：
+
 1. **场景局限**：当前仅在对话记忆场景验证，尚未在更广泛的agent任务（网页导航、工具使用、多agent协作）上测试。主动重建机制在其他任务类型中的泛化性需进一步验证。
 
 2. **可扩展性**：记忆构建依赖LLM蒸馏，对于极长历史（>1000 sessions）的计算开销和存储需求未充分评估。tag提取的质量和成本随历史长度增长的影响需更系统分析。
@@ -959,6 +957,10 @@ Otherwise, continue exploring.
 4. **理论假设**：理论分析假设完美终止判断，但实际LLM的停止策略可能存在偏差。过度搜索（浪费计算）和提前停止（证据不足）的权衡需更精细建模。
 
 ## 7.2 未来方向
+
+论文提出的未来工作是：自适应构建（adaptive construction）、轻量级记忆维护（lightweight memory maintenance）、更鲁棒的遍历策略（more robust traversal policies）。
+
+以下为报告作者的延伸建议：
 
 1. **多agent记忆共享**：扩展MRAgent到多agent设置，研究agent间记忆共享、冲突解决、协同推理机制。
 
@@ -972,12 +974,12 @@ Otherwise, continue exploring.
 
 **记忆增强生成基础**：
 - RAG (Lewis et al., 2020): "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks" — 提出检索增强生成范式，使用vector store进行one-shot top-k检索
-- GraphRAG (Han et al., 2025): "From Local to Global: A Graph RAG Approach to Query-Focused Summarization" — 使用图结构化检索语料库，通过社区摘要提供多粒度信息
+- GraphRAG (Han et al., 2025): "Retrieval-augmented generation with graphs (graphrag)" — 使用图结构化检索语料库，通过社区摘要提供多粒度信息
 
 **LLM Agent记忆系统**：
-- A-Mem (Xu et al., 2025): "A-Mem: Autonomous Memory for Agents" — 结构化笔记 + 图记忆系统，支持长期记忆管理
-- MemoryOS (Kang et al., 2025): "MemoryOS: Optimizing Memory for Language Model Agents" — 三层记忆架构（episodic, semantic, abstraction）
-- Mem0 (Chhikara et al., 2025): "Mem0: Building and Managing Memory for AI Agents" — 增量事实提取系统，支持动态记忆更新
+- A-Mem (Xu et al., 2025): "A-MEM: agentic memory for LLM agents" — 结构化笔记 + 图记忆系统，支持长期记忆管理
+- MemoryOS (Kang et al., 2025): "Memory OS of AI agent" — 三层记忆架构（short-term, mid-term, long-term persona）
+- Mem0 (Chhikara et al., 2025): "Mem0: Building production-ready AI agents with scalable long-term memory" — 增量事实提取系统，支持动态记忆更新
 
 **认知科学启发**：
 - Tolman (1948): "Cognitive Maps in Rats and Men" — 提出认知地图理论，强调记忆的主动重构性质

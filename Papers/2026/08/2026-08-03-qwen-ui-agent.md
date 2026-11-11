@@ -1,5 +1,5 @@
 > **论文**：Qwen-UI-Agent Technical Report: Toward Next-Generation Real-World Centric Foundation GUI Agents
-> **作者**：Hanzhang Zhou, Panrong Tong, Xu Zhang et al. (Qwen Team, Alibaba)
+> **作者**：Hanzhang Zhou, Panrong Tong, Xu Zhang et al. (MAI-UI Team, Alibaba Token Hub, Alibaba Group)
 > **arXiv ID**：2607.28227
 > **发表时间**：2026-07-30
 > **代码仓库**：无（技术报告）
@@ -8,7 +8,7 @@
 
 ### 1.1 一句话定位
 
-Qwen-UI-Agent 是阿里巴巴 Qwen Team 推出的以真实世界为中心（real-world centric）的 foundation GUI agent，覆盖 mobile、computer-use、web、DeepSearch 四类环境。论文的系统性贡献在于：以 100+ 物理设备的真机移动运行时为基础设施，构建了统一混合动作空间（GUI 操作与 CLI/API 执行交错、单次 turn 批量输出），并通过 AutoResearch 式 agent 驱动数据飞轮与可扩展在线 RL（>100 交互步轨迹、最多 10,000 并发环境）完成能力获取，最终在多个真实设备与标准基准上达到与 Opus 4.8、Gemini 3.1 Pro、GPT-5.6 Sol 等 frontier 模型可比乃至超越的性能。
+Qwen-UI-Agent 是阿里巴巴 MAI-UI Team 推出的以真实世界为中心（real-world centric）的 foundation GUI agent，覆盖 mobile、computer-use、web、DeepSearch 四类环境。论文的系统性贡献在于：以 100+ 物理设备的真机移动运行时为基础设施，构建了统一混合动作空间（GUI 操作与 CLI/API 执行交错、单次 turn 批量输出），并通过 AutoResearch 式 agent 驱动数据飞轮与可扩展在线 RL（>100 交互步轨迹、最多 10,000 并发环境）完成能力获取，最终在多个真实设备与标准基准上达到与 Opus 4.8、Gemini 3.1 Pro、GPT-5.6 Sol 等 frontier 模型可比乃至超越的性能。
 
 ### 论文图表总览表
 
@@ -33,7 +33,7 @@ Qwen-UI-Agent 是阿里巴巴 Qwen Team 推出的以真实世界为中心（real
 
 ### 1.2 核心贡献
 
-论文列出五项核心贡献，涵盖了从基础设施到训练范式再到应用层的完整体系：
+论文列出六项核心贡献，涵盖了从基础设施到训练范式再到应用层的完整体系：
 
 **贡献一：真实设备移动基础。** 构建了由 100+ 物理设备、150+ 应用组成的 real-device mobile runtime，贯穿任务设计、轨迹采集、在线 RL 与评估全流程。该运行时引入虚拟屏机制（virtual screen mechanism），使单台物理设备可并行承载多个会话，吞吐量提升约 20×。健康感知调度器（health-aware scheduler）对设备、应用、账号、网络与显示状态进行持续跟踪与黑名单管理，保证大规模并发的稳定性。
 
@@ -43,7 +43,9 @@ Qwen-UI-Agent 是阿里巴巴 Qwen Team 推出的以真实世界为中心（real
 
 **贡献四：可扩展在线 RL（长时程）。** 提出 verifier-guided online RL 框架，支持超过 100 交互步的轨迹级训练，在最多 10,000 个并发模拟环境中运行。模型自适应课程（model-adaptive curriculum）通过 active pool（中间成功率任务）与 monitoring pool（不可解或已掌握任务）动态调节训练难度分布。
 
-**贡献五：AutoResearch 式能力获取 + 主动服务。** Agent 驱动的迭代数据飞轮实现了"任务合成 → 环境/验证器合成 → 失败分析 → 下一轮规划"的闭环。在应用层，proactive service harness 将移动通知映射为 affair → task 的状态流，使 agent 能够主动发起服务（如航班取消后自动生成改签方案），而非仅被动响应指令。
+**贡献五：AutoResearch 式能力获取。** Agent 驱动的迭代数据飞轮实现了"任务合成 → 环境/验证器合成 → 失败分析 → 下一轮规划"的闭环。
+
+**贡献六：主动服务。** Proactive service harness 将移动通知映射为 affair → task 的状态流，使 agent 能够主动发起服务（如航班取消后自动生成改签方案），而非仅被动响应指令。
 
 ### 1.3 关键结果速览
 
@@ -55,7 +57,7 @@ Qwen-UI-Agent 27B 在以下基准上取得领先或可比结果：
 
 | 基准 | Qwen-UI-Agent 27B | 对比前沿模型 | 论文表格 |
 |------|-------------------|-------------|----------|
-| MobileWorld（50 步） | 82.1% | 领先 Opus 4.8 14.6 pp、GPT-5.6 Sol 12.0 pp、Seed 2.1 Pro 8.9 pp | Table 2 |
+| MobileWorld（GUI-only 子集，50 步） | 82.1% | 领先 Opus 4.8 14.6 pp、GPT-5.6 Sol 12.0 pp、Seed 2.1 Pro 8.9 pp | Table 2 |
 | MobileWorld-Real | 92.2% | 领先 Gemini 3.1 Pro 6.0 pp、Opus 4.8 7.5 pp、GPT-5.6 Sol 6.8 pp、Seed 2.1 Pro 3.5 pp | Table 3 |
 | AndroidDaily | 97.5% | — | Table 3 |
 | OSWorld-Verified | 79.5% | 第二名，仅次于 Opus 4.8（83.4%） | Table 4 |
@@ -78,7 +80,7 @@ Qwen-UI-Agent 27B 在以下基准上取得领先或可比结果：
 
 **转变三：GUI-only → 混合 GUI+CLI 批量动作。** 纯 GUI agent 依赖逐步视觉点击，在文件管理、系统配置等场景中效率低下。Qwen-UI-Agent 的动作空间将 `cli_command` 和 `api_call` 与 GUI 操作交错，并支持单次 turn 批量输出多个动作。这使得复杂操作（如批量重命名文件）可通过一条命令完成，而非数十次点击。
 
-**转变四：短时程 → 可靠长时程。** 大多数基准将任务截断在 30-50 步，但真实任务（如多平台比价、长表单填写、DeepSearch 后整理结果）需要上百步交互。Qwen-UI-Agent 的 verifier-guided online RL 支持 >100 交互步的轨迹级训练，配合错误恢复机制（如 step-level VLM judge 的恢复段检测）保证长时程可靠性。
+**转变四：短时程 → 可靠长时程。** 大多数基准聚焦短时程任务，但真实任务（如多平台比价、长表单填写、DeepSearch 后整理结果）需要上百步交互。Qwen-UI-Agent 的 verifier-guided online RL 支持 >100 交互步的轨迹级训练；训练时用 step-level VLM judge 提取恢复段等过程监督信号（用于 SFT），帮助模型学习错误恢复，从而提升长时程可靠性。
 
 **转变五：人工密集训练 → AutoResearch 式自动化。** 传统 pipeline 高度依赖人工标注轨迹与设计任务。Qwen-UI-Agent 采用 agent 驱动的数据飞轮：强模型先分析领域知识生成任务池，通过 rejection sampling 得到 SFT 语料；随后进入迭代循环——失败分析驱动新任务、环境与验证器的自动合成，大幅降低人工参与。
 
@@ -94,9 +96,9 @@ Qwen-UI-Agent 27B 在以下基准上取得领先或可比结果：
 
 **差距三：纯 GUI vs 混合执行。** 纯 GUI agent 在计算机使用中效率受限。论文数据显示，引入 CLI 后 OSWorld-Verified 的 CLI 动作占比达 40.7%、CLI 任务覆盖率达 92.0%（Table 11），说明 CLI 在桌面场景中几乎是刚需。现有 agent 普遍缺乏 CLI 与 GUI 的原生交错能力。
 
-**差距四：短时程训练 vs 长时程需求。** 现有 agent 的 RL 训练多限于短轨迹（<50 步），无法应对 >100 步的真实任务。Qwen-UI-Agent 的在线 RL 框架以 >100 步轨迹和 10,000 并发环境为设计前提，并通过模型自适应课程动态调节难度。
+**差距四：短时程训练 vs 长时程需求。** 现有 agent 的 RL 训练多限于短轨迹，无法应对 >100 步的真实任务。Qwen-UI-Agent 的在线 RL 框架以 >100 步轨迹和 10,000 并发环境为设计前提，并通过模型自适应课程动态调节难度。
 
-综上，Qwen-UI-Agent 的定位不是在某个基准上刷分，而是系统性地弥合"基准驱动研究"与"真实世界部署"之间的六重差距，构建可落地的 foundation GUI agent。
+综上，Qwen-UI-Agent 的定位不是在某个基准上刷分，而是系统性地弥合"基准驱动研究"与"真实世界部署"之间的上述四重差距，构建可落地的 foundation GUI agent。
 
 ## 第 3 章 系统设计
 
@@ -136,14 +138,14 @@ Qwen-UI-Agent 的统一动作空间（Table 1）分为四大类，覆盖 GUI 交
 | | `type` | 文本输入 |
 | | `open` | 打开应用或 URL |
 | | `drag` | 拖拽（起止坐标） |
-| | `system_button` | 系统按键（Home/Back/Recent 等） |
+| | `system_button` | 系统按键（back/home/menu/enter） |
 | | `wait` | 等待（页面加载/动画完成） |
 | **CLI** | `cli_command` | 非交互 shell 命令，stdout/stderr/exit status 结构化返回 |
 | **API** | `api_call` | 第三方或系统 API 调用 |
 | **交互控制** | `ask_user` | 向 User Agent 请求缺失信息或确认敏感操作 |
 | | `terminate` | 终止任务 |
 
-CLI 动作的设计要点：`cli_command` 在非交互 shell 中执行，返回结构化的 stdout/stderr/exit status；设有超时预算以防阻塞；执行错误作为观测返回（enable 诊断恢复）；命令写入 shell history 供后续引用。GUI 动作在真实设备上转换为原生输入事件（而非 Accessibility API 注入），保证与用户操作的完全一致性。
+CLI 动作的设计要点：`cli_command` 在非交互 shell 中执行，返回结构化的 stdout/stderr/exit status；设有超时预算以防阻塞；执行错误作为观测返回（enable 诊断恢复）；命令写入 shell history，便于检查终端状态的验证器认可基于 CLI 的解法。GUI 动作在计算机使用环境中转换为原生输入事件。
 
 这一动作空间的核心创新在于 GUI、CLI、API 的原生交错——agent 可以在同一个批量动作序列中先执行一条 shell 命令安装依赖，再用 `click` 打开应用，最后用 `api_call` 查询数据，无需切换模式。
 
@@ -175,7 +177,7 @@ Qwen-UI-Agent 的环境基础设施由四个组件构成，形成从高并发模
 
 #### 3.3.3 混合 GUI+CLI 执行层
 
-GUI 动作被转换为设备的原生输入事件（touch event），`cli_command` 在非交互 shell 中执行并以结构化格式（stdout/stderr/exit status）返回。命令执行设有超时预算，执行错误作为观测反馈给 agent，使其能够诊断并恢复——例如命令失败后 agent 可读取 stderr 修正参数重试。所有执行的命令写入 shell history，供后续步骤引用。
+GUI 动作被转换为设备的原生输入事件（touch event），`cli_command` 在非交互 shell 中执行并以结构化格式（stdout/stderr/exit status）返回。命令执行设有超时预算，执行错误作为观测反馈给 agent，使其能够诊断并恢复——例如命令失败后 agent 可读取 stderr 修正参数重试。所有执行的命令写入 shell history，便于验证器检查终端状态时认可基于 CLI 的解法。
 
 #### 3.3.4 统一跨平台接口
 
@@ -203,7 +205,7 @@ Bootstrapping 之后进入持续迭代循环，每一轮包含：**失败分析*
 - **环境状态合成**：通过数据注入技能（data injection skills）构造特定环境状态（如预填充的购物车、已有联系人的通讯录），使任务从合理的中间状态开始而非空白状态。
 - **Step-level VLM Judge**：不仅判断任务最终成败，还对轨迹进行步级评估，关注三个信号——最大连续正确步数、反思探索的第一步位置、以及恢复段（从错误中恢复的步骤序列）。这为细粒度的训练信号提供了基础。
 - **可执行验证器（Executable Verifiers）**：为每个任务合成程序化验证器，用于在线 RL 中的自动奖励计算，替代昂贵的人工评估。
-- **失败分析驱动迭代**：将模型失败映射为结构化原因（如"元素混淆""过早终止"），聚合后按频率排序，作为下一轮优化的优先目标。
+- **失败分析驱动迭代**：将模型失败映射为结构化原因（如应用知识缺失、约束违反、状态跟踪错误、验证不足），聚合后按频率排序，作为下一轮优化的优先目标。
 
 ### 3.5 训练
 
@@ -272,7 +274,7 @@ Harness 层是 Qwen-UI-Agent 从"被动工具"升级为"主动助手"的关键�
 Harness 层引入 affair（持续现实事务）作为核心抽象。一个 affair 的生命周期为：**事件感知 → affair 状态与记忆 → affair 级推理与任务形成 → 主动准备与受控执行**。
 
 - **事件感知**：解析移动设备通知（如航班取消、日程提醒、消息到达），将其映射为候选 affair。
-- **Affair 状态与记忆**：每个 affair 维护 profile memory（事务相关上下文）与 feedback memory（历史交互反馈），形成持续的事务记忆。
+- **Affair 状态与记忆**：affair 状态记录不断演化的事务上下文（如行程、购买、会议、家庭事务）；profile memory 存储用户偏好、关系与行为模式等更稳定的长期知识；feedback memory 记录历史交互反馈，形成持续的事务记忆。
 - **Affair 级推理与任务形成**：对候选 affair 进行价值评估，分为三类——立即处理（高优先级且信息充足）、被动待办（等待用户确认或更多上下文）、抑制（低价值或不适当时机）。
 - **主动准备与受控执行**：对低风险操作（如信息查询、方案生成）可预执行；对高风险操作（支付、预订、发送消息）必须等待用户确认。
 
@@ -298,7 +300,7 @@ Qwen-UI-Agent 共有三个模型变体：**27B**（端到端 agent 评估的主�
 
 | 基准组 | 具体基准 | 考察能力 |
 |--------|---------|---------|
-| 真实设备移动 | MobileWorld-Real、AndroidDaily、MobileWorld | 真实设备长时程跨应用执行 |
+| 移动（真机 + 模拟） | MobileWorld-Real、AndroidDaily（真机）；MobileWorld（模拟） | 真实设备与模拟环境的长时程跨应用执行 |
 | 计算机使用 | OSWorld-Verified、OSWorld-v2 | 桌面应用混合 GUI+CLI 工作流 |
 | 浏览器与 DeepSearch | WebArena、BrowseComp、BrowseComp-ZH | 端到端网页交互、跨源信息检索与证据合成 |
 | GUI Grounding | ScreenSpot-Pro、ScreenSpot-V2、MMBench-GUI L2、OSWorld-G-Refined、UI-Vision | 元素定位（高分辨率专业软件、跨平台界面） |
@@ -320,7 +322,7 @@ Qwen-UI-Agent 共有三个模型变体：**27B**（端到端 agent 评估的主�
 
 ### 4.3 移动使用评估
 
-**MobileWorld**（模拟环境，标准 50 步预算，Table 2）：
+**MobileWorld**（模拟环境，GUI-only 子集 117 任务，标准 50 步预算，Table 2）：
 
 | 模型 | Access / Size | 成功率 (%) |
 |------|--------------|-----------|
@@ -477,7 +479,7 @@ Table 9（全部为论文独立复现结果，与官方报告可能有差异）�
 | SkillsBench (Avg 5) (%) | 28.0 | 24.9 | 0.5 | 0.3 | 3.3 | 0.0 |
 | QwenClawBench (Avg 3) (%) | 44.2 | 48.5 | 6.4 | 5.1 | 18.6 | 11.4 |
 
-通用能力：Qwen-UI-Agent 与基础模型 Qwen3.5-27B 基本持平（MMMU-Pro 72.4 vs 73.5、AI2D 91.1 vs 91.9、IFEval 90.2 vs 90.4），Agentic 能力全面超越：Terminal-Bench 2.0 **50.1% vs 41.1%**、Claw-Eval Avg3 **73.5% vs 66.9%**、Tau2-Bench 89.9% vs 89.2%、BFCL-v4 74.2% vs 71.3%（QwenClawBench 44.2% vs 48.5% 小幅下降）。对专用 GUI 模型（UI-Venus-1.5、GUI-Owl-1.5、OpenCUA）在两个类别上均显著领先。
+通用能力：Qwen-UI-Agent 与基础模型 Qwen3.5-27B 基本持平（MMMU-Pro 72.4 vs 73.5、AI2D 91.1 vs 91.9、IFEval 90.2 vs 90.4），Agentic 能力整体超越：Terminal-Bench 2.0 **50.1% vs 41.1%**、Claw-Eval Avg3 **73.5% vs 66.9%**、Tau2-Bench 89.9% vs 89.2%、BFCL-v4 74.2% vs 71.3%（QwenClawBench 44.2% vs 48.5% 小幅下降）。对专用 GUI 模型（UI-Venus-1.5、GUI-Owl-1.5、OpenCUA）在两个类别上均显著领先。
 
 ### 4.8 Harness 工作流定性评估
 

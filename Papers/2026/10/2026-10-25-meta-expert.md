@@ -1,23 +1,23 @@
 # Meta Expert 论文精读报告
 > **论文**：Meta Expert: Cross-Layer Expert Sharing for Storage- and Retrieval-Efficient MoE
-> **作者**：Ermo Hua, Xiangyu Hong, Baiting Wu, Che Jiang, Haozheng Hou, Yicheng Gu, Hanjing Wang, Qirui Zeng, Ming Zhang, Ning Ding, Qipeng Guo, Youbang Sun, Biqing Qi, Bowen Zhou（清华大学 C3I / InternLM 系）
+> **作者**：Ermo Hua, Xiangyu Hong, Baiting Wu, Che Jiang, Haozheng Hou, Yicheng Gu, Hanjing Wang, Qirui Zeng, Ming Zhang, Ning Ding, Qipeng Guo, Youbang Sun, Biqing Qi, Bowen Zhou（清华大学 / 上海人工智能实验室）
 > **arXiv ID**：2610.27598
 > **发表时间**：2026-10-20
 > **许可协议**：CC BY 4.0
-> **代码仓库**：https://github.com/InternLM/Intern-S2-Mobius
+> **相关项目仓库**（非本论文代码）：https://github.com/InternLM/Intern-S2-Mobius
 
 
 ## 第 1 章 概述
 
 ### 1.1 一句话定位
 
-《Meta Expert: Cross-Layer Expert Sharing for Storage- and Retrieval-Efficient MoE》（arXiv:2610.27598，清华 C3I / InternLM 系，2026）研究的问题是：主流 MoE 模型采用分层架构，各层私有的 Local Expert 在拓扑上相互独立，但存储的内容高度相似，存在大量跨层冗余，使深度方向成为参数浪费的重灾区；论文提出用跨层共享的 Meta Expert 池替代（或部分替代）分层 Local Expert——一个共享专家池配单一 router，每一层都可以激活其中任意专家——并系统证明这一设计在专家冗余更低的同时取得更低的 cross-entropy loss 与更高的下游任务精度：在激活专家数与专家粒度固定的前提下，仅用 70–80% 的专家数即可匹配 Vanilla MoE（最优配置下相当于节省约 20–30% 专家、15–25% 参数，论文 §3.3）。
+《Meta Expert: Cross-Layer Expert Sharing for Storage- and Retrieval-Efficient MoE》（arXiv:2610.27598，清华大学 / 上海人工智能实验室，2026）研究的问题是：主流 MoE 模型采用分层架构，各层私有的 Local Expert 在拓扑上相互独立，但存储的内容高度相似，存在大量跨层冗余，使深度方向成为参数浪费的重灾区；论文提出用跨层共享的 Meta Expert 池替代（或部分替代）分层 Local Expert——一个共享专家池配单一 router，每一层都可以激活其中任意专家——并系统证明这一设计在专家冗余更低的同时取得更低的 cross-entropy loss 与更高的下游任务精度：在激活专家数与专家粒度固定的前提下，仅用 70–80% 的专家数即可匹配 Vanilla MoE（最优配置下相当于节省约 20–30% 专家、15–25% 参数，论文 §3.3）。
 
 标题中的两个关键词各有所指：**storage-efficient** 对应消除层间专家冗余、提高信息存储效率（实证贡献）；**retrieval-efficient** 对应理论分析揭示的更灵活残差通路、提高信息检索效率（理论贡献）。论文最终想传达的信息是：层间冗余这一长期被视为深度 MoE 固有成本的东西，可以转化为有效容量。
 
 ![Figure 1: Vanilla MoE 与 Meta Expert 模型的整体对比](Figures/2026-10-25-meta-expert-fig1.png)
 
-*图1：Vanilla 分层 Local Expert 与跨层共享 Meta Expert 的 loss/冗余整体对比，Meta Expert 以更少专家达到同等性能*
+*图1：Vanilla 与 Meta Expert 在专家数/参数量维度上的 loss 对比，Meta Expert 以更少专家/参数达到同等性能*
 
 ### 论文图表总览
 
@@ -30,8 +30,8 @@
 | Figure 5 | 比例消融 scaling ladder：每层 4 Meta + 4 Local 激活固定，总数占比 25/50/75% 在四个深度（L=12–24）上的 loss 与冗余 | 第 5 章 |
 | Figure 6 | 拓扑消融 pilot：首/尾 Local-only 层（1/2/4/8 层）与 Meta 子池 loop（2/4/8 个，chunked/interleaved）对 loss 的影响 | 第 5 章 |
 | Figure 7 | 拓扑消融 scaling ladder：F2L2 与 Loop2 等配置在四个深度上的补充验证 | 第 5 章 |
-| Figure 8 | Overall comparison：最优组合 F2L2+Loop2 削减 Meta 宽度后，相对 Vanilla 节省 20–30% 专家 / 15–25% 参数 | 第 5 章 |
-| Table 1 | 下游任务对比：6B-A1.6B、200B tokens，Vanilla 与四个 Meta 变体在 MMLU/C-Eval/CMMLU/TriviaQA/BBH/OpenBookQA 上的精度 | 第 5 章 |
+| Figure 8 | Overall comparison：从 MR75 递增拓扑改进（+Loop2、+F2L2、F2L2+Loop2）的 scaling ladder（loss/冗余随计算量）；Meta 宽度削减（mpl）配置见 Table 5，20–30% 专家 / 15–25% 参数节省见 Figure 1 与 §3.3 | 第 5 章 |
+| Table 1 | 下游任务对比：6B-A1.6B、200B tokens，Vanilla 与四个 Meta 变体在 MMLU/C-Eval/CMMLU/TriviaQA/BBH/OpenBookQA 上的得分 | 第 5 章 |
 | Table 2 | Scaling ladder 各深度模型结构超参（hidden size、attention heads、GDN/full-attention 配比、专家数与 FFN 宽度等） | 第 6 章 |
 | Table 3 | 各深度训练配置（global batch size、训练步数、WSD 学习率、token budget、训练 FLOPs） | 第 6 章 |
 | Table 4 | 架构变体目录：Ratio（MR25/50/75）、First/last local-only（F1L1/F2L2/F4L4）、Meta loop（Loop2/4/8）、Combined（F2L2+Loop2）、Pure-Meta 家族 | 第 5 章 |
@@ -45,7 +45,7 @@
 
 **（2）残差通路视角的理论解释。** 论文对比含/不含 Meta Expert 的模型在前向 hidden-state 更新与反向参数更新上的差异，论证共享专家池为 hidden state 提供了更灵活的残差通路。Local Expert 架构中，前向只能冻结式携带浅层内容（深读浅），反向梯度高速路是参数级的、层层稀释的；而 Meta Expert 的共享池在单次前向内给出 O(1) 长度的双向通路——深层可以在写入时的同一码空间中再编码浅层内容，浅层也能读到训练期间深层写入共享池的内容。共享池因此不只是省参装置，而是层间的信息存储与检索中介。
 
-**（3）放大落地为 Intern-S2-Mobius。** 论文本身不附带训练代码仓库，其设计已被放大为 35B 的 Intern-S2-Mobius（Mobius-v0 架构：全局共享 Memory + 多 Reasoner 迭代查询，基于 Qwen3.5-35B 续训并做 SFT/RL；代码见 github.com/InternLM/Intern-S2-Mobius，模型见 HuggingFace internlm/Intern-S2-Mobius），体现了跨层共享思想在更大规模上的工程可行性。需注意该模型的能力描述（如推理近 4x 端到端加速）来自其 README 与技术报告，不属于论文正文的实验结论。
+**（3）放大落地为 Intern-S2-Mobius（同团队的外部后续工作，论文正文未作此声称）。** 论文本身不附带训练代码仓库，正文仅在 Looped Transformer 相关工作里以参考文献 Chen et al. (2026a) 提及 Intern-S2-Mobius，并未声称本设计被放大为该模型；据该项目的 README 与技术报告，35B 的 Intern-S2-Mobius（Mobius-v0 架构：全局共享 Memory + 多 Reasoner 迭代查询，基于 Qwen3.5-35B 续训并做 SFT/RL；代码见 github.com/InternLM/Intern-S2-Mobius，模型见 HuggingFace internlm/Intern-S2-Mobius）体现了跨层共享思想在更大规模上的工程可行性，但属于外部材料，不是本论文的实验结论或直接产物。需注意该模型的能力描述（如推理近 4x 端到端加速）来自其 README 与技术报告，不属于论文正文的实验结论。
 
 ### 1.3 关键结果速览
 
@@ -272,11 +272,11 @@ $$
 
 ### 5.4 整体对比：参数节省的来源
 
-将两个轴的最优配置组合（F2L2 + Loop2）后，论文进一步**削减 Meta 池宽度**（96 → {90, 84, 72, 60, 48}，不回填 Local，即 mpl 变体族），得到参数节省曲线（Figure 1 与 Figure 8）。
+将两个轴的最优配置组合（F2L2 + Loop2）后，论文进一步**削减 Meta 池宽度**（96 → {90, 84, 72, 60, 48}，不回填 Local，即 mpl 变体族），得到参数节省曲线（Figure 1；§3.3 的 Overall Comparison 同时使用 Figure 1 与 Figure 8）。
 
-![Figure 8: 组合最优配置下削减 Meta 宽度后的整体 loss 对比](Figures/2026-10-25-meta-expert-fig8.png)
+![Figure 8: 累积 Meta-Expert 设计的 scaling ladder（loss 与冗余随训练计算量变化）](Figures/2026-10-25-meta-expert-fig8.png)
 
-*图8：F2L2+Loop2 组合在全部计算预算下 loss 稳定低于 Vanilla；再削减 Meta 宽度后，相对 Vanilla 节省约 20–30% 专家数（15–25% 参数）仍保持同等性能*
+*图8：从 MR75 递增拓扑改进（+Loop2、+F2L2、F2L2+Loop2）的 loss 与冗余缩放阶梯，F2L2+Loop2 在全部计算预算下 loss 与冗余均最低；Meta 宽度削减（mpl）配置见 Table 5，20–30% 专家 / 15–25% 参数节省见 Figure 1 与 §3.3*
 
 mpl 族的具体配置（论文 Table 5；「Meta 池大小」列为名义槽位和，= 12 个含 Meta 层（L=16 减去 F2L2 的 4 个 Local-only 层）× 每层 Meta 宽度，照论文原表口径）：
 
@@ -309,7 +309,7 @@ mpl 族的具体配置（论文 Table 5；「Meta 池大小」列为名义槽位
 
 ### 5.5 下游任务性能
 
-论文以 6B-A1.6B 模型训练 200B token，比较五个变体在六个基准上的表现（论文 Table 1，数值为精度，均为论文原文精确值）：
+论文以 6B-A1.6B 模型训练 200B token，比较五个变体在六个基准上的表现（论文 Table 1，数值均为论文原文精确值；MMLU/C-Eval/CMMLU 为 5-shot accuracy，OpenBookQA 为 normalized accuracy，BBH/TriviaQA 为 generation exact-match）：
 
 | 数据集 | Vanilla | MR75 | MR75+Loop2 | MR75+F2L2 | MR75+F2L2+Loop2 |
 |:---|:---:|:---:|:---:|:---:|:---:|
@@ -329,13 +329,13 @@ mpl 族的具体配置（论文 Table 5；「Meta 池大小」列为名义槽位
 - **BBH**：MR75+F2L2（0.3061）与 MR75+Loop2（0.3030）高于 Vanilla（0.2972）；
 - **OpenBookQA**：MR75+Loop2（0.3640）最高，较 Vanilla（0.3500）提升 1.40 pp（0.3640 − 0.3500 = 0.0140）。
 
-总体上多数 Meta 变体在多数基准上占优（其中 MR75+Loop2 六项全胜），但单变体并非全面占优——MR75+F2L2 在 MMLU/C-Eval/CMMLU/OpenBookQA 四项上是净损失，这与其在 scaling ladder 上的 loss 优势形成张力；论文原文以「incorporating Meta Experts consistently outperform the vanilla baseline」概括全局，相对 Table 1 的事实偏强，并据此明确指出需要更大规模的下游验证（该方向由 Intern-S2-Mobius 承接，见第 6 章）。
+总体上多数 Meta 变体在多数基准上占优（其中 MR75+Loop2 六项全胜），但单变体并非全面占优——MR75+F2L2 在 MMLU/C-Eval/CMMLU/OpenBookQA 四项上是净损失，这与其在 scaling ladder 上的 loss 优势形成张力；论文原文以「incorporating Meta Experts consistently outperform the vanilla baseline」概括全局，相对 Table 1 的事实偏强，并据此明确指出需要更大规模的下游验证（该方向由同团队的外部后续工作 Intern-S2-Mobius 承接，非本论文结论，见第 6 章）。
 
 ## 第 6 章 代码实现与落地系统
 
 ### 6.1 开源状态
 
-论文本身**未放出训练代码**（复现性声明中说明基于 Megatron-LM 实现，附录 A.3 给出完整配置）。落地产物是 35B 的 **Intern-S2-Mobius**（GitHub: `InternLM/Intern-S2-Mobius`，权重: `internlm/Intern-S2-Mobius`），将 Meta Expert 思想放大为"全局共享 Memory + 多 Reasoner"的 Mobius-v0 架构：由 Qwen3.5-35B 续训（continual pre-training）而来，再经 SFT 与 RL 后训练。
+论文本身**未放出训练代码**（复现性声明中说明基于 Megatron-LM 实现，附录 A.3 给出完整配置）。同团队的外部后续工作是 35B 的 **Intern-S2-Mobius**（论文正文未声称本设计被放大为该模型；GitHub: `InternLM/Intern-S2-Mobius`，权重: `internlm/Intern-S2-Mobius`），其 README/技术报告将其描述为"全局共享 Memory + 多 Reasoner"的 Mobius-v0 架构：由 Qwen3.5-35B 续训（continual pre-training）而来，再经 SFT 与 RL 后训练。
 
 ### 6.2 训练配置（论文 Table 2：骨干架构）
 
@@ -406,4 +406,4 @@ sglang serve \
 - **跨层共享谱系**：ALBERT（Lan et al. 2019，dense FFN 全共享，效果混合）→ MoE 层间共享（Li et al. 2025；Tan et al. 2025 等，几乎全为 every-layer 拓扑）→ 本文的灵活拓扑（边界 Local 层 + 子池划分）；
 - **KV-cache 跨层共享**：推理期激活级共享近乎无损，与本文训练期存储级共享形成"读同一内容 vs 存同一内容"的对照；
 - **scaling law 依据**：Chinchilla（Hoffmann et al. 2022）等 compute-optimal 工作与 MoE scaling laws 支撑了"超参不随 MoE 结构重调"的实验设计；
-- **规模放大**：Intern-S2-Mobius 技术报告（仓库内 PDF）是本工作 35B 落地的第一手材料。
+- **规模放大**：Intern-S2-Mobius 技术报告（仓库内 PDF）是同团队 35B 外部后续工作的第一手材料（论文正文未声称该模型是本设计的直接放大）。

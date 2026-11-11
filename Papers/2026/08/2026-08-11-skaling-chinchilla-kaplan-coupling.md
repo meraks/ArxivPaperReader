@@ -22,7 +22,7 @@ Skaling law 是一种新型神经缩放定律形式，在 Chinchilla 加法内�
 | Figure 5 | iso-ratio compute 外推切片示意图（按固定 D/N 比分组留出高 compute 点） | 第 4 章 |
 | Figure 6 | 经验最优 token-to-parameter 比 vs compute（GP / MLS / Skaling / Chinchilla 对比），展示外推分歧 | 第 6 章 |
 | Table 1 | 主结果：Farseer 与 SK-Grid 双网格在四种交叉验证 regime 下的 MAPE 对比 | 第 5 章 |
-| Table 2 | 全网格拟合参数（Skaling vs Chinchilla，$A$, $B$, $\alpha$, $\beta$, $k$, $E$） | 第 5 章 |
+| Table 2 | 全网格与 L-shape 拟合参数（Skaling vs Chinchilla，$A$, $B$, $\alpha$, $\beta$, $k$, $E$） | 第 5 章 |
 | Table 3 | iso-ratio compute 外推 MAPE（Skaling vs Chinchilla vs per-ratio power law） | 第 5 章 |
 | Table 4 | 各定律拟合配置（参数数、log 参数、边界） | 第 6 章 |
 | Table 5 / 6 | 额外数据集结果（Farseer-code 117 运行、原始 Chinchilla 245 散点）及对应系数 | 第 5 章 |
@@ -41,7 +41,7 @@ Skaling 将 Chinchilla 的加法内部项（$A/N^\alpha + B/D^\beta$）包裹在
 
 **贡献 2：混合导数非零的经验证据**
 
-论文利用 Moving Least Squares（MLS）与 Gaussian Process（GP）两种无模型方法从损失面估计导数，经验性地证明 $\partial^2 L / \partial N \partial D \neq 0$。具体地，混合导数拟合值 $a \approx b \approx -1.1$ 且为负；一阶导数呈幂律衰减（$\alpha_N \approx \alpha_D \approx -1.3$），交叉斜率虽小但非零（$\gamma_N \approx 0.13$，$\gamma_D \approx 0.07$）。这直接否定了 Chinchilla 加法形式所隐含的严格独立性假设，为耦合形式的引入提供了经验依据。
+论文主要利用 Moving Least Squares（MLS）无模型方法从损失面估计导数（Figure 2/3 的导数与混合导数均来自 MLS 的局部二次拟合），经验性地表明 $\partial^2 L / \partial N \partial D \neq 0$；GP 作为独立的全局估计器在附录 A.3/Figure 6 中用于交叉验证计算最优比。具体地，混合导数拟合值 $a \approx b \approx -1.1$ 且为负；一阶导数呈幂律衰减（$\alpha_N \approx \alpha_D \approx -1.3$），交叉斜率虽小但非零（$\gamma_N \approx 0.13$，$\gamma_D \approx 0.07$）。这直接否定了 Chinchilla 加法形式所隐含的严格独立性假设，为耦合形式的引入提供了经验依据。
 
 **贡献 3：L-shape 稀疏采样网格（~10× 计算节省）**
 
@@ -55,7 +55,7 @@ Skaling 继承了 Chinchilla 的闭式最优 token-to-parameter 比公式（$R_{
 
 ![Figure 1: 加性 Chinchilla 定律的边界集中预测偏差（N×D 网格残差热图与 MAPE 比值）](Figures/2026-08-11-skaling-chinchilla-kaplan-coupling-fig1.png)
 
-*图1：左侧为 Chinchilla 在 N×D 网格上的鞍形残差（数据稀缺与过度训练角落误差达数个百分点），右侧为 Skaling/Chinchilla MAPE 比值——耦合形式系统性消除边界偏差，是本论文的核心动机图。*
+*图1：左侧为 Chinchilla 在 N×D 网格上的鞍形残差（数据稀缺与过度训练角落误差达数个百分点），右侧为 Chinchilla/Skaling MAPE 比值（红色表示 Skaling 更优，比值越高优势越大）——耦合形式系统性消除边界偏差，是本论文的核心动机图。*
 
 | 指标 | Chinchilla | Skaling | 来源 |
 |------|:---------:|:-------:|:----:|
@@ -77,7 +77,7 @@ Skaling 继承了 Chinchilla 的闭式最优 token-to-parameter 比公式（$R_{
 
 神经缩放定律描述模型损失 $L$ 与参数量 $N$、训练 token 数 $D$ 之间的函数关系，是大模型计算预算分配的理论基础。该领域沿三条主线演进：
 
-**Kaplan et al. (2020)——耦合形式。** Kaplan 的缩放定律将 $N$ 与 $D$ 耦合在一个共享外层指数的幂律结构中，模型大小与数据量以非加法方式交互。该耦合形式隐含 $\partial^2 L / \partial N \partial D \neq 0$，即 $N$ 对损失的边际效应依赖于 $D$，反之亦然。但该工作基于有限的模型规模，其拟合结果后来被发现高估了计算最优时的数据需求——建议约 20× 以上参数量的 token（背景估计，非本文数据），使得业界一度倾向于训练大模型而非"充分训练"。
+**Kaplan et al. (2020)——耦合形式。** Kaplan 的缩放定律将 $N$ 与 $D$ 耦合在一个共享外层指数的幂律结构中，模型大小与数据量以非加法方式交互。该耦合形式隐含 $\partial^2 L / \partial N \partial D \neq 0$，即 $N$ 对损失的边际效应依赖于 $D$，反之亦然。但该工作基于有限的模型规模，其拟合结果后来被发现低估了计算最优时的数据需求（背景估计，非本文数据），使得业界一度倾向于训练大模型而非"充分训练"——约 20 tokens/param 的经验法则实际属于后续 Chinchilla 加法形式（见下）。
 
 **Hoffmann et al. (2022)——Chinchilla 加法形式。** Chinchilla 定律将损失拆分为两个独立的加法项加一个不可约常数：
 
@@ -105,9 +105,9 @@ Chinchilla 加法形式的独立性假设 $\partial^2 L / \partial N \partial D 
 
 **Kaplan–Chinchilla 分歧的已有归因。** Pearce & Song (2024) 与 Porian et al. (2024) 将 Kaplan 与 Chinchilla 之间的指数差异归因于拟合程序层面的技术因素——参数计数方式（是否计入嵌入参数）和 FLOP 记账方法的差异。这些工作在拟合层面解释了两者的分歧。本文则指出一个更深层的结构性问题：即使在统一的拟合框架与数据来源下，加法形式本身在网格边界处的曲率方向就是错误的。鞍形残差不是拟合偏差或参数计数差异的产物，而是 $\partial^2 L / \partial N \partial D = 0$ 这一函数形式假设的内禀后果。
 
-**Busbridge et al. (2025)——同形式，不同场景。** Busbridge 使用了与 Skaling 结构相同的 untied outer-exponent 形式 $E + (A/N^\alpha + B/D^\beta)^\gamma$ 构建蒸馏缩放定律（distillation scaling law），在脚注中提及 untied exponents 可改善拟合，但未进行受控对比实验。本文是首个在自回归预训练缩放网格上系统验证该耦合形式、并通过严格的交叉验证协议（Interp / ExtN / ExtD / Far）量化其相对于 Chinchilla 的改进的工作。
+**Busbridge et al. (2025)——同形式，不同场景。** Busbridge 使用了与 Skaling 结构相同的 untied outer-exponent 形式 $E + (A/N^\alpha + B/D^\beta)^\gamma$ 构建蒸馏缩放定律（distillation scaling law），在脚注中提及 untied exponents 可改善拟合，但未进行受控对比实验。本文将该 N–D 交互作为中心问题，在自回归预训练缩放网格上系统验证该耦合形式，并通过严格的交叉验证协议（Interp / ExtN / ExtD / Far）量化其相对于 Chinchilla 的改进。
 
-**Farseer (Li et al., 2025)——9 参数更重形式。** Farseer 提出 9 参数缩放定律形式，在插值区精度更高，但在数据外推区 MAPE 反而更高（4.13 / 4.45），且拟合难度大。这表明仅靠增加参数数量无法系统解决外推问题——关键在于函数形式是否正确刻画 $N$–$D$ 间的耦合关系。Skaling 仅用 6 参数（比 Chinchilla 多 1 个）便在外推区全面优于 9 参数的 Farseer 形式。
+**Farseer (Li et al., 2025)——9 参数更重形式。** Farseer 提出 9 参数缩放定律形式，但拟合难度大，且在本文实验中其插值误差也高于 Skaling（如 Farseer 全网格 1.73% vs 0.41%），数据外推区 MAPE 更高（4.13 / 4.45）。这表明仅靠增加参数数量无法系统解决外推问题——关键在于函数形式是否正确刻画 $N$–$D$ 间的耦合关系。Skaling 仅用 6 参数（比 Chinchilla 多 1 个）便在外推区全面优于 9 参数的 Farseer 形式。
 
 **数据混合与重复训练的缩放。** Muennighoff et al. (2023) 研究了重复数据下的缩放行为；Ye et al. (2024) 与 Shukor et al. (2026) 关注多源数据混合的缩放定律。这些工作在 Chinchilla 加法框架内运作，其结论同样可能受独立性假设偏差影响——当数据组成或重复程度变化时，$N$–$D$ 耦合的形态可能进一步偏离加法假设。
 
@@ -141,7 +141,7 @@ $$\widehat{\frac{\partial z}{\partial x_{j}}}(x_{\star})=\frac{\partial k(x_{\st
 
 RBF 核的导数为 $\partial k(x,x')/\partial x_{j}=k(x,x')(x'_{j}-x_{j})/\ell_{j}^{2}$。GP 还提供闭式预测方差以量化估计不确定性，并通过最大化边际似然自动调节长度尺度与噪声水平。
 
-两种方法给出完全独立的梯度估计，其一致性为后续结论提供了稳健性保证。
+两种方法给出完全独立的计算最优比估计，其在 Figure 6 中的定性一致性为分配结论提供了稳健性保证。
 
 **一阶 log-linear 诊断。** 作者首先用如下对数线性模型（Eq.1）概括一阶结构：
 
@@ -435,7 +435,7 @@ Farseer 数据上的交互有具体分配后果。数值损失梯度恢复随 co
 
 ### 5.8 dominated-pair 拟合
 
-受支配配对拟合（Section 12）从目标中完全移除 E：对任一有序配对 i 支配 j（F_i≥F_j、D_i≥D_j 且 L_i<L_j），加法下限在损失差中抵消。它主要作为加性 Chinchilla 的修正——全网格上 Chinchilla 的 far 误差从 2.46% 降至 0.79%（Farseer）、5.17% 降至 3.67%（SK-Grid）。这暗示 Chinchilla 大量外推误差源于下限 E 的弱辨识；Skaling 不受此修正的持续改善（Table 9），因为其耦合形式已正确捕获全局损失面形状。
+受支配配对拟合（附录 F）从目标中完全移除 E：对任一有序配对 i 支配 j（F_i≥F_j、D_i≥D_j 且 L_i<L_j），加法下限在损失差中抵消。它主要作为加性 Chinchilla 的修正——全网格上 Chinchilla 的 far 误差从 2.46% 降至 0.79%（Farseer）、5.17% 降至 3.67%（SK-Grid）。这暗示 Chinchilla 大量外推误差源于下限 E 的弱辨识；Skaling 不受此修正的持续改善（Table 9），因为其耦合形式已正确捕获全局损失面形状。
 
 ## 第 6 章 计算最优训练与拟合细节
 
@@ -475,7 +475,7 @@ L-BFGS-B + basin-hopping（autograd 解析梯度，Sobol 拟随机起点）与 B
 
 ### 6.3 代码与可复现性
 
-截至检索时点（2026-08-11）论文未发布官方代码仓库。Farseer 网格数据来自 Li et al. (2025a) 已发布运行；Chinchilla 数据来自 Besiroglu et al. (2024) 公开测量；SK-Grid 为 Meta 内部训练网格（基于 Meta Lingua 框架），正文描述含 134 个配置、15 个模型大小（附录 E.1 与 Table 8 另写 125 runs / 14 sizes，论文自身存在轻微内部不一致，本报告以正文为准）。Skaling 形式（Eq.3）仅 6 参数，任何缩放定律拟合代码库（如 chinchilla 工具包、Farseer 开源管线）均可直接实现。
+截至检索时点（2026-08-11）论文未发布官方代码仓库。Farseer 网格数据来自 Li et al. (2025a) 已发布运行；Chinchilla 数据来自 Besiroglu et al. (2024) 公开测量；SK-Grid 为 Meta 内部训练网格（基于 Meta Lingua 框架），正文描述含 134 个配置、15 个模型大小（附录 E.1 与 Table 7 另写 125 runs / 14 sizes，论文自身存在轻微内部不一致，本报告以正文为准）。Skaling 形式（Eq.3）仅 6 参数，任何缩放定律拟合代码库（如 chinchilla 工具包、Farseer 开源管线）均可直接实现。
 
 ## 第 7 章 局限性与延伸阅读
 

@@ -15,11 +15,11 @@ Frontis-MA1 是一个面向机器学习工程（MLE）的 meta-evolution agent�
 
 | 编号 | 类型 | 内容概述 |
 |------|------|----------|
-| Figure 1 | 结果条形图 + Pareto | MLE-Bench Lite 全部模型 × harness 的 Medal Average 与 Human Rank 对比，展示 Frontis-MA1-35B 在算力-性能 Pareto 前沿的位置 |
+| Figure 1 | 结果条形图 + Pareto | MLE-Bench Lite 全部模型 × harness 的 Medal Average 条形对比，以及按模型规模（Total parameters，log scale）展示每模型最佳 harness 的 Pareto 面板（模型规模 vs Medal avg@3），不涉及 Human Rank |
 | Figure 2 | 架构定位图 | OpenMLE 在研究版图中的定位，以及从 evolution → meta-evolution → RSI 的机制阶梯 |
 | Figure 5 | 工作流总览图 | OpenMLE 训练与推理全流程：四个算子接口、SFT/RL 训练管线、OpenMLE-Evo 测试时搜索的端到端闭环 |
 | Table 1 | 主结果表 | MLE-Bench Lite 22 任务的主结果：Valid Rate、Medal Average、Human Rank，覆盖 Frontis-MA1-35B/30B、base 模型及 GPT-5.6/Kimi K3/Claude Opus 4.8 等对比模型 |
-| Table 2 | 转移实验表 | NatureBench Lite 10 任务上的 Match-SOTA（All S / All M）双因素分解：固定框架换模型、固定模型换框架 |
+| Table 2 | 转移实验表 | NatureBench Lite 10 任务上的 Surpass-SOTA（All S）/ Match-SOTA（All M）双因素分解：固定框架换模型、固定模型换框架 |
 
 ### 1.3 核心贡献
 
@@ -31,7 +31,7 @@ Frontis-MA1 是一个面向机器学习工程（MLE）的 meta-evolution agent�
 
 3. **OpenMLE-ERL 算子训练**。分两阶段：执行锚定的 SFT 采用 budget-adaptive 策略收集，共 26,259 条示例（17,245 条 full responses 占 65.7% + 9,014 条 trajectory steps 占 34.3%）；在线 RL 引入自适应奖励边界、entropic advantage、异步 rollout 与 reward hacking 检测（o3-mini LLM judge 预检，命中则跳过沙箱并施加 reward −0.5）。两阶段共同训练四个原子算子。
 
-4. **OpenMLE-Evo 经验驱动搜索**。测试时长程搜索框架，核心机制包括：结构化 experience card（14 类字段）与 experience board（7 类聚合）；质量-进步-新颖性三因子父选择（默认权重 $\lambda_s=1.0,\ \lambda_\Delta=0.6,\ \lambda_n=0.3$）；操作触发式按需记忆合成（Improve 取父节点 + 3 祖先 + 3 兄弟；Crossover 取双亲 + 各自 2 祖先 2 兄弟；Debug 取同错误签名的 3 个节点）；操作条件上下文构造。
+4. **OpenMLE-Evo 经验驱动搜索**。测试时长程搜索框架，核心机制包括：结构化 experience card（六个组件）与 experience board（五个聚合组件）；质量-进步-新颖性三因子父选择（默认权重 $\lambda_s=1.0,\ \lambda_\Delta=0.6,\ \lambda_n=0.3$）；操作触发式按需记忆合成（Improve 取父节点 + 3 祖先 + 3 兄弟；Crossover 取双亲 + 各自 2 祖先 2 兄弟；Debug 取当前 buggy 节点 + 同错误签名节点 + 近期尝试（默认共 3 个））；操作条件上下文构造。
 
 5. **完整开源交付**。Frontis-MA1-35B 与 Frontis-MA1-30B 权重（BF16 + GGUF）、OpenMLE-Tasks 与 OpenMLE-SFT-Traces 数据集、训练与搜索代码、沙箱基础设施全部开源，支持完整复现 meta-evolution 循环。
 
@@ -81,7 +81,7 @@ OpenMLE-Gym 以此为契约，覆盖 Tabular（44%）、Image（18%）、Time Se
 
 **第二条：可执行任务环境。** MLE-Bench（75 任务）、MLE-Dojo（200+）、DSBench（74）、MLE-Smith（606）、MLGym-Bench（13）、MLAgentBench（13）等基准提供了带执行反馈的任务集合。然而这些环境普遍规模有限、模态覆盖窄、且缺少从任务构建到质量门控的完整流水线。OpenMLE-Gym 的 5,758 个任务和四级 Kaggle 漏斗筛选流程（11,000 → 3,972 → 2,839 → 2,240）在规模与质量管控上均超越此前工作。更重要的是，先前环境通常只服务于评测，而 OpenMLE-Gym 同时服务于训练（SFT/RL 的 rollout 环境）与推理（搜索的执行后端），实现了环境契约的统一。
 
-**第三条：执行反馈驱动的 post-training。** 以 TTT-Discover 为代表的工作探索了用执行反馈（测试通过率、运行时指标）作为奖励信号来 post-train 编码模型。这类方法验证了"执行即奖励"的可行性，但通常聚焦于单一目标（如正确性）或单一操作（如 Debug），未将训练目标与推理时搜索的算子空间对齐。OpenMLE-ERL 将奖励信号统一到四个原子算子的演化目标 $\mathcal{L}_{\text{evo}}$ 上，使训练后的算子能力直接服务于推理搜索，而非仅服务于某个静态 agent prompt。
+**第三条：执行反馈驱动的 post-training。** 以 AceGRPO、MLE-RL、ML-Agent、RL-MLE 为代表的工作探索了用执行反馈作为奖励信号来 post-train MLE agents（TTT-Discover 则关注测试时学习）。这类方法验证了"执行即奖励"的可行性，但通常聚焦于单一目标（如正确性）或单一操作（如 Debug），未将训练目标与推理时搜索的算子空间对齐。OpenMLE-ERL 将奖励信号统一到四个原子算子的演化目标 $\mathcal{L}_{\text{evo}}$ 上，使训练后的算子能力直接服务于推理搜索，而非仅服务于某个静态 agent prompt。
 
 三条线的共同缺口是：没有任何一条单独构成 meta-evolution loop——harness 不可训练，环境不闭环，post-training 目标与推理脱节。OpenMLE 的设计正是将三者统一在同一算子接口下。
 
@@ -89,13 +89,13 @@ OpenMLE-Gym 以此为契约，覆盖 Tabular（44%）、Image（18%）、Time Se
 
 论文通过一组匹配对比（模型固定、仅切换 harness）系统审计了 OpenMLE 相对于现有 agent 框架的差异。从该审计视角看，OpenMLE-Evo 相较 AIRA-Evo 及各类 baseline harness 的核心差异体现在三个层面：
 
-**算子可学习性。** 现有 harness 的搜索逻辑（如何选择代码片段改进、如何组织上下文、何时触发调试）是固定的工程规则。Frontis-MA1-35B 配 OpenMLE-Evo 相较配 AIRA-Evo 提升 +7.58pp（53.03% → 60.61%），而这正是同一模型在不同搜索框架下的差异——差距来自框架本身是否针对该模型的算子分布做过对齐。OpenMLE-Evo 的三因子父选择与操作触发记忆合成为了"可训练的搜索策略"提供了结构化接口。
+**算子可学习性。** 现有 harness 的搜索逻辑（如何选择代码片段改进、如何组织上下文、何时触发调试）是固定的工程规则。Frontis-MA1-35B 配 OpenMLE-Evo 相较配 AIRA-Evo 提升 +7.58pp（53.03% → 60.61%），而这正是同一模型在不同搜索框架下的差异——差距来自搜索是否为迭代式 MLE 专门设计，而非单一模型-harness 配对。OpenMLE-Evo 的三因子父选择与操作触发式记忆合成，为可训练的原子算子提供了结构化接口（搜索策略本身仍是手工设计的固定规则）。
 
 **上下文效率。** 审计数据显示，OpenMLE-Evo 的 Improve prompt 平均长度从 102.8K 字符降至 35.7K（−65.3%），99th 百分位从 389.0K 降至 54.3K（−86.1%）；Crossover prompt 平均从 140.4K 降至 55.3K（−60.6%），99th 百分位从 419.2K 降至 78.4K（−81.3%）。上下文压缩并非简单截断，而是基于操作条件的按需记忆合成——不同算子检索不同结构的经验（祖先、兄弟、同错误签名节点），使有效信息密度大幅提升。
 
 **单位算力产出。** 在 66 组匹配 task-runs 中，OpenMLE-Evo 以更少的 token（−41.7%）和更少的评估节点（−12.4%）产出了更多的 new-best updates（+7.4%），每百万模型 token 的 new-best 产出率提升 +84.3%。这表明效率提升来自搜索质量而非暴力枚举。
 
-更广泛的 B 组对比（在更丰富的 Evo 上下文下评测多个前沿模型）进一步刻画了 OpenMLE-Evo 的可迁移性：Grok-4.5 达 65.15%、LongCat-2.0 与 Doubao Seed 2.1 Pro 各 56.06%、Qwen3.7 Plus 与 DS-V4 Pro 各 54.55%——不同模型在 OpenMLE-Evo 上均能获得稳定增益，验证了框架与模型的正交解耦。
+更广泛的 B 组对比（在更丰富的 Evo 上下文下评测多个前沿模型）进一步刻画了 OpenMLE-Evo 的可迁移性：Grok-4.5 达 65.15%、LongCat-2.0 与 Doubao Seed 2.1 Pro 各 56.06%、Qwen3.7 Plus 与 DS-V4 Pro 各 54.55%——不同模型在 OpenMLE-Evo 下均取得较强结果；匹配 harness 对比（图 11）显示跨模型家族的稳定增益，支持框架与模型的正交解耦。
 ## 第 3 章 OpenMLE 全栈与 OpenMLE-Gym 可验证环境
 
 ### 3.1 全栈设计：训练与推理共享算子接口
@@ -267,7 +267,7 @@ $$B_{\text{dyn}} = x_{(1)}, \quad W_{\text{dyn}} = x_{(\min(16, K))}$$
 
 $$A_{\text{ent},i} \approx \frac{\exp(\beta c_i)}{\frac{1}{K-1} \sum_{j \ne i} \exp(\beta c_j)} - 1$$
 
-其中 $c_i = r_{\text{proc},i} - \max_j r_{\text{proc},j}$ 为组内中心化后的处理奖励，$\beta$ 控制集中度，在固定熵/KL 预算下选择（KL$(q_\beta \| \text{Unif}(K)) \approx \log 2$，最大搜索值 $10^6$，60 次二分迭代）。这些优势取代裁剪策略目标中常规的 GRPO 式组归一化信号。图 8 显示：熵加权使最佳候选的处理优势从 1.58 提升到 6.39（4.0× 更强的上尾信号）；与自适应边界结合后，平滑的 Group Best Reward 峰值达 0.666（+0.089 vs 先前构造），测试奖牌率从 24.2% ± 5.7% 提升到 34.8% ± 4.3%。
+其中 $c_i = r_{\text{proc},i} - \max_j r_{\text{proc},j}$ 为组内中心化后的处理奖励，$\beta$ 控制集中度，在固定熵/KL 预算下选择（KL$(q_\beta \| \text{Unif}(K)) \approx \log 2$，最大搜索值 $10^6$，60 次二分迭代）。这些优势取代裁剪策略目标中常规的 GRPO 式组归一化信号。图 8 显示：熵加权使最佳候选的处理优势从 1.58 提升到 6.39（4.0× 更强的上尾信号）；与自适应边界结合后，平滑的 Group Best Reward 峰值达 0.666（+0.089 vs 先前构造），测试奖牌率从 24.2% ± 5.7% 提升到 34.8% ± 4.3%（该测试奖牌率来自更简单的早期 harness，并非 OpenMLE-Evo）。
 
 **异步 rollout 消除掉队者**。MLE RL 的主导延迟来自执行候选程序，运行时间跨任务差异巨大。同步批次中，完成组必须等待最慢沙箱作业。OpenMLE 独立启动生成-执行组，训练器从队列消费每个完成组，解耦策略更新与最慢作业。实测 40 个匹配步中，平均步时从同步 97.0 分钟降至异步 50.8 分钟（1.91×）；两个代表性异步运行中每任务步数保持在运行中位数 ±2 步内，变异系数 1.56% 与 2.06%。
 
@@ -424,7 +424,7 @@ OpenMLE-Evo-Max 是 OpenMLE-Evo 内部的异步多 GPU 搜索 profile，并非�
 
 ![Figure 1: MLE-Bench Lite 全部模型×harness 结果（条形 + Pareto）](Figures/2026-08-01-frontis-ma1-ai4ai-recursive-self-improvement-fig1.jpg)
 
-*图1：MLE-Bench Lite 结果全景——横轴为 Medal avg@3，Frontis-MA1-35B 以 OpenMLE-Evo-Max 达 71.2%，逼近 GPT-5.6 Sol 与 Kimi K3（各 72.7%），超过 GPT-5.5（68.2%）；右侧 Pareto 面板按模型规模展示每模型最佳 harness。*
+*图1：MLE-Bench Lite 结果全景——纵轴为 Medal avg@3，Frontis-MA1-35B 以 OpenMLE-Evo-Max 达 71.2%，逼近 GPT-5.6 Sol 与 Kimi K3（各 72.7%），超过 GPT-5.5（68.2%）；右侧 Pareto 面板按模型规模展示每模型最佳 harness。*
 
 **Table 1 | MLE-Bench Lite 主结果**
 
@@ -572,7 +572,7 @@ Table 9 报告 3 个评估 epoch 的均值±标准差。Frontis-MA1-35B：Evo 60
 
 ### 8.3 与相关工作的关系
 
-论文将相关工作分为五线（详见第 2 章）：
+论文将相关工作分为五线（详见论文 Related Work 一节）：
 
 | 线 | 代表工作 | OpenMLE 的差异 |
 |----|---------|---------------|

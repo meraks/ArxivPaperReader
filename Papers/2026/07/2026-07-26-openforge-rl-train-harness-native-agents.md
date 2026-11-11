@@ -1,15 +1,15 @@
 
 > **论文**：OpenForge RL: Train Harness-native Agents in Any Environment
-> **作者**：Paul Furgale, Severin Klingler, James Nolan, Matt Staats, Gaia Di Lorenzo, Elisa Martinez Abad, Christian Schüller, Razvan Dinu, Alessio Devoto, Pascal Berard, Gal Kaplun, Elad Sarafian, Riccardo Roveri, Leon Derczynski, Ricardo Silveira Cabral (Microsoft)
+> **作者**：Xiao Yu, Baolin Peng, Ruize Xu, Hao Zou, Qianhui Wu, Hao Cheng, Wenlin Yao, Nikhil Singh, Zhou Yu, Jianfeng Gao (Columbia University / Dartmouth College / Microsoft Research)
 > **arXiv ID**：2607.21557
 > **发表时间**：2026-07-23
-> **代码仓库**：将开源（论文发布时尚未公开）
+> **代码/数据/模型**：https://aka.ms/OpenForge-RL（论文声明发布代码、数据与模型）
 
 ## 第 1 章 概述
 
 ### 1.1 一句话定位
 
-OpenForge RL 是一个开源框架，通过轻量级代理（Proxy）和 Kubernetes 编排器，将任意推理 Harness（Claude Code、Codex、OpenClaw 等）与标准 RL 训练栈（veRL 等）解耦，首次实现 Harness 原生 Agent 在多样环境中的端到端强化学习训练。
+OpenForge RL 是一个开源框架，通过轻量级代理（Proxy）和 Kubernetes 编排器，将任意推理 Harness（Claude Code、Codex、OpenClaw 等）与标准 RL 训练栈（veRL 等）解耦，实现 Harness 原生 Agent 在多样环境中的端到端强化学习训练（论文自述为迈向该目标的第一步，并指出同期工作 Polar 采用类似思路）。
 
 ### 论文图表总览
 
@@ -18,14 +18,14 @@ OpenForge RL 是一个开源框架，通过轻量级代理（Proxy）和 Kuberne
 | **Figure 1** | 系统架构概览（Agent inside Harness） | 第 3 章 |
 | **Figure 2** | OpenForge RL 训练流程——Proxy 将 Harness Model Call 转发至训练栈 | 第 3 章 |
 | **Figure 3** | 数据合成管线：Propose → Prune → Build → Test → Refine | 第 3 章 |
-| **Figure 4** | 训练任务分类分布 | 第 5 章 |
-| **Figure 5** | 工具使用分布（左）与 Agent 能力雷达图（右） | 第 6 章 |
+| **Figure 4** | 训练任务分类分布 | 第 3 章 |
+| **Figure 5** | 工具使用分布（左）与 Agent 能力雷达图（右） | 第 5 章 |
 | **Table 1** | 训练数据统计：各领域 SFT 与 RL 任务数 | 第 3 章 |
-| **Table 2** | Claw Agents 主结果（ClawEval / QwenClawBench / MCPAtlas） | 第 5 章 |
-| **Table 3** | GUI Agents 主结果（OSWorld / Mind2Web / WebVoyager） | 第 5 章 |
-| **Table 4** | 跨 Harness 评估（ReACT / ZeroClaw / OpenClaw / Codex） | 第 6 章 |
-| **Table 5** | 未见 Harness 泛化实验 | 第 6 章 |
-| **Table A1** | 训练超参数汇总 | 第 7 章 |
+| **Table 2** | Claw Agents 主结果（ClawEval / QwenClawBench / MCPAtlas） | 第 4 章 |
+| **Table 3** | GUI Agents 主结果（OSWorld / Mind2Web / WebVoyager） | 第 4 章 |
+| **Table 4** | 跨 Harness 评估（ReACT / ZeroClaw / OpenClaw / Codex） | 第 5 章 |
+| **Table 5** | 未见 Harness 泛化实验 | 第 5 章 |
+| **Table A1** | 训练超参数汇总 | 附录 A（A.1） |
 
 ### 1.2 核心贡献
 
@@ -134,7 +134,7 @@ OpenForge-Claw(SFT+RL) 在全部三个 Benchmark 上超越同尺寸模型，并�
 
 ### 4.2 GUI Agents
 
-**设置**：使用 Qwen3-VL-8B-Thinking 为骨干，蒸馏 Kimi-K2.5 的成功轨迹。计算机使用环境使用 Kimi-Agent（修改版，增加 bash 和 str_replace_editor 工具），浏览器使用使用 MolmoWeb 修改版。均采用截图模式（仅视觉输入，无 DOM 或辅助数据）。
+**设置**：使用 Qwen3-VL-8B-Thinking 为骨干，蒸馏 Kimi-K2.5 的成功轨迹。计算机使用环境使用 Kimi-Agent（修改版，增加 bash 和 str_replace_editor 工具），浏览器使用使用 MolmoWeb 修改版。计算机使用为纯截图输入；浏览器使用为截图加简短文本块（上一动作结果、页面标题与 URL、步数），两者均不使用 DOM 或可访问性树。
 
 **主要结果**：
 
@@ -147,10 +147,11 @@ OpenForge-Claw(SFT+RL) 在全部三个 Benchmark 上超越同尺寸模型，并�
 | **同尺寸模型（~8B）** | | | |
 | Qwen3-VL-8B | 29.4 | 38.7 | 49.2 |
 | UI-TARS-1.5-7B | 27.4 | 31.3 | 66.4 |
+| MolmoWeb-8B | — | 35.3 | 78.2 |
 | OpenForge-GUI(SFT) | 34.4 | 57.4 | 61.5 |
 | OpenForge-GUI(SFT+RL) | **37.7** | **63.0** | **72.3** |
 
-OpenForge-GUI(SFT+RL) 在 OSWorld-Verified 上达 37.7%，超越所有 8B 级别开源模型；在 Online-Mind2Web 上达 63.0%（超越 MolmoWeb-8B 的 35.3%）。值得注意的是，MolmoWeb 使用 20 万+ 任务训练，而 OpenForge-GUI 仅使用 2,500 个 SFT 任务 + 900 个 RL 任务。
+OpenForge-GUI(SFT+RL) 在 OSWorld-Verified 上达 37.7%，超越所有 8B 级别开源模型；在 Online-Mind2Web 上达 63.0%（超越 MolmoWeb-8B 的 35.3%），但在 WebVoyager 上为 72.3，略低于 MolmoWeb-8B 的 78.2，属持平竞争。值得注意的是，MolmoWeb 使用 20 万+ 任务训练，而 OpenForge-GUI 仅使用 2,500 个 SFT 任务 + 900 个 RL 任务。
 
 ## 第 5 章 训练分析与讨论
 
@@ -212,5 +213,4 @@ OpenForge-GUI(SFT+RL) 在 OSWorld-Verified 上达 37.7%，超越所有 8B 级别
 
 - 改进部分 Rollout 的信度分配——当前策略丢弃错误轨迹的所有样本，可能浪费有价值的训练信号
 - 开发针对错误恢复的专门训练方法
-- 扩展到更多类型的环境（移动设备、嵌入式系统等）
 - 降低数据合成成本，提升任务覆盖的多样性

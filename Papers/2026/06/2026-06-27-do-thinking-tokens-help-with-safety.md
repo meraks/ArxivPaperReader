@@ -5,7 +5,7 @@
 - 作者：Narutatsu Ri, Abhishek Panigrahi, Sanjeev Arora (Princeton University)
 - arXiv ID：2606.25013
 - 发表/提交日期：2026-06-23
-- 发表/会议：ICML 2026 AI4GOOD Workshop (Oral)
+- 发表/会议：arXiv preprint（论文未标注会议或 workshop 信息）
 - 官方代码：github.com/narutatsuri/lrm_safety_deliberation
 
 ---
@@ -22,7 +22,7 @@
 
 2. **Thinking 过程更像 prefix completion 而非 deliberative revision。** 在 thinking trace 完成约 20% 之后，最终结局极少改变（continuation variance <0.2，Figure 3）；文本层面看似审慎的"立场震荡"绝大多数（72.8–76.6%）发生在结局已被锁定之后。
 
-3. **现有安全防御方法效果有限，且抑制了本就稀疏的 deliberation 信号。** 无论 inference-time 还是 training-based 方法，都主要沿 ASR–ORR tradeoff 移动模型行为，无法同时改善两个指标；它们在动机上声称"诱导审慎"，实际效果却是降低震荡计数最高达 95%（Table 3）。
+3. **现有安全防御方法效果有限，且抑制了本就稀疏的 deliberation 信号。** 无论 inference-time 还是 training-based 方法，都主要沿 ASR–ORR tradeoff 移动模型行为，无法同时改善两个指标；其中 inference-time 方法在声称"诱导审慎"的同时，反而把震荡计数最高压低 95%（Table 3），training-based 方法也未能一致提升 deliberation（Figure 6）。
 
 论文由此得出结论：当前推理模型的安全行为远比普遍假设的"非审慎"。这指向一个开放需求——设计能真正诱发安全 deliberation 的方法。
 
@@ -61,7 +61,7 @@
 
 $$J(t) = \frac{\lVert \mu_{\text{refuse}}(t) - \mu_{\text{comply}}(t) \rVert^2}{\sigma^2_{\text{refuse}}(t) + \sigma^2_{\text{comply}}(t)}$$
 
-$J(t)$ 呈 U 形：在 $t=0$（第一个 thinking token）已处于高位，随思考推进下沉，临近 prefill 末端再度抬升。这一形态有两层含义：
+$J(t)$ 呈 U 形：在 $t=0$（第一个 thinking token）已处于高位，随思考推进下沉，临近 thinking 结束（t=99）再度抬升。这一形态有两层含义：
 
 - **第一 token 处的高 $J$**：结局在思考一开始就被 hidden representation 区分开了。
 - **中段的"refusal valley"**：真正的思考过程反而让两类表示更难分离——即 deliberation 的表象并未对应可分离度的提升。
@@ -101,9 +101,9 @@ prefill 阶段 readout 同步显示：信号在 prompt 处理过程中一直很�
 
 ### 4.1 Continuation variance 在 B=20% 已坍缩
 
-衡量"思考能否改变结局"的直接检验是 continuation variance：取一条参考 thinking trace，在长度占比 $B$ 处截断，从截断点多次采样续写，统计最终 refusal/compliance 结局相对于参考结局的翻转率。
+衡量"思考能否改变结局"的直接检验是 continuation variance：取一条参考 thinking trace，在长度占比 $B$ 处截断，从截断点多次采样续写，统计同一前缀下多次续写的最终 refusal/compliance 结局差异率（$4q(1-q)$，$q$ 为该前缀续写的拒绝率）。
 
-Figure 3 显示该翻转率在 $B=20\%$ 处已降至 ~0.2 以下（近似，Figure 3）。配合 majority-label flips 70–97% 保持不变（Figure 4），结论一致：**前 20% 的思考前缀之后，结局基本锁定**。后续 80% 的思考 token 并未行使"重新决策"的功能，而是在补全一个已经确定的结局。
+Figure 3 显示该方差在 $B=20\%$ 处已降至 <0.2（近似，Figure 3）。配合 majority-label flips 70–97% 保持不变（Figure 4），结论一致：**前 20% 的思考前缀之后，结局基本锁定**。后续 80% 的思考 token 并未行使"重新决策"的功能，而是在补全一个已经确定的结局。
 
 ### 4.2 Thinking 不改善 ASR–ORR tradeoff
 
@@ -148,7 +148,7 @@ Qwen3-8B 极度 over-comply（ASR 86.9、ORR 仅 6.0），GPT-OSS-20B 极度 ove
 
 ### 5.2 Inference-time 防御：降 ASR、抬 ORR，并抑制震荡
 
-三种 inference-time 方法（SafePath-ZS、PSR、SafeRemind）的行为高度一致——以 ORR 上升为代价换取 ASR 下降。完整数据见 Table 2：
+三种 inference-time 方法（SafePath-ZS、PSR、SafeRemind）大体以 ORR 上升为代价换取 ASR 下降，但效果因模型而异——PSR 在 Qwen3-8B 上几乎无效，在 GPT-OSS-20B 上方向相反（ASR 上升、ORR 下降）。完整数据见 Table 2：
 
 | 方法 | Qwen3-8B ASR↓ | Qwen3-8B ORR↓ | Olmo-3-7B-Think ASR↓ | Olmo-3-7B-Think ORR↓ | Phi-4-Reasoning ASR↓ | Phi-4-Reasoning ORR↓ | GPT-OSS-20B ASR↓ | GPT-OSS-20B ORR↓ |
 |------|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
@@ -191,7 +191,7 @@ PSR 在 Phi-4-Reasoning 上把震荡计数从 0.66 砍到 0.03（↓95%），mea
 
 - **部分方法使安全性显著恶化**。STAR-1 在 GPT-OSS-20B 上把 ASR 从 26.5 推到 71.7（↑45.2），SafeKey 同向（71.0，↑44.5）——两个本意提升安全的方法把模型变成过度配合。R1-ACT 在 Olmo-3-7B-Think 上 ASR 升至 85.4（↑14.8）。RAPO 在 Phi-4-Reasoning 上 ASR 与 ORR 同时恶化（55.4/53.4）。这些方法沿 tradeoff 漂移，漂移方向还与目标模型的安全画像耦合。
 - **即使 ASR 大降，ORR 同步飙升**。ThinkSafe 在 Qwen3-8B 上 ASR 降到 30.9（↓56.0，全场最强降 ASR），但 ORR 飙至 44.6（↑38.6）——又是一个纯 tradeoff 移动。
-- **on-policy 与 off-policy 对早期信号的影响相反**。on-policy 类方法（ThinkSafe、STAIR）保留 first-token readability（结局仍早早可读）但减少震荡；off-policy 类方法（STAR-1、SafeKey）则**主动压制早期 refusal 信号**（first-token probe AUROC 下降约 0.11）并减少震荡。off-policy 方法通过抹平早期表示来"藏住"决策，这恰恰是在削弱 Ch3 揭示的可读性，而非建立真正的审慎。
+- **on-policy 与 off-policy 对早期信号的影响相反**。on-policy 类方法（ThinkSafe、STAIR）保留 first-token readability（结局仍早早可读）但减少震荡；off-policy 类方法（STAR-1、SafeKey）则**主动压制早期 refusal 信号**（first-token probe AUROC 下降约 0.11），减少总震荡计数，但大体保留 meaningful 震荡计数。off-policy 方法通过抹平早期表示来"藏住"决策，这恰恰是在削弱 Ch3 揭示的可读性，而非建立真正的审慎。
 
 ### 5.4 小结
 
@@ -213,15 +213,15 @@ PSR 在 Phi-4-Reasoning 上把震荡计数从 0.66 砍到 0.03（↓95%），mea
 
 1. **Representation extraction**：在指定位置（prefill 各步、每个 thinking token）抽取 hidden state，按最终 refusal/compliance 分组。
 2. **Probes**：在 hidden state 上训练线性 head，输出 Table 1 的 AUROC/BAcc；含 TF-IDF 文本基线对照。
-3. **Fisher discriminant**：沿位置 $t$ 计算 $J(t)$，绘制 U 形曲线（Figure 2）。
+3. **Fisher discriminant**：沿位置 $t$ 计算 $J(t)$，绘制 U 形曲线（Figure 1）。
 4. **Guardrails**：集成 WildGuard、Qwen3Guard、Granite Guardian、OSS-Safeguard 四个分类器，对每个回复投票/聚合作出 refuse/comply 标签，用于 ASR/ORR 计算（Table 2）。
 5. **Oscillation analysis**：句子级 stance 标注，统计 total / meaningful 震荡计数（Table 3、Figure 5）。
 
 ### 6.3 如何复现关键图表
 
 - **Table 1（first-token probe）**：抽取第一个 thinking token 的 hidden state → 划分 train/test → 训练线性 probe → 报告 AUROC/BAcc（Harmful / Benign / Pooled 三种设定）。
-- **Figure 2（$J(t)$ U 形）**：在每个 thinking 位置 $t$ 上按结局分组，计算 §3.1 的 Fisher 判别度并绘图。
-- **Figure 3（continuation variance）**：截断 thinking trace 于占比 $B$ → 多次续写 → 统计结局翻转率对 $B$ 作图。
+- **Figure 1（$J(t)$ U 形）**：在每个 thinking 位置 $t$ 上按结局分组，计算 §3.1 的 Fisher 判别度并绘图。
+- **Figure 3（continuation variance）**：截断 thinking trace 于占比 $B$ → 多次续写 → 统计续写结局方差（$4q(1-q)$）对 $B$ 作图。
 - **Table 2（ASR/ORR）**：对每种 defense 在四个模型上跑 harmful/benign prompt → guardrail 集成判标签 → 计算 ASR 与 ORR。
 - **Table 3（震荡计数）**：对 defense 输出复用震荡分析 pipeline → 报告 total/meaningful 每 rollout 均值。
 
@@ -263,7 +263,7 @@ bacc = balanced_accuracy_score(y_test, prob > 0.5)
 
 - **模型范围**：仅评估 open-weight、中等规模的推理模型（7B–20B 级）。闭源超大模型（其 thinking 可能由不同训练范式产生）是否同样表现为 prefix completion，本文未覆盖。
 - **安全维度**：只评估 refusal/compliance 这一轴，不涉及事实性（hallucination）、欺骗（deception）、隐私泄露等其他安全维度。"安全决策早固化"是否扩展到这些维度，尚属开放问题。
-- **早期固化的来源未解释**：论文证明了结局在 prefill 末端可读，但没有追溯这一固化来自训练的哪个环节（RLHF？safety SFT？reasoning post-training？）。
+- **早期固化的来源未解释**：论文证明了结局在 prefill 末端可读，但没有追溯这一固化来自训练的哪个环节（pretraining？instruction tuning？post-training？）。
 
 ### 7.2 未来工作
 

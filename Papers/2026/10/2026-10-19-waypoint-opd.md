@@ -23,9 +23,9 @@ Waypoint-OPD 在 Direct-OPD 的「Initial-to-Final 端点策略差迁移」之�
 | **Table 1** | 数学主结果（7 benchmark × teacher/8B/14B/30B-A3B） | 第 5 章 |
 | **Table 2** | 代码平均结果（5 评测 × 三规模学生） | 第 5 章 |
 | **Table 3** | 门控与归一化消融（8B 数学） | 第 5 章 |
-| **Table 7** | 完整代码结果（MBPP/MBPP+/LCB v4-v6） | 第 5 章 |
-| **Table 8** | Waypoint 位置敏感性（step 500/600/700） | 第 5 章 |
-| **Table 9** | 训练时间与 GPU 开销对比 | 第 5 章 |
+| **Table 7** | 完整代码结果（MBPP/MBPP+/LCB v4-v6） | 附录 D |
+| **Table 8** | Waypoint 位置敏感性（step 500/600/700） | 附录 F |
+| **Table 9** | 训练时间与 GPU 开销对比 | 附录 H |
 
 ![Figure 1: Mathematical reasoning across three student models](Figures/2026-10-19-waypoint-opd-fig1.png)
 
@@ -166,7 +166,7 @@ $$u_t+v_t=C_{q_t}\big[\delta^{(1)}_t+\delta^{(2)}_t\big]=C_{q_t}\big[\log\pi_1-\
 
 **常数偏移不变性。** 对任意与动作无关的常数 $b$，$C_{q_t}[z+b]=C_{q_t}[z]$。teacher 分数中的 prompt 相关常数偏移（如不同 checkpoint 共享的偏置项）在 centering 后被完全消除，迁移信号不受影响。这与最优策略下 log 概率差仅确定到正缩放与 prompt 相关常数的事实相衔接。
 
-**共线与反向的极值行为。** 正向共线（$u$ 与 $v$ 方向一致）时 $g=1$，endpoint 信号全额通过；加权余弦非正（$c_t\le 0$）时 $g=0$，信号被完全抑制。门控因此实现的是软性的方向一致性筛选，而非连续的幅度调节。
+**共线与反向的极值行为。** 正向共线（$u$ 与 $v$ 方向一致）时 $g=1$，endpoint 信号全额通过；加权余弦非正（$c_t\le 0$）时 $g=0$，信号被完全抑制。门控因此实现的是方向一致性筛选：$c_t\le 0$ 时归零，$c_t>0$ 时按 $c_t$ 连续缩放信号幅度。
 
 **对独立正缩放不敏感。** 对 $u_t$、$v_t$ 分别施加独立的正缩放，只要两段都不进入低范数回退，$g_t$ 保持不变——余弦对范数缩放天然免疫。但二者的和 $d_t$ 会随缩放改变，说明门控的稳定性与被加权信号自身的尺度是两个独立层面。
 
@@ -210,11 +210,11 @@ $$\frac{\partial}{\partial z_b}\Big[-\sum_{a\in\mathcal{K}_t}A_t(a)\log\pi_\thet
 
 六个 setting（math/code × 8B/14B/30B-A3B）中 Waypoint-OPD 全部取得被比较蒸馏方法中最高的 domain average，这是论文标题性结论的精确内容。
 
-**数学域。** 三个规模的 domain average 分别为 56.14 / 59.20 / 57.85（8B/14B/30B-A3B），相对最强基线 Direct-OPD（53.96 / 57.61 / 55.96）提升 2.18 / 1.59 / 1.89 个百分点。21 个逐 benchmark 比较中胜出 19 个，仅有的两个例外是 14B 的 HMMT25N（47.60→47.08，−0.52 pp）与 30B-A3B 的 HMMT26F（33.05→32.77，−0.28 pp），两处退幅均不足 0.6 pp。值得注意的是 14B 学生在全部 7 个数学 benchmark 上超过 Final teacher 的对应分数，domain average 59.20 对 teacher 的 56.13 高出 3.07 pp；30B-A3B 同样超过 teacher（+1.72 pp），8B 则与 teacher 基本持平（56.14 对 56.13）。学生规模越大、起点越高（Base 26.04/27.32/28.03），Waypoint-OPD 相对 teacher 的余量越明显，而相对 Direct-OPD 的增益在 8B 上最大。
+**数学域。** 三个规模的 domain average 分别为 56.14 / 59.20 / 57.85（8B/14B/30B-A3B），相对最强基线 Direct-OPD（53.96 / 57.61 / 55.96）提升 2.18 / 1.59 / 1.89 个百分点。21 个逐 benchmark 比较中胜出 19 个，仅有的两个例外是 14B 的 HMMT25N（47.60→47.08，−0.52 pp）与 30B-A3B 的 HMMT26F（33.05→32.77，−0.28 pp），两处退幅均不足 0.6 pp。值得注意的是 14B 学生在全部 7 个数学 benchmark 上超过 Final teacher 的对应分数，domain average 59.20 对 teacher 的 56.13 高出 3.07 pp；30B-A3B 同样超过 teacher（+1.72 pp），8B 则与 teacher 基本持平（56.14 对 56.13）。学生起点随规模上升（Base 26.04/27.32/28.03），相对 teacher 的余量并不随规模单调增大：14B 最明显（+3.07 pp），30B-A3B 次之（+1.72 pp），8B 基本持平；相对 Direct-OPD 的增益则在 8B 上最大。
 
-**代码域。** 三个规模的 domain average 为 53.25 / 57.82 / 57.54，相对 Direct-OPD（50.59 / 56.30 / 56.35）提升 2.66 / 1.52 / 1.19 个百分点，15 个逐项比较全胜。OPD2 仅在 14B LCB v5 与 30B-A3B MBPP/MBPP+ 三处更高，但各学生的平均分仍以 Waypoint-OPD 最高。14B 与 30B-A3B 分别以 +2.45、+2.17 pp 超过 Final teacher 的 55.37，5 项代码评测中 4 项更高。代码域相对增益随规模递减（2.66→1.19 pp），与数学域的模式一致：学生越强，蒸馏信号可利用的头部空间越小。
+**代码域。** 三个规模的 domain average 为 53.25 / 57.82 / 57.54，相对 Direct-OPD（50.59 / 56.30 / 56.35）提升 2.66 / 1.52 / 1.19 个百分点，15 个逐项比较全胜。OPD2 仅在 14B LCB v5 与 30B-A3B MBPP/MBPP+ 三处更高，但各学生的平均分仍以 Waypoint-OPD 最高。14B 与 30B-A3B 分别以 +2.45、+2.17 pp 超过 Final teacher 的 55.37，5 项代码评测中 4 项更高。代码域相对增益随规模递减（2.66→1.52→1.19 pp），但数学域并非同模式（2.18→1.59→1.89 pp，30B-A3B 高于 14B）：对数学域而言，8B 上增益最大，30B-A3B 次之，14B 最小。
 
-**结构性观察。** 两个域合起来看，Waypoint-OPD 对 Direct-OPD 的增益（1.19–2.66 pp）系统性大于 Direct-OPD 对 OPD 的增益（数学 8B 上 51.04→53.96 为 +2.92 pp，但代码域 OPD 反而显著弱于 OPD2 与 Direct-OPD，如 8B 代码 OPD 仅 43.91）。这说明在 reverse-KL 到 Final teacher 的经典 OPD 已被 endpoint 类方法取代的当前基线水平上，时间一致性门控仍提供了独立于 endpoint 信息的增量。
+**结构性观察。** 两个域合起来看，Waypoint-OPD 对 Direct-OPD 的增益（1.19–2.66 pp）并不系统性大于 Direct-OPD 对 OPD 的增益：后者在 6 个设置中的 5 个更大（数学 8B +2.92 pp、30B-A3B +4.74 pp；代码 8B +6.68 pp、14B +4.64 pp、30B-A3B +4.44 pp），仅数学 14B 上 +1.44 pp 略小于 Waypoint 的 +1.59 pp；代码域 OPD 反而显著弱于 OPD2 与 Direct-OPD，如 8B 代码 OPD 仅 43.91。这说明在 reverse-KL 到 Final teacher 的经典 OPD 已被 endpoint 类方法明显超越的基线水平上，时间一致性门控仍提供了超出 Direct-OPD 的增量。
 
 
 **数学推理（Table 1，mean@32，%）**

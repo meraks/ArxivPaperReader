@@ -3,9 +3,9 @@
 > **论文**：On the Origin and Evolution of Training-Inference Mismatch in LLM Reinforcement Learning
 > **作者**：Yu Li（George Washington University）、Yufa Zhou（Duke University）、Tian Lan（George Washington University）
 > **arXiv ID**：2610.40945
-> **发表时间**：2026-11-03（arXiv v1；HuggingFace Daily Papers 2026-11-03 收录）
-> **许可协议**：arXiv 默认许可（论文未声明开源代码）
-> **代码仓库**：无官方实现（论文使用 verl + vLLM 训练栈复现）
+> **发表时间**：2026-10-29（arXiv v1；HuggingFace Daily Papers 2026-11-03 收录）
+> **许可协议**：arXiv 默认许可
+> **代码仓库**：https://github.com/Skylanding/Training-Inference-Mismatch
 
 ## 第 1 章 概述
 
@@ -250,8 +250,8 @@ $$\text{deviation}=\frac{\operatorname{KL}\big(p_{\text{trained}}\,\|\,p_{\text{
 noise floor 定义为两次独立 on-policy 训练之间的平均 KL。
 deviation 的单位是 ×floor（noise floor 的倍数）：1 ×floor 表示偏离与"两次正常 on-policy 训练彼此之间的差异"同量级，on-policy 基准按构造即为 1.00 ×floor。
 以 noise floor 归一化使不同配置、不同模型规模下的结果直接可比。
-论文把 stale sampler 下保持在 2 ×floor 以内作为 DLC 的设计目标（论文 §7）。
-统计口径上，附录 B 同时报告"均值之比"（正文采用）与"逐 run 比值的均值"两种算法，二者结论一致。
+论文报告 stale sampler 下 DLC 将偏差保持在 2 ×floor 以内（摘要与引言；§7.2 给出 0.6B 1.9×、1.7B ≤1.2× 的具体数值）。
+统计口径上，附录 B 同时报告"均值之比"（正文采用）与"逐 run 比值的均值"两种算法；多数数值接近、结论大体一致，但 stale 下 DLC 与 IS+centering 的排序会随口径互换。
 
 **test accuracy（测试正确率）** 在 64 道训练集之外的 Countdown 测试题上测量，每题采 8 个样本，报告正确率（单位 %）。
 两组锚点数字便于定位各方法的位置：
@@ -308,7 +308,7 @@ $$
 
 ![Figure 2: Deviation of the corrections and the growth of the discrepancy and the lag](Figures/2026-11-04-training-inference-mismatch-fig2.png)
 
-*图2：panels a-b 为各修正随训练步数的偏差曲线（量化与过期源下排序相反）；panels c-f 证明分解的二分动力学——量化误差恒定在约 0.02 nats/token，stale 的 sequence offset 每步增长约 0.7 nats，二者在 step 5 分离；组合源的数值差异与累积更新分别保持量化单独作用与 stale 单独作用的水平。*
+*图2：panels a-b 为各修正随训练步数的偏差热图（行为修正方法、列为训练步数，颜色为相对 noise floor 的 deviation；量化与过期源下排序相反）；panels c-f 证明分解的二分动力学——量化误差恒定在约 0.02 nats/token，stale 的 sequence offset 每步增长约 0.7 nats，二者在 step 5 分离；组合源的数值差异与累积更新分别保持量化单独作用与 stale 单独作用的水平。*
 
 ## 第 5 章 策略滞后的训练闭环
 
@@ -378,7 +378,7 @@ $$
 
 同一分解直接解释了 PPO 的不对称表现（Appendix J）：以 **sampler 权重为参考**时，clip 的 ratio 恰是 $e^{\ell_t}$——clip 约束的是 policy lag，数值差异留在 ratio 之外构成 drift；以 **batch 前的 trainer 为参考**时，batch 之前累积的 policy lag 与数值差异都在 ratio 之外（batch 内更新产生的 lag 仍在 ratio 内），clip 只约束 batch 内 4 次更新之间的移动。
 
-实测印证（Table 2）：batch 参考的 PPO 在 staleness 下偏至 699×floor，比去掉 clip（534×floor）还差——clip 不仅没有修正 lag，反而保护了 batch 内的多次更新把 lag 偏置完整累积；而共享 sampler-参考 ratio 的 DLC clip 只有 1.9×floor。量化下 PPO（14.3×floor）与单次更新的 policy gradient（12.7×floor）同级——clip 移除了额外更新的代价，却留下数值差异的 drift。**修正方法的成败由"哪个分量进入了它的 ratio 分母"决定**，这一视角统一了 Marek & Ryabinin 观察到的全部源依赖现象。
+实测印证（Table 2）：batch 参考的 PPO 在 staleness 下偏至 699×floor，比去掉 clip（534×floor）还差——clip 不仅没有修正 lag，反而保护了 batch 内的多次更新把 lag 偏置完整累积；而共享 sampler-参考 ratio 的 DLC clip 只有 1.9×floor。量化下 PPO（14.3×floor）与单次更新的 policy gradient（12.7×floor）同级——clip 移除了额外更新的代价，却留下数值差异的 drift。**修正方法的成败由"哪个分量进入了它的 ratio 分母"决定**，这一视角解释了 PPO 在量化与过期源下的不对称；论文未分析合成权重噪声下的崩溃。
 
 ## 第 7 章 DLC：差异-滞后修正
 
@@ -514,7 +514,7 @@ DLC 的两笔开销都有明确来源：sampler 报告 top-128 head 使生成时
 1. **训练规模刻意收短**：主实验为 40 步、Countdown 单任务、Qwen3-0.6B–8B；作者明言短训练 + checkpoint 回放是为了"测量落在尚未崩溃的轨迹上"。远超 40 步主实验（乃至超过一个 64 步同步周期）的长程行为、以及 DLC 在真实 RLHF/推理 RL 工作流（奖励模型、长 response、多任务混合）中的表现均未验证。
 2. **deviation 度量的盲区由论文自己揭示**：off-support 分析（§8.2）证明"sampler prefix 上的 KL"看不到训练分布的坍缩——这既是论文的贡献，也是对其主度量（deviation）适用范围的限定。评价异步训练至少需要 off-support share 这类基于 trainer 自身 response 的诊断。
 3. **DLC 的吞吐收益未兑现**：113.2 s/步的开销使异步在此设定下不划算（8.4 节）；论文未测更大的 rollout batch/更长 response 下摊薄 $\theta_{\mathrm{old}}$ forward 的情形。
-4. **无官方代码**：论文给出完整的算法（Algorithm 1）与 loss（Eq 43），但未发布实现；复现依赖 verl 的 dual-clip、top-128 head 报告等工程细节。
+4. **复现依赖工程细节**：论文给出完整的算法（Algorithm 1）与 loss（Eq 43），代码已公开（https://github.com/Skylanding/Training-Inference-Mismatch），但复现仍依赖 verl 的 dual-clip、top-128 head 报告等工程细节。
 
 ### 9.2 方法论评价
 

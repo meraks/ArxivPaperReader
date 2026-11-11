@@ -6,6 +6,7 @@
 > - **标题**：KV Cache Optimization Strategies for Scalable and Efficient LLM Inference
 > - **作者**：Y. Xu, N. K. Khaira, T. Singh
 > - **arXiv**：[2603.20397](https://arxiv.org/abs/2603.20397)
+> - **日期**：2026-03-24（arXiv v1: 2026-03-20）
 > - **官方代码**：无官方实现（综述论文）
 
 ---
@@ -14,7 +15,7 @@
 
 ### 1.1 一句话总结
 
-这是一篇对 KV Cache 优化技术的**全景式系统综述**，将 30+ 篇前沿论文的方法归纳为 5 大类（驱逐、压缩、混合存储、新注意力机制、组合策略），并为 7 种实际部署场景提供了选型建议。核心结论：**没有一种技术在所有场景下都最优**——自适应多阶段 pipeline 是下一前沿。
+这是一篇对 KV Cache 优化技术的**全景式系统综述**，将 30+ 篇前沿论文的方法归纳为 5 大类（驱逐、压缩、混合存储、新注意力机制、组合策略），并为 7 种实际部署场景提供了选型建议。核心结论：**没有一种技术在所有场景下都最优**——自适应多阶段 pipeline 是有前景的未来方向。
 
 ### 1.2 为什么 KV Cache 是 LLM 推理的命门？
 
@@ -75,7 +76,7 @@ $$
 
 H2O 识别"重击手"token：在整个生成过程中累积注意力分数最高的 token。同时保留最近的 token（局部上下文窗口）。驱逐策略是贪心的——保留 top-K 重击手 + 最近 W 个 token。
 
-累积注意力分数定义为（论文 Eq. 1）：
+累积注意力分数定义为：
 
 $$
 \text{Score}(K_i, V_i) = \sum_{t=1}^{T} \alpha_{t,i} = \sum_{t=1}^{T} \text{softmax}_j \left( \frac{Q_t K_j^\top}{\sqrt{d_k}} \right)_i
@@ -99,15 +100,15 @@ SnapKV 在 prefill 阶段完成后运行。核心创新是"投票"机制：用�
 4. 保留分数最高的 token 及其周围上下文（通过 1D pooling 聚类）
 5. 形成新的 KV cache 用于解码
 
-**HASHEVICT** — 注意力前驱逐（零计算开销）
+**HASHEVICT** — 注意力前驱逐（低计算开销）
 
-最轻量的方案：在计算注意力**之前**就决定要驱逐哪些 token。使用 SimHash（LSH 的一种），将每个 token 的 key embedding 哈希为二进制码，通过汉明距离近似注意力相关性。与 query token 汉明距离最大的（最不相似的）被驱逐。
+轻量级方案：在计算注意力**之前**就决定要驱逐哪些 token。使用 SimHash（LSH 的一种），将每个 token 的 key embedding 和当前 query embedding 哈希为二进制码，通过汉明距离近似注意力相关性。与 query token 汉明距离最大的（最不相似的）被驱逐。
 
 **RocketKV** — 两阶段压缩
 
 粗粒度 → 细粒度的层级式驱逐。Stage 1 用 SnapKV 做永久性粗驱逐。Stage 2 用 Hybrid Sparse Attention (HSA) 做动态细粒度选择。HSA 将 token 分页，存储每页的 max/min key 值来快速近似 token 重要性。
 
-HSA 机制：每个 attention head 维护一个 KV cache 页面。每个页面存储当前所有 token 的 key 值的 min/max。计算新 token 的 query 时，通过比较 query 与每个页面的 min/max 汉明距离，快速近似 token 重要性，避免计算完整注意力。
+HSA 机制：将 token 分页，每个页面存储当前页所有 token 的 key 值的 min/max。计算新 token 的 query 时，通过比较 query 与每个页面的 min/max key 值，快速近似 token 重要性，避免计算完整注意力。
 
 **Ada-KV** — 注意力头自适应预算
 
@@ -155,28 +156,28 @@ $$
 \text{Quantized}(x) = \text{round}\left(\frac{x - z}{s}\right), \quad x \in \mathbb{R}
 $$
 
-其中 $z$ 是 zero-point，$s$ 是 scaling factor。KIVI 使用自适应量化，确保每个 channel/token 的动态范围都得到充分利用。
+其中 $z$ 是 zero-point，$s$ 是 scaling factor。KIVI 使用非对称量化，确保每个 channel/token 的动态范围都得到充分利用。
 
 **MiniCache — 跨层压缩**
 
-发现相邻层的 KV cache 高度相似。MiniCache 利用这种跨层冗余——不单独存储每一层的 KV cache，而是存储共享表示 + 层间残差。
+发现相邻层（尤其是中深层）的 KV cache 高度相似。MiniCache 利用这种跨层冗余，将可合并的相邻层 KV states 用 SLERP 合并，并存储重构所需的方向、幅值和夹角。
 
 具体实现：
-1. 选择一个参考层（如第 0 层）
-2. 存储该层的 KV cache（共享表示）
-3. 计算其他层的残差（当前层 KV cache - 共享表示）
-4. 仅存储残差，显著减少存储需求
-5. 推理时，通过组合共享表示 + 残差得到完整 KV cache
+1. 用角度距离（或余弦相似度）衡量相邻层 KV states 的相似度
+2. 若相似度低于预设阈值，则将两层视为可合并
+3. 使用 SLERP（球面线性插值）而非直接平均进行合并
+4. 存储插值后的方向、两个原始向量的幅值以及它们之间的夹角
+5. 需要时通过重缩放存储的方向重构原始 KV states
 
 **KVQuant — 面向千万级上下文**
 
-专为**超长上下文**（>10M tokens）设计。使用 per-channel 量化 + 非均匀量化网格，在 4-bit 精度下保持几乎无损的模型质量。
+专为**超长上下文**（最高 10M tokens）设计。使用 per-channel 量化 + 非均匀量化网格，在 3-bit 精度下保持几乎无损的模型质量。
 
 量化策略：
 1. **Per-channel 量化**：每个 channel 独立量化，捕获不同 channel 的动态范围
 2. **非均匀量化网格**：使用自适应量化器，动态调整量化参数
-3. **4-bit 精度**：在保持高精度的同时，实现 16× 的压缩比
-4. **超长上下文支持**：即使在 10M tokens 上下文下，也能保持模型质量
+3. **3-bit 精度**：在保持高精度的同时，实现 3.7–6.9× 的内存节省
+4. **超长上下文支持**：支持最高 10M tokens 的上下文
 
 **PALU — 低秩投影压缩**
 
@@ -196,11 +197,11 @@ PALU 使用 **Matrix Fusion** 将重构矩阵 $B$ 离线融合到其他权重中
 
 **MiniCache — 跨层压缩**
 
-发现相邻层的 KV cache 高度相似。MiniCache 利用这种跨层冗余——不单独存储每一层的 KV cache，而是存储共享表示 + 层间残差。
+发现相邻层（尤其是中深层）的 KV cache 高度相似。MiniCache 利用这种跨层冗余，将可合并的相邻层 KV states 用 SLERP 合并，并存储重构所需的方向、幅值和夹角。
 
 **KVQuant — 面向千万级上下文**
 
-专为**超长上下文**（>10M tokens）设计。使用 per-channel 量化 + 非均匀量化网格，在 4-bit 精度下保持几乎无损的模型质量。
+专为**超长上下文**（最高 10M tokens）设计。使用 per-channel 量化 + 非均匀量化网格，在 3-bit 精度下保持几乎无损的模型质量。
 
 **PALU — 低秩投影压缩 (SVD-based)**
 
@@ -240,15 +241,15 @@ PALU 使用 **Matrix Fusion** 将重构矩阵 $B$ 离线融合到其他权重中
 受操作系统虚拟内存的启发，PagedAttention 将 KV cache 分割为固定大小的"页"（block）。每个请求的 KV cache 不再占据一大块连续显存，而是由多个非连续的页组成。
 
 **关键优势**：
-- **零内存碎片**：不再有内部碎片（internal fragmentation）
+- **减少内存碎片**：通过分页降低碎片化开销
 - **高效共享**：多个请求可以共享相同的 prefix 页（如 system prompt）
 - **批量增大**：同一批次可以容纳更多并发请求
 
 **实际效果**：相比传统方案，吞吐量提升 2-4×。
 
-PagedAttention 设计了一个 **Page Table**，将逻辑页（logical page）映射到物理页（physical page）。每个 attention head 维护自己的 page table。计算注意力时，只加载需要的页面到 GPU 显存。
+PagedAttention 使用一个 **block table**，将逻辑 block 映射到物理位置。计算注意力时，只加载需要的 block 到 GPU 显存。
 
-PagedAttention 支持 **prefix caching**，多个请求可以共享相同的 prefix KV cache（如 system prompt），进一步提高吞吐量。
+PagedAttention 支持 **prefix 共享**，多个请求可以共享相同的 prefix KV cache（如 system prompt），进一步提高吞吐量。
 
 **Oneiros — 参数内存重映射**
 
@@ -256,7 +257,7 @@ PagedAttention 支持 **prefix caching**，多个请求可以共享相同的 pre
 
 具体实现：
 1. 识别哪些参数可以安全卸载（通常是 inactive 模型的参数）
-2. 如果所有模型都是 active，则均匀分布地从每个模型卸载一个层
+2. 如果所有模型都是 active，则均匀分布地从每个模型卸载若干层
 3. 利用自回归解码的层序执行特性，充分利用 GPU 计算时间
 4. 异步迁移参数从 CPU 到 GPU
 5. 释放的显存用于 KV cache
@@ -265,13 +266,13 @@ Oneiros 实现了**硬件-软件协同**，充分利用 GH200 系统上 450–90
 
 **LayerKV — 分层 KV Cache 管理**
 
-观察到**不同层的 KV cache 重要性不同**。LayerKV 对重要层保留完整 cache，对非重要层激进卸载。TTFT（Time to First Token）提升最高 69×。
+LayerKV 按层切分 KV cache：在 prefill 阶段只把一部分层保留在 GPU，其余层卸载到 CPU，以降低 TTFT（Time to First Token），最高提升 69×。
 
 具体实现：
-1. 分析每个层的 KV cache 重要性（如注意力分布）
-2. 选择最小数量的重要层保留在 GPU
+1. 选择保留在 GPU 的最少层数，使 offload time ≤ prefill time
+2. 在 GPU 逐层计算时，CPU 同时把后续层的 KV 数据传回 GPU
 3. 其他层卸载到 CPU
-4. 使用双缓冲 overlapping computation 和 communication
+4. 通过计算与通信重叠隐藏传输延迟
 5. 集成 SLO-aware 调度器，平衡延迟和吞吐量
 
 **FlexGen — 单 GPU 极限卸载**
@@ -282,7 +283,7 @@ Oneiros 实现了**硬件-软件协同**，充分利用 GH200 系统上 450–90
 1. **多级存储层次**：GPU（高速）、CPU（中等）、磁盘（低速）
 2. **线性规划调度**：为每个张量（权重、激活值、KV cache）分配最佳存储位置
 3. **Zig-zag 块调度**：最大化 GPU 上模型权重的复用
-4. **动态调整**：根据当前任务需求调整存储策略
+4. **成本模型**：估计各设备的延迟、带宽和内存约束
 
 **ShadowKV — 值卸载 + 键压缩**
 
@@ -292,8 +293,8 @@ Oneiros 实现了**硬件-软件协同**，充分利用 GH200 系统上 450–90
 1. **Key cache 压缩**：使用 SVD 分解，保留主要信息
 2. **Value cache 卸载**：迁移到 CPU 内存
 3. **Landmark vector**：用于快速估计哪些 KV chunk 需要从 CPU 取回
-4. **稀疏注意力**：仅计算与 landmark vector 附近的 key 的注意力
-5. **动态取回**：根据需要从 CPU 异步加载 Value cache
+4. **稀疏注意力**：仅对 landmark 估计为重要的 chunk 计算注意力
+5. **动态取回**：根据需要从 CPU 加载 Value cache
 
 **Oneiros — 参数内存重映射**
 
@@ -301,7 +302,7 @@ Oneiros 实现了**硬件-软件协同**，充分利用 GH200 系统上 450–90
 
 **LayerKV — 分层 KV Cache 管理**
 
-观察到**不同层的 KV cache 重要性不同**。LayerKV 对重要层保留完整 cache，对非重要层激进卸载。TTFT（Time to First Token）提升最高 69×。
+LayerKV 按层切分 KV cache：在 prefill 阶段只把一部分层保留在 GPU，其余层卸载到 CPU，以降低 TTFT（Time to First Token），最高提升 69×。
 
 **FlexGen — 单 GPU 极限卸载**
 
@@ -311,14 +312,14 @@ Oneiros 实现了**硬件-软件协同**，充分利用 GH200 系统上 450–90
 
 结合压缩和混合存储：将 Value cache 卸载到 CPU（因为 Value 没有低秩结构），将 Key cache 用 SVD 压缩后保留在 GPU（pre-RoPE key 具有强低秩特性）。解码时通过 landmark vector 预估哪些 chunk 需要从 CPU 取回。
 
-### 4.3 混合存储方法对比（对应论文 Table 7）
+### 4.3 混合存储方法对比（对应论文 Table 4 与 Table 6）
 
 | 方法 | 卸载目标 | 机制 | 关键优化 | 性能指标 |
 |------|---------|------|---------|---------|
-| **PagedAttention** | CPU DRAM | 虚拟内存式分页 | 消除碎片、支持前缀共享 | 2–4× 吞吐，无损 |
+| **PagedAttention** | CPU DRAM | 虚拟内存式分页 | 减少碎片、支持前缀共享 | 2–4× 吞吐，无损 |
 | **InfiniGen** | CPU DRAM | 注意力推测 + 预取 | 仅取回关键 KV | 1.63–32.9× 加速，>15% 相对 KV 缓存需额外 GPU 存推测权重 |
 | **LayerKV** | CPU DRAM | 分层管理 + SLO 感知调度 | 计算通信重叠，最小化 TTFT | **TTFT 提升 69×**，高负载解码轻微吞吐权衡 |
-| **INF2** | NVMe SSD (CSD) | Attention-Near-Storage | 利用 CSD 内部带宽 | 3.46× 吞吐，KV I/O 降 >80%，需 CSD 硬件 |
+| **INF2** | Host Memory + NVMe SSD (CSD) | Attention-Near-Storage | 利用 CSD 内部带宽 | 3.46× 吞吐，KV I/O 降 >80%，需 CSD 硬件 |
 | **KVPR** | CPU DRAM | GPU 部分重计算 + 异步传输 | 掩盖 PCIe 延迟 | 延迟降 35.8%，吞吐增 46.2%，仅解码阶段 |
 | **Oneiros** | CPU DRAM | 参数内存重映射 | 多租户场景回收空闲模型显存 | TBT 降 44.8–82.5%，TTFT 降 20.7–99.3%，吞吐增 6.6–86.7%（vs vLLM） |
 | **CLO** | CPU DRAM | 头级近似缓存 + 零拷贝传输 | 消除 CPU 瓶颈，跑满 PCIe | - |
@@ -346,13 +347,13 @@ Oneiros 实现了**硬件-软件协同**，充分利用 GH200 系统上 450–90
 | **Linear Attention** | 核函数线性化 | O(T) | O(1) | O(1) | 表达力受限、开销最低 |
 | **Log-Linear Attention** | 对数增长隐藏状态 | O(T log T) | O(log T) | O(log T) | 效率与表达力平衡 |
 | **Local Linear Attention** | 局部线性回归 | O(T²) | ~O(T) | O(T) | 优于 softmax 的 bias-variance 权衡 |
-| **KIMI Linear** | KDA + MHA 混合 (3:1) | 主要 O(T) | O(1) | O(1) | **超越全注意力精度**，需混合保持全局信息流 |
+| **KIMI Linear** | KDA + 全注意力混合 (3:1) | 主要 O(T) | O(1) | O(1) | **超越全注意力精度**，需混合保持全局信息流 |
 
 ### 5.3 代表方法详解
 
 **Linear Attention — O(1) 内存的注意力**
 
-核心思想：将 softmax 替换为核函数的点积。利用矩阵乘法的结合律交换计算顺序，将 O(N²) 降为 O(N)（论文 Eq. 6-8）：
+核心思想：将 softmax 替换为核函数的点积。利用矩阵乘法的结合律交换计算顺序，将 O(N²) 降为 O(N)：
 
 $$
 V'_i = \frac{\phi(Q_i)^\top S_i}{\phi(Q_i)^\top Z_i}, \quad
@@ -375,11 +376,11 @@ Linear Attention 的 O(1) 内存过于激进（表达能力不足），Softmax A
 - Linear Attention ≈ 全局线性回归（拟合一条全局直线）
 - **Local Linear Attention** ≈ 局部线性回归（在每个 query 周围拟合局部线性模型）
 
-这使 LLA 在表达能力上**超越 Softmax Attention**，同时保留线性注意力的效率优势。
+这使 LLA 在关联与回归任务上**优于 Softmax Attention**，同时保留线性注意力的效率优势。
 
 **KIMI Linear — 动态门控 + 混合架构**
 
-最先进的线性注意力方案。核心创新是 Kimi Delta Attention (KDA)：
+一种表达力较强的线性注意力方案。核心创新是 Kimi Delta Attention (KDA)：
 
 $$
 S_t = (I - \beta_t k_t k_t^\top) \text{Diag}(\alpha_t) S_{t-1} + \beta_t k_t v_t^\top
@@ -392,7 +393,7 @@ $$
 o_t = S_t^\top q_t \in \mathbb{R}^{d_v}
 $$
 
-**关键设计**：KIMI Linear 不是纯线性注意力——它采用 KDA 和全注意力 **3:1 混合**。全注意力层提供全局信息流，KDA 层提供效率。在 1M 上下文时吞吐量提升 6×，KV 占用减少 75%，且**超越全注意力精度**。
+**关键设计**：KIMI Linear 不是纯线性注意力——它采用 KDA 和全注意力 **3:1 混合**。全注意力层提供全局信息流，KDA 层提供效率。在 1M 上下文时吞吐量最高提升 6×，KV 占用减少 75%，且**超越全注意力精度**。
 
 **Local Linear Attention — 局部线性回归视角**
 
@@ -401,11 +402,11 @@ $$
 - Linear Attention ≈ 全局线性回归（拟合一条全局直线）
 - **Local Linear Attention** ≈ 局部线性回归（在每个 query 周围拟合局部线性模型）
 
-这使 LLA 在表达能力上**超越 Softmax Attention**，同时保留线性注意力的效率优势。
+这使 LLA 在关联与回归任务上**优于 Softmax Attention**，同时保留线性注意力的效率优势。
 
 **KIMI Linear — 动态门控 + 混合架构**
 
-最先进的线性注意力方案。核心创新是 Kimi Delta Attention (KDA)：
+一种表达力较强的线性注意力方案。核心创新是 Kimi Delta Attention (KDA)：
 
 $$
 S_t = (I - \beta_t k_t k_t^\top) \text{Diag}(\alpha_t) S_{t-1} + \beta_t k_t v_t^\top
@@ -418,7 +419,7 @@ $$
 o_t = S_t^\top q_t \in \mathbb{R}^{d_v}
 $$
 
-**关键设计**：KIMI Linear 不是纯线性注意力——它采用 KDA 和全注意力 **3:1 混合**。全注意力层提供全局信息流，KDA 层提供效率。在 1M 上下文时吞吐量提升 6×，KV 占用减少 75%，且**超越全注意力精度**。
+**关键设计**：KIMI Linear 不是纯线性注意力——它采用 KDA 和全注意力 **3:1 混合**。全注意力层提供全局信息流，KDA 层提供效率。在 1M 上下文时吞吐量最高提升 6×，KV 占用减少 75%，且**超越全注意力精度**。
 
 ---
 
@@ -432,13 +433,13 @@ $$
 
 **FlexGen** — 压缩 + 卸载（4-bit 量化 + GPU/CPU/磁盘三级存储 + 线性规划调度）
 
-FlexGen 是一个**系统化的 KV cache 优化框架**，将模型权重、激活值和 KV cache 拆分到多级存储中。通过线性规划求解最优的数据放置策略，实现高达 100× 的吞吐量提升。
+FlexGen 是一个**系统化的 LLM 推理框架**，将模型权重、激活值和 KV cache 拆分到多级存储中。通过线性规划求解最优的数据放置策略，实现高达 100× 的吞吐量提升。
 
 具体实现：
 1. **多级存储层次**：GPU（高速）、CPU（中等）、磁盘（低速）
 2. **线性规划调度**：为每个张量（权重、激活值、KV cache）分配最佳存储位置
 3. **Zig-zag 块调度**：最大化 GPU 上模型权重的复用
-4. **动态调整**：根据当前任务需求调整存储策略
+4. **成本模型**：估计各设备的延迟、带宽和内存约束
 
 **Q-Hitter** — 稀疏 + 量化（同时考虑注意力重要性和量化鲁棒性来选择 token，达到 20× 内存压缩）
 
@@ -454,17 +455,17 @@ ShadowKV 采用**混合存储策略**：
 1. **Key cache 压缩**：使用 SVD 分解，保留主要信息
 2. **Value cache 卸载**：迁移到 CPU 内存
 3. **Landmark vector**：用于快速估计哪些 KV chunk 需要从 CPU 取回
-4. **稀疏注意力**：仅计算与 landmark vector 附近的 key 的注意力
-5. **动态取回**：根据需要从 CPU 异步加载 Value cache
+4. **稀疏注意力**：仅对 landmark 估计为重要的 chunk 计算注意力
+5. **动态取回**：根据需要从 CPU 加载 Value cache
 
-**TailorKV** — 自适应混合（离线识别哪些层适合量化、哪些适合稀疏化，在线动态选择策略）
+**TailorKV** — 自适应混合（离线识别哪些层适合量化、哪些适合稀疏化，在线动态取回关键 token）
 
 TailorKV 利用**层级注意力分布差异**：
 1. **离线分析**：计算每个层的注意力分布（top-k 比例）
 2. **分类策略**：
    - **量化友好层**：注意力分布分散 → 采用 aggressive quantization
    - **稀疏友好层**：注意力集中 → 采用 sparsity-based offloading
-3. **在线动态选择**：根据 runtime 情况调整策略
+3. **在线动态取回**：在解码阶段动态取回关键 token
 4. **双缓冲技术**：overlap CPU-GPU 数据传输与 GPU 计算
 
 ### 6.3 组合策略优势
@@ -493,7 +494,7 @@ TailorKV 利用**层级注意力分布差异**：
 | **边缘/内存受限设备** | InfiniPot (专为移动/边缘设计), TailorKV (单 RTX 3090 跑 128k 8B) | 混合存储: PagedAttention 需高端 GPU，Oneiros 需 450–900 GB/s CPU-GPU 带宽 |
 | **多轮对话** | RocketKV-MT (保留所有 KV 供下轮), KVzip (查询无关压缩), ShadowKV (多轮能力) | H2O (永久驱逐不可逆) |
 | **Prefill-Heavy / 低 TTFT** | NACL, HASHEVICT, LayerKV (TTFT 69×) | — |
-| **精度关键推理** | PagedAttention (无损), 混合存储方案 | 驱逐/压缩 (有损), 线性注意力 |
+| **精度关键推理** | PagedAttention (无损), 混合存储方案 | 驱逐/压缩 (有损), 线性/对数线性注意力 |
 
 ### 7.2 硬件特定约束 (论文 Section 5.8)
 
@@ -505,7 +506,7 @@ TailorKV 利用**层级注意力分布差异**：
 
 ### 7.3 三个通用原则
 
-1. **超长上下文 → 驱逐 + 压缩**：当上下文超过百万 token 时，只有激进减少存储量才能生存
+1. **超长上下文 → 驱逐/压缩/组合**：当上下文超过百万 token 时，驱逐、压缩及其组合策略通常占主导
 2. **高并发 → 混合存储**：通过分级存储扩展容量而非精度，保持无损
 3. **新架构设计 → 新型注意力**：如果可以从头训练，O(N) 注意力是未来方向
 
@@ -513,18 +514,18 @@ TailorKV 利用**层级注意力分布差异**：
 
 **超长上下文 (>1M) 单请求：**
 - 驱逐方法：RocketKV（两阶段压缩），有效处理超长上下文
-- 压缩方法：KVQuant（4-bit per-channel），实现高压缩比
+- 压缩方法：KVQuant（3-bit per-channel），实现高压缩比
 - 注意力机制：KIMI Linear（混合架构），实现高吞吐量和低内存占用
 
 **最小模型修改 (Plug-and-play)：**
 - 驱逐方法：Ada-KV（自适应预算分配），无需修改模型结构
-- 压缩方法：SnapKV（投票机制），无需修改模型结构
+- 驱逐方法：SnapKV（投票机制），无需修改模型结构
 - 压缩方法：KIVI（2-bit 非对称量化），无需修改模型结构
 
 **高吞吐服务：**
 - 混合存储方法：PagedAttention（分页管理），实现高吞吐量
 - 混合存储方法：Oneiros（参数内存重映射），实现高吞吐量
-- 混合存储方法：ShadowKV（值卸载 + 键压缩），实现高吞吐量
+- 组合方法：ShadowKV（值卸载 + 键压缩），实现高吞吐量
 
 **边缘/内存受限设备：**
 - 驱逐方法：InfiniPot（持续上下文蒸馏），专为移动/边缘设备设计
@@ -550,24 +551,24 @@ TailorKV 利用**层级注意力分布差异**：
 
 ### 8.1 关键洞察
 
-这篇综述的价值不在于"提出了新方法"，而在于**首次系统化地揭示了 KV Cache 优化的设计空间**：
+这篇综述的价值不在于"提出了新方法"，而在于**系统化地梳理了 KV Cache 优化的设计空间**：
 
 1. **驱逐 vs 压缩**：驱逐是"扔掉"（信息不可恢复），压缩是"折叠"（可解压但精度有限）
-2. **存储 vs 精度**：混合存储是唯一无损方案，但严重依赖硬件（GPU-CPU带宽）
+2. **存储 vs 精度**：混合存储是主要的无损方案，但严重依赖硬件（GPU-CPU带宽）
 3. **即插即用 vs 重新训练**：驱逐/压缩/混合存储可以即插即用，新型注意力需要重新训练
-4. **组合 > 单一**：最优方案几乎总是多技术的混合（ShadowKV, TailorKV）
+4. **组合 > 单一**：在复杂或资源受限场景下，多技术混合往往更有效（ShadowKV, TailorKV）
 
 论文总结的三大核心观察：
 - **超长上下文 (>1M) 由驱逐/压缩/组合主导**：RocketKV、KVzip、ShadowKV 通过粗粒度 token 选择 + 细粒度重构/低秩近似，实现高压缩比且精度损失极小
-- **混合内存方案是高吞吐服务的基石**：PagedAttention 已成事实标准；Oneiros、LayerKV、INF2、CLO 进一步针对多租户、TTFT、近存计算、PCIe 饱和等场景优化
-- **新型注意力机制需混合部署**：纯 Linear Attention 表达力不足；KIMI Linear 的 3:1 混合架构证明了"线性注意力 + 少量全注意力"可超越纯 Softmax
+- **混合内存方案是高吞吐服务的基石**：PagedAttention 已被广泛采用；Oneiros、LayerKV、KVPR、INF2、CLO 进一步针对多租户、TTFT、近存计算、PCIe 饱和等场景优化
+- **新型注意力机制需混合部署**：纯 Linear Attention 表达力不足；KIMI Linear 的 3:1 混合架构表明"线性注意力 + 少量全注意力"可超越纯 Softmax
 
 ### 8.2 2026 年的趋势
 
-- **百万 token 上下文**已成为现实（Gemini 1.5 Pro, Kimi），KV Cache 压力指数级增长
-- **PagedAttention** 已成为事实标准，几乎所有推理框架都采用分页方案
-- **KIMI Linear** 证明了线性注意力可以在**精度上超越 Softmax Attention**——这是范式级突破
-- **自适应多阶段 pipeline** 是正在兴起的方向：不再预先选择一种策略，而是运行时动态切换
+- **百万 token 上下文**已成为现实（Gemini 1.5 Pro, Kimi），KV Cache 压力显著增加
+- **PagedAttention** 已被广泛采用（如 vLLM），分页式 KV cache 管理成为常见方案
+- **KIMI Linear** 表明线性注意力可以在**精度上超越 Softmax Attention**，是值得关注的方向
+- **自适应多阶段 pipeline** 是有前景的未来方向：不再预先选择一种策略，而是运行时动态切换
 
 ### 8.3 局限性与未来方向
 

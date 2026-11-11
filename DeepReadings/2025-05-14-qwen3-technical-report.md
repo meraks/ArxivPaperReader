@@ -247,7 +247,7 @@ Qwen3 利用 **scaling laws** 来**外推预测**大规模模型的超参数（�
 
 - **筛选复杂推理问题**：从大规模题库中挑选难度高、适合长链推理（long Chain-of-Thought）的题目。
 - **用 QwQ-32B 生成候选推理过程**：QwQ-32B（Qwen 的推理模型）作为"教师"，为这些问题生成长 CoT 解答。
-- **6 项过滤标准（单次筛选）**：对生成结果按 6 条严格标准进行筛选——(1) 最终答案错误，(2) 内容大量重复，(3) 无推理猜测，(4) think/summary 内容不一致，(5) 语言混杂或风格突变，(6) 疑似与验证集重复——只保留高质量的长 CoT 数据。
+- **6 项 response filtering 标准（论文的筛选为两阶段）**：先用 Qwen2.5-72B-Instruct 做 query filtering（剔除难以验证、以及无需 CoT 即可答对的题目），再对 QwQ-32B 生成的候选按 6 条严格标准筛选——(1) 最终答案错误，(2) 内容大量重复，(3) 无推理猜测，(4) think/summary 内容不一致，(5) 语言混杂或风格突变，(6) 疑似与验证集重复——只保留高质量的长 CoT 数据。
 - 用这些高质量数据对 base model 做 SFT，得到具备初步推理能力的 cold-start checkpoint。
 
 #### Stage 2 — Reasoning RL（推理强化学习）
@@ -273,7 +273,7 @@ Qwen3 利用 **scaling laws** 来**外推预测**大规模模型的超参数（�
 
 **目的**：在保持推理能力的同时，全面提升模型在各类通用任务上的表现。
 
-- 论文 Introduction 提到后训练为四阶段流程，最后一步是对多个通用 domain 施加 RL，但正文未就 Stage 4 单独展开。Stage 3 的 SFT 数据已覆盖 **coding、math、instruction-following、multilingual、creative writing、QA、role-playing** 等领域，Stage 4 应在此基础上进一步用 RL 增强。
+- 论文 §4.4 General RL 专门展开这一阶段：构建覆盖 **20+ 类任务**的奖励系统，重点增强 **指令遵循、格式遵循（含 `/think` 与 `/no_think` 切换）、偏好对齐、Agent 能力（多轮工具调用）、RAG 等专项场景**；奖励信号包含规则奖励、带参考答案的模型奖励、无参考答案的模型奖励三类。
 - 这一阶段确保模型不仅是"理科强"，而是全面的、可日常使用的助手。
 
 > **管线整体逻辑**：Stage 1 给模型"装上"推理引擎 → Stage 2 把推理引擎"调到最强" → Stage 3 把推理与对话"融合可控" → Stage 4 把整体能力"补全打磨"。四个阶段层层递进，最终得到一个既能深度思考、又能轻量对话的统一模型。
@@ -282,7 +282,7 @@ Qwen3 利用 **scaling laws** 来**外推预测**大规模模型的超参数（�
 
 这是 Qwen3 在**推理成本可控性**上的关键创新。
 
-**核心观察**：经过 Stage 1–2 的训练后，模型**自然学会了处理"不完整的思维过程"**——即推理链条即使中途被打断，模型也能基于已有思考给出合理回答，而不是崩溃或输出无意义内容。
+**核心观察**：经过 Stage 3 Thinking Mode Fusion 之后，模型**自然学会了处理"不完整的思维过程"**——即推理链条即使中途被打断，模型也能基于已有思考给出合理回答，而不是崩溃或输出无意义内容（论文指出该能力并非显式训练，而是应用 Thinking Mode Fusion 的自然结果）。
 
 **机制设计**：
 
@@ -316,7 +316,7 @@ Qwen3 利用 **scaling laws** 来**外推预测**大规模模型的超参数（�
 **效率优势**：
 
 - 仅需 **4-stage 训练约 1/10 的 GPU hours** 即可达到（甚至超越）4-stage 的效果。
-- 这意味着用极低的成本就能把旗舰模型的能力"灌"给系列中的每个小模型，使整个 Qwen3 系列（6 dense + 2 MoE）都能达到高水准。
+- 这意味着用极低的成本就能把旗舰模型的能力"灌"给系列中的被蒸馏小模型——5 个 dense（0.6B–14B）与 1 个 MoE（30B-A3B）——使它们都能达到高水准；32B 与 235B 作为教师模型，不在蒸馏之列。
 
 > **总结性观察**：Qwen3 后训练的三项创新——**统一双模式（Stage 3）**、**Thinking Budget**、**Strong-to-Weak Distillation**——分别解决了"能力整合"、"成本可控"和"能力下沉"三个工程难题，共同构成了 Qwen3 在工程落地上的核心竞争力。
 
@@ -407,7 +407,7 @@ Qwen3-14B-Base 和 Qwen3-30B-A3B-Base（MoE 30B/3B）对比同级竞品及更大
 **核心结论**：
 
 - **越级对比**：Qwen3-14B-Base 在 MMLU-Pro（61.03）、EvalPlus（72.23）、MATH（62.02）等推理密集任务上显著超越 Qwen2.5-32B-Base（55.10/66.25/57.70），验证了数据质量与训练策略带来的"单位参数效率"跃升。
-- **MoE 效率优势**：Qwen3-30B-A3B 仅 3B 激活参数即可在 10/12 项 benchmark 上超越 Qwen2.5-14B-Base（14B 全激活），激活参数仅为后者的 ~1/5。在 MMLU-Pro、SuperGPQA、BBH 上甚至接近 Qwen2.5-32B-Base。
+- **MoE 效率优势**：Qwen3-30B-A3B 仅 3B 激活参数即可在 12/12 项 benchmark（论文称在所有任务上均如此）上超越 Qwen2.5-14B-Base（14B 全激活），激活参数仅为后者的 ~1/5。在 MMLU-Pro（61.49 vs 55.10）与 SuperGPQA（35.72 vs 33.55）上甚至超过 Qwen2.5-32B-Base，BBH（81.54 vs 84.48）上接近。
 - **14B vs 30B-A3B 互补**：Qwen3-14B 在数学（MATH 62.02）和代码（EvalPlus 72.23）上更强；Qwen3-30B-A3B 在 MMLU（81.38）、BBH（81.54）等多任务通用基准上更优。两种架构各有侧重。
 
 #### 6.2.4 Qwen3-8B-Base（Table 6）
@@ -453,7 +453,7 @@ Qwen3-14B-Base 和 Qwen3-30B-A3B-Base（MoE 30B/3B）对比同级竞品及更大
 
 - Qwen3-4B（仅 4B 参数）在 **12/12 项 benchmark 上全面超越同级 Gemma-3-4B**，优势在推理任务上尤其突出（MATH 54.10 vs 26.10, MMLU-Pro 50.58 vs 29.23）。
 - **越级挑战**：MMLU-Pro（50.58）、GSM8K（87.79）、EvalPlus（63.53）等多项指标超越参数翻倍的 Qwen2.5-7B-Base。MATH 提升 4.3pp（54.10 vs 49.80），BBH 提升 2.19pp（72.59 vs 70.40）。
-- 在 MMLU 和 MMMLU 上，Qwen3-4B 略低于 Qwen2.5-7B-Base，说明通用知识密集型任务仍受益于更大参数规模。
+- 在 MMLU 上，Qwen3-4B 略低于 Qwen2.5-7B-Base（72.99 vs 74.16），MMMLU 则以 71.42 vs 71.34 略高，说明通用知识密集型任务整体上仍略受益于更大参数规模。
 
 #### 6.2.6 Qwen3-0.6B / 1.7B-Base（Table 8）
 
@@ -475,7 +475,7 @@ Qwen3-14B-Base 和 Qwen3-30B-A3B-Base（MoE 30B/3B）对比同级竞品及更大
 
 - **端侧模型大幅领先**：Qwen3-0.6B 在几乎所有基准上超越 Qwen2.5-0.5B，MMLU-Pro（24.74 vs 15.69）和 BBH（41.47 vs 20.30）的翻倍式提升尤为显著。
 - **Qwen3-1.7B 跨级碾压**：在 BBH（54.47 vs 45.10）、GSM8K（75.44 vs 68.54）、MATH（43.50 vs 35.00）、MultiPL-E（42.71 vs 33.10）等推理密集任务上超越参数相近的 Qwen2.5-1.5B。MMLU-Pro（36.76 vs 28.53）和 MGSM（50.71 vs 32.82）的大幅差距反映了 Qwen3 在多语言与深层推理上的系统性改进。
-- **Gemma-3-1B 全线落后**：Qwen3-0.6B 以 1/2 的参数规模全面超越 Gemma-3-1B，GSM8K（59.59 vs 2.20）和 CRUX-O（27.00 vs 3.80）差距达 20-30 倍，说明 Qwen3 在小规模上的训练数据与策略具有决定性的优势。
+- **Gemma-3-1B 全线落后**：Qwen3-0.6B 以 1/2 的参数规模全面超越 Gemma-3-1B，GSM8K（59.59 vs 2.20）与 CRUX-O（27.00 vs 3.80）分别约为 27 倍与 7 倍差距，说明 Qwen3 在小规模上的训练数据与策略具有决定性的优势。
 
 ### 6.3 Post-trained Model 评估结果
 
@@ -489,7 +489,7 @@ Qwen3-14B-Base 和 Qwen3-30B-A3B-Base（MoE 30B/3B）对比同级竞品及更大
 | **CodeForces** | 2056 | 竞赛编程 Elo 评分 |
 | **BFCL v3** | 70.8 | Function calling / 工具调用 |
 
-**训练动态观察**：AIME'24 成绩在约 **170 个 GRPO steps** 内从 **70.1 → 85.1**，呈现近乎线性的陡峭上升。这一组训练曲线有两个重要含义：
+**训练动态观察**：AIME'24 成绩在约 **170 个 GRPO steps** 内从 **70.1 → 85.1**（论文仅报告首尾值，未给出逐步曲线）。这一训练结果有两个重要含义：
 
 1. **GRPO（Group Relative Policy Optimization）对数学推理的高效性**：无需海量训练步即可激活模型的推理链能力，验证了"思维链 + 强化学习"范式的有效性。
 2. **base model 已"蓄能"充分**：后训练的快速跃升本质上来自预训练阶段对数学能力的深厚储备——若 base model 缺乏相应基础，少量 RL steps 无法带来如此大幅度的提升。
@@ -529,9 +529,9 @@ tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-{size}")
 
 这种"零额外适配"的兼容性设计意味着：现有基于 `transformers` 的训练、推理、部署工具链（如 vLLM、SGLang、DeepSpeed 等）可以无缝接入 Qwen3，极大降低了集成成本。
 
-### 7.3 Thinking Budget 的程序化控制
+### 7.3 Thinking 模式的程序化控制
 
-除命令行 flag 外，thinking budget 还可通过 **chat template（聊天模板）** 在代码层面精细控制。这使得：
+除命令行 flag 外，thinking 模式的开关还可通过 **chat template（聊天模板）** 在代码层面精细控制（如 Hugging Face tokenizer 的 `enable_thinking=False`）。需要区分的是，thinking budget 是另一套机制：当思考长度达到用户设定阈值时手动插入 stop-thinking 指令，并非 chat template 参数。这使得：
 
 - 应用开发者可在 prompt 构造阶段决定是否启用思考模式；
 - 可根据任务类型（如简单问答 vs 复杂推理）动态切换；
@@ -559,11 +559,11 @@ Qwen3 的贡献可归结为四个维度：
 
 ### 8.2 局限性与开放挑战
 
-Qwen3 团队也坦诚指出若干局限：
+Qwen3 团队也坦诚指出若干局限（说明：论文未设专门的局限性章节，正文仅在 §4.7 承认后训练后 AIME'24、LiveCodeBench 在 thinking 模式下成绩下降这一 trade-off；以下为本报告归纳的局限）：
 
 - **训练成本高昂**：训练 235B 规模的 MoE 模型需要海量 GPU 资源与复杂的分布式训练工程，这对绝大多数机构是不可承受的门槛。这也意味着模型能力的进一步突破高度依赖少数头部团队的资源投入。
 
-- **部署硬件门槛高**：即使有 MoE 稀疏激活（22B 激活参数），**完整运行 Qwen3-235B-A22B 仍需可观的显存**（约数百 GB 级别），普通开发者和中小企业难以本地部署。这正是 strong-to-weak distillation 与小模型（如 Qwen3-32B 及更小）存在的价值——它们让普通用户也能获得"Qwen3 级别"的能力。
+- **部署硬件门槛高**：即使有 MoE 稀疏激活（22B 激活参数），**完整运行 Qwen3-235B-A22B 仍需可观的显存**（约数百 GB 级别），普通开发者和中小企业难以本地部署。这正是 strong-to-weak distillation 与小模型（如 Qwen3-14B 及更小，均为蒸馏学生）存在的价值——它们让普通用户也能获得"Qwen3 级别"的能力。
 
 - **多语言覆盖仍有空间**：如 6.2.1 节 INCLUDE 评测所示，Qwen3-235B 在部分多语言 benchmark 上仍落后于 DeepSeek-V3，低资源语言能力是持续优化的方向。
 

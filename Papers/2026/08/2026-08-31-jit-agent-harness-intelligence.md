@@ -1,5 +1,5 @@
 > **论文**：JIT-Agent: Scaling Harness Intelligence via Just-in-Time Harness Evolution
-> **作者**：Guibin Zhang、Leo Lu、Fangzhou Xie（核心贡献者）等；通讯作者 Wangchunshu Zhou、Shuicheng Yan（新加坡国立大学 NUS 系）
+> **作者**：Guibin Zhang、Leo Lu、Fangzhou Xie（核心贡献者）等；通讯作者 Wangchunshu Zhou、Chuanrui Hu、Yafeng Deng、Shuicheng Yan（新加坡国立大学 NUS、EverMind AI、南洋理工大学）
 > **arXiv ID**：2608.25593（cs.CL）
 > **发表时间**：2026-08-26
 > **代码仓库**：https://github.com/bingreeky/JIT（模型权重：https://huggingface.co/JIT-Agent，JIT-Agent/jit-27b）
@@ -8,22 +8,24 @@
 
 ### 1.1 一句话定位
 
-JIT-Agent 是首个专门为"即时（just-in-time, JIT）harness 生成"而训练的 harness intelligence 模型：给定任意现成（off-the-shelf）agentic LLM 与一个新任务，它在推理时现场合成任务自适应的 agent harness（记忆管理、规划策略、动作协议、工具/技能编排），并通过三阶段训练管线让这种合成能力本身可学习、可修复、可持续自演化——从而把"agent 能力由 harness 主导"这一现象从手工工程转化为一个可缩放的模型能力维度。
+据作者所知，JIT-Agent 是首个专门为"即时（just-in-time, JIT）harness 生成"而训练的 harness intelligence 模型：给定任意现成（off-the-shelf）agentic LLM 与一个新任务，它在推理时现场合成任务自适应的 agent harness（记忆管理、规划策略、动作协议、工具/技能编排），并通过三阶段训练管线让这种合成能力本身可学习、可修复、可持续自演化——从而把"agent 能力由 harness 主导"这一现象从手工工程转化为一个可缩放的模型能力维度。
 
-![Figure 1: JIT-Agent leaderboard on four representative benchmarks](Figures/2026-08-31-jit-agent-harness-intelligence-fig1.png)
+![报告自绘：JIT-Agent leaderboard on four representative benchmarks](Figures/2026-08-31-jit-agent-harness-intelligence-fig1.png)
 
-*图1：JIT-Agent 在四个代表性 benchmark 上的排行榜表现：配合 GLM-5.2 与 DeepSeek-V4-Flash 两个执行模型，JIT 生成的 harness 相对前沿闭源模型（GPT-5.6、Gemini 3.1 Pro、Gemini 3.5 Flash 等）取得整体领先。*
+*图1（报告自绘，数据源：论文 Table 2 / 本报告 Table 3）：JIT-Agent 在四个代表性 benchmark 上的排行榜表现：配合 GLM-5.2 与 DeepSeek-V4-Flash 两个执行模型，JIT 生成的 harness 相对前沿闭源模型（GPT-5.6、Gemini 3.1 Pro、Gemini 3.5 Flash 等）取得整体领先。*
 
 #### 论文图表总览
 
 | 图表 | 内容 | 所在章节 |
 |------|------|----------|
-| Figure 1 | 四个代表 benchmark 的 JIT-Agent 排行榜（本文第 1 章引用） | 论文 §1（本报告第 1 章） |
-| Figure 2 | 方法总览：四模块（memory/planning/action/capability）harness 合成 | 论文 §1（本报告第 3 章） |
-| Table 1 | AOT vs JIT 方法特性对比（实例合成 / harness 模型 / 学习修复 / 在线演进） | 论文 §2（本报告第 2 章） |
-| Table 2 | 13 种 scaffold 的模块配置清单（HarnessFactory 种子库 K0=13） | 论文 §3（本报告第 3 章） |
-| Table 3 | 9 个 benchmark 主结果（0-100 分制，10 模型 × 9 指标） | 论文 §6.2（本报告第 5 章） |
-| Table 4 | harness 受控对比（性能 / token / 成本，6 设置） | 论文 §6.3（本报告第 5 章） |
+| Figure 1（报告自绘） | 四个代表 benchmark 的 JIT-Agent 排行榜（数据源论文 Table 2） | 本报告第 1 章 |
+| Figure 2（论文 Figure 1） | 方法总览：四模块（memory/planning/action/capability）harness 合成 | 论文 §1（本报告第 3 章） |
+| Table 1（论文 Table 4） | AOT vs JIT 方法特性对比（实例合成 / harness 模型 / 学习修复 / 在线演进） | 论文 Appendix A（§2 中引用；本报告第 2 章） |
+| Table 2（论文 Table 1） | 13 种 scaffold 的模块配置清单（HarnessFactory 种子库 K0=13） | 论文 §3（本报告第 3 章） |
+| Table 3（论文 Table 2） | 9 个 benchmark 主结果（0-100 分制，10 模型 × 9 指标） | 论文 §5.2（本报告第 5 章） |
+| Table 4（论文 Table 3） | harness 受控对比（性能 / token / 成本，6 设置） | 论文 §5.3（本报告第 5 章） |
+
+注：本报告表格编号（Table 1–4）按行文顺序自编，与论文编号不同（论文 Table 1=种子库、Table 2=主结果、Table 3=受控对比、Table 4=Appendix A 的 AOT/JIT 对比）；论文 Figure 2 是三阶段训练管线（Stage I–III），报告未单独制图。
 
 ### 1.2 核心贡献
 
@@ -53,7 +55,7 @@ JIT-Agent 是首个专门为"即时（just-in-time, JIT）harness 生成"而训�
 
 ### 2.2 AOT 假设与局限
 
-现有方法大多隐含或显式采用 **AOT（ahead-of-time）假设**：harness 是一个预先优化好的耐久工件（durable artifact），先离线搜索/设计，再部署复用。论文在 Table 1 中按此维度梳理了相关工作：
+现有方法大多隐含或显式采用 **AOT（ahead-of-time）假设**：harness 是一个预先优化好的耐久工件（durable artifact），先离线搜索/设计，再部署复用。论文在 Appendix A 的 Table 4 中按此维度梳理了相关工作：
 
 | 方法 | 范式 | 实例合成 | harness 模型 | 学习修复 | 在线演进 |
 |------|------|----------|--------------|----------|----------|
@@ -66,7 +68,7 @@ AOT 的局限在于：离线优化出的 harness 与推理时遇到的真实任�
 
 ### 2.3 JIT 视角
 
-论文提出从软件工程借用的对照视角：正如 JIT 编译相对 AOT 编译把优化推迟到运行时并利用运行时信息，**JIT harness 生成**把 harness 的构造推迟到推理时刻、条件于具体任务实例（任务描述、执行模型、可用工具集）。由此 harness 从"预先优化的耐久工件"变为"按需合成的一次性/可演进产物"，harness intelligence 成为与 model intelligence 正交、可独立训练与缩放的能力维度。JIT-Agent 是第一个专门为该范式构建的模型：输入任务上下文，输出一个满足四模块协议、可直接执行的完整 harness。
+论文提出从软件工程借用的对照视角：正如 JIT 编译相对 AOT 编译把优化推迟到运行时并利用运行时信息，**JIT harness 生成**把 harness 的构造推迟到推理时刻、条件于具体任务实例（任务描述、执行模型、可用工具集）。由此 harness 从"预先优化的耐久工件"变为"按需合成的一次性/可演进产物"，harness intelligence 成为与 model intelligence 正交、可独立训练与缩放的能力维度。据作者所知，JIT-Agent 是第一个专门为该范式构建的模型：输入任务上下文，输出一个满足四模块协议、可直接执行的完整 harness。
 
 ### 2.4 三大挑战
 
@@ -78,7 +80,7 @@ AOT 的局限在于：离线优化出的 harness 与推理时遇到的真实任�
 
 ### 2.5 前作：MemEvolve 与 TodoEvolve
 
-作者团队的前作分别处理了 harness 的单个模块：**MemEvolve** 针对 memory 模块，**TodoEvolve** 针对 planning 模块。JIT-Agent 将这一思路从单模块推广到完整四模块 harness 的统一生成与训练，是"harness 进化"研究线从局部模块走向整体协议的延伸。
+（本小节为报告作者补充的外部背景，非论文正文内容；论文正文与参考文献均未提及 TodoEvolve。）相关前作分别处理了 harness 的单个模块：**MemEvolve** 针对 memory 模块，**TodoEvolve** 针对 planning 模块。JIT-Agent 将这一思路从单模块推广到完整四模块 harness 的统一生成与训练，是"harness 进化"研究线从局部模块走向整体协议的延伸。
 
 ## 第 3 章 四模块协议与 HarnessFactory
 
@@ -118,7 +120,7 @@ $$\mathcal{C}_t = F(\mathcal{C}_\tau, s_t, v_t, d_t) \subseteq \mathcal{C}_\tau$
 
 $$(s_{t+1}, e_t) = A(s_t, \tau, v_t, d_t, \mathcal{C}_t) \in \mathcal{S} \times \mathcal{A}$$
 
-**执行**：动作若属于可执行空间 𝒰 则由环境执行产生观测，否则记为失败 ⊥，并拼接进轨迹（公式 7）：
+**执行**：动作若属于可执行空间 𝒰 则由环境执行产生观测；若属于终止输出空间 𝒴，则观测记为空观测 ⊥（terminal null observation），回合结束并输出最终答案，随后拼接进轨迹（公式 7）：
 
 $$o_t = \mathrm{Exec}(e_t; \mathcal{C}_t) \ \text{if}\ e_t \in \mathcal{U},\ \text{else}\ \bot; \qquad \xi_{\le t} = \xi_{<t} \oplus (s_t, e_t, o_t)$$
 
@@ -130,9 +132,9 @@ $$o_t = \mathrm{Exec}(e_t; \mathcal{C}_t) \ \text{if}\ e_t \in \mathcal{U},\ \te
 | Codex / OpenCode | M_compact（紧凑历史） | P_todo（todo 列表） | A_react | F_all |
 | 递归 agent（ROMA 类） | M_subproblem（子问题上下文） | P_decomp（分解） | A_rec（递归执行） | F_route（按子代理路由） |
 
-![Figure 2: JIT-Agent method overview](Figures/2026-08-31-jit-agent-harness-intelligence-fig2.png)
+![论文 Figure 1: Overview of JIT-Agent](Figures/2026-08-31-jit-agent-harness-intelligence-fig2.png)
 
-*图2：JIT-Agent 方法总览：meta 模型以任务上下文为条件，现场合成由 memory、planning、action、capability 四模块组成的完整 harness，交由任意执行模型运行。*
+*图2（即论文 Figure 1）：JIT-Agent 方法总览：meta 模型以任务上下文为条件，现场合成由 memory、planning、action、capability 四模块组成的完整 harness，交由任意执行模型运行。*
 
 ### 3.2 HarnessFactory：13 种 scaffold 种子库
 
@@ -164,7 +166,7 @@ $$o_t = \mathrm{Exec}(e_t; \mathcal{C}_t) \ \text{if}\ e_t \in \mathcal{U},\ \te
 
 $$\theta^* = \arg\max_\theta\ \mathbb{E}_{\tau \sim \mathcal{D}_{\mathrm{task}},\ \pi_\psi \sim \mathcal{M},\ h \sim p_\theta(\cdot \mid c_\tau)}\left[\mathcal{U}(\tau, \pi_\psi, h)\right]$$
 
-其中效用 𝒰 综合三项：任务奖励、延迟与成本。偏好信号与 Evo-GDPO 的优势通道均按此三维度构造。以下分阶段展开；训练超参数（如组大小 G、β_pref、λ_evo 的具体取值）论文未给出，本报告不作臆测。
+其中效用 𝒰 综合三项：任务奖励、延迟与成本。偏好信号与 Evo-GDPO 的优势通道均按此三维度构造。以下分阶段展开；训练超参数（如组大小 G、λ_evo 的具体取值）论文未给出，本报告不作臆测。
 
 ### 4.1 Stage I：任务条件定制（公式 9–13）
 
@@ -186,7 +188,7 @@ $$h^+ \succ_\tau h^- \iff r^+ > r^- \ \wedge\ \ell^+ \le \ell^- \ \wedge\ \kappa
 
 $$\Delta_{\mathrm{val}} = \alpha_r (r^+ - r^-) + \alpha_\ell [\ell^- - \ell^+]_+ + \alpha_\kappa [\kappa^- - \kappa^+]_+$$
 
-偏好损失为参考锚定形式（公式 13）：以冻结的 SFT checkpoint 为参考分布 p_ref，长度归一化 log 似然，β_pref 控制锐度；最终 Stage I 损失为两项加权和：
+偏好损失采用标准 DPO 目标（公式 13，报告按标准 DPO 形式写出，β_pref 为温度系数）：以冻结的 Stage-I SFT checkpoint 为参考策略 p_ref，按 Δ_val 加权；最终 Stage I 损失为两项加权和：
 
 $$\mathcal{L}_I^{\mathrm{pref}} = -\mathbb{E}\left[\Delta_{\mathrm{val}} \cdot \log\sigma\!\left(\beta_{\mathrm{pref}}\left(\log\tfrac{p_\theta(h^+ \mid c_\tau)}{p_\theta(h^- \mid c_\tau)} - \log\tfrac{p_{\mathrm{ref}}(h^+ \mid c_\tau)}{p_{\mathrm{ref}}(h^- \mid c_\tau)}\right)\right)\right]$$
 
@@ -222,7 +224,7 @@ Stage III 用强化学习直接对真实执行信号优化生成策略，实现 
 
 $$h_i \overset{\mathrm{i.i.d.}}{\sim} p_{\theta_{\mathrm{old}}}(\cdot \mid c_{\tau,n}), \qquad i = 1, \ldots, G$$
 
-组内每个候选按三通道计算优势原材料（公式 20）：奖励通道带演化塑形项（相对组基线 b_r 的超额奖励），延迟与成本通道仅在奖励达标时才给效率激励：
+组内每个候选按三通道计算优势原材料（公式 20）：奖励通道带演化塑形项（相对当前档案中最高奖励参照 harness 的 incumbent 统计量 b_r 的超额奖励），延迟与成本通道仅在奖励达标时才给效率激励：
 
 $$R_i^{\mathrm{rew}} = r_i + \lambda_{\mathrm{evo}} [r_i - b_r]_+; \qquad R_i^{\mathrm{lat}} = \mathbb{I}[r_i \ge b_r]\,[b_\ell - \bar{\ell}_i]_+; \qquad R_i^{\mathrm{cost}} = \mathbb{I}[r_i \ge b_r]\,[b_\kappa - \bar{\kappa}_i]_+$$
 
@@ -236,11 +238,11 @@ $$\hat{A}_i^\Sigma = \mathrm{BatchNorm}\!\left(A_i^\Sigma\right)$$
 
 $$\mathcal{L}_{III}^{\mathrm{Evo\text{-}GDPO}} = -\mathbb{E}\left[\frac{1}{G}\sum_{i=1}^{G}\frac{1}{|h_i|}\sum_{j}\min\!\left(\rho_{i,j}\,\hat{A}_i^\Sigma,\ \mathrm{clip}(\rho_{i,j}, 1-\epsilon, 1+\epsilon)\,\hat{A}_i^\Sigma\right)\right] + \beta_{\mathrm{KL}}\,\mathbb{E}\left[\mathrm{KL}(p_\theta \,\|\, p_{\mathrm{ref}})\right]$$
 
-组解耦（group-decoupled）的含义在于：优势只由同组内比较得出，任务间的难度差异被自动消去，跨任务档案带来的偏置不会污染单任务的相对信号。
+组解耦（group-decoupled）的核心在于：奖励、延迟、成本三通道分别在同一候选组内独立标准化后再加权聚合，避免量纲互相压倒。
 
 ### 4.4 档案保守更新规则
 
-流式推理下，harness 档案 ℬ 会随任务流不断扩张，但更新是保守的：**仅当候选 harness 在前沿维度（奖励 / 延迟 / 成本）上严格改进时才被保留进档案**。该规则与公式 12 的 Pareto 偏好规则同构，保证档案只增质量、不增冗余，为后续任务的检索提供单调变优的经验池；具体档案更新与流式推理循环的公式化表述见 4.5 节。
+流式推理下，harness 档案 ℬ 会随任务流不断扩张，但更新是保守的：**候选须先达到或超过当前奖励前沿，并在前沿至少一个维度（奖励 / 延迟 / 成本）上严格改进，才会被保留进档案**。该规则与公式 12 的 Pareto 偏好规则相近但不完全同构（档案规则允许奖励持平、效率严格改进），保证档案只增质量、不增冗余，为后续任务的检索提供单调变优的经验池；具体档案更新与流式推理循环的公式化表述见 5.1 节。
 ## 第 5 章 实验结果与分析
 
 ### 5.1 推理架构（静态与流式）
@@ -318,7 +320,7 @@ Table 3 对比了 JIT 生成 harness 与 vanilla backbone 及前沿模型的端�
 
 ### 5.5 成本–性能 Pareto 前沿
 
-Figure 4 展示了受控对比在 DeepSearchQA 与 AgentIF 上的成本–性能几何。每个点是 backbone–harness 组合，越靠近左上角越优：
+论文 Figure 3 展示了受控对比在 DeepSearchQA 与 AgentIF 上的成本–性能几何。每个点是 backbone–harness 组合，越靠近左上角越优：
 
 - **DeepSearchQA**：DeepSeek-V4-Flash + JIT-Agent 是评估组合中的强 Pareto 最优点（85.1 分 @ 每例 $0.066）。相对最强固定 harness NanoBot，+4.7 分且成本降 49.6%（$0.131→$0.066）。Qwen3.6-Flash 上 JIT 提供低算力运行点：70.3 分 @ $0.095，对比 NanoBot 的 74.2 分 @ $0.197，以 3.9 分代价节省 51.8% 成本。
 - **AgentIF**：前沿结构互补。DeepSeek-V4-Flash 上 JIT 相对 Claude Code 成本降 14.9%（$0.097 vs $0.114），性能仅差 3.1 分（63.8 vs 66.9），两者都位于前沿上。Qwen3.6-Flash 上 JIT 严格支配所有固定 harness：最优分数从 55.4 提升至 58.3，同时最低成本从 $0.170 降至 $0.078。
@@ -327,7 +329,7 @@ Figure 4 展示了受控对比在 DeepSearchQA 与 AgentIF 上的成本–性能
 
 ### 5.6 跨模型对的泛化
 
-为检验 JIT harness 生成是否跨模型族与变体迁移，论文评估了 6 个 backbone（3 个模型对：DeepSeek-V4-Flash/Pro、Qwen3.6-Flash/Plus、Mimo-V2.5-Flash/Pro），在 DeepSearchQA、AgentIF-Oneday、DeepPlanning-Shopping、OfficeBench 四个基准上固定模型、对比标准 ReAct harness 与 JIT 生成 harness（Figure 5）。
+为检验 JIT harness 生成是否跨模型族与变体迁移，论文评估了 6 个 backbone（3 个模型对：DeepSeek-V4-Flash/Pro、Qwen3.6-Flash/Plus、Mimo-V2.5-Flash/Pro），在 DeepSearchQA、AgentIF-Oneday、DeepPlanning-Shopping、OfficeBench 四个基准上固定模型、对比标准 ReAct harness 与 JIT 生成 harness（论文 Figure 4）。
 
 24 对直接匹配的 backbone–benchmark 对比中，JIT harness 全部胜过 ReAct，平均增益 7.6 分。每个模型族及族内两个变体都成立：DeepSeek V4 平均 +10.2 分、Qwen 3.6 +4.0 分、Mimo 2.5 +8.6 分。DeepSearchQA 平均增益最大（+15.2 分），包括 Mimo-V2.5-Pro +22.2、DeepSeek-V4-Flash +19.0；DeepPlanning-Shopping 平均 +7.5 分，包括 DeepSeek-V4-Flash 的 +24.8。同 backbone 内的一致增益说明 harness 智能跨模型族与变体迁移，而非针对特定 backbone 的补偿。
 
@@ -339,12 +341,12 @@ Streaming JIT 在 DeepPlanning-Shopping、DeepPlanning-Travel、OfficeBench 上�
 
 ### 5.8 生成 harness 的可视化
 
-Figure 7/8 展示了同一四模块协议下、面向计算结构迥异任务的两个生成 harness：
+论文 Figure 5 与 Figure C.1 展示了同一四模块协议下、面向计算结构迥异任务的两个生成 harness：
 
 - **Palimpsest（工件生产 → 依赖图）**：跨应用任务——发现联系人卡片、排除一人、归一化排序剩余记录、创建工作簿并邮件交付。JIT-Agent 将需求编译为显式 DAG：发现与 schema 检查是过滤的前置条件，工作簿构建等待归一化记录，交付等待工件验证。GraphPlanAction 以有界宽度/深度执行就绪节点，GraphPlanMemory 索引中间目标、证据与工件，下游节点消费已完成结果而非从 transcript 重建。
 - **Trapdoor（深度研究 → 有界递归委派）**：多跳身份问题（线索横跨历史引文、大学合并、回忆录、研究论文）。固定 DAG 会过早承诺不确定的证据路径，因此生成的 harness 用 DynamicDecomposer 形成并修正子问题，并为研究工具策略增加合成委派能力：委派调用打开私有研究子 agent（自有 memory、研究专用工具、五步预算），返回答案作为普通 observation 回到父循环；FactGraphMemory 从增长的历史中提取紧凑键值事实，父循环无需继承每个子 agent 轨迹即可跨分支整合证据。
 
-核心定性结论：同一个生成器，把一个任务映射为「带工件存储的图执行」，把另一个映射为「带事实存储的递归编排」。共享协议约束的是接口而非行为。附录 A 还给出 8 个额外案例（Origami、Turnstile、Gearbox、Pegboard、Appraiser、Abacus、Player Piano、Mulligan），覆盖层次化上下文折叠、完成门控工具访问、相位条件执行、证据矩阵搜索、选择性上下文渲染、类型化计算状态、确定性逐文件验证与局部动作修复。
+核心定性结论：同一个生成器，把一个任务映射为「带工件存储的图执行」，把另一个映射为「带事实存储的递归编排」。共享协议约束的是接口而非行为。附录 C 还给出 9 个额外案例（除已述的 Trapdoor 外，另有 Origami、Turnstile、Gearbox、Pegboard、Appraiser、Abacus、Player Piano、Mulligan），覆盖层次化上下文折叠、完成门控工具访问、相位条件执行、证据矩阵搜索、选择性上下文渲染、类型化计算状态、确定性逐文件验证与局部动作修复。
 
 ## 第 6 章 代码实现详解
 
@@ -383,13 +385,13 @@ JIT 运行分离生成/选择/执行三个产物：`summary.json`（headline 指
 
 - **依赖协议先验**：JIT 生成空间被固定四模块协议 Π 约束（公式 2），协议本身仍由人设计；协议覆盖不到的 harness 形态不在生成范围内。
 - **修复深度有界**：Stage II 只保留两轮内（K*≤2）可修复的失败轨迹，需要整体重设计的失败被排除在监督之外；部署时同样只有有界修复能力。
-- **backbone 依赖**：三阶段训练全程使用冻结执行器 πψ 评估（公式 8），训练分布（GLM-5.2 / DeepSeek-V4-Flash 系）之外的执行器仍主要依赖 6.5 节的迁移证据支撑。
-- **数值来源**：论文未给出消融表与关键超参数具体值（组大小 G、β_pref、λ_evo 等），报告无法覆盖这些细节。
-- **论文自身定位**：作者明确将生成 harness 的「自我再设计」视为激进形态，未来生产运行时更可能保留稳定核心、仅按需替换组件。
+- **backbone 依赖**：三阶段训练全程使用冻结执行器 πψ 评估（公式 8）；主要实例化为 GLM-5.2 / DeepSeek-V4-Flash-Preview，其他执行器主要由论文 §5.5（本报告 §5.6）的六 backbone 泛化实验支撑。
+- **数值来源**：论文未给出消融表与关键超参数具体值（组大小 G、λ_evo 等），报告无法覆盖这些细节。
+- **论文自身定位**：结论仅称 JIT-Agent 把 harness 构造从手工工程的 AOT 产物转为可学习的 JIT 合成能力；论文未讨论生产运行时的部署形态。
 
 ### 7.2 延伸阅读
 
-- **harness 优化闭环**：AutoHarness、Meta-Harness、AHE（AOT 搜索）；Adaptive AH、TTHE、RHI、Harness-R1（AOT 测试时编辑）——与 JIT-Agent 的对比见论文 Table 1。
-- **组件级自设计前作**：MemEvolve（memory 模块演进）、TodoEvolve（planning 模块演进）——JIT-Agent 是其统一延续。
+- **harness 优化闭环**：AutoHarness、Meta-Harness、AHE（AOT 搜索）；Adaptive AH、TTHE、RHI、Harness-R1（AOT 测试时编辑）——与 JIT-Agent 的对比见论文 Table 4。
+- **组件级自设计前作**（报告补充，非论文内容）：MemEvolve（memory 模块演进）、TodoEvolve（planning 模块演进）——JIT-Agent 是其统一延续。
 - **harness 模块化表征**：HarnessX（prompts/tools/memory/control flow 分解）、Code-as-Agent-Harness（interface/mechanism/multi-agent scaling 分层）。
 - **成熟 harness 基线**：Claude Code、Codex、OpenCode、Hermes、NanoBot（Table 4 受控对比对象）。

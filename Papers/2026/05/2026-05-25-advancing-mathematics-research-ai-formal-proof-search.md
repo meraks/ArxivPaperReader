@@ -35,14 +35,14 @@ Lean 等形式化证明语言提供了一种解决方案：
 
 ### 1.3 为什么这个问题很重要？
 
-Erdős 问题列表包含 353 个由传奇数学家 Paul Erdős 提出的开放问题，部分问题已悬而未决超过 50 年。传统上，这些问题需要顶尖数学家投入数月甚至数年的精力。而 AlphaProof Nexus 以**每个问题约 60 美元**的成本，自主解决了其中 9 个。
+Erdős 问题目录收录了 1200 多个由传奇数学家 Paul Erdős 及其合作者提出的开放问题，其中 Formal Conjectures 仓库已形式化了 353 个，部分问题已悬而未决超过 50 年。传统上，这些问题需要顶尖数学家投入数月甚至数年的精力。而 AlphaProof Nexus 以**每个问题约数百美元**的推理成本，自主解决了其中 9 个。
 
 ---
 
 ## 二、核心贡献
 
 1. **提出 AlphaProof Nexus 框架**：一个基于 LLM 的形式化证明搜索系统，结合进化算法与 Lean 编译器反馈，自主生成经过形式验证的数学证明
-2. **解决了 9 个开放 Erdős 问题**：包括两个自 1970 年以来悬而未决 56 年的问题（#12(i) 和 #12(ii)），以及 Ben Green 的 100 个问题列表中的问题
+2. **解决了 9 个开放 Erdős 问题**：包括两个自 1970 年以来悬而未决 56 年的问题（#12(i) 和 #12(ii)）；此外还帮助解决了 Ben Green 的 100 个问题列表中的 #57（证明复值情形的一个候选反例）
 3. **证明了 44/492 个 OEIS 猜想**：从 2649 个开放猜想中筛选、形式化并证明
 4. **跨学科应用**：在优化理论、代数几何、图论、量子光学等多个数学分支中取得研究成果
 5. **消融实验揭示关键设计原则**：令人惊讶地发现，即使是基础 agent 也能解决所有 9 个 Erdős 问题，但高级组件在难题上提供 2-5 倍的成本效率提升
@@ -114,7 +114,7 @@ score = q + c · √(ΣVᵢ / (v+1))
 ```
 
 其中：
-- `q` 是候选的平均 Elo 分数
+- `q` 是该候选（经 top-64 筛选后）归一化到 [0,1] 的 Elo 分数
 - `c = 0.2` 是探索系数
 - `ΣVᵢ` 是访问次数之和
 - `v` 是该候选被选中的次数
@@ -139,7 +139,7 @@ AlphaProof Nexus 包含一个关键的安全层 **SafeVerify**：
 | 评分模型 | Gemini 3.0 Flash |
 | 证明生成模型 | Gemini 3.1 Pro |
 | 全局目标缓存 | 基于 Lean 状态的深度哈希 |
-| 单个 Erdős 问题的成本 | ~$60 USD（约 27.5 TPU 小时）|
+| 单个 Erdős 问题的推理成本 | 约数百美元（其中 AlphaProof 估计约 $60，约 27.5 TPU 小时/题）|
 
 ---
 
@@ -147,7 +147,7 @@ AlphaProof Nexus 包含一个关键的安全层 **SafeVerify**：
 
 ### 4.1 实验设置
 
-- **主评测基准**：353 个开放 Erdős 问题（由 Paul Erdős 提出的经典组合数学猜想）
+- **主评测基准**：Formal Conjectures 仓库中 353 个已形式化的 Erdős 问题（取自 ErdosProblems 目录的 1200+ 问题）
 - **辅助评测**：OEIS（在线整数序列百科全书）中的开放猜想
 - **跨学科验证**：优化、代数几何、图论、量子光学中的开放问题
 - **Agent 对比**：(A)(B)(C)(D) 四种配置在相同问题集上的表现
@@ -170,7 +170,7 @@ AlphaProof Nexus 包含一个关键的安全层 **SafeVerify**：
 
 **亮点**：
 - Erdős #12(i) 和 #12(ii) 自 1970 年以来已开放 **56 年**
-- Erdős #138* 是 Ben Green 的"百大问题"列表中的问题
+- Erdős #138*（1981）证明 van der Waerden 数满足 W(k+1)-W(k)→∞；属于 Ben Green 百大问题列表的是另一项独立结果 #57，不在上述 9 题内
 - 这些问题涉及加性组合数学、图论、数论等多个核心数学领域
 
 #### OEIS 猜想（44/492 证明）
@@ -184,7 +184,7 @@ AlphaProof Nexus 包含一个关键的安全层 **SafeVerify**：
 | 领域 | 成果 |
 |------|------|
 | **优化理论** | 证明了 Anchored GDA 的精确 O(1/t) 收敛速率 |
-| **代数几何** | 解决了 ~15 年开放问题：纯 O-序列（余维 3，类型 2）的对数凹性 |
+| **代数几何** | 解决了 Zanello 关于纯 O-序列（余维 3，类型 2）对数凹性的猜想 |
 | **图论** | 证明了二部重构猜想变体；解决了 Graffiti "墙上留言"猜想 2（1996 年提出） |
 | **加性组合数学** | 帮助解决了 Green 问题 #57（找到了复值版本的**反例**） |
 | **量子光学** | 解决了多个单色量子图猜想（N=d∈{4,6,10}） |
@@ -206,7 +206,7 @@ AlphaProof Nexus 包含一个关键的安全层 **SafeVerify**：
 #### 小模型和 AlphaProof 独立运行的失败
 
 - **更小的 LLM**（Gemini 3.0 Flash, Flash-Lite）：**无法解决任何问题**
-- **AlphaProof 独立运行**（树搜索模式，64 TPU 小时/题）：**无法解决任何问题**
+- **AlphaProof 独立运行**（树搜索模式）：**无法解决任何问题**
 - 这表明 LLM 的"数学创造力" + 形式验证的"可靠性保证"必须结合才能成功
 
 ---
@@ -234,7 +234,7 @@ AlphaProof Nexus 展示了一种全新的数学研究范式：
 
 ### 5.3 成本革命
 
-每个 Erdős 问题的解决成本约 **$60 USD**。这与人类数学家投入数月全职工作形成鲜明对比。虽然 AI 的解决范围仍然有限（9/353），但这种成本效率暗示了未来数学研究的根本性变革。
+每个 Erdős 问题的推理成本约 **数百美元**（其中 AlphaProof 估计约 $60 USD）。这与人类数学家投入数月全职工作形成鲜明对比。虽然 AI 的解决范围仍然有限（9/353），但这种成本效率暗示了未来数学研究的根本性变革。
 
 ### 5.4 "反例"同样有价值
 
@@ -273,8 +273,8 @@ Lean 编译器提供的不仅是验证——它是 AI 系统的**自动评判标
 ### 6.4 推荐阅读顺序
 
 1. **摘要 + 第 1 节**：理解整体框架和核心成果
-2. **第 2 节（Erdős 问题）**：最令人兴奋的部分——9 个具体问题及证明方法
-3. **第 3 节（Agent 架构）**：技术细节，理解系统如何工作
+2. **第 3 节（Erdős 问题）**：最令人兴奋的部分——9 个具体问题及证明方法
+3. **第 2 节（Agent 架构）**：技术细节，理解系统如何工作
 4. **第 5 节（消融实验）**：关键发现——基础 agent 也能成功
 5. **附录**：OEIS 证明案例、技术参数、相关工作对比
 
@@ -290,7 +290,7 @@ Lean 编译器提供的不仅是验证——它是 AI 系统的**自动评判标
 ## 七、参考文献
 
 1. Tsoukalas, G., Kovsharov, A., Shirobokov, S., et al. "Advancing Mathematics Research with AI-Driven Formal Proof Search." arXiv:2605.22763, 2026. [Google DeepMind]
-2. Novikov, A., et al. "AlphaEvolve: A Gemini-powered coding agent for designing advanced algorithms." 2025.
+2. Novikov, A., et al. "AlphaEvolve: A coding agent for scientific and algorithmic discovery." arXiv:2506.13131, 2025.
 3. Hubert, T., et al. "AlphaProof: System for olympiad-level Lean theorem-proving based on reinforcement learning." 2025.
 4. de Moura, L., Ullrich, S. "The Lean 4 Theorem Prover and Programming Language." CADE-28, 2021.
 5. Erdős, P. "On the combinatorial problems which I would most like to see solved." Combinatorica, 1981.

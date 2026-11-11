@@ -4,8 +4,8 @@
 - 标题：Latent Spatial Memory for Video World Models
 - 作者：Weijie Wang, Haoyu Zhao (equal contribution, ZJU), Yifan Yang, Yuqing Yang (Microsoft Research), Feng Chen (Adelaide), Zeyu Zhang, Yefei He (ZJU), Zicheng Duan (Adelaide), Donny Y. Chen (Monash), Bohan Zhuang (ZJU)
 - arXiv ID：2606.09828
-- 发表/提交日期：2026-06-10
-- 官方代码：microsoft/LatentSpatialMemory（MIT License，code coming soon）
+- 发表/提交日期：2026-06-08（v1；arXiv v2 更新于 2026-08-27）
+- 官方项目页：aka.ms/latent-spatial-memory；代码仓库 microsoft/LatentSpatialMemory（MIT License，已公开代码）
 
 ---
 
@@ -51,9 +51,9 @@
 
 > **类比理解：** 从RGB缓存到潜空间缓存，就像从"拍照片存档"升级到"保存原始设计文件"。照片只能记录表面颜色，无法修改；而设计文件（如Photoshop的PSD文件）保留了所有图层、滤镜、调整参数，不仅文件更小，而且可以无损重新渲染。潜空间记忆就是扩散模型的"设计文件"——它保存的不是最终像素，而是生成过程的核心中间表示。
 
-### 1.4 Mirage系统概述
+### 1.4 LSM-World系统概述
 
-基于潜空间3D记忆的思路，本文提出了**Mirage系统**（Memory-driven Latent-space Image Rendering for generation of vidEos）。Mirage包含三个核心模块：
+基于潜空间3D记忆的思路，本文提出了**LSM-World**系统（Latent Spatial Memory for Video World Models）。LSM-World包含三个核心模块：
 
 #### 记忆构建（Memory Construction）
 对已生成的视频chunk，使用深度估计器（DepthAnything3）获取深度图，将latent tokens反投影到世界坐标系，构建初始3D缓存：
@@ -77,26 +77,26 @@ $$\mathbf{f}_{query} = \text{z-buffer}(\{(\pi(p_j), f_j)\}_{j=1}^N)$$
 #### 贡献1：潜空间3D记忆的范式迁移
 首次提出将3D场景记忆从RGB空间迁移到扩散模型的潜空间，彻底消除了"RGB Detour"的瓶颈。这不仅是工程优化，更是范式转换——将空间记忆从"像素级缓存"提升为"特征级缓存"。
 
-#### 贡献2：Mirage系统的端到端设计
+#### 贡献2：LSM-World系统的端到端设计
 提出了完整的潜空间空间记忆框架，包括：Depth-guided back-projection 构建记忆、Occlusion-aware z-buffer 读取机制、迭代更新策略（含动态物体过滤）、ControlNet风格的注入架构（无需额外的bridge encoder）。
 
 #### 贡献3：SOTA性能验证
-在WorldScore基准测试中取得最佳成绩（Average 70.36），在RealEstate10K闭环任务中超越所有基线方法（PSNR_C 20.05, SSIM_C 0.825）。
+在WorldScore基准测试中取得最佳成绩（Average 70.36），在RealEstate10K闭环任务的PSNR_C和SSIM_C上超越所有基线方法（PSNR_C 20.05, SSIM_C 0.825）。
 
 #### 贡献4：显著的效率提升
-相比RGB点云缓存基线（Gen3C），Mirage实现了10.57×端到端生成加速和55×GPU内存减少（从124 MiB降至2.25 MiB），同时质量无损甚至提升。
+相比RGB点云缓存基线，LSM-World实现了最高10.57×端到端生成加速和55×缓存显存减少（Spatia：124 MiB→2.25 MiB；Gen3C的缓存读取为2.90 s/43.8 MiB），同时质量无损甚至提升。
 
 ### 1.6 关键数字总结
 
-| 指标 | Mirage | 最佳基线 | 提升幅度 |
+| 指标 | LSM-World | 最佳基线 | 提升幅度 |
 |------|--------|----------|----------|
 | WorldScore (Avg) | **70.36** | Spatia 69.73 | +0.63 (+0.9%) |
-| 3D Consistency | **92.21** | Voyager 91.77 | +0.44 (+0.5%) |
-| Photo Consistency | **93.95** | Spatia 92.63 | +1.32 (+1.4%) |
-| RealEstate10K PSNR_C | **20.05** | Gen3C 19.58 | +0.47 (+2.4%) |
-| RealEstate10K SSIM_C | **0.825** | Gen3C 0.812 | +0.013 (+1.6%) |
-| 每帧缓存读取时间 | **0.25s** | Gen3C 7.25s | **-7.0s (10.57×加速)** |
-| 峰值缓存VRAM | **2.25 MiB** | Gen3C 124 MiB | **-121.75 MiB (55×减少)** |
+| 3D Consistency | **92.21** | LucidDreamer 90.37 | +1.84 (+2.0%) |
+| Photo Consistency | **93.95** | LucidDreamer 90.20 | +3.75 (+4.2%) |
+| RealEstate10K PSNR_C | **20.05** | Spatia 19.38 | +0.67 (+3.5%) |
+| RealEstate10K SSIM_C | **0.825** | Spatia 0.579 | +0.246 (+42.5%) |
+| 每帧缓存读取时间 (Chunk 5) | **0.25s** | Gen3C 2.90s | 缓存读取约快11.6× |
+| 峰值缓存VRAM (Chunk 5) | **2.25 MiB** | Gen3C 43.8 MiB | 约少19.5×（Spatia 124 MiB → 55×） |
 
 ---
 
@@ -104,7 +104,7 @@ $$\mathbf{f}_{query} = \text{z-buffer}(\{(\pi(p_j), f_j)\}_{j=1}^N)$$
 
 ### 2.1 视频扩散模型的进展
 
-视频生成领域在过去两年经历了爆发式发展。CogVideoX（清华，2023）作为首个开源大规模视频扩散模型，引入时间注意力层但生成长度受限。Wan（阿里，2024）引入更强Transformer backbone支持更高分辨率，但相机运动能力有限。Sora（OpenAI，2025）展示了前所未有的视频生成能力，支持复杂相机轨迹，但缺乏技术细节且生成速度极慢。
+视频生成领域在过去两年经历了爆发式发展。CogVideoX（清华，2024）作为首个开源大规模视频扩散模型，引入时间注意力层但生成长度受限。Wan（阿里，2025）引入更强Transformer backbone支持更高分辨率，但相机运动能力有限。Sora（OpenAI，2024）展示了前所未有的视频生成能力，支持复杂相机轨迹，但缺乏技术细节且生成速度极慢。
 
 > **类比理解：** 视频生成模型的发展，就像从"连环画"到"动画片"再到"3D电影"的演进。CogVideoX像早期手绘连环画；Wan像传统动画片——引入了时间轴概念；Sora像3D电影——建立了完整3D场景模型，相机可自由运动。但Sora的问题是"制作周期太长"，无法实时应用。
 
@@ -140,11 +140,11 @@ RGB点云缓存（Spatia, Voyager, Gen3C, VMem）的基本流程：记忆构建�
 
 ---
 
-## Ch3: 核心技术：潜空间记忆与Mirage框架
+## Ch3: 核心技术：潜空间记忆与LSM-World框架
 
 ### 3.1 潜空间记忆表示
 
-Mirage的核心数据结构是一个潜特征3D点云：
+LSM-World的核心数据结构是一个潜特征3D点云：
 
 $$\mathcal{M} = \{(p_i, f_i)\}, \quad p_i \in \mathbb{R}^3, \quad f_i \in \mathbb{R}^C$$
 
@@ -192,7 +192,7 @@ $$\mathcal{M} \leftarrow \mathcal{M} \cup \{(p_{uv}, F_{uv})\}_{(u,v) \in \Lambd
 4. **动态过滤**：用Qwen3-VL检测动态物体（行人、车辆等），用SAM3分割这些区域，从记忆候选集中排除动态物体和天空区域
 5. **合并缓存**：将过滤后的新点 $(p_{uv}, F_{uv})$ 合并到 $\mathcal{M}$ 中
 
-> **类比理解：** 更新过程像SLAM系统在机器人移动时的地图扩展行为——机器人持续扫描新环境区域，将新的静态结构（墙壁、地板）加入地图，同时主动忽略移动物体（行人、其他车辆），因为它们的位置信息会过时。动态物体过滤是本系统的关键设计选择——它导致了一个重要的功能限制：Mirage无法生成包含行人的动态视频场景。
+> **类比理解：** 更新过程像SLAM系统在机器人移动时的地图扩展行为——机器人持续扫描新环境区域，将新的静态结构（墙壁、地板）加入地图，同时主动忽略移动物体（行人、其他车辆），因为它们的位置信息会过时。动态物体过滤是本系统的关键设计选择——这意味着LSM-World不在跨chunk记忆中维护行人、车辆等动态物体的状态；以动态场景为主的视频从该缓存中获益较少，但并非无法生成动态物体。
 
 **动态物体过滤的必要性**（消融实验证实）：无动态过滤时WorldScore从70.36降至61.20。原因是移动的行人/车辆在不同chunk间位置不一致，直接缓存会产生"幽灵重影"污染静态场景记忆。
 
@@ -204,13 +204,13 @@ $$\mathcal{M} \leftarrow \mathcal{M} \cup \{(p_{uv}, F_{uv})\}_{(u,v) \in \Lambd
 - 冻结backbone和VAE的所有参数
 - 只训练ControlNet-style side branch
 - 目标：让side branch学会将记忆读取的条件信号 $(\hat{z}_t, m_t)$ 正确对齐到扩散模型的中间层
-- 学习率：1e-4，训练约10K steps
+- 学习率：1e-5（论文未给出训练步数）
 
-**Stage 2 — 联合优化**：
-- 解锁self-attention层的LoRA adapters（rank=64）
-- 联合优化side branch和LoRA adapters
+**Stage 2 — LoRA适配**：
+- 冻结side branch，解锁self-attention层（q/k/v/o与FFN投影）的LoRA adapters（rank=32，α=32）
+- 只优化LoRA adapters
 - 目标：让backbone适应记忆条件信号的分布
-- 学习率：5e-5，训练约20K steps
+- 学习率：1e-4（论文未给出训练步数）
 
 **消融对比**：单阶段训练（直接从零开始联合优化）的WorldScore仅63.18 vs 两阶段70.36。原因是side branch在初始阶段输出噪声极大，如果同时训练backbone，模型会在噪声信号上过拟合，导致收敛不稳定。
 
@@ -218,7 +218,7 @@ $$\mathcal{M} \leftarrow \mathcal{M} \cup \{(p_{uv}, F_{uv})\}_{(u,v) \in \Lambd
 
 ### 3.6 概念实现
 
-由于官方代码尚未发布（microsoft/LatentSpatialMemory库仅含README/assets），以下实现基于论文Section 3及Eq.4-6的描述构建，用于理解算法流程：
+由于论文未提供官方实现细节（仅给出项目页 aka.ms/latent-spatial-memory），以下实现基于论文Section 3及Eq.4-6的描述构建，用于理解算法流程：
 
 ```python
 # ⚠️ 非官方概念实现 — 基于论文 Algorithm 1 / Section 3.2-3.4 描述编写
@@ -354,7 +354,7 @@ class ControlNetSideBranch(nn.Module):
 **关键实现细节**：
 - Z-buffer选择的复杂度为O(N)每像素（N为记忆点数），但潜分辨率仅44×80=3520像素，实际负载极低
 - Zero-convolution初始化确保Stage 1训练开始时side branch输出为零，不干扰冻结的backbone
-- 动态物体检测依赖外部模型（SAM3+Qwen3-VL），这是Mirage最大的外部依赖
+- 动态物体检测依赖外部模型（SAM3+Qwen3-VL），这是LSM-World最大的外部依赖
 
 ---
 
@@ -362,19 +362,20 @@ class ControlNetSideBranch(nn.Module):
 
 ### 4.1 WorldScore基准
 
-WorldScore是视频世界模型的综合性评估基准，衡量五个维度：Average Score（总体）、Static Score（静态场景）、Dynamic Score（动态场景）、3D Consistency（3D一致性）、Photo Consistency（光度一致性）。
+WorldScore是视频世界模型的综合性评估基准，论文报告十个指标；下表汇总其中五个维度：Average Score（总体）、Static Score（静态场景）、Dynamic Score（动态场景）、3D Consistency（3D一致性）、Photo Consistency（光度一致性）。
 
 | Method | Average | Static | Dynamic | 3D Cons | Photo Cons |
 |--------|---------|--------|---------|---------|-------------|
-| **Mirage** | **70.36** | 73.60 | **67.11** | **92.21** | **93.95** |
+| **LSM-World** | **70.36** | 73.60 | **67.11** | **92.21** | **93.95** |
 | Spatia (RGB) | 69.73 | 72.63 | 66.82 | 86.40 | 89.10 |
 | Voyager (RGB) | 66.08 | 77.62 | 54.53 | 81.56 | 85.99 |
+| LucidDreamer (RGB) | 59.84 | 70.40 | 49.28 | 90.37 | 90.20 |
 | Wan2.1 (no mem) | 55.21 | 57.56 | 52.85 | 78.74 | 78.36 |
 
 **关键观察**：
-- Mirage取得最高Average Score（70.36），且在3D Consistency（92.21 vs 86.40）和Photo Consistency（93.95 vs 89.10）上拉开显著差距
-- Spatia（RGB缓存）在Static场景下表现最好（77.62），但3D一致性远不如Mirage——这验证了潜空间记忆在几何一致性上的核心优势
-- Wan2.1（无记忆）得分最低，证明任何形式的3D记忆都优于无记忆的纯视频生成
+- LSM-World取得最高Average Score（70.36），在3D Consistency（92.21；最佳基线LucidDreamer为90.37，Spatia为86.40）和Photo Consistency（93.95；LucidDreamer为90.20，Spatia为89.10）上领先
+- Voyager（RGB缓存）在Static场景下表现最好（77.62），Spatia为72.63，但两者的3D一致性都远不如LSM-World——这验证了潜空间记忆在几何一致性上的核心优势
+- 在表中列出的方法里Wan2.1得分最低；但全表显示部分无显式3D记忆的通用视频模型（如CogVideoX-I2V 60.64）高于若干3D缓存方法，不能据此断言所有3D记忆都优于无记忆生成
 
 ### 4.2 RealEstate10K闭环比对
 
@@ -382,31 +383,30 @@ RealEstate10K是房地产视频数据集，评估模型从单个参考帧出发�
 
 | Method | PSNR↑ | SSIM↑ | LPIPS↓ | PSNR_C↑ | SSIM_C↑ | LPIPS_C↓ |
 |--------|-------|-------|--------|---------|---------|----------|
-| **Mirage** | 18.38 | **0.779** | **0.250** | **20.05** | **0.825** | 0.228 |
+| **LSM-World** | 18.38 | **0.779** | **0.250** | **20.05** | **0.825** | 0.228 |
 | Spatia | 18.58 | 0.646 | 0.254 | 19.38 | 0.579 | 0.213 |
-| Gen3C (RGB) | 18.01 | 0.612 | 0.261 | 19.55 | 0.808 | 0.230 |
 
 **关键观察**：
-- Mirage在所有闭环指标（PSNR_C、SSIM_C）上全面领先：PSNR_C 20.05（vs Gen3C 19.55）、SSIM_C 0.825（vs Gen3C 0.808）
-- 闭环指标的优势表明潜空间记忆在长序列一致性上的累积优势——误差不随时间累积
+- LSM-World在闭环PSNR_C、SSIM_C上领先：PSNR_C 20.05（vs Spatia 19.38）、SSIM_C 0.825（vs Spatia 0.579）；LPIPS_C 0.228仅次于Spatia的0.213
+- 闭环指标的优势表明潜空间记忆能在长轨迹后仍把生成锚定到一致的几何表示；但论文指出每步误差仍会累积，闭环设置正是放大这一效应
 
 ### 4.3 效率分析
 
-| 指标 | Mirage | Spatia | Gen3C | VMem |
+| 指标 | LSM-World | Spatia | Gen3C | VMem |
 |------|--------|--------|-------|------|
-| 每帧缓存读取时间 (s) | **0.25** | 7.25 | 6.19 | 4.07 |
-| 峰值缓存VRAM (MiB) | **2.25** | 78.8 | 124 | 63.8 |
+| 每帧缓存读取时间 (s, Chunk 5) | **0.25** | 7.63 | 2.90 | 7.25 |
+| 峰值缓存VRAM (MiB, Chunk 5) | **2.25** | 124 | 43.8 | 78.8 |
 
 **加速来源分解**：
-- **免VAE编解码**：RGB方案每帧需解码→渲染→编码，其中VAE编解码约占2-3s
-- **免像素渲染**：RGB方案需rasterization从点云渲染RGB图像，约占1-2s
-- **潜分辨率操作**：Mirage在44×80的潜分辨率操作 vs RGB方案的704×1280像素分辨率，计算量减少256×
+- **免VAE编解码**：RGB方案每帧需解码→渲染→编码；论文报告在257帧rollout上，光栅化与VAE encoder合计占RGB每步成本的98%以上（论文未给出各自的秒级拆分）
+- **免像素渲染**：RGB方案需rasterization从点云渲染RGB图像，这一项与VAE encoder共同构成RGB每步成本的主要部分
+- **潜分辨率操作**：LSM-World在44×80的潜分辨率操作 vs RGB方案的704×1280像素分辨率，计算量减少256×
 
 ### 4.4 消融实验
 
 | Variant | Avg Score | 3D Cons ↓ | Photo Cons ↓ |
 |---------|-----------|-----------|--------------|
-| **Mirage (full)** | **70.36** | 92.21 | 93.95 |
+| **LSM-World (full)** | **70.36** | 92.21 | 93.95 |
 | 用RGB点云替代潜特征 | 67.71 | 90.75 | 91.10 |
 | 特征上采样+像素分辨率提升 | 60.85 | 84.90 | 79.81 |
 | 无动态物体过滤 | 61.20 | 80.88 | 76.10 |
@@ -414,9 +414,9 @@ RealEstate10K是房地产视频数据集，评估模型从单个参考帧出发�
 
 **关键发现**：
 1. **潜特征 > RGB**（70.36 vs 67.71）：潜特征的48维语义信息远超RGB的3维颜色，证明潜空间的信息丰富度是核心优势
-2. **潜分辨率下采样 > 特征上采样**（70.36 vs 60.85）：在潜分辨率构建点云比先下采样再上采样特征效果更好——潜分辨率本身的几何精度足够
-3. **动态物体过滤至关重要**（70.36 vs 61.20）：这是最大的性能退化。移动的行人/车辆污染静态场景记忆，导致3D一致性崩坏（92.21→80.88）
-4. **两阶段训练稳定收敛**（70.36 vs 63.18）：Stage 1先对齐side branch，再联合训练，避免在噪声信号上过拟合
+2. **潜分辨率下采样 > 特征上采样**（70.36 vs 60.85）：在潜分辨率构建点云优于“将潜特征上采样到像素分辨率、在全分辨率lift后再聚合回潜网格”的变体；后者会插值出偏离backbone预训练分布的特征
+3. **动态物体过滤至关重要**（70.36 vs 61.20）：这是对3D与光度一致性影响最大的消融（3D 92.21→80.88，Photo 93.95→76.10）；平均分降幅与特征上采样变体相当。移动的行人/车辆污染静态场景记忆。
+4. **两阶段训练稳定收敛**（70.36 vs 63.18）：Stage 1先对齐side branch，Stage 2在冻结side branch的情况下只训练LoRA，避免在噪声信号上过拟合
 
 ---
 
@@ -424,15 +424,15 @@ RealEstate10K是房地产视频数据集，评估模型从单个参考帧出发�
 
 ### 5.1 论文局限性
 
-**动态场景支持不足**：Mirage将动态物体主动过滤掉，这意味着它无法生成包含行人、车辆等运动物体的视频。这是设计上的主动取舍——动态物体会污染静态场景记忆——但也限制了应用范围（如城市街道、人群场景）。
+**动态场景支持不足**：LSM-World将动态物体主动过滤掉，这意味着它不在跨chunk记忆中维护行人、车辆等运动物体的状态；以动态场景为主的视频从该缓存中获益较少，但并非无法生成动态物体。这是设计上的主动取舍——动态物体会污染静态场景记忆——但也限制了其在城市街道、人群场景中的效果。
 
-**严重遮挡下的深度估计失败**：Mirage依赖DepthAnything3进行深度估计。在严重遮挡区域（如一堵墙挡住了后面的建筑），深度估计可能失败，导致记忆点位置错误，进而影响后续帧的质量。
+**深度估计的潜在风险（报告作者推测）**：LSM-World依赖DepthAnything3进行深度估计。在严重遮挡区域（如一堵墙挡住了后面的建筑），深度估计可能失败，导致记忆点位置错误，进而影响后续帧的质量。论文本身未将这一点列为局限性，仅在附录中讨论了深度下采样与空洞率。
 
-**外部模型依赖**：系统性能依赖于三个预训练模型：DepthAnything3（深度估计）、SAM3（分割）、Qwen3-VL（动态物体检测）。任一模型的失败都会级联影响Mirage的输出质量。
+**外部模型依赖**：系统性能依赖于三个预训练模型：DepthAnything3（深度估计）、SAM3（分割）、Qwen3-VL（动态物体检测）。任一模型的失败都会级联影响LSM-World的输出质量。
 
-**场景复杂度限制**：当前仅支持单房间/单场景的静态视频生成。对于多房间导航或场景切换，需要更复杂的记忆管理机制。
+**场景切换未讨论**：论文未讨论多房间导航或场景切换所需的记忆管理；其开域实验（Fig. 5）覆盖室外与自然场景，显示出较好的泛化。
 
-**代码未开源**：虽然仓库已创建（microsoft/LatentSpatialMemory，MIT License），但实际代码标注为"Coming Soon"，复现和验证需等待官方发布。
+**代码发布状态**：论文仅给出项目页 aka.ms/latent-spatial-memory；官方仓库 microsoft/LatentSpatialMemory（MIT License）已公开，包含src、scripts、eval等目录。
 
 ### 5.2 延伸阅读
 
@@ -447,29 +447,29 @@ RealEstate10K是房地产视频数据集，评估模型从单个参考帧出发�
 - Oasis: Decart et al., "Oasis: A Universe in a Transformer", 2024
 
 **3D感知生成与空间记忆**：
-- Spatia: Chen et al., "Spatia: Enhancing Video Generation with Spatial Memory", arxiv 2412.03435
-- Voyager: Wang et al., "Voyager: Consistent Video Generation with Camera Motion and 3D Awareness", arxiv 2503.01791
-- Gen3C: Zhang et al., "Gen3C: 3D-Consistent Video Generation with Point Cloud Memory", arxiv 2503.03731
-- VMem: Zheng et al., "VMem: Long-Form Video Generation with Visual Memory", arxiv 2505.02922
+- Spatia: Zhao et al., "Spatia: Video Generation with Updatable Spatial Memory", CVPR 2026
+- Voyager: Huang et al., "Voyager: Long-Range and World-Consistent Video Diffusion for Explorable 3D Scene Generation", arXiv:2506.04225, 2025
+- Gen3C: Ren et al., "Gen3C: 3D-Informed World-Consistent Video Generation with Precise Camera Control", CVPR 2025
+- VMem: Li et al., "VMem: Consistent Interactive Video Scene Generation with Surfel-Indexed View Memory", arXiv:2506.18903, 2025
 - 3D Gaussian Splatting: Kerbl et al., "3D Gaussian Splatting for Real-Time Radiance Field Rendering", SIGGRAPH 2023
 - MVSplat: Chen et al., "MVSplat: Efficient 3D Gaussian Splatting from Sparse Multi-View Images", ECCV 2024
 
 **深度估计与分割**：
-- DepthAnything3: Yang et al., "Depth Anything V3", 2025
-- SAM3: Kirillov et al., "Segment Anything Model 3", 2025
-- Qwen3-VL: Bai et al., "Qwen3-VL Technical Report", 2025
+- DepthAnything3: Lin et al., "Depth Anything 3: Recovering the Visual Space from Any Views", ICLR 2026
+- SAM3: Carion et al., "SAM 3: Segment Anything with Concepts", 2025 (arXiv:2511.16719)
+- Qwen3-VL: Yang et al., "Qwen3 Technical Report", arXiv:2505.09388, 2025
 
 ---
 
 ## 附录：方法对比总结
 
-| 维度 | RGB点云缓存 | Mirage (潜空间记忆) |
+| 维度 | RGB点云缓存 | LSM-World (潜空间记忆) |
 |------|-------------|---------------------|
 | **存储内容** | RGB颜色 (3ch) | 潜特征 (48ch) |
 | **构建方式** | 解码→反投影 | 直接反投影 |
 | **读取方式** | 渲染→编码 | Z-buffer投影 |
 | **注入方式** | Encoder→交叉注意力 | ControlNet side branch |
 | **分辨率** | 像素级 (704×1280) | 潜空间 (44×80) |
-| **每帧读取时间** | 7.25s | 0.25s |
-| **缓存VRAM** | 124 MiB | 2.25 MiB |
+| **每帧读取时间** | 2.90–7.63s（Chunk 5） | 0.25s |
+| **缓存VRAM** | 43.8–124 MiB（Chunk 5） | 2.25 MiB |
 | **WorldScore** | 69.73 | 70.36 |

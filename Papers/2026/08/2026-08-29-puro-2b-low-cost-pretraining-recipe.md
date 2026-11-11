@@ -1,5 +1,5 @@
 > **论文**：Puro-2B: Poor Lab's Qwen2-1.5B Trained on RTX 5090 within $5090
-> **作者**：Kairong Luo, Jiarui Cui, Yaorui Yin, Shengqi Chen, Yiming Yang, Linxiang Gao, Yanmohan Wang, Mingzhe Zhang, Kaiyue Wen, Kaifeng Lyu, Wenguang Chen（清华大学）
+> **作者**：Kairong Luo, Jiarui Cui, Yaorui Yin, Shengqi Chen, Yiming Yang, Linxiang Gao, Yanmohan Wang, Chengxia Li, Mingzhe Zhang, Kaifeng Lyu, Wenguang Chen（清华大学 / 鹏城实验室）
 > **arXiv ID**：2608.27370
 > **发表时间**：2026-08-27
 > **许可协议**：Apache 2.0（各数据组件 license 不同）
@@ -22,15 +22,15 @@ Puro-2B 是一套面向"贫困实验室"（poor lab）的**从零预训练复现
 | **Figure 8** | 两阶段数据域组成 | 第 5 章 |
 | **Figure 11** | Post-training 转移结果（GSM8K 等） | 第 7 章 |
 | **Table 1** | 两条生产运行的成本核算 | 第 6 章 |
-| **Table 2** | 两阶段数据域组成（tokens/份额） | 第 5 章 |
-| **Table 3** | 数学与代码主结果（4 基准） | 第 6 章 |
-| **Table 4** | 推理与知识主结果（11 基准） | 第 6 章 |
+| **Table 3** | 两阶段数据域组成（tokens/份额） | 第 5 章 |
+| **Table 4** | 数学与代码主结果（4 基准） | 第 6 章 |
+| **Table 5** | 推理与知识主结果（11 基准） | 第 6 章 |
 
 ### 1.2 核心贡献
 
 1. **低成本从零预训练配方**：硬件（RTX 5090 集群）、精度（blockwise FP8）、优化器（MuonH Hyperball）、数据顺序（Curriculum Model Averaging）与数据选择（proxy benchmarking）五个效率组件协同设计，最优模型以 **$6.9K** 复现成本逼近 Qwen2.5-1.5B，$4.4K 变体已超过 Qwen2-1.5B。
 2. **Puro Cost Scaling Law**：配方专属的"预算→能力"缩放关系 $P = a + b\log_2(C - C_{P1})$，为有限算力社区提供预算规划参考；拟合在 $4.4K$ 处跨越 Qwen2-1.5B 性能聚合线。
-3. **端到端 post-training 案例研究**：证明预训练阶段 curriculum/CMA 与 uniform 两种配方的差异在相同 SFT 后依然可测——聚焦数学 GSM8K +1.77pp、扩展数学 +2.02pp、广度指令 15-task 宏平均 +1.59pp（18 项评估中 15 项占优）。
+3. **端到端 post-training 案例研究**：证明预训练阶段 curriculum/CMA 与 uniform 两种配方的差异在相同 SFT 后依然可测——聚焦数学 GSM8K +1.77pp、扩展数学 +2.02pp、广度指令 15-task 宏平均 +1.17pp（15 项中 10 项占优）。
 4. **全量开源**：10 个中间 checkpoint、数据 manifest 与组件、训练代码（Puro-Megatron）、数据处理代码（Kaiyuan-Spark）均以 Apache 2.0 发布，使预训练流程本身可被科学审视与复现。
 
 ### 1.3 关键结果速览
@@ -42,12 +42,12 @@ Puro-2B 是一套面向"贫困实验室"（poor lab）的**从零预训练复现
 | 复现成本（canonical） | $6.89K（46,905 RMB，RTX 5090 $0.31/h） | 租用等价核算 |
 | 复现成本（uniform 1/2） | $4.37K（14,262 GPU-h） | Table 1 |
 | 训练日历时长 | 17.6 天（P1: 10.43d + P2: 7.16d） | Table 1 |
-| 最优模型 15 基准平均（Avg15） | 57.81% | 论文 Table 16（附录 G） |
-| 数学与代码 4 基准平均 | 43.50%（GSM8K 59.67%、MATH 30.30%、MBPP 52.92%、HumanEval 31.10%） | Table 3 |
-| 推理与知识 11 基准平均 | 63.02% | Table 4 |
+| 最优模型 15 基准平均（Avg15） | 57.81% | 论文 Table 19（附录 G） |
+| 数学与代码 4 基准平均 | 43.50%（GSM8K 59.67%、MATH 30.30%、MBPP 52.92%、HumanEval 31.10%） | Table 4 |
+| 推理与知识 11 基准平均 | 63.02% | Table 5 |
 | 混合精度 MFU | ~73%（FP8 72% + BF16 28% 加权峰值） | §3.1.3 |
-| Phase 1 / Phase 2 吞吐 | 238 / 192 TFLOP/s/GPU | Table 7 |
-| 数据规模 | P1: 438.84B（EN 73.2%）；P2: 938.06B 池（Math 18.3%） | Table 2 |
+| Phase 1 / Phase 2 吞吐 | 238 / 192 TFLOP/s/GPU | Table 8 |
+| 数据规模 | P1: 438.84B（EN 73.2%）；P2: 938.06B 池（Math 18.3%） | Table 3 |
 
 ![Figure 1: Model performance versus reproduction cost under the accounting protocol](Figures/2026-08-29-puro-2b-low-cost-pretraining-recipe-fig1.jpeg)
 
@@ -103,7 +103,7 @@ Puro-2B 的全部预训练与后训练都运行在消费级 RTX 5090 集群上�
 | RTX PRO 6000 | 503.8 | 1007.6 | 96 GB | 1.8 TB/s | 600 W | $1.89/h | 0.96 | 1.92 |
 | RTX 5090 | 209.5 | 419 | 32 GB | 1.8 TB/s | 575 W | $0.31/h | 2.43 | 4.87 |
 
-RTX 5090 的绝对峰值吞吐远低于数据中心 GPU（其 Tensor Core 在 FP32 累加下被限制为实际峰值的一半），但极低的有效价格带来约 **2.77×（BF16）/ 2.74×（FP8）H200 的单位美元计算量**。此外，受政策与成本约束拿不到 GB200 等 Blackwell 数据中心加速器时，RTX 5090 也是唯一具备 FP4 支持的现实选择。
+RTX 5090 的绝对峰值吞吐远低于数据中心 GPU（其 Tensor Core 在 FP32 累加下被限制为实际峰值的一半），但极低的有效价格带来约 **2.77×（BF16）/ 2.74×（FP8）H200 的单位美元计算量**。此外，受政策与成本约束拿不到 GB200 等 Blackwell 数据中心加速器时，RTX 5090 也是具备 FP4 支持的最实用选择（RTX PRO 6000 同样支持 NVFP4，但价格更高）。
 
 ### 3.2 硬件破解：P2P 与 GDR
 
@@ -200,7 +200,7 @@ WSD（Warmup-Stable-Decay）扫描（0.6B 模型、TPP=20、有效峰值 0.008�
 
 ### 5.1 数据域组成
 
-训练语料全部来自许可允许使用的公开数据集（网页文本、代码、数学、合成数据），可重建复现。两阶段域组成（Table 2，token 数按物化组件实测）：
+训练语料全部来自许可允许使用的公开数据集（网页文本、代码、数学、合成数据），可重建复现。两阶段域组成（Table 3，token 数按物化组件实测）：
 
 | 域 | Phase 1 tokens | Phase 1 份额 | Phase 2 tokens | Phase 2 份额 |
 |------|---------------|-------------|---------------|-------------|
@@ -222,7 +222,7 @@ Phase 1 强调广度覆盖（英语 73.2%），Phase 2 把数学提升为最大�
 不存在跨来源可比的样本级质量分数，因此论文用 **proxy benchmarking** 代替全局文档排序：用共享的 Qwen3-0.6B proxy checkpoint 在候选来源（或其切片）的 token 上继续训练，再用固定的 15-benchmark 套件评测，把得到的分数向量当作该候选的"能力画像"。
 
 - **更细粒度**：对带样本级质量分数的大来源，按分数排序后取 0th/25th/50th/75th 百分位（q00–q75）的 token 匹配窗口分别做 proxy 评测（如 DCLM、FineWeb-Edu-CN/EN 的四个切片），支持来源内的细粒度筛选决策。
-- **目标驱动选择**：因为目标强化数学推理（且数学数据预训练被报告能外推至更广推理），Phase 2 数学成为最大专项；PCA 辅助解释——General 对齐 PC1（34.5%）、Code 与之对抗，Math 对齐 PC2（28.1%），支撑"数学配额高于代码"的分配。MegaMath-Web-Pro 数学与 General 点估计最高（+2.88/+0.67），故 Phase 2 加入 13.5B tokens 并移除 FineMath，Nemotron-CC-Math 4+ 份额从 2.62% 降至 0.26%、SwallowMath 从 2.28% 降至 1.42%。
+- **目标驱动选择**：因为目标强化数学推理（且数学数据预训练被报告能外推至更广推理），Phase 2 数学成为最大专项；PCA 辅助解释——General 对齐 PC1（34.5%）、Code 与之对抗，Math 对齐 PC2（28.1%），支撑"数学配额高于代码"的分配。MegaMath-Web-Pro 在 Math 与 General 上表现最强，故 Phase 2 加入 13.5B tokens 并移除 FineMath，Nemotron-CC-Math 份额从 2.62% 降至 0.26%、SwallowMath 从 2.28% 降至 1.42%。
 - **域内过滤**：供应超预算时保留 proxy 分更高的切片；轴领先数据集（FineWeb-Edu-CN、DCLM、MegaMath-Code）分别补足 Chinese/General/Code 轴。
 
 ### 5.3 Kaiyuan-Spark 预处理流水线
@@ -266,7 +266,7 @@ Phase 2 的课程化目标：让模型在训练后期接触各来源内更偏好
 - **15 基准**：数学与代码（GSM8K、MATH、sanitized-MBPP、HumanEval）+ 推理与知识（MMLU、MMLU-Pro、ARC-C/E、BoolQ、CSQA、HellaSwag、PIQA、SIQA、WinoGrande、BBH）。
 - **实现**：OpenCompass 统一管线（固定 checkpoint/tokenizer/数据集快照/prompt/shot/生成配置/后处理器）。GSM8K、MATH、MBPP、HumanEval、MMLU-Pro、BBH 用生成式（GEN）贪婪解码；其余 9 个用困惑度式（PPL）候选排序。按 OLMES 惯例，支持 cloze 与 multiple-choice 双表述的任务取每模型更优表述计入聚合。所有分数为百分比。
 
-### 6.2 数学与代码能力（Table 3）
+### 6.2 数学与代码能力（Table 4）
 
 | 模型 | Params | GSM8K 4-shot | MATH 4-shot | MBPP 3-shot | HumanEval 3-shot | Avg |
 |------|--------|-------------|-------------|-------------|-----------------|-----|
@@ -292,7 +292,7 @@ Phase 2 的课程化目标：让模型在训练后期接触各来源内更偏好
 
 Puro-2B 四基准平均 43.50%，超过 Qwen2-1.5B 3.21pp、距 Qwen2.5-1.5B 4.02pp；在 open-recipe 组中超越 Instella-3B、OLMoE-A1B/7B、MiniCPM5-1B，低于 Yulan-Mini-2.4B、SmolLM3-3B 与 MobileLLM-R1（数学/代码导向的强紧凑基线，高出 Puro-2B 3.86pp——注意其参数与能力侧重点不同）。
 
-### 6.3 推理与知识能力（Table 4）
+### 6.3 推理与知识能力（Table 5）
 
 | 模型 | MMLU | MMLU-Pro | ARC-C | ARC-E | BoolQ | CSQA | HSwag | PIQA | SIQA | Wino | BBH | Avg |
 |------|------|----------|-------|-------|-------|-------|-------|------|------|------|-----|-----|
@@ -349,7 +349,7 @@ $C_{P1}$ 取实测 Phase 1 active GPU-hours 固定不变，对增量 Phase 2 成
 
 ### 6.6 跨模型复现成本对比（Pareto 前沿）
 
-成本坐标构建遵循证据层级：报告货币成本 > 报告 GPU-hours > 6ND 估算（无报告时以 H100 等价、70% MFU、989.5 TFLOP/s 估算）。Table 6 关键坐标：
+成本坐标构建遵循证据层级：报告货币成本 > 报告 GPU-hours > 6ND 估算（无报告时以 H100 等价、70% MFU、989.5 TFLOP/s 估算）。Table 7 关键坐标：
 
 | 模型 | 证据 | GPU-hours | Cost (USD) | Avg score |
 |------|------|-----------|-----------|-----------|
@@ -368,7 +368,7 @@ $C_{P1}$ 取实测 Phase 1 active GPU-hours 固定不变，对增量 Phase 2 成
 | MobileLLM-R1-950M-base | 报告计数/时长 | 36,864 | 65,987 | 54.23 |
 | **Puro-2B** | **实测 GPU-hours** | **22,514** | **6,891** | **57.81** |
 
-（Avg score 为 15 基准等权平均；Puro-2B 用实测 active 训练时间而非 6ND 估算。完整坐标与来源见论文 Table 6 与附录 B）
+（Avg score 为 15 基准等权平均；Puro-2B 用实测 active 训练时间而非 6ND 估算。完整坐标与来源见论文 Table 7 与附录 B）
 
 在统一核算下，Puro-2B 位于对比模型 Pareto 前沿的左上侧，且在完全开放（open-recipe）对比组中优势尤其显著。注意论文假设理想 MFU 估算多数对比模型，这些成本是复现下界估计。
 
@@ -378,24 +378,20 @@ $C_{P1}$ 取实测 Phase 1 active GPU-hours 固定不变，对增量 Phase 2 成
 
 ### 7.1 聚焦数学（Focused Mathematics）
 
-清洁 GSM8K 配置（191,767 条打包记录 / 41.4M 监督 tokens，无预训练 replay，172 步，3 次重复）：
+清洁 GSM8K 配置（191,767 条源对话 / 41.42M 监督 tokens，无预训练 replay，172 步，3 次重复）：
 
 | Run | Step | Uniform | Curriculum | Δ | IoU | C-only | U-only |
 |-----|------|---------|-----------|-----|-----|--------|--------|
-| 1 | 100 | 65.88 | 67.40 | +1.52 | .707 | 161 | 141 |
 | 1 | 172 | 67.32 | 69.14 | +1.82 | .754 | 138 | 114 |
-| 2 | 100 | 66.41 | 68.39 | +1.97 | .723 | 156 | 130 |
 | 2 | 172 | 67.10 | 69.22 | +2.12 | .721 | 160 | 132 |
-| 3 | 100 | 66.11 | 66.72 | +0.61 | .724 | 144 | 136 |
 | 3 | 172 | 66.26 | 67.63 | +1.36 | .730 | 147 | 129 |
-| **Mean** | 100 | 66.14 | 67.50 | **+1.36** | – | – | – |
 | **Mean** | **172** | **66.89** | **68.66** | **+1.77** | – | – | – |
 
-全部 6 次配对比较（含全部 3 个端点）均 favor curriculum；端点优势 1.36–2.12pp、平均 1.77pp。IoU 约 0.72–0.75 且每行 C-only > U-only，说明增益不是多次运行平均出来的伪象；显式答案计分下平均优势保持，排除格式效应。
+3 次终点重复均 favor curriculum（1.36–2.12pp，平均 1.77pp），中间评估方向一致（论文未给数值）。IoU 约 0.72–0.75 且每行 C-only > U-only，说明增益不是多次运行平均出来的伪象；显式答案计分下平均优势保持，排除格式效应。
 
 ### 7.2 扩展数学（Scaled Mathematics）
 
-更大数学混合（2,014,933 对话，含 99,989 条 replay 记录，2,431 步）：
+更大数学混合（2,014,933 源对话，replay 占 4.96% 对话 / 2.46% 监督 tokens，2,431 步）：
 
 | Run | Uniform | Curriculum | Δ | IoU | C-only | U-only |
 |-----|---------|-----------|-----|-----|--------|--------|
@@ -412,34 +408,32 @@ $C_{P1}$ 取实测 Phase 1 active GPU-hours 固定不变，对增量 Phase 2 成
 
 ### 7.3 广度指令微调（Broad Instruction）
 
-Tulu-3 SFT 来源（264,612 条打包记录 / 82.2M 监督 tokens，step 300 对比，15-task OpenCompass 宏平均）：
+Tulu-3 SFT 来源（264,612 条源对话 / 82.25M 监督 tokens，step 449 对比，15-task OpenCompass 宏平均）：
 
 | Benchmark | Uniform | Curriculum | C−U (pp) |
 |-----------|---------|-----------|----------|
-| GSM8K | 59.82 | 59.97 | +0.15 |
-| MATH | 21.70 | 25.56 | +3.86 |
-| HumanEval | 44.51 | 41.46 | −3.05 |
-| MBPP | 50.58 | 51.36 | +0.78 |
-| C-Eval | 43.96 | 45.78 | +1.82 |
-| CMMLU | 46.64 | 47.19 | +0.54 |
-| MMLU | 53.66 | 55.55 | +1.89 |
-| ARC-C | 61.02 | 66.44 | +5.42 |
-| ARC-E | 80.42 | 81.83 | +1.41 |
-| BoolQ | 73.30 | 70.37 | −2.93 |
-| CommonsenseQA | 65.77 | 68.39 | +2.62 |
-| HellaSwag | 43.72 | 49.59 | +5.88 |
-| PIQA | 67.85 | 70.08 | +2.23 |
-| SIQA | 60.49 | 62.64 | +2.15 |
-| WinoGrande | 51.46 | 52.57 | +1.10 |
-| **15-task 宏平均** | **54.99** | **56.58** | **+1.59** |
+| GSM8K | 59.92 | 59.23 | −0.68 |
+| MATH | 22.39 | 26.18 | +3.79 |
+| HumanEval | 42.27 | 40.65 | −1.63 |
+| MBPP | 50.97 | 50.84 | −0.13 |
+| MMLU | 53.97 | 55.80 | +1.83 |
+| MMLU-Pro | 25.73 | 26.11 | +0.38 |
+| ARC-C | 63.28 | 67.23 | +3.95 |
+| ARC-E | 80.90 | 83.60 | +2.70 |
+| BoolQ | 74.18 | 69.57 | −4.61 |
+| CommonsenseQA | 66.09 | 68.69 | +2.59 |
+| HellaSwag | 43.69 | 50.94 | +7.25 |
+| PIQA | 68.79 | 69.01 | +0.22 |
+| SIQA | 61.05 | 63.19 | +2.13 |
+| WinoGrande | 51.62 | 52.46 | +0.84 |
+| BBH | 44.58 | 43.52 | −1.06 |
+| **15-task 宏平均** | **53.96** | **55.13** | **+1.17** |
 
 | 附加评估 | Uniform | Curriculum | C−U (pp) |
 |---------|---------|-----------|----------|
-| IFEval | 49.26 | 53.14 | +3.88 |
-| BBH | 34.94 | 34.19 | −0.75 |
-| MMLU-Pro | 25.58 | 26.08 | +0.50 |
+| IFEval | 41.71 | 43.07 | +1.36 |
 
-15-task 宏平均 +1.59pp、13/15 组件提升；加上 IFEval/BBH/MMLU-Pro 共 **15/18 项评估占优**。负转移集中在 HumanEval（−3.05pp）与 BoolQ（−2.93pp），论文在附录完整披露。三组研究共同结论：**curriculum 预训练配方的优势在聚焦数学、扩展数学与广度指令三个尺度上都经受住了监督适应的检验**。
+15-task 宏平均 +1.17pp、15 项中 10 项占优；IFEval 单列 +1.36pp。负转移集中在 BoolQ（−4.61pp）、HumanEval（−1.63pp）与 BBH（−1.06pp），论文在附录完整披露。三组研究共同结论：**curriculum 预训练配方的优势在聚焦数学、扩展数学与广度指令三个尺度上都经受住了监督适应的检验**。
 
 ## 第 8 章 开源资源与复现指南
 
@@ -456,7 +450,7 @@ Tulu-3 SFT 来源（264,612 条打包记录 / 82.2M 监督 tokens，step 300 对
 
 10 个 checkpoint 覆盖两阶段（Phase 1 共享终点）、5 个 uniform 缩放点、curriculum 端点及其 SMA6 输入，构成 Puro Cost Scaling Law 的完整账本。
 
-### 8.2 生产训练配置（Table 7/8 摘要）
+### 8.2 生产训练配置（Table 8/9 摘要）
 
 | 参数 | 值 |
 |------|-----|
@@ -494,7 +488,7 @@ Tulu-3 SFT 来源（264,612 条打包记录 / 82.2M 监督 tokens，step 300 对
 
 ### 9.4 未来方向
 
-1. **配方向 post-training 扩展**：本文已在 focused/scaled/broad 三种设置下验证初始化差异可穿透 SFT（GSM8K +1.77pp / +2.02pp、15-task +1.59pp），但完整的 post-training 流水线（指令、偏好对齐、RL）尚待按同样的 open-recipe 标准开源，重点发展 agentic 能力研究。
+1. **配方向 post-training 扩展**：本文已在 focused/scaled/broad 三种设置下验证初始化差异可穿透 SFT（GSM8K +1.77pp / +2.02pp、15-task +1.17pp），但完整的 post-training 流水线（指令、偏好对齐、RL）尚待按同样的 open-recipe 标准开源，重点发展 agentic 能力研究。
 2. **架构空间扩展**：当前 recipe 针对 dense Transformer（2B、序列长度 4,096）；向 looped Transformer、线性注意力、MoE 等架构与更长上下文的推广有待验证。
 3. **硬件范围扩展**：五大组件中的 FP8 blockwise、MuonH、CMA 均不绑定 RTX 5090，但硬件选择（含 P2P/GDR 驱动级适配）是针对 5090 深度调优的；向其他消费级乃至数据中心 GPU 的移植、以及 Puro Cost Scaling Law 在其他成本档位的适用性，是自然的后续工作。
 

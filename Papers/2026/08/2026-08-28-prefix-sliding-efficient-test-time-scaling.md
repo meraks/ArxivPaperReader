@@ -1,5 +1,5 @@
 > **论文**：Prefix Sliding for efficient test-time scaling
-> **作者**：Niklas Muennighoff, Zhengyang Wang, Zeyi Chen, Weijia Shi, Binyuan Hui, John Yang, Dapeng Jiang, Mika Senghaas, Fares Obeid, Johannes Hagemann, Sami Jaghouar, Ludwig Schmidt, Percy Liang, Jason Wei, Andrew Y. Ng, Luke Zettlemoyer, Yejin Choi, Mike Lewis（共 17 位作者）
+> **作者**：Niklas Muennighoff, Zhengyang Wang, Zeyi Chen, Weijia Shi, Binyuan Hui, John Yang, Dapeng Jiang, Mika Senghaas, Fares Obeid, Johannes Hagemann, Sami Jaghouar, Ludwig Schmidt, Percy Liang, Jason Wei, Andrew Y. Ng, Luke Zettlemoyer, Yejin Choi, Mike Lewis（共 18 位作者）
 > **arXiv ID**：2608.26070
 > **发表时间**：2026-08-26
 > **许可协议**：Apache-2.0
@@ -19,24 +19,25 @@
 - **RL 训练场景**：配合截断反向传播（truncated backpropagation）与 4× 窗口倍率，RL rollout 可扩展到超过 100,000 tokens，并通过更长思考取得更高 reward；
 - **对比替代方案**：消融显示 Prefix Sliding 优于 summarization（compaction）、last k 与纯 sliding window 三类同样支持无限 test-time scaling 的方案。
 
-从作者构成看，这是一项横跨斯坦福（一作为斯坦福 Knight-Hennessy 学者）与多个工业实验室（顾问团队含 Percy Liang、Andrew Y. Ng、Luke Zettlemoyer、Yejin Choi、Jason Wei、Mike Lewis 等）的系统性工作：既有机制与算法层面的创新（注意力结构、RL 截断方案），也有完整的系统落地（定制 Hopper kernel、vLLM 集成、开源代码与数据托管）。
+从作者构成看，这是一项横跨斯坦福（一作为斯坦福 Knight-Hennessy 学者）、华盛顿大学、UCSB 与 Prime Intellect 等机构（顾问团队含 Percy Liang、Andrew Y. Ng、Luke Zettlemoyer、Yejin Choi、Jason Wei、Mike Lewis 等）的系统性工作：既有机制与算法层面的创新（注意力结构、RL 截断方案），也有完整的系统落地（定制 Hopper kernel、vLLM 集成、开源代码与数据托管）。
 
 ### 论文图表总览
 
-本报告引用论文 5 张核心图（Figure 1/2/3/8/9）并完整转录 3 张核心表（Table 1/2/3），各自与本报告章节的对应关系如下：
+本报告引用论文 6 张核心图（Figure 1/2/3/7/8/9）并完整转录 3 张核心表（Table 1/2/3），各自与本报告章节的对应关系如下：
 
 | 编号 | 内容简述 | 对应章节 |
 |---|---|---|
 | Figure 1 | 免训练主结果：Prefix Sliding vs full attention 的效率-性能对比曲线 | 第 5 章 |
 | Figure 2 | Motivation：注意力分布分析（prefix attention sink、`<think>` 分隔符高注意力、轨迹中段低、末尾升高） | 第 3 章 |
 | Figure 3 | 方法示意：prefix + 滑动窗口，丢弃中间推理 token | 第 3 章 |
-| Figure 8 | RL 训练：更长推理轨迹 → 更高 reward；KL 消融（1×/2×/4×/8× 倍率） | 第 5 章 |
+| Figure 7 | RL 训练：更长推理轨迹 → 更高 reward | 第 5 章 |
+| Figure 8 | 截断反向传播的 KL 消融（1×/2×/4×/8× 倍率） | 第 5 章 |
 | Figure 9 | 消融对比：Prefix Sliding vs last k vs summary vs 纯 sliding window | 第 5 章 |
 | Table 1 | 窗口大小扫描（Qwen3-1.7B，avg@64）：AIME25/GPQA/MATH500 精度、平均生成长度与吞吐 | 第 5 章 |
 | Table 2 | Last k 超参扫描：k 从 64 到 1024 的 MATH500 与 AIME25 结果 | 第 5 章 |
 | Table 3 | Summary prompt 消融：三种摘要提示的 AIME25 精度与 coverage | 第 5 章 |
 
-论文中未被本报告直接引用的图表（Figure 4/5 为位置编码与反向传播示意、Figure 6 为 kernel 速度对比、Figure 10–13 为附录补充图）会在正文相应位置以文字形式转述其结论。
+论文中未被本报告直接以图形式引用的图表（Figure 4/5 为位置编码与反向传播示意、Figure 6 为 kernel 速度对比；Figure 10 在 Related Work，Figure 11/12 在 Limitations，Figure 13 在 Appendix B）会在正文相应位置以文字形式转述其结论。
 
 ### 1.2 核心贡献
 
@@ -46,9 +47,9 @@
 
 2. **提出 Prefix Sliding（方法层）**：推理时仅保留 prefix + 滑动窗口内的 token，其余中间推理 token 全部丢弃。这使得每个新 token 的生成成本恒定（与已生成 token 总数无关），从机制上封顶了总内存需求，支持无限时长的 test-time scaling。方法本身无需重新训练预训练模型，直接修改推理时的注意力可见范围即可。
 
-3. **免训练可用（实验层）**：方法可以直接应用于现有已训练模型（无需任何微调），配合 vLLM + 定制 FlashAttention kernel，在保持性能的同时取得约 3× 加速。这一点非常重要：它意味着任何已有的 full-attention 推理模型都能零成本迁移到有界注意力模式。
+3. **免训练可用（实验层）**：方法可以直接应用于现有已训练模型（无需任何微调），配合 vLLM + 定制 FlashAttention kernel，在保持性能的同时取得约 3× 加速。这一点非常重要：它意味着这类已训练模型无需重新训练即可切换到有界注意力模式（本文在 Qwen3-1.7B 与 7B 上验证；实际使用仍需定制 kernel/vLLM 构建，见第 6 章）。
 
-4. **RL 训练配合（方法 + 系统层）**：提出截断反向传播（truncated backpropagation）机制——按 4× 倍率把 token 传给 trainer（窗口 4 倍大小的上下文传入、仅窗口内部分计算 loss，以 loss mask 实现），支持超过 100,000 token 的 RL rollout；既兼容异步 RL（prime-rl），也兼容同步 RL（trl GRPO）。KL 消融（1×/2×/4×/8×）系统性地确定了该倍率。
+4. **RL 训练配合（方法 + 系统层）**：采用截断反向传播（truncated backpropagation）机制——按 4× 倍率把 token 传给 trainer（窗口 4 倍大小的上下文传入、仅窗口内部分计算 loss，以 loss mask 实现），支持超过 100,000 token 的 RL rollout；既兼容异步 RL（prime-rl），也兼容同步 RL（trl GRPO）。KL 消融（1×/2×/4×/8×）系统性地确定了该倍率。
 
 5. **定制 FlashAttention kernel（系统层）**：针对 Hopper 架构实现两级过滤的 kernel——intra-tile masking（tile 与允许区域部分重叠时做元素级 mask）+ inter-tile skipping（完全落在允许区域外的 tile 直接跳过，producer-consumer 流水线迭代 prefix blocks 与 window blocks 两个不相交块区间），运行效率接近标准 sliding window kernel。
 
@@ -63,7 +64,7 @@
 - **窗口过小的代价**：窗口 2048 时 AIME25 降至 **27.7%**（vs full 的 34.2%），但吞吐高达 **8737 tok/s**（@128K tokens）；窗口 4096 起精度即接近 full attention（AIME25 **33.9%**）同时保有 **5224 tok/s**（@128K tokens）。
 - **平均生成长度异常**：窗口 2048 时 AIME25 平均生成长度达 **47643 tokens**，远高于其他配置（约 19K–30K tokens），提示窗口过小时模型以更长的重试轨迹补偿信息丢失。
 - **Kernel 效率**：定制 FlashAttention kernel 的吞吐接近普通 sliding window kernel，稳定在约 **5,000 tok/s**（Figure 6）。
-- **RL 训练**：在相近内存预算下，RL + Prefix Sliding 支持更长推理轨迹 → 更高 reward（Figure 8）。KL 消融显示：只传窗口本身（1×，2K tokens）时 KL > 0.1，2×（4K tokens）显著降低，4×（8K tokens）被选定——KL 略低且与 8×（16K tokens）相当。
+- **RL 训练**：在相近内存预算下，RL + Prefix Sliding 支持更长推理轨迹 → 更高 reward（Figure 7）。KL 消融（Figure 8）显示：只传窗口本身（1×，2K tokens）时 KL > 0.1，2×（4K tokens）显著降低，4×（8K tokens）被选定——KL 略低且与 8×（16K tokens）相当。
 - **7B 规模验证**：DeepSeek-R1-Distill-Qwen-7B + prime-rl 异步 RL 下，**32768 tokens** 传给 trainer、Prefix Sliding 仅反向传播 **8192 tokens**（窗口 8192，倍率 4×），性能与控制序列长度的 full attention 相当（Appendix E）。
 - **超长 rollout**：RL 训练可扩展到超过 **100,000 tokens** 的推理轨迹（摘要声明）；论文整体验证规模到 7B 模型与数十万 token 轨迹。
 - **消融结论**：Prefix Sliding 提供最佳性能-效率权衡（Figure 9）；last k 超参扫描选定 k=256（MATH500 **60.8%**、AIME25 **4.2%**，Table 2）；summary prompt 消融选定 prompt 2（AIME25 **26.4%**、coverage **53.3%**，Table 3）。
@@ -263,7 +264,7 @@ Prefix Sliding 的三层设计环环相扣，各解决一个层面的瓶颈：
 窗口大小的扫描范围为 **512 / 1024 / 2048 / 4096 / 8192 / 16384**（tokens）：
 
 - Table 1（Appendix C）报告其中 **2048 / 4096 / 8192 / 16384** 四档与 full attention 的完整对比；
-- 其他窗口大小（512/1024 等）的补充结果见 **Appendix B（Figure 13）**；
+- 其他窗口大小：**Appendix B（Figure 13）**给出窗口 **8192/16384** 的 Figure 1 版本；512/1024 仅列入扫描设置（§3），论文未给出其完整结果；
 - LiveCodeBench 的评估使用**窗口 16384 的专门配置**（见第 5.4 节与第 6 章）。
 
 窗口是本方法最核心的超参，直接决定 1.5×W 有效感受野的大小与吞吐水平（第 5.1.2 节逐行分析）。
@@ -324,7 +325,7 @@ RL 训练数据基于 **SkyWork + s1** 两个数据集的合并构建：
 #### 5.1.1 定性结论（Figure 1）
 
 ![Figure 1: 免训练主结果](Figures/2026-08-28-prefix-sliding-efficient-test-time-scaling-fig1.png)
-*图1：免训练主结果。将 Prefix Sliding 直接应用于以 full attention 训练的现有模型，依然取得更优的效率-性能权衡：其吞吐（配合定制 kernel）稳定在约 5,000 tok/s 不随序列长度衰减，而 full attention 每 token 成本随序列长度持续增长、吞吐持续下降；两者精度相当。*
+*图1：免训练主结果。将 Prefix Sliding 直接应用于以 full attention 训练的现有模型，依然取得更优的效率-性能权衡：横轴为每样本平均思考时间（秒），纵轴为精度；相同思考时间下 Prefix Sliding 生成更多 token、精度更高，相同精度下约快 3×（窗口 4096）。吞吐随序列长度的对比见 Figure 6。*
 
 核心定性结论有两条：
 
@@ -346,7 +347,7 @@ RL 训练数据基于 **SkyWork + s1** 两个数据集的合并构建：
 **（一）性能：不降甚至略升。** 三个基准上受限窗口与 full attention 的对比：
 
 - **AIME25**：窗口 8192 取得 **35.8%**，高于 full attention 的 **34.2%**（+1.6 个百分点）；窗口 16384 为 **35.3%**，同样高于 full；窗口 4096 为 **33.9%**，与 full 基本持平；窗口 2048 掉到 **27.7%**（−6.5 个百分点）；
-- **GPQA**：四个窗口全部不低于 full（**37.6%**），且随窗口单调改善：2048→**35.9%**、4096→**37.0%**、8192→**38.0%**、16384→**38.2%**（+0.6 个百分点）；
+- **GPQA**：随窗口增大单调改善：2048→**35.9%**、4096→**37.0%**、8192→**38.0%**、16384→**38.2%**；其中 8192/16384 高于 full 的 **37.6%**（+0.4/+0.6 个百分点），2048/4096 分别低 1.7/0.6 个百分点；
 - **MATH500**：所有窗口都在 **89.8%–91.5%** 区间，与 full 的 **91.7%** 几乎无差。
 
 受限窗口不伤性能、甚至在 AIME25/GPQA 上略优，与第 2.3 节的长上下文病理一致——丢弃中段 token 同时丢弃了干扰源。窗口 2048 在 AIME25 上的明显退化则标出了信息瓶颈的底线：1.5×W ≈ 3072 tokens 的有效感受野对竞赛级长推理不够用。
@@ -357,22 +358,22 @@ RL 训练数据基于 **SkyWork + s1** 两个数据集的合并构建：
 - **@32K tokens**：窗口 8192 为 **3291 tok/s** vs full 的 **1477 tok/s**，约 **2.2×**；
 - 序列从 32K 增到 128K（4 倍），full attention 吞吐从 **1477** 掉到 **448 tok/s**（约 3.3 倍衰减），而窗口 8192 只从 **3291** 降到 **2788 tok/s**（约 1.2 倍衰减）——full attention 随序列增长持续变慢，Prefix Sliding 基本稳定，因此**加速比随思考长度增长**，越长的思考收益越大。
 
-**（三）吞吐-窗口的权衡曲线。** 窗口每缩小一半，吞吐大约翻倍（16384→8192：1420→2788 tok/s @128K；8192→4096：2788→5224；4096→2048：5224→8737），而窗口 4096 起精度即接近 full 水平——**窗口 4096–8192 是精度-速度的甜蜜区**：比 full 快 2.2×–11.7×（@32K–@128K tokens）且 AIME25/GPQA/MATH500 三项均不低于或优于 full。
+**（三）吞吐-窗口的权衡曲线。** 窗口每缩小一半，吞吐大约翻倍（16384→8192：1420→2788 tok/s @128K；8192→4096：2788→5224；4096→2048：5224→8737），而窗口 4096 起精度即接近 full 水平——**窗口 4096–8192 是精度-速度的甜蜜区**：比 full 快 2.2×–11.7×（@32K–@128K tokens）；其中 8192 在 AIME25/GPQA 上略优、MATH500 基本持平，4096 三项均略低于 full 但差距不超过 0.6 个百分点。
 
 **（四）avglen：窗口过小诱发更长的重试轨迹。** 窗口 2048 时 AIME25 avglen 达 **47643 tokens**，远高于其他配置（19158–29943 tokens）；GPQA 也呈同样趋势（2048 窗口 avglen **30107 tokens** vs full 的 **11403 tokens**）。这提示窗口过小时模型因丢失中间推理而倾向反复重试、生成更长轨迹——总 token 开销上升，部分抵消了高吞吐的优势。窗口 8192/16384 的 avglen（19373/19872 tokens）与 full（19158 tokens）几乎一致，说明在合理窗口下模型的生成行为不受影响。
 
 ### 5.2 RL 训练结果
 
-#### 5.2.1 更长轨迹 → 更高 reward（Figure 8）
+#### 5.2.1 更长轨迹 → 更高 reward（Figure 7）与 KL 消融（Figure 8）
 
-![Figure 8: RL 训练结果与 KL 消融](Figures/2026-08-28-prefix-sliding-efficient-test-time-scaling-fig8.png)
-*图8：RL 训练结果。在相近内存预算下，RL + Prefix Sliding 支持显著更长的推理轨迹，从而取得更高的 reward——full attention 在同等内存下无法容纳这些超长 rollout。KL 消融显示：仅窗口（1×，2K tokens）时 KL > 0.1；2×（4K tokens）显著降低；4×（8K tokens）选定——KL 略低且与 8×（16K tokens）相当。*
+![Figure 8: 截断反向传播的 KL 消融](Figures/2026-08-28-prefix-sliding-efficient-test-time-scaling-fig8.png)
+*图8：截断反向传播的 KL 消融。RL + Prefix Sliding 支持显著更长的推理轨迹并取得更高的 reward（Figure 7；在相近内存预算下，full attention 无法容纳这些超长 rollout）。KL 消融（Figure 8）显示：仅窗口（1×，2K tokens）时 KL > 0.1；2×（4K tokens）显著降低；4×（8K tokens）选定——KL 略低且与 8×（16K tokens）相当。*
 
 RL 部分的核心结论：由于 trainer 的反向传播被截断到 $4W$ 长度、生成器侧每 token 成本恒定，**在相近内存预算下 Prefix Sliding 允许远长于 full attention 的 rollout**，而更长的思考带来更高的 reward。
 
 这里的因果链值得强调：不是"Prefix Sliding 让 RL 更快收敛"，而是**它把被内存封顶的思考长度上限推开了**——同样的训练预算下，模型可以探索 100,000+ tokens 的推理轨迹（摘要声明的规模），这类轨迹在 full attention 下根本无法进入训练循环。reward 的提升来自更长思考解锁的解题能力，这正是 test-time scaling 的本意。
 
-**KL 消融细节**（Figure 8 右侧，量化"传给 trainer 的 token 量"这一超参）：
+**KL 消融细节**（Figure 8，量化"传给 trainer 的 token 量"这一超参）：
 
 | 倍率 | 传给 trainer 的 tokens（窗口 2048 时） | KL 结果 |
 |---|---|---|
@@ -443,7 +444,7 @@ Last k 的结构性缺陷有二：
 Summary 的结构性缺陷：
 
 - **新超参数多**：摘要触发时机、摘要长度、摘要 prompt 设计、是否强制等都需要调优，工程复杂度显著高于 PS 的单一窗口超参；
-- **摘要额外开销**：每次压缩都是一次额外的生成步骤，占用思考预算与墙钟时间；
+- **摘要额外开销**：每次压缩都是一次额外的生成步骤，增加墙钟时间；论文设置中摘要长度不从思考预算中扣减（反而给 summary 轻微优势）；
 - **信息跨轮丢失**：摘要是有损压缩，关键细节可能在多轮压缩中逐步丢失（摘要的摘要会不断失真）。
 
 #### 5.3.3 纯 sliding window：prefix 保留的反面验证
@@ -472,7 +473,7 @@ Figure 9 的总体结论：**Prefix Sliding 提供最佳的性能-效率权衡**
 - **LiveCodeBench（Figure 11）**：代码任务需要**更大的窗口**才能匹配 full attention。原因是模型会在代码注释中思考数千 token，而代码的开头部分（任务要求对应的初始代码结构）可能在长注释思考期间滑出窗口——这类"开头内容必须完整保留"的任务对窗口大小更敏感。仓库为此提供了窗口 16384 的专门评估配置（第 6 章）；
 - **HealthBench（Figure 12）**：任务平均仅 **2086 tokens**，窗口 2048 下**几乎从不发生滑动**，行为约等于 full attention，因此**没有加速空间**——短生成场景下 Prefix Sliding 既不伤性能也无收益，方法的价值集中在长思考场景。
 
-此外，Appendix G 还讨论了与 **H2O（Heavy Hitter Oracle）** 的对比：H2O 依据历史注意力得分保留"重击"（heavy hitter）token，属于 **backward-looking** 策略——回头看哪些 token 曾经重要；Prefix Sliding 则是 **forward-looking** 的结构性保留——预先规定 prefix 与最近窗口两个区域。两者结合有前景（H2O 或许能在被丢弃的中段中再抢救出少量高价值 token），但 H2O 的动态 token 选择机制**难以与 RL 训练集成**（选择不稳定/不可微），故未作为主对比方法。
+此外，Appendix G 还讨论了与 **H2O（Heavy Hitter Oracle）** 的对比：H2O 依据历史注意力得分保留"重击"（heavy hitter）token，属于 **backward-looking** 策略——回头看哪些 token 曾经重要；Prefix Sliding 则是 **forward-looking** 的结构性保留——预先规定 prefix 与最近窗口两个区域。两者结合有前景（H2O 或许能在被丢弃的中段中再抢救出少量高价值 token），但 H2O 未集成进 FlashAttention/vLLM，难以做公平的效率对比；且将其用于 RL 训练可能较困难，故未作为主对比方法。
 
 ## 第 6 章 代码实现
 
@@ -549,7 +550,7 @@ RL 训练数据集托管于 **`hf.co/datasets/prefixsliding/train_v6_filtered`**
 - **并行扩展**：多轨迹采样 + 聚合（majority voting 等），已知结论是收益随规模递减；
 - **顺序扩展**：单轨迹更长思考，是本文路径，但受 full attention 成本制约。
 
-本文的定位是为顺序扩展提供**成本有界**的基础设施。相关工作还包括 efficient thinking 方向——Appendix A 将其分为 **train-time**（训练时压缩思考）与 **test-time**（推理时控制思考）两类，Prefix Sliding 属于后者中"注意力结构"这一支。
+本文的定位是为顺序扩展提供**成本有界**的基础设施。相关工作还包括 efficient thinking 方向——Appendix A 指出这类方法可在 **train-time**、**test-time** 或两者兼有；Prefix Sliding 同时属于 train-time 与 test-time（既可用于 RL，也可直接用于已训练模型）。
 
 ### 7.3 相关工作：context extension 的有界 vs 无界成本
 
@@ -568,7 +569,7 @@ Appendix A 综述了 KV cache 相关工作，按策略分为：**pre-fill/post-f
 - H2O 依据历史注意力得分保留"重击" token，是 **backward-looking** 策略——回头看哪些 token 曾经获得高注意力；
 - Prefix Sliding 是 **forward-looking** 的结构性保留——预先规定 prefix 与最近窗口两个区域，不依赖运行时统计。
 
-Appendix G 讨论两者**结合有前景**——H2O 或许能在被丢弃的中段中再抢救出少量高价值 token，形成"结构性保留 + 统计性保留"的混合策略；但 H2O 的动态选择与 **RL 训练集成困难**（选择不可微/不稳定），留作未来工作。
+Appendix G 讨论两者**结合有前景**——H2O 或许能在被丢弃的中段中再抢救出少量高价值 token，形成"结构性保留 + 统计性保留"的混合策略；但 H2O 与 RL 训练集成可能较困难，留作未来工作。
 
 ### 7.5 结论
 
@@ -576,7 +577,7 @@ Appendix G 讨论两者**结合有前景**——H2O 或许能在被丢弃的中�
 
 1. **极长思考成为可能**：RL rollout 扩展到超过 100,000 tokens（摘要声明），思考长度不再被 full attention 的内存与成本封顶；
 2. **短思考也更高效**：免训练约 3× 加速；128K tokens 序列下窗口 8192 的吞吐 2788 tok/s vs full 的 448 tok/s（约 6.2×），32K 下约 2.2×；
-3. **两条使用路径均可行**：免训练直接用于现有模型（Table 1），RL 训练进一步解锁更长轨迹与更高 reward（Figure 8，Appendix E 的 7B 验证）；
+3. **两条使用路径均可行**：免训练直接用于现有模型（Table 1），RL 训练进一步解锁更长轨迹与更高 reward（Figure 7，Appendix E 的 7B 验证）；
 4. **优于替代方案**：在支持无限 test-time scaling 的方法中，Prefix Sliding 的性能-效率权衡最佳（Figure 9）。
 
 结合第 3 章的三层实现（Continue PE 复用缓存、4× 截断反向传播 + loss mask、Hopper 两级过滤 kernel）与第 6 章的开源交付（`Muennighoff/prefix-sliding`，Apache-2.0，代码/数据/评估结果全托管），Prefix Sliding 提供了一条从注意力机制层面解除 test-time scaling 成本约束的完整路径：保留模型真正关注的 prefix 与当前推理状态，放弃已被后续推理吸收的中间历史，把长思考的每 token 成本钉在常数上——$O(n) \;\longrightarrow\; O(|P| + W)$ 这一步收缩，就是全文全部收益的来源。

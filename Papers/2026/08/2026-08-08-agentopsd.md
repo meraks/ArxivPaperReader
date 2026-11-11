@@ -23,11 +23,11 @@ AgentOPSD 是一种 critic-free 的递归 turn-level 信用分配方法——将
 
 ### 1.2 核心贡献
 
-1. **形式化 turn-level credit**：将回合级信用定义为每个 turn 对 trajectory success belief 的边际修正量 $\Delta B_k$。通过 log-odds 空间的递归贝叶斯更新，证明 isolated self-distillation gap $e_k$ 本身不是 sequential credit——只有信念状态的边际变化才反映回合对最终结果的真实贡献。
+1. **形式化 turn-level credit**：将回合级信用定义为每个 turn 对 trajectory success belief 的边际修正量 $\Delta B_k$。通过 log-odds 空间的递归贝叶斯更新，指出 isolated self-distillation gap $e_k$ 本身不是 sequential credit，turn 信用应由信念状态的边际修正量 $\Delta B_k$ 刻画。
 
 2. **提出 AgentOPSD 方法**：聚合 token 级 teacher-student log-prob gap 为环境对齐的 turn 级证据 $e_k$，经折扣累加器 $c_k$ 在 log-odds 空间递归传播为 trajectory-success belief $B_k$，输出有界 advantage $\tilde{A}_k$ 注入标准策略损失。整个流程无需额外 rollout 或 learned critic，仅需一次 teacher forward pass。
 
-3. **系统实验验证**：在 ALFWorld、Search-QA、WebShop 三个交互环境、Qwen2.5-3B/7B 两个模型规模上，一致优于 GRPO 及 OPSD / RLSD / SDAR / StepOPSD 等自蒸馏基线。消融实验确认 turn-boundary aggregation 与 recursive belief revision 的互补收益。
+3. **系统实验验证**：在 ALFWorld、Search-QA、WebShop 三个交互环境、Qwen2.5-3B/7B 两个模型规模上，多数聚合指标优于 GRPO 及 OPSD / RLSD / SDAR / StepOPSD 等自蒸馏基线（对 SDAR 为 8 项中 6 项胜出、1 项并列、1 项落后）。消融实验确认 turn-boundary aggregation 与 recursive belief revision 的互补收益。
 
 ### 1.3 关键结果速览
 
@@ -158,13 +158,13 @@ AgentOPSD 与标准 GRPO 完全兼容，体现在三个方面：
 2. **无 critic**：信念状态 $B_k$ 由闭式递归计算，不引入 learned value function，无需训练额外的价值网络。
 3. **无额外 rollout**：teacher forward pass 仅在已采样的轨迹上进行一次 skill-conditioned 前向传播，不增加任何环境交互成本。
 
-训练开销仅为单次额外 teacher forward pass，相比 VinePPO 的蒙特卡洛树搜索或 RUDDER 的 return decomposition 网络，成本显著更低。
+训练开销仅为单次额外 teacher forward pass，相比 VinePPO 的蒙特卡洛 rollout 价值估计或 RUDDER 的 return decomposition 网络，成本显著更低。
 
 ## 第 4 章 相关工作
 
 ### 4.1 Verifiable-reward agentic post-training
 
-以 GRPO 为代表的 group-relative RL 方法将二元 verifiable reward 转化为 trajectory-level advantage，在数学推理和代码生成中效果显著。在 agentic 设定下，多回合交互要求 advantage 在 turn 级而非 trajectory 级分配。GiGPO 等方法从环境奖励侧改进 reward shaping，AgentOPSD 则从内部信用结构入手——保持 reward 信号不变，仅重塑 advantage 的 turn 级分配权重。
+以 GRPO 为代表的 group-relative RL 方法将二元 verifiable reward 转化为 trajectory-level advantage，在数学推理和代码生成中效果显著。在 agentic 设定下，多回合交互要求 advantage 在 turn 级而非 trajectory 级分配。GiGPO 等方法从环境奖励侧改进 step-level credit assignment，AgentOPSD 则从内部信用结构入手——保持 reward 信号不变，仅重塑 advantage 的 turn 级分配权重。
 
 ### 4.2 OPSD 家族
 
@@ -174,9 +174,9 @@ OPSD 家族通过 privileged self-distillation 提供稠密 token/step 级监督
 
 长时程信用分配的经典方法各有成本权衡：
 
-- **PPO / GAE**：依赖 learned value function 和 critic 网络，训练和推理开销大，且 critic 在 long-horizon 设定下方差高。
+- **PPO / GAE**：依赖 learned value function 和 critic 网络，重新引入 GRPO 所消除的训练 critic 成本。
 - **RUDDER**：通过 return decomposition 网络将最终奖励分配到各时间步，需要训练额外的 decomposition 模型。
-- **VinePPO**：用蒙特卡洛树搜索估计每个决策点的 value，计算成本极高（每个决策点需要多次 rollout）。
+- **VinePPO**：用蒙特卡洛 rollout 估计每个决策点的 value，计算成本极高（每个决策点需要多次 rollout）。
 - **AgentOPSD**：仅需一次额外 teacher forward pass（skill-conditioned 前向传播），计算成本与一次标准前向传播相当，无需额外环境交互或训练辅助网络。
 
 ## 第 5 章 实验结果与分析
@@ -330,8 +330,8 @@ Algorithm 1: AgentOPSD 单次训练迭代（turn 级粒度）
 **关键实现要点：**
 
 1. **teacher 分支与 student 分支共享参数 θ**（self-distillation）：teacher 分支的上下文为 `(sk, c+, yk,<t)`，student 分支为 `(sk, yk,<t)`，c+ 为训练期检索的 skill。teacher 输出 detached（不参与梯度），仅作为证据信号。
-2. **无额外 rollout、无 critic**：信念重塑块是元素级运算（clip/σ/logit），不增加任何可学习参数；相对 GRPO 的开销仅为每轨迹一次 teacher forward pass。
-3. **与 GRPO 的兼容性**：λ=0 时 Ãk=A(i) 恒成立，AgentOPSD 梯度退化为 GRPO 梯度（Proposition 3）。由于重塑乘子 (1−λ)+λwk ≥ 1−λb > 0 恒正，符号永不反转（Proposition 2），且 |Ãk−A(i)| ≤ λb|A(i)|（Proposition 1），重塑是有界、保号、可逆的。
+2. **无额外 rollout、无 critic**：信念重塑块是元素级运算（clip/σ/logit），不增加任何可学习参数；相对 GRPO 的开销仅为每回合一次 teacher forward pass（共 $K_i$ 次）。
+3. **与 GRPO 的兼容性**：λ=0 时 Ãk=A(i) 恒成立，AgentOPSD 梯度退化为 GRPO 梯度（Proposition 3）。由于重塑乘子 (1−λ)+λwk ≥ 1−λb > 0 恒正，符号永不反转（Proposition 2），且 |Ãk−A(i)| ≤ λb|A(i)|（Proposition 1），重塑是有界、保号且可退化为 GRPO 的。
 4. **Token 级变体**（消融用）：将回合级递归替换为对扁平 token 序列的同一递归——直接累积 δt、对轨迹 token 标准化 ΔBt、按 token 分配 Ãt。
 
 ### 6.3 超参数配置

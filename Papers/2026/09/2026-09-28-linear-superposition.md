@@ -3,7 +3,7 @@
 > **论文**：Your Transformer Can Hold Two Thoughts at Once: Evidence of Linear Superposition in LLMs
 > **作者**：9 位作者（HF Daily Papers 2026-09-27/28 连续上榜，64 upvotes）
 > **arXiv ID**：2609.29845（v1）
-> **发表时间**：2026-09-27
+> **发表时间**：2026-09-24
 > **代码仓库**：论文未标注官方仓库链接
 
 ## 第 1 章 概述
@@ -106,8 +106,8 @@ $\mathcal{R}_{\mathcal{D}}<1$ 即混合输出比「两条无关上下文之间�
 
 | Setup | predictable 中位排名 / top-1% | content 中位排名 / top-1% |
 |:---|:---:|:---:|
-| Embedding mixing (Base) | 66 / 24.8 | 284 / 4.2 |
-| Donor attention patch (Base) | 33 / 33.0 | 11 / 5.4 |
+| Embedding mixing (Base) | 6 / 24.8 | 284 / 4.2 |
+| Donor attention patch (Base) | 3 / 33.0 | 111 / 5.4 |
 | Permutation patch (Base) | 3,079 / 1.3 | 19,246 / 0.0 |
 | Embedding mixing (Fine-tuned) | 8 / 21.6 | 5 / 22.8 |
 
@@ -138,7 +138,7 @@ $$P_{\text{target}}=\tfrac{1}{2}\left(M_{\text{teacher}}(x^{(A)})+M_{\text{teach
 | content 位置中位排名 | 284 | **5** |
 | content 位置 top-1 一致 | 4.2% | **22.8%** |
 
-关键在第 3.4 节的分层视角：恢复**不是靠抬高高频可预测 token**——predictable 位置中位排名基本不变（66→8 的小改善），真正的大幅恢复发生在 content 位置（284→5）。微调后的模型在真正并行处理两条流的语义内容，不是走频率捷径。
+关键在第 3.4 节的分层视角：恢复**不是靠抬高高频可预测 token**——predictable 位置中位排名基本不变（6→8，并非改善），真正的大幅恢复发生在 content 位置（284→5）。微调后的模型在真正并行处理两条流的语义内容，不是走频率捷径。
 
 ### 4.3 代价：单流质量受损
 
@@ -177,7 +177,7 @@ Llama-3.2-3B 的混合准确率达 0.430（对照小模型单流基线 0.540）�
 
 - **Two-Head 对称破缺**：可学投影 $W_A, W_B = I + \mathcal{N}(0, 10^{-3})$ 打破平均的置换对称性，双头联合交叉熵 + 动态损失平衡（EMA 0.99、$\gamma=5.0$、$\alpha_t/\beta_t$ 截断到 $[0.1, 10]$，防塌缩到单流）。Llama 0.105/J0.235、Pythia-2.8B 0.164/J0.117、Pythia-6.9B 0.080——均弱于 Joint Contrastive。
 - **Mixed Distillation**（无引导蒸馏）：Qwen 0.207、Llama 0.174、Pythia-2.8B 0.088——也弱。
-- **推理时 logit 算术**（冻结两模型、只梯度优化 $\alpha,\beta$）：最弱，纯后处理不足以分离。
+- **推理时 logit 算术**（冻结两模型、只梯度优化 $\alpha,\beta$）：低于 Joint Contrastive（论文未给出具体数值），纯后处理不足以分离。
 
 结论：解缠需要大模型混合表征与小模型逐流方向性引导的**联合训练**，事后线性组合或对称破缺都不够。
 
@@ -213,7 +213,7 @@ Separate 与 batch-2 独立推理差距 <3% 且对顺序推理约 2× 加速—�
 | Pythia | Joint Contrastive | 3.392 | 29.72 |
 | Pythia | 微调蒸馏 | 3.783 | 43.95 |
 
-Joint Contrastive 的单流质量落在小模型水平（大模型引导解码后 2.961 vs 小模型 2.942），纯蒸馏损伤最大（PPL 65+）。
+Joint Contrastive 的单流质量落在小模型水平（大模型引导解码后 2.961 vs 小模型 2.942），纯蒸馏损伤最大（Qwen/Llama PPL 65+，Pythia 43.95）。
 
 ### 6.3 生成质量（TinyStories LLM-as-Judge，GPT-5.2 评分 1–10）
 
@@ -221,7 +221,7 @@ Pythia-2.8B 独立基线 vs 叠加（预训练）vs 叠加（微调）：Grammar
 
 ### 6.4 训练成本（附录 A）
 
-蒸馏微调 150k 步：Pythia-2.8B 约 114 小时 @2×A100 80GB；Qwen2.5-3B 132 小时；Llama-3.2-3B 128 小时。Joint Contrastive（Pythia-1.4B+160M 引导）68 小时 @单卡 A100。超参：蒸馏用 AdamW lr 1e-3（头）/1e-4（骨干）、温度 2.0、seq 128；JC 用 lr 5e-5、batch 16、seq 512、1000 步 warmup、bf16+SDPA，Qwen/Llama 取 30k 步 checkpoint、Pythia 取 700k。
+蒸馏微调 150k 步：Pythia-2.8B 约 114 小时 @2×A100 80GB；Qwen2.5-3B 132 小时；Llama-3.2-3B 128 小时。Joint Contrastive（Pythia-1.4B+160M 引导）68 小时 @单卡 A100。超参：蒸馏用 AdamW lr 1e-3（头）/1e-4（骨干）、温度 2.0、seq 128；JC 超参：Qwen/Llama 用 lr 5e-5、batch 16、1000 步 warmup，Pythia 用 lr 1e-4、batch 8；seq 512、bf16+SDPA，Qwen/Llama 取 30k 步 checkpoint、Pythia 取 700k。
 
 ## 第 7 章 局限性与延伸阅读
 

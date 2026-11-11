@@ -21,11 +21,11 @@
 
 **原文**: "We find that the resulting models are much better at following instructions than much larger models trained without human feedback."
 
-**解读**: 核心数字：**175B 的 InstructGPT 在人类偏好评估中比 175B 的 GPT-3 获得了 85±3% 的偏好率**。更震撼的是，**1.3B 参数的 InstructGPT（小 100 倍）仍然优于 175B 的 GPT-3**。这证明了对齐比规模更重要。
+**解读**: 核心数字：**175B 的 InstructGPT 在人类偏好评估中比 175B 的 GPT-3 获得了 85±3% 的偏好率**。更震撼的是，**1.3B 参数的 InstructGPT（小 100 倍）仍然优于 175B 的 GPT-3**。这说明在该 API 提示分布上，对齐带来的偏好提升可超过 100 倍规模差异（论文将结论限定为"至少对我们的客户自然语言任务分布"）。
 
-**原文**: "We make our models, data, and code publicly available."
+**说明**: 论文摘要没有"公开模型、数据、代码"的表述；正文只说明"我们发布模型在所有基于采样的 NLP 任务上的样本"（footnote 7），并未声称公开模型权重、训练数据或训练代码。
 
-**解读**: 这句话实际上指的是他们公开了部分数据集（如标注数据）和训练代码，**但模型权重并未真正开源**。InstructGPT 的模型只通过 OpenAI API 提供访问，而非公开下载。这与后来 Meta 开源 LLaMA 等模型的做法不同，不能将其等同于"完全开源"。
+**解读**: **模型权重并未开源**。InstructGPT 的模型只通过 OpenAI API 提供访问，而非公开下载。这与后来 Meta 开源 LLaMA 等模型的做法不同，不能将其等同于"完全开源"。
 
 ### 1.2 研究动机
 
@@ -46,10 +46,11 @@ GPT-3 虽然在预训练中学习了海量文本，但它学习的是"文本补�
 |---------|-----------|
 | **RLHF 三步流水线** | SFT → RM → PPO，将人类反馈融入模型训练 |
 | **Reward Modeling (RM)** | 用 Bradley-Terry 模型学习人类偏好，而非直接学习生成 |
-| **Rejection Sampling (Best-of-N)** | 从 SFT 模型采样 N 个响应，用 RM 选择最高分作为 baseline。效果弱于 PPO 但强于 SFT |
 | **PPO + KL Penalty** | 在对齐和能力之间取得平衡，防止 reward hacking |
 | **PPO-ptx** | 混入预训练梯度，缓解 alignment tax（对齐税） |
 | **人类标注体系** | 建立高质量标注团队和一致性评估机制 |
+
+> 注：论文方法只有 SFT、RM、PPO 三步；Rejection Sampling / Best-of-N 并非论文采用或讨论的方法，属后续或外部工作。
 
 ### 1.4 模型规格速查表
 
@@ -57,11 +58,11 @@ GPT-3 虽然在预训练中学习了海量文本，但它学习的是"文本补�
 |------|--------|------|----------|
 | GPT-3 | 1.3B, 6B, 175B | 预训练基座 | CommonCrawl + WebText + Books + Wikipedia |
 | SFT | 1.3B, 6B, 175B | 监督微调 | ~13K 人工标注的指令-响应对 |
-| RM | 6B | 奖励模型 | ~33,000 人类成对对比（从 ~31K prompts 生成） |
+| RM | 6B | 奖励模型 | ~33K prompts（33,207；Table 6）；每 prompt 生成 K=4–9 个响应，成对对比数比 prompt 数高约一个数量级 |
 | PPO | 1.3B, 6B, 175B | 强化学习对齐 | ~31K prompts + RM 奖励信号 |
 
 **关键设计决策**：
-- **RM 用 6B 而非 175B**：175B RM 训练不稳定，容易过拟合
+- **RM 用 6B 而非 175B**：175B RM 训练不稳定，不适合作为 PPO value function，且 175B RM + value function 计算成本高（论文未称其更容易过拟合）
 - **所有模型共享初始化**：都从对应的 GPT-3 checkpoint 初始化
 
 ---
@@ -75,7 +76,7 @@ graph TD
     C --> D[SFT Model]
     
     D --> E[Step 2: Reward Model]
-    E --> F[人类对比数据<br/>~33K comparisons]
+    E --> F[人类对比数据<br/>33K prompts，K=4–9 个响应]
     F --> G[Reward Model 6B]
     
     G --> H[Step 3: PPO]
@@ -134,9 +135,9 @@ SFT 使用两类 prompt 来源：
 
 **超参数**：
 - **Epochs**: 16（**1 epoch 后 validation loss 就上升**，但更多 epoch 改善 RM 分数）
-- **Learning rate**: cosine decay，初始 1.37e-4
+- **Learning rate**: cosine decay 到初始值的 10%，无 warmup；1.3B/6B 为 9.65e-6，175B 为 5.03e-6
 - **Dropout**: 0.2
-- **Batch size**: 64
+- **Batch size**: 32（1.3B/6B）、8（175B）
 - **Sequence length**: 2048 tokens
 
 **关键发现**：
@@ -178,10 +179,10 @@ train_dataset = train_dataset.map(
 training_args = TrainingArguments(
     output_dir="./sft_model",
     num_train_epochs=16,
-    per_device_train_batch_size=64,
-    learning_rate=1.37e-4,
+    per_device_train_batch_size=32,  # 1.3B/6B；175B 用 8
+    learning_rate=9.65e-6,  # 1.3B/6B；175B 用 5.03e-6
     lr_scheduler_type="cosine",
-    warmup_steps=100,
+    warmup_steps=0,  # 论文无 LR warmup
     save_strategy="epoch",
 )
 
@@ -233,10 +234,9 @@ Prompt: "如何降低血压？"
 ```
 
 **数据规模**：
-- 约 **31,000 prompts**（用于 RM 训练数据集）
+- 约 **33K prompts**（用于 RM 训练数据集；Table 6 合计 6,623 + 26,584 = 33,207）
 - 每个 prompt 生成 K=4 到 9 个响应
-- 得到 **~33,000 个成对对比**（人类标注的 comparisons）
-- 论文原文说明："~33,000 comparisons" 是成对对比数量，不是 prompt 数量
+- 成对对比数比 prompt 数高约一个数量级（论文未给确切总数）
 
 #### Bradley-Terry 模型
 
@@ -273,13 +273,11 @@ $$\mathcal{L}(\theta) = -\frac{1}{C(K,2)} \mathbb{E}_{(x, y_w, y_l) \sim D} \lef
 
 **1. 为什么用 6B 而非 175B RM？**
 
-> **原文**: "We found that training a 175B reward model was unstable, and that the 6B model performed equally well on held-out comparisons."
+> **原文（意译）**: "Larger 175B RMs had the potential to achieve lower validation loss, but (1) their training was more unstable which made them less suitable for use as initializations for the PPO value functions, and (2) using a 175B RM and value function greatly increase the compute requirements of PPO."
 > 
-> **解读**: 175B RM 训练时出现 loss 不下降、梯度爆炸等问题，可能是：
-> - 过于复杂，容易过拟合有限的对比数据
-> - 计算资源限制导致 batch size 较小
+> **解读**: 论文给出的理由是 175B RM 训练更不稳定、不适合初始化 PPO value function，且计算成本高；论文还指出 6B RM 在广泛学习率下稳定，并得到同样强的 PPO 模型。论文并未称 175B RM 更容易过拟合。
 > 
-> **最终选择**：6B 参数的奖励模型（足够表达偏好，又不会过拟合）
+> **最终选择**：6B 参数的奖励模型（稳定、计算成本低，PPO 效果相当）
 
 **2. 所有 C(K,2) 对比作为单个 batch element**
 
@@ -298,7 +296,7 @@ $$\mathcal{L}(\theta) = -\frac{1}{C(K,2)} \mathbb{E}_{(x, y_w, y_l) \sim D} \lef
 > **原文**: "We train our reward models for a single epoch over the data."
 > 
 > **解读**: RM 只训练 1 epoch，因为：
-> - 对比数据相对稀疏（~31K prompts，生成约 33K 成对对比）
+> - 对比数据相对稀疏（33K prompts，每 prompt K=4–9 个响应，对比数高约一个数量级）
 > - 防止过拟合特定的标注员偏好
 > - RM 只需要学到"一般性偏好"，不需要完美拟合训练数据
 
@@ -541,7 +539,7 @@ $$\mathcal{L}_{\text{PPO-ptx}}(\phi) = \mathbb{E}_{x \sim D, y \sim \pi_\phi(\cd
 - $D_{\text{pretrain}}$：预训练数据集（**纯文本数据**，不是 prompt-response 对）
 
 **效果**：
-- PPO-ptx 在 DROP 上比纯 PPO 提高 6.5pp
+- PPO-ptx 在 DROP 上比纯 PPO 提高约 5.6pp（few-shot F1 27.78 → 33.34，仍低于 GPT-3 的 35.27）
 - 在人类偏好上仍然优于 GPT-3
 
 #### 训练超参数
@@ -551,11 +549,11 @@ $$\mathcal{L}_{\text{PPO-ptx}}(\phi) = \mathbb{E}_{x \sim D, y \sim \pi_\phi(\cd
 | **Clip ratio (ε)** | 0.2 | PPO 裁剪参数 |
 | **Batch size** | 512 prompts | 每个 PPO batch 的 prompt 数 |
 | **Minibatch size** | 64 | 梯度更新时的 minibatch |
-| **Episodes** | 256k | 总训练轮数 |
+| **Episodes** | 256k | 总训练 episodes 数（约 31K unique prompts） |
 | **KL coefficient (β)** | 0.02 | KL 惩罚系数（可调） |
 | **PTX coefficient (γ)** | 27.8 | 预训练梯度系数 |
 | **Learning rate** | 1.6e-5 | PPO learning rate |
-| **Generation length** | 64 tokens | 每次生成的最大长度 |
+| **Generation length** | 1k tokens | 论文将最大响应长度限制为 1k tokens |
 
 #### 代码实现
 
@@ -571,7 +569,7 @@ ppo_config = PPOConfig(
     batch_size=512,  # prompts per batch
     mini_batch_size=64,
     gradient_accumulation_steps=8,
-    ppo_epochs=4,
+    ppo_epochs=4,  # 注意：论文每个 batch 只做 1 个 inner epoch；这是示例的 TRL 参数
     clip_range=0.2,  # epsilon
     kl_coef=0.02,    # beta
 )
@@ -619,7 +617,7 @@ generation_kwargs = {
     "top_p": 1.0,
     "do_sample": True,
     "pad_token_id": tokenizer.eos_token_id,
-    "max_new_tokens": 64,
+    "max_new_tokens": 1024,  # 论文限制为 1k tokens；示例可简化
 }
 
 for epoch in range(ppo_epochs):
@@ -705,7 +703,7 @@ def compute_pretrain_loss(model, pretrain_batch):
 - **人口统计**：
   - 75% 年龄 < 35 岁
   - 50% 男性，44% 女性
-  - 主要来自美国（60%）和东南亚（30%）
+  - 主要来自美国或东南亚；Table 12 国籍：菲律宾 22%、孟加拉 22%、美国 17%（其余各 5%）；族裔：东南亚 52.6%、白人 31.6%
 
 ### 3.2 标注一致性
 
@@ -748,10 +746,13 @@ def compute_pretrain_loss(model, pretrain_batch):
 | **Generation** | 45.6% | "写一首关于 X 的诗" |
 | **Open QA** | 12.4% | "为什么天空是蓝色的？" |
 | **Brainstorming** | 11.2% | "给我 10 个营销点子" |
-| **Rewrite** | 10.5% | "改写这段话，更正式" |
-| **Summarization** | 8.5% | "总结这篇文章" |
-| **Classification** | 5.8% | "这是正面还是负面评价？" |
-| **Other** | 6.0% | 其他任务 |
+| **Chat** | 8.4% | 多轮对话 |
+| **Rewrite** | 6.6% | "改写这段话，更正式" |
+| **Summarization** | 4.2% | "总结这篇文章" |
+| **Classification** | 3.5% | "这是正面还是负面评价？" |
+| **Other** | 3.5% | 其他任务 |
+| **Closed QA** | 2.6% | 基于给定文本问答 |
+| **Extract** | 1.9% | 从文本中抽取信息 |
 
 **解读**：
 - **Generation** 占主导（45.6%）：用户主要让模型"生成内容"
@@ -763,11 +764,11 @@ def compute_pretrain_loss(model, pretrain_batch):
 | 步骤 | 数据规模 | 说明 |
 |------|---------|------|
 | **SFT** | ~13K prompts | 每个生成 1 个响应 |
-| **RM** | ~31K prompts | 每个生成 4-9 个响应，得到 ~33,000 个成对对比 |
+| **RM** | ~33K prompts（33,207） | 每个生成 4-9 个响应，成对对比数高约一个数量级 |
 | **PPO** | ~31K prompts | 用于 RL 训练 |
 
 **总人类标注量**：
-- **对比数据**：~33,000 个人工标注的成对比较（comparisons）
+- **对比数据**：33,207 个 RM prompts，每 prompt 有 K=4–9 个响应，成对对比数比 prompt 数高约一个数量级（论文未给确切总数）
 - **总标注时间**：约数千小时
 
 ---
@@ -786,19 +787,19 @@ def compute_pretrain_loss(model, pretrain_batch):
 | **175B InstructGPT vs 175B GPT-3** | **85 ± 3%** | 15 ± 3% | - |
 | **175B InstructGPT vs 175B FLAN** | **78 ± 4%** | 22 ± 4% | - |
 | **175B InstructGPT vs 175B T0** | **79 ± 4%** | 21 ± 4% | - |
-| **6B InstructGPT vs 175B GPT-3** | **72 ± 4%** | 28 ± 4% | - |
+| **6B InstructGPT vs 175B GPT-3** | 论文未报告具体偏好率（仅定性：1.3B PPO-ptx 优于 175B GPT-3） | - | - |
 | **1.3B InstructGPT vs 175B GPT-3** | **仍有优势** | - | - |
 
 **核心发现**：
 
 1. **175B InstructGPT vs 175B GPT-3**: 85±3% 偏好 InstructGPT
-   > **解读**: 在相同规模下，InstructGPT 几乎全面碾压 GPT-3。这说明"对齐比规模更重要"。
+   > **解读**: 在相同规模下，InstructGPT 显著优于 GPT-3。在该 API 提示分布上，对齐带来的提升可超过 100 倍规模差异，但论文并未声称这是所有任务上的普遍规律。
 
 2. **1.3B InstructGPT vs 175B GPT-3**: 小模型仍然有优势
-   > **解读**: **参数量小 100 倍的 InstructGPT（1.3B）仍然优于 175B GPT-3**。这是论文最震撼的发现——对齐的效果比规模大得多。
+   > **解读**: **参数量小 100 倍的 InstructGPT（1.3B）仍然优于 175B GPT-3**。这是论文最震撼的发现——在该 API 提示分布上，对齐的效果可超过 100 倍规模差异。
 
 3. **vs FLAN/T0**: InstructGPT 优于其他 instruction-tuned 模型
-   > **解读**: FLAN 和 T0 都是 instruction-following 模型，但 InstructGPT 仍明显更好（78-79% vs 21-22%）。说明 RLHF 比单纯的 supervised fine-tuning 更有效。
+   > **解读**: FLAN 和 T0 都是 instruction-following 模型，但 InstructGPT 仍明显更好（78-79% vs 21-22%）。论文将 FLAN/T0 的落后归因于公开 NLP 数据集的任务与输入多样性不足；这不是受控的 RLHF vs SFT 对比，且论文的 SFT baseline 本身优于 FLAN/T0。
 
 ### 4.2 真实性评估
 
@@ -806,23 +807,23 @@ def compute_pretrain_loss(model, pretrain_batch):
 
 **结果**：
 
-| 模型 | 真实率（Truthfulness） | 信息量（Informativeness） | 幻觉率 |
-|------|------------------------|-------------------------|-------|
-| **175B GPT-3** | 40% | 55% | **41%** |
-| **175B InstructGPT** | **85%** | **88%** | **21%** |
+| 模型（175B, TruthfulQA QA prompt） | 真实率（true） | 真实且信息量（true + info） |
+|------|------------------------|-------------------------|
+| **175B GPT-3** | 0.284 (28.4%) | 0.251 (25.1%) |
+| **175B InstructGPT (PPO-ptx)** | **0.712 (71.2%)** | **0.689 (68.9%)** |
 
 **核心发现**：
 
-1. **真实率从 40% 提升到 85%**（提升 112.5%）
-2. **幻觉率从 41% 降到 21%**（降低 49%）
+1. **真实率从 28.4% 提升到 71.2%**（Table 14，QA prompt）
+2. **闭域任务幻觉率从 41% 降到 21%**（Section 1；这是 API closed-domain 任务，不是 TruthfulQA）
 
 > **解读**: InstructGPT 不仅更"听话"，而且更"真实"。这说明 RLHF 不仅能改善对齐，还能提高事实准确性。
 
 **为什么？**
 
-> **原文**: "We hypothesize that the labelers generally prefer truthful answers, and the reward model learns this preference."
+> **说明**: 论文只说真实性改善是默认行为，无需特别指示，并说明训练时优先 helpfulness、最终评估时优先 truthfulness/harmlessness。
 > 
-> **解读**: 标注员偏好真实答案（即使不完美），RM 学到了这个偏好，PPO 训练让模型更真实。这不是"显式约束"（如知识检索），而是"隐式偏好"（人类不喜欢幻觉）。
+> **解读**: 一个可能的解释是标注员在最终评估中被要求优先考虑真实性和无害性；论文没有明确把改善归因于"RM 学到了标注员对真实答案的偏好"。
 
 ### 4.3 安全性评估
 
@@ -840,7 +841,7 @@ def compute_pretrain_loss(model, pretrain_batch):
 **核心发现**：
 
 1. **当被要求"礼貌"时，InstructGPT 更安全**
-   > **解读**: InstructGPT 学到了"人类偏好无害内容"，在正常使用时更安全。
+   > **解读**: InstructGPT 在被要求尊重时更安全；但移除 respectful prompt 后优势消失，正常使用时并不保证更安全。
 
 2. **当被要求"有毒"时，InstructGPT 更毒**
    > **解读**: 这是对齐的"副作用"——InstructGPT 更听从指令，包括有害指令。
@@ -862,21 +863,22 @@ def compute_pretrain_loss(model, pretrain_batch):
 
 **结果**：
 
-| Benchmark | GPT-3 175B | InstructGPT 175B | InstructGPT + PPO-ptx |
+| Benchmark（175B，few-shot） | GPT-3 | PPO (InstructGPT) | PPO-ptx |
 |----------|-----------|------------------|----------------------|
-| **DROP** | 79.8% | 72.4% | **78.9%** |
-| **SQuADv2** | 86.5% | 83.8% | **85.7%** |
-| **WMT (翻译)** | 基线 | 下降 | **恢复** |
+| **DROP (F1)** | 35.27 | 27.78 | **33.34** |
+| **SQuADv2 (F1)** | 69.75 | 51.95 | **69.93** |
+| **WMT Fr→En (BLEU)** | 39.93 | 26.58 | **36.76** |
 
 **核心发现**：
 
 1. **PPO 在某些 benchmark 上性能下降**
-   - DROP: 79.8% → 72.4%（下降 7.4pp）
-   - SQuADv2: 86.5% → 83.8%（下降 2.7pp）
+   - DROP (few-shot F1): 35.27 → 27.78（下降 7.49）
+   - SQuADv2 (few-shot F1): 69.75 → 51.95（下降 17.80）
 
-2. **PPO-ptx 能缓解这个问题**
-   - DROP: 72.4% → 78.9%（恢复 6.5pp，接近基线）
-   - SQuADv2: 83.8% → 85.7%（恢复 1.9pp）
+2. **PPO-ptx 能缓解这个问题，但论文仍称未完全恢复**
+   - DROP: 27.78 → 33.34（恢复 5.56，仍低于 GPT-3 的 35.27）
+   - SQuADv2: 51.95 → 69.93（与 GPT-3 的 69.75 基本持平）
+   - 翻译: 26.58 → 36.76（仍低于 GPT-3 的 39.93）
 
 > **解读**: PPO-ptx 通过混入预训练梯度，让模型在学对齐的同时不忘"基本能力"（如 QA、翻译）。这说明：
 > - **对齐会牺牲一些能力**（alignment tax）
@@ -888,7 +890,7 @@ def compute_pretrain_loss(model, pretrain_batch):
 
 1. **非英语语言**
    - 训练数据主要是英语
-   - InstructGPT 在法语、德语、西班牙语上仍然优于 GPT-3
+   - 论文只给出法语（Figure 8/42）和瑞典语（Figure 43，输出多为英语）的定性示例；未测试德语、西班牙语，也未量化跨语言偏好优势
    > **解读**: "听从指令"的能力能跨语言迁移，即使训练时很少见其他语言。
 
 2. **代码总结和问答**
@@ -898,7 +900,7 @@ def compute_pretrain_loss(model, pretrain_batch):
 
 3. **Held-out 标注员**
    - 训练用的标注员：A 团队
-   - 评估时用 B 团队：仍然偏好 InstructGPT（77.3% 一致性）
+   - 评估时用 B 团队：仍然偏好 InstructGPT，比例与训练标注员相近（Figure 3）。77.3±1.3% 是 held-out 标注员彼此之间的标注一致性，不是对 InstructGPT 的偏好率。
    > **解读**: InstructGPT 学到的不是"特定标注员的偏好"，而是"一般人类偏好"。
 
 ---
@@ -945,10 +947,10 @@ train_dataset = train_dataset.map(
 training_args = TrainingArguments(
     output_dir="./checkpoints/sft",
     num_train_epochs=16,  # 论文用 16 epochs
-    per_device_train_batch_size=64,
-    learning_rate=1.37e-4,
+    per_device_train_batch_size=32,  # 1.3B/6B；175B 用 8
+    learning_rate=9.65e-6,  # 1.3B/6B；175B 用 5.03e-6
     lr_scheduler_type="cosine",
-    warmup_steps=100,
+    warmup_steps=0,  # 论文无 LR warmup
     weight_decay=0.01,
     save_strategy="epoch",
     save_total_limit=3,
@@ -1010,12 +1012,12 @@ class RewardModel(nn.Module):
         )
         
         # 重要：reward head 特殊初始化
-        # 论文建议初始化为 N(0, 1/sqrt(d_model+1))
+        # 实现细节（论文正文未给出）：初始化为 N(0, 1/sqrt(d_model+1))
         self._init_reward_head(d_model)
     
     def _init_reward_head(self, d_model):
         """初始化 reward head"""
-        # 最后一个线性层的权重初始化（与论文及 Ch 2.2 保持一致）
+        # 最后一个线性层的权重初始化（实现细节，论文正文未给出该公式）
         nn.init.normal_(
             self.reward_head[-1].weight,
             mean=0.0,
@@ -1192,7 +1194,7 @@ if __name__ == "__main__":
 ```
 
 **关键细节**：
-1. **Reward head 初始化**：`N(0, 1/sqrt(d_model+1))`，防止训练初期输出过大
+1. **Reward head 初始化**：N(0, 1/sqrt(d_model+1))（实现细节，论文正文只说明用投影层替换 unembedding）
 2. **最后一个 token 的 hidden state**：取序列最后一个有效 token（非 padding）
 3. **只训练 1 epoch**：防止过拟合
 4. **Gradient clipping**：防止梯度爆炸
@@ -1248,7 +1250,7 @@ class PPOTrainerWrapper:
             batch_size=512,  # prompts per batch
             mini_batch_size=64,
             gradient_accumulation_steps=8,
-            ppo_epochs=4,
+            ppo_epochs=4,  # 注意：论文每个 batch 只做 1 个 inner epoch；这是示例的 TRL 参数
             clip_range=0.2,  # epsilon
         )
         
@@ -1329,7 +1331,7 @@ class PPOTrainerWrapper:
             "top_p": 1.0,
             "do_sample": True,
             "pad_token_id": self.tokenizer.eos_token_id,
-            "max_new_tokens": 64,
+            "max_new_tokens": 1024,  # 论文限制为 1k tokens；示例可简化
         }
         
         response_tensors = self.ppo_trainer.generate(
@@ -1398,7 +1400,7 @@ if __name__ == "__main__":
     # 准备数据（~31K prompts）
     # dataloader = ...
     
-    # 训练 4 epochs
+    # 示例按 4 个外层 epoch 训练；论文实际是 256k episodes，每个 batch 只做 1 个 inner epoch
     trainer.train(dataloader, epochs=4)
 ```
 
@@ -1430,7 +1432,7 @@ def normalize_reward(reward):
 
 #### 5.4.2 Reward Head 初始化
 
-**论文建议**：
+**实现细节（论文正文未给出该公式）**：
 ```python
 # 初始化为 N(0, 1/sqrt(d_model+1))
 d_model = config.hidden_size
@@ -1478,7 +1480,7 @@ scaled_reward = reward / temperature
 **论文实现**：
 ```python
 generation_kwargs = {
-    "max_new_tokens": 64,  # 固定最大长度
+    "max_new_tokens": 1024,  # 论文限制为 1k tokens；示例可简化
     "eos_token_id": tokenizer.eos_token_id,  # 但允许提前停止
 }
 ```
@@ -1565,12 +1567,14 @@ Response: "（给出建议）"
 > 
 > **解读**: 模型过度自信，不会质疑错误前提。
 
-**类型 2: 过度谨慎**
+**类型 2: 过度谨慎（over-hedge）**
 ```
-Prompt: "解释如何制造冰毒"
-Response: "我不能回答这个问题..."
-问题: 对所有敏感问题都拒绝，即使有些是合理的
+Prompt: "以高速直接向南瓜发射炮弹会发生什么？"
+Response: "没有准确预测的方法，有许多不可预测因素……"
+问题: 对简单问题给出冗长、模棱两可的多个答案，而不是拒绝敏感问题
 ```
+
+> 注意：论文的 "overly hedge" 不是拒绝敏感问题；论文反而把"模型在多数情况下会遵循用户指令，即使可能造成伤害"列为最大局限（Section 5.3）。
 
 **类型 3: 多约束困难**
 ```
@@ -1731,10 +1735,10 @@ InstructGPT 学到: 支持同性婚姻的立场
 | **适中** (如 0.02) | 平衡对齐和能力 |
 | **太小** (如 0.001) | 容易 reward hacking，输出质量下降 |
 
-**Alignment Tax 的本质**：
-- KL 惩罚导致模型"不敢学太多"
-- 在某些 benchmark（如 DROP, SQuAD）上性能下降
-- PPO-ptx 通过混入预训练梯度缓解
+**Alignment Tax 的缓解**：
+- 论文未把 alignment tax 归因于 KL 惩罚；增大 KL 系数反而会显著降低 validation reward，且无法修复 DROP/SQuAD 回退
+- 论文的缓解手段是 PPO-ptx：混入预训练梯度
+- PPO-ptx 能大幅缩小回退，但论文仍称在 DROP、SQuADv2 和翻译上落后于 GPT-3
 
 **根本矛盾**：
 > **对齐 vs 能力的根本矛盾**
@@ -1758,15 +1762,15 @@ InstructGPT 学到: 支持同性婚姻的立场
 | **RLHF 三步流水线** | SFT → RM → PPO，成为对齐的标准方法 | 85% 偏好率 |
 | **Reward Modeling** | 用 Bradley-Terry 模型学习人类偏好 | 6B RM（175B 不稳定） |
 | **PPO + KL Penalty** | 在对齐和能力之间平衡 | β=0.02 |
-| **PPO-ptx** | 混入预训练梯度，缓解 alignment tax | γ=27.8, DROP +6.5pp |
+| **PPO-ptx** | 混入预训练梯度，缓解 alignment tax | γ=27.8, DROP few-shot F1 +5.56（仍低于 GPT-3） |
 | **1.3B > 175B** | 小 100 倍的模型通过对齐超越大模型 | 1.3B InstructGPT > 175B GPT-3 |
-| **更真实** | 幻觉率从 41% 降到 21% | TruthfulQA 2x 提升 |
+| **更真实** | 闭域任务幻觉率 41%→21%；TruthfulQA 真实+信息率约 2x | 两个不同指标 |
 
 ### 7.2 关键数字速查表
 
 **数据规模**：
 - SFT: ~13K prompts
-- RM: ~31K unique prompts，生成 K=4-9 个响应，得到 ~33K 人类标注的成对对比（comparisons）
+- RM: ~33K prompts（33,207；Table 6），生成 K=4-9 个响应，成对对比数高约一个数量级
 - PPO: ~31K prompts
 - 标注员: ~40 人
 
@@ -1777,9 +1781,9 @@ InstructGPT 学到: 支持同性婚姻的立场
 
 **评估结果**：
 - 175B InstructGPT vs 175B GPT-3: 85±3% 偏好
-- 幻觉率: 41% → 21%（降低 49%）
-- TruthfulQA: 40% → 85%（提升 112.5%）
-- 毒性: 正常使用 -25%，被要求有毒时更毒
+- 闭域任务幻觉率: 41% → 21%（Section 1，不是 TruthfulQA）
+- TruthfulQA QA prompt（175B）: true 28.4% → 71.2%，true+info 25.1% → 68.9%
+- 毒性: 被要求 respectful 时约 -25%；移除 respectful prompt 后优势消失；被明确要求 biased/toxic 时比 GPT-3 更毒
 
 **API 提示分布**：
 - Generation: 45.6%
@@ -1835,7 +1839,7 @@ InstructGPT 学到: 支持同性婚姻的立场
 
 **Q1: 为什么 RM 用 6B 而不是 175B？**
 
-A: 论文发现 175B RM 训练不稳定，容易过拟合。6B RM 在 held-out 数据上表现相当，且更稳定。
+A: 论文发现 175B RM 训练更不稳定，不适合作为 PPO value function，且会大幅增加 PPO 计算量；6B RM 在广泛学习率下稳定，PPO 效果相当。论文未称 175B 更容易过拟合。
 
 **Q2: 为什么 SFT 要训练 16 epochs（明明 1 epoch 就过拟合）？**
 
@@ -1851,27 +1855,27 @@ A: 通过实验确定，目标是"在 DROP 上恢复性能，同时保持人类�
 
 **Q5: InstructGPT 能用于中文吗？**
 
-A: 论文测试了非英语语言（如西班牙语、德语），InstructGPT 仍然优于 GPT-3。但训练数据主要是英语，中文效果可能不如英语。
+A: 论文只给出法语（Figure 8/42）和瑞典语（Figure 43，输出多为英语）的定性示例；未测试德语、西班牙语，也未量化"优于 GPT-3"。训练数据主要是英语，中文效果可能不如英语。
 
 **Q6: RLHF 的主要计算成本在哪里？**
 
 A: 
 - SFT: 13K prompts × 16 epochs（相对便宜）
 - RM: 33K prompts × 1 epoch × 6B 模型（中等）
-- PPO: 31K prompts × 4 epochs × 175B 模型（最贵，需要多次生成和 RM 评分）
+- PPO: 256k episodes（约 31K unique prompts）× 175B 模型；每个 batch 只做 1 个 inner epoch（最贵，需要多次生成和 RM 评分）
 
 **Q7: 如何解决"跟随有害指令"问题？**
 
-A: 论文建议在训练时加入"拒绝训练"（refusal training），或使用 Constitutional AI（基于原则的自我反思）。
+A: 论文只说明其技术可用于让模型拒绝某些用户指令，并计划在后续迭代中探索；Constitutional AI 是后续/外部工作，不是论文的建议。
 
 ---
 
 ## 结语
 
 InstructGPT 是 AI 对齐研究的里程碑论文。它证明：
-1. **对齐比规模更重要**（1.3B 对齐 > 175B 未对齐）
+1. **在该 API 提示分布上，对齐可超过 100 倍规模差异**（1.3B 对齐 > 175B 未对齐；论文限定于其客户任务分布）
 2. **RLHF 是有效的对齐方法**（三步流水线成为标准）
-3. **人类反馈能改善模型真实性**（幻觉率降低 49%）
+3. **人类反馈能改善模型真实性**（闭域任务幻觉率 41% → 21%；TruthfulQA 真实+信息率约 2x）
 
 但它也揭示了根本问题：
 - **对齐 ≠ 安全**（偏见基准无改善）

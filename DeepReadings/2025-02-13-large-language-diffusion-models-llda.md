@@ -11,7 +11,7 @@
 | arXiv ID | 2502.09992                                                             |
 | 发表       | NeurIPS 2025                                                           |
 | 提交日期     | 2025-02-14                                                             |
-| 官方代码     | [LLaDA](https://github.com/ML-GSAI/LLaDA) (MIT License)                |
+| 官方代码     | [LLaDA](https://github.com/ML-GSAI/LLaDA)                              |
 | 基础架构     | Transformer (bidirectional, no causal mask)                            |
 
 ---
@@ -31,8 +31,8 @@ LLaDA 8B Base 在多个标准 benchmark 上达到了与同规模 AR 模型可比
 | Benchmark | LLaDA 8B Base |
 |-----------|---------------|
 | MMLU | 65.9 |
-| GSM8K | 70.7 |
-| HumanEval | 33.5 |
+| GSM8K | 70.3 |
+| HumanEval | 35.4 |
 | CMMLU | 69.9 |
 
 可以看到,无论是知识综合(MMLU / CMMLU)、数学推理(GSM8K),还是代码生成(HumanEval),diffusion 范式的 LLaDA 都已进入实用区间。这一现象本身就是其核心论断的有力注脚:自回归形式并非 LLM 能力的必要条件。
@@ -43,7 +43,7 @@ LLaDA 在需要"逆向"理解的任务上展现出超越主流 AR 模型的潜�
 
 ### 1.3 开源
 
-项目代码已开源,仓库地址为 [LLaDA](github.com/ML-GSAI/LLaDA)（论文中列出的项目页面为 [LLaDA-demo](ml-gsai.github.io/LLaDA-demo)）,采用 MIT License。
+项目代码已开源,仓库地址为 [LLaDA](github.com/ML-GSAI/LLaDA)（论文中列出的项目页面为 [LLaDA-demo](ml-gsai.github.io/LLaDA-demo)）。论文未说明许可证,仓库当前未见 LICENSE 文件。
 
 ---
 
@@ -69,7 +69,7 @@ masked diffusion 放弃了 causal mask,改用 bidirectional attention(双向注�
 
 LLaDA 把离散文本建模为一个 masked diffusion 过程。给定原始序列 $x_0$,forward process(前向过程)采样一个统一的时间步 $t \sim U[0,1]$,并据此对序列中的每个 token 独立地执行 masking。reverse process(逆向过程)则由一个 mask predictor $p_\theta(\cdot \mid x_t)$ 承担:给定部分被 mask 的序列 $x_t$,模型一次性预测所有被 mask 位置上的原始 token。
 
-这里的 mask 比例处理方式有别于既有工作:BERT 采用固定的 15% mask ratio,MaskGIT 则依赖启发式的 cosine masking schedule。LLaDA 通过对 $t$ 做均匀采样,使训练过程能够覆盖从极低到极高的整个 mask 比例区间。
+这里的 mask 比例处理方式有别于既有工作:BERT 采用固定的 15% mask ratio;MaskGIT 采用启发式训练目标,相比 Eq.3 缺少 $1/t$ 项,且缺少与 maximum likelihood 的理论联系(论文 §2.1)。LLaDA 通过对 $t$ 做均匀采样,使训练过程能够覆盖从极低到极高的整个 mask 比例区间。
 
 ### 2.5 训练目标
 
@@ -103,7 +103,7 @@ LLaDA-8B 的具体配置如下:
 
 ### 3.2 预训练数据
 
-预训练共使用 2.3T tokens。**注意**:论文正文(§2.2)仅说明数据集涵盖高质量 code、math 与 multilingual 数据,且各来源配比由缩小规模的 ARM 实验确定,**并未给出具体的语种/模态百分比**;以下比例未见于论文正文,请以官方仓库/model card 为准核实:
+预训练共使用 2.3T tokens。**注意**:论文正文(§2.2)仅说明数据集涵盖高质量 code、math 与 multilingual 数据,且各来源配比由缩小规模的 ARM 实验确定,**具体语种比例见附录 B.1**:
 
 - English:61%
 - Chinese:11%
@@ -129,7 +129,7 @@ $$\mathcal{L}_{\text{PT}} = -\mathbb{E}_{t,x_0,x_t}\left[\frac{1}{t}\sum_{i=1}^{
 
 ### 3.4 监督微调
 
-SFT 数据集共 4.5M 条样本(论文 §2.3 仅给出总量,数据涵盖 code、math、instruction-following 与结构化数据等多个领域)。**注**:下方「1M 人工 + 3.5M 合成」的拆分未见于论文正文,请以官方来源为准核实:
+SFT 数据集共 4.5M 条样本,数据涵盖 code、math 与 instruction-following 等领域。按附录 B.1,其拆分为:
 
 - 1M 条人工标注 (human-annotated)
 - 3.5M 条合成数据 (synthetic)
@@ -169,15 +169,15 @@ LLaDA 在推理时支持多种 **remasking(重掩码)策略**,且无需重新训
 
 - **随机重掩码 (random remasking)**:即原始的逆向过程,预测后按 $s/t$ 比例随机重新掩码一部分 token,确保逆向转移与正向过程对齐
 - **低置信度重掩码 (low-confidence remasking)**:重掩码预测置信度最低的 token(详见 4.2)
-- **半自回归重掩码 (semi-autoregressive remasking)**:将序列划分为若干 block,块间从左到右依次生成,块内应用上述逆向过程;专为 SFT 后的 instruct 模型设计(避免 EOS token 过度出现)
+- **半自回归重掩码 (semi-autoregressive remasking)**:将序列划分为若干 block,块间从左到右依次生成,块内应用上述逆向过程;属于通用采样策略,预训练或 SFT 后均可直接使用,并非专为 instruct 设计
 
-消融(论文附录 B.3)显示:低置信度策略对 base 模型提升明显;对 instruct 模型则需将低置信度与半自回归结合效果最佳。这些策略使 LLaDA 能在生成质量与推理效率之间权衡。
+消融(论文附录 B.4;B.3 为 CFG)显示:低置信度策略在 Base 上明显优于随机重掩码;对 Instruct,纯扩散整体最佳,块扩散 LLaDA 仅在 GSM8K/Math 上更优。这些策略使 LLaDA 能在生成质量与推理效率之间权衡。
 
 ### 4.4 似然评估
 
 对于对数似然 (log-likelihood) 的评估,LLaDA 采用蒙特卡洛 (Monte Carlo, MC) 估计 (Eq.6),通过对 $l$ 个 token 进行均匀掩码 (uniform masking) 采样来近似:
 
-$$-\log p_\theta(x_0) \approx \frac{L}{l}\sum_{i=1}^{L}\mathbf{1}[x_l^i=M]\log p_\theta(x_0^i \mid x_l), \quad l \sim \text{Uniform}\{1,2,\dots,L\}$$
+$$-\log p_\theta(x_0) \approx -\mathbb{E}_{l,x_l}\left[\frac{L}{l}\sum_{i=1}^{L}\mathbf{1}[x_l^i=M]\log p_\theta(x_0^i \mid x_l)\right], \quad l \sim \text{Uniform}\{1,2,\dots,L\}$$
 
 其中 $l$ 从 $\{1,2,\dots,L\}$ 中均匀采样,$x_l$ 通过对 $x_0$ 均匀随机掩码 $l$ 个 token 得到,$L$ 为序列长度。$\frac{L}{l}$ 因子用于补偿不同掩码比例下的期望偏差。
 
@@ -194,34 +194,34 @@ $$-\log p_\theta(x_0) \approx \frac{L}{l}\sum_{i=1}^{L}\mathbf{1}[x_l^i=M]\log p
 | Task               | LLaDA 8B | LLaMA3 8B | LLaMA2 7B |
 | ------------------ | -------- | --------- | --------- |
 | MMLU (5-shot)      | 65.9     | 65.4      | 45.9      |
-| GSM8K (4-shot)     | 70.7     | 53.1      | 14.3      |
-| Math (4-shot)      | 27.3     | 15.1      | 3.2       |
-| HumanEval (0-shot) | 33.5     | 34.2      | 12.8      |
+| GSM8K (4-shot)     | 70.3     | 48.7      | 13.1      |
+| Math (4-shot)      | 31.4     | 16.0      | 4.3       |
+| HumanEval (0-shot) | 35.4     | 34.8      | 12.8      |
 | CMMLU (5-shot)     | 69.9     | 50.7      | 32.5      |
 
 关键发现:
 
-- **总体匹配 LLaMA3-8B**:在 MMLU、HumanEval 上与 LLaMA3-8B 基本持平 (65.9 vs 65.4;33.5 vs 34.2),并在多项任务上反超。
-- **数学推理显著领先**:GSM8K 上 70.7 vs 53.1,Math 上 27.3 vs 15.1,LLaDA 大幅领先。这一优势可能源于双向注意力对解题过程的整体规划能力。
+- **总体匹配 LLaMA3-8B**:在 MMLU、HumanEval 上与 LLaMA3-8B 基本持平 (65.9 vs 65.4;35.4 vs 34.8),并在多项任务上反超。
+- **数学推理显著领先**:GSM8K 上 70.3 vs 48.7,Math 上 31.4 vs 16.0,LLaDA 大幅领先。这一优势可能源于双向注意力对解题过程的整体规划能力。
 - **中文能力突出**:CMMLU 上 69.9 vs 50.7,领先近 20 分。
-- **全面超越 LLaMA2-7B**:在全部任务上大幅领先。
+- **在表中五项任务上均大幅领先 LLaMA2-7B**;论文完整 15 项评测中为 nearly all tasks,ARC-C、HellaSwag、PIQA、GPQA 略低。
 
 ### 5.2 指令模型对比
 
-指令模型的对比均在**仅使用 SFT、不含 RL** 的设定下进行,以保持对比条件可控（以下为论文 Table 2 的纯扩散采样结果；GSM8K 和 Math 在使用 block diffusion 采样时可达 78.6 和 42.2，论文 §3.2 末尾另行报告）:
+指令模型对比中 **LLaDA 仅使用 SFT,而 LLaMA3/LLaMA2 等基线还经过 RL 对齐**;这是有利于基线的非对等设定（以下为论文 Table 2 的纯扩散采样结果；GSM8K 和 Math 在使用 block diffusion 采样时可达 78.6 和 42.2，论文 §3.2 末尾另行报告）:
 
 | Task | LLaDA 8B | LLaMA3 8B | LLaMA2 7B |
 |------|----------|-----------|-----------|
 | MMLU (5-shot) | 65.5 | 68.4 | 44.1 |
 | ARC-C (0-shot) | 88.5 | 82.4 | 57.3 |
 | GSM8K (4-shot) | 69.4 | 78.3 | 29.0 |
-| HumanEval (0-shot) | 47.6 | 59.8 | 16.5 |
+| HumanEval (0-shot) | 49.4 | 59.8 | 16.5 |
 
 关键发现:
 
 - **ARC-C 领先**:88.5 vs 82.4,LLaDA 超过 LLaMA3。
 - **数学任务上纯扩散采样落后**：GSM8K 上 69.4 vs 78.3（如改用 block diffusion 则 78.6 vs 78.3，基本持平）。
-- **部分任务落后**:MMLU (65.5 vs 68.4)、HumanEval (47.6 vs 59.8) 等任务上 LLaDA 落后于 LLaMA3。这表明在纯 SFT 设定下,LLaDA 在部分任务上的正向 (forward) 能力仍有提升空间 (详见 6.3)。
+- **部分任务落后**:MMLU (65.5 vs 68.4)、HumanEval (49.4 vs 59.8) 等任务上 LLaDA 落后于 LLaMA3。这表明在纯 SFT 设定下,LLaDA 在部分任务上的正向 (forward) 能力仍有提升空间 (详见 6.3)。
 
 ### 5.3 反转推理
 
@@ -243,17 +243,17 @@ $$-\log p_\theta(x_0) \approx \frac{L}{l}\sum_{i=1}^{L}\mathbf{1}[x_l^i=M]\log p
 
 - LLaDA 可扩展至 $10^{23}$ FLOPs 的计算规模,在 6 项任务上匹配自回归基线 (ARM baselines)。
 - 在 1B 规模上,LLaDA 与 ARM 采用**完全相同的架构**,便于直接比较;8B 规模因资源限制未构建相同架构的 ARM 基线。
-- 随着模型规模增大,LLaDA 与 ARM 的性能差距逐渐缩小 (gap narrows with scale),表明 masked diffusion 路线具有良好的 scaling 特性。
+- 在 PIQA 等相对较弱的任务上,LLaDA 与 ARM 的差距随规模增大而缩小;在 MMLU、GSM8K 上 LLaDA 的 scaling 甚至更强。这表明 masked diffusion 路线具有良好的 scaling 特性。
 
 ### 5.5 案例分析
 
 LLaDA 在以下实际场景中进行了案例分析:
 
 - **多轮对话 (multi-turn dialogue)**
-- **翻译 (translation)**
-- **受限生成 (constrained generation)**
+- **翻译/多语言 (translation/multilingual)**
+- **带约束的诗歌生成 (Table 3 要求 5 句且每句首字母为 C)**
 
-其中,受限生成场景尤为能体现掩码扩散模型的优势:由于模型可以并行地、迭代地确定 token 并对低置信位置反复修订,在需要同时满足多处约束的生成任务上,LLaDA 的灵活性优于严格从左到右生成的 ARM。
+论文仅展示这些样例以说明指令遵循能力,并未单独分析受限生成,也未与 ARM 比较优劣。
 
 ---
 
@@ -263,7 +263,7 @@ LLaDA 在以下实际场景中进行了案例分析:
 
 ### 6.1 推理步数开销
 
-扩散式生成需要**多次推理步 (multiple inference steps)** 才能完成一次生成,而 ARM 每生成一个 token 仅需单次前向传播 (single forward pass)。在相同生成量下,LLaDA 的推理开销更高,实时性不及 ARM。
+扩散式生成需要**多次推理步 (multiple inference steps)** 才能完成一次生成,采样步数提供了质量/速度权衡。但按附录 B.7,LLaDA 在 GSM8K/Math 上吞吐高于 LLaMA3 1.5–1.8 倍,在 HumanEval 上与 LLaMA3 相当,仅在 MBPP 上落后,不能笼统称实时性不及 ARM。
 
 ### 6.2 缺乏 RL 对齐
 
@@ -271,13 +271,13 @@ LLaDA 在以下实际场景中进行了案例分析:
 
 ### 6.3 部分任务正向精度不足
 
-在某些任务上,LLaDA 的正向精度 (forward accuracy) **低于强 ARM** (见 5.2 指令模型对比中的 MMLU、HumanEval 等任务;注意 GSM8K 上 LLaDA 实际略高于 LLaMA3)。这表明 masked diffusion 在正向生成能力上仍有改进空间。
+在某些任务上,LLaDA 的正向精度 (forward accuracy) **低于强 ARM** (见 5.2 指令模型对比中的 MMLU、HumanEval 等任务;GSM8K 上纯扩散采样为 69.4 vs 78.3,同样落后;块扩散采样下为 78.6 vs 78.3,基本持平)。这表明 masked diffusion 在正向生成能力上仍有改进空间。
 
-### 6.4 块扩散的复杂度权衡
+### 6.4 块扩散采样的收益与边界
 
-块扩散 (block diffusion) 模式能够在数学与代码任务上带来质量提升,但**同时增加了实现的复杂度 (complexity)**。使用者需在质量收益与工程复杂度之间进行权衡。
+块扩散 (block diffusion) 采样在数学任务 (GSM8K/Math) 上提升明显,但在代码任务 (HumanEval/MBPP) 上不优于纯扩散采样;论文未将实现复杂度列为局限,并指出块扩散采样无需修改或重新训练即可使用。
 
-### 6.5 训练时显存开销
+### 6.5 显存与系统级优化
 
-双向注意力 (bidirectional attention) 在**训练阶段具有更高的显存开销 (memory cost)**:由于无法像 ARM 那样借助因果掩码进行高效的 KV cache 与梯度重计算优化,双向模型的训练对大规模工程实现提出了更高要求。
+论文未报告训练显存开销;其显存分析针对推理 (Table 11):无 KV cache 时与 LLaMA3 相当,略高于使用 KV cache 的 LLaMA3。局限在于未设计专门注意力/位置编码或 KV cache 等系统级优化,而非训练显存必然更高。
 

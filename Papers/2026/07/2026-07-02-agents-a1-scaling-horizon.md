@@ -23,7 +23,7 @@ Agents-A1 是一个 35B Mixture-of-Experts agentic model，通过**三段式训�
 
 3. **领域路由在线蒸馏（Domain-Routed On-Policy Distillation + SVA）**：提出 Salient Vocabulary Alignment，在教师选择的 top-k token 子集上对齐学生分布，并通过 domain-normalized 聚合解决跨领域推理模式冲突。
 
-> 上述三者通过**三段式训练流水线**组织（论文 §4 / Figure 2，属方法结构而非单独贡献项）：全领域 SFT 打基础 → 6 个领域教师模型（搜索/科研/工程/指令跟随/工具调用/通用 agent）各司其职 → 多教师 OPD 合并为统一可部署模型。
+> 上述三者通过**三段式训练流水线**组织（论文 §4 / Figure 2，属方法结构而非单独贡献项）：全领域 SFT 打基础 → 多个领域教师模型（原文 §4.2/Figure 2 详述搜索、科学、指令跟随、工具调用四类教师）各司其职 → 多教师 OPD 合并为统一可部署模型。
 
 ### 1.3 关键结果速览
 
@@ -54,7 +54,7 @@ Agents-A1 是一个 35B Mixture-of-Experts agentic model，通过**三段式训�
 
 ### 1.5 开源与代码可用性
 
-- **代码 / 模型**：原文首页提供 `Code` 与 `Model` 链接。常见落地页为 HuggingFace `InternScience/Agents-A1` 与项目页 `internscience.github.io/Agents-A1/`（**注：这些路径/许可未在论文正文中给出，请以原文 Code/Model 链接落地页为准核实**）
+- **代码 / 模型**：原文首页 Code 链接指向 github.com/InternScience/Agents-A1，Model 链接指向 huggingface.co/InternScience/Agents-A1（许可证未在论文正文中给出）
 - **基座模型**：Qwen3.5-35B-A3B（Qwen 团队，原文 §4.1 明确）
 
 ## Ch2: 研究背景与动机
@@ -81,7 +81,7 @@ Agents-A1 的核心思路是**构建一个可扩展的知识-动作基础设施*
 
 1. **KAG（Knowledge-Action Graph）**：将异构语料分解为原子能力（信息获取、工具调用、可执行迭代、证据验证、约束追踪），构建可验证、可自扩展的监督信号。
 
-2. **领域专门化**：训练 6 个独立领域教师模型，每个专注于一种核心能力。
+2. **领域专门化**：训练多个独立领域教师模型，每个专注于一种核心能力（原文 §4.2 详述搜索、科学、指令跟随、工具调用四类教师）。
 
 3. **多教师蒸馏**：通过 domain-routed on-policy distillation 将多个教师的专长合并为一个统一模型，同时解决推理模式冲突问题。
 
@@ -291,7 +291,7 @@ $$\mathcal{L}_{\text{MT-SVA}}(\theta'_s) = \frac{1}{|D_B|} \sum_{d \in D_B} \fra
 
 被截断的 rollout 标记为 TRUNCATED 并保留为有效前缀；被系统中断的标记为 ABORTED 并重试。
 
-学生从全领域 SFT checkpoint 初始化，教师池包含 6 个独立领域教师。OPD 训练数据从先前任务家族重组，去重并按领域平衡 unique prompts 数量。
+学生从全领域 SFT checkpoint 初始化，教师池由 §4.2 训练的领域教师组成。OPD 训练数据从先前任务家族重组，去重并按领域平衡 unique prompts 数量。
 
 ## Ch5: 实验结果与分析
 
@@ -302,9 +302,12 @@ $$\mathcal{L}_{\text{MT-SVA}}(\theta'_s) = \frac{1}{|D_B|} \sum_{d \in D_B} \fra
 | 长程搜索 | GAIA, BrowseComp, XBench, SEAL-0 | pass@1 | Search + Visit + Code, 300 turns |
 | 工程任务 | SciCode, MLE-Bench-Lite | pass@1 / Medal Rate | 12-hour wall-clock, H200 GPU |
 | 科学研究 | HLE w/ tools, HiPhO, FS-O, FS-R | Accuracy | Search/Visit/Code/Scholar |
-| 指令跟随 | IFBench, IFEval, LongBench V2 | Strict accuracy | 规则验证器 |
+| 指令跟随 | IFBench, IFEval | Strict accuracy | 规则验证器 |
+| 长上下文 | LongBench V2 | Multiple-choice accuracy (CoT) | — |
 | 通用智能体 | τ2-Bench, VitaBench | pass@1 avg | DeepSeek-V3.2 作为用户模拟器 |
-| 科学智能体 | MatTools, MolBench-Bind | Completion rate / Score | 自主代码探索 |
+| 科学智能体 | MatTools / MolBench-Bind | Completion rate / Score | MatTools: 自主代码探索；MolBench-Bind: 官方 binding-affinity 设置 |
+
+> 注：HiPhO/FS-O/FS-R 的对比模型为 tool-free 结果，Agents-A1 为工具增强评估；原文称此为“严格”但不对等的比较（§5.1）。
 
 ### 5.2 全领域 SFT 结果
 
@@ -400,14 +403,14 @@ LongBench V2 +3.4，IFBench +11.8，说明 RL 在强化约束满足和长上下�
 **1. Agents-A1 超越万亿参数模型的领域**：
 - **SEAL-0 (56.4)**：超过 Kimi-K2.6 (50.5) 和 DSV4-Pro (55.0)，接近搜索领域的前沿
 - **IFBench (80.6)**：在所有对比模型中最高，包括 GPT-5.5 (75.9)
-- **HiPhO (46.4)**：超过所有万亿参数模型，显示其在物理推理方面的优势
-- **FS-O (79.0)**：接近 GPT-5.5 (78.0) 并超过 DSV4-Pro (76.0)
+- **HiPhO (46.4)**：在工具增强评估下超过 tool-free 的万亿参数模型（见 §5.1 评估设置）
+- **FS-O (79.0)**：超过 GPT-5.5 (78.0) 与 DSV4-Pro (76.0)，为全体最佳
 - **FS-Research (40.0)**：远超所有对比模型（第二名 GPT-5.5 仅 26.7）
 - **MolBench-Bind (56.8)**：超越 Kimi-K2.6 (21.6) 与 DeepSeek-V4-Pro (37.8)，但低于 GPT-5.5 (62.2)
 
 **2. Agents-A1 弱于万亿参数模型的领域**：
 - **BrowseComp (75.5)**：低于 GPT-5.5 (84.4)、DSV4-Pro (83.4)、Kimi-K2.6 (83.2)
-- **MLE-Bench-Lite (43.9%)**：显著低于 GPT-5.5 (72.7%)，说明工程类端到端任务对规模需求更高
+- **MLE-Bench-Lite (43.9%)**：显著低于 GPT-5.5 (72.7%)；原文归因于 MLE 需要完整工程流程，要求稳定目标保持、历史决策记忆和避免重复试验（未归因于参数量）
 - **SciCode (44.3)**：低于 GPT-5.5 (56.1) 和 Kimi-K2.6 (53.5)
 
 **3. OPD 解决了 SFT 的领域冲突问题**：
@@ -474,7 +477,7 @@ def salient_vocabulary_alignment(
     在教师选择的 top-k token 子集上，对每个样本 i 先在其可训练位置 R_i 上取均值，
     再计算学生与教师分布之间的 reverse KL（student||teacher）。
     注意：必须按 sample_ids 做逐样本的 1/|R_i| 归一，否则长轨迹会因 token 数多而主导梯度
-    （这正是 Eq 6 域归一化所要避免的长度偏置）。
+    （这正是 Eq 4 的逐样本平均所要避免的长度偏置；Eq 6 进一步防止高频领域主导更新）。
     """
     # 1. 计算学生/教师分布
     teacher_probs = F.softmax(teacher_logits, dim=-1)   # (N, V)
@@ -542,29 +545,29 @@ def domain_routed_normalized_loss(
 
 1. **MLE 能力仍然有限**：在 MLE-Bench-Lite 上 43.9%，远低于 GPT-5.5 的 72.7%。端到端工程优化任务需要稳定的目标保持、历史决策记忆和避免重复试验，这对 35B 模型仍是挑战。
 
-2. **搜索领域不如 1T 模型**：BrowseComp 上 75.5 vs GPT-5.5 84.4/Kimi-K2.6 83.2，说明大规模 web 搜索场景仍受益于参数量优势。
+2. **搜索领域部分基准不如 1T 模型**：BrowseComp 上 75.5 vs GPT-5.5 84.4/Kimi-K2.6 83.2，但在 SEAL-0 上以 56.4 领先所有 1T 模型；原文未将 BrowseComp 差距归因于参数量。
 
 3. **OPD 教师 vs 学生的天花板**：经过 OPD 训练的模型不一定在所有任务上超过对应的领域教师，因为学生在统一策略中需要做 trade-off。
 
-4. **基础原子能力不足**：论文指出，规划前先推理、行动前先反思、长上下文中总结关键信息、识别重要历史信息等原子能力对长程任务至关重要，但目前这些能力主要来自 Qwen3.5 的初始能力而非专门训练。
+4. **基础原子能力不足**：论文指出，规划前先推理、行动前先反思、长上下文中总结关键信息、识别重要历史信息等原子能力对长程任务至关重要，并把提升这些能力列为未来工作重点；当前 agentic 能力主要来自 Qwen3.5 初始化、KAG 基础设施和 domain-routed OPD 三方面。
 
 5. **评估环境不一致**：τ2-Bench 的 Qwen3.5-35B-A3B 官方结果 (81.2) 与复现结果差距巨大（Table 4 单元格与 Table 8 脚注为 32.5/32.53，Table 4 脚注另记 33.0——原文自身不一致），表明评估框架版本依赖性强。
 
 ### 7.2 关键启示
 
-- **Horizon Scaling 是可行的 Scaling 替代路径**：通过高质量数据基础设施和多教师蒸馏，35B 模型可以在多数长程智能体任务上匹配万亿参数模型
+- **Horizon Scaling 是可行的 Scaling 替代路径**：通过高质量数据基础设施和多教师蒸馏，35B 模型可以在多项长程智能体任务上达到或接近万亿参数模型水平（在 BrowseComp、SciCode、MLE-Bench-Lite 等任务上仍落后）
 - **领域冲突是核心难题**：短思考（工具调用）与长思考（推理）之间存在根本性模式冲突，需要专门方法解决
-- **基础设施比模型更大**：45K token 平均长度的轨迹数据 + KAG 自扩展 = 性能提升的关键
+- **高质量数据基础设施是关键**：45K token 平均长度的轨迹数据 + KAG 自扩展是性能提升的关键
 
 ### 7.3 延伸阅读
 
-- **Kimi K2.6**（arXiv 2026）：万亿参数 coding agent，Agents-A1 的主要对比对象
-- **DeepSeek-V4**（arXiv 2026）：高效百万 token 上下文 intelligence
+- **Kimi K2.6**（Kimi 官方博客, 2026）：万亿参数 coding agent，Agents-A1 的主要对比对象
+- **DeepSeek-V4**（DeepSeek-AI 技术报告, 2026）：高效百万 token 上下文 intelligence
 - **On-Policy Distillation**（Thinking Machines Lab, 2025）：OPD 的原始工作
 - **GRPO**（DeepSeekMath, arXiv 2402.03300）：Group Relative Policy Optimization
 - **PAPO**（arXiv 2603.26535）：稳定 rubric 集成训练的 decoupled advantage normalization
 - **MLE-Dojo**（arXiv 2505.07782）：ML 工程 agent 训练环境
 - **Agents-K1**（arXiv 2606.13669）：KAG 的前期铺垫工作
 - **Qwen3.5-35B-A3B**（Qwen AI Blog, 2026）：基座模型
-- **项目页面**: internscience.github.io/Agents-A1/
+- **代码**: github.com/InternScience/Agents-A1
 - **模型权重**: huggingface.co/InternScience/Agents-A1

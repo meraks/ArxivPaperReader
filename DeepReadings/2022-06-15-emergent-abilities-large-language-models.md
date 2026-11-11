@@ -53,7 +53,7 @@ Scaling laws 表明，放大语言模型（训练算力、参数量）可在下�
 当今语言模型主要沿三因素缩放：算力、参数量、训练数据量（Kaplan et al., 2020; Hoffmann et al., 2022）。论文的处理：
 
 - **正文**以训练 FLOPs 为 x 轴（沿用 Hoffmann et al., 2022 的度量）。
-- **附录 D** 给出以参数量为 x 轴的对应图（Figure 11、12，正文 Figure 4、10）。
+- **附录 D** 给出以参数量为 x 轴的对应图（Figure 11、12，以及正文 Figure 4 与附录 B 的 Figure 10）。
 - **§5.3** 进一步以 WikiText103 perplexity 为 x 轴分析（Merity et al., 2016）。
 
 由于大多数 dense Transformer 模型族的训练算力与参数量大致按比例同步缩放，FLOPs 与参数量两条曲线形状相似（Kaplan et al., 2020）。训练数据量同样是重要因素，但许多模型族对所有规模使用固定训练样本数（Brown et al., 2020; Rae et al., 2021; Chowdhery et al., 2022），故未将其作为独立 x 轴。
@@ -107,7 +107,7 @@ Few-shot prompting 由 GPT-3（Brown et al., 2020）推广：给预训练模型�
 |------|------|----------|------------------|--------|
 | A | 算术 (3 位数) | GPT-3 | 2.3E+22 | 13B |
 | B | IPA 转写 | LaMDA | ~10²³（近似，Figure 2B） | ~68B（近似，Figure 2B） |
-| C | 单词重组 | LaMDA | 见附录 E | — |
+| C | 单词重组 | LaMDA | ~10²³（近似，Figure 2C） | ~68B（近似） |
 | D | 波斯语 QA | PaLM | 需 62B + 数据 | 62B |
 | E | TruthfulQA | Gopher | 5.0E+23 | 280B |
 | F | 概念映射 | GPT-3 | 3.1E+23 | 175B |
@@ -189,7 +189,7 @@ Table 1 列出论文汇总的全部涌现能力及各自涌现门槛，共 **23 
 
 论文对六个 LaMDA 涌现 BIG-Bench 任务测量 cross-entropy loss（预训练 scaling law 所用指标）：三个生成式任务（modified arithmetic、IPA transliterate、word unscramble，指标 EM/BLEU）与三个分类任务（logical arguments、sports understanding、figure of speech，指标 accuracy）。
 
-关键发现：即使下游指标（EM/BLEU/accuracy）接近随机且不改善，**cross-entropy loss 仍在持续改善**——即对数似然的改进被下游指标掩盖。六项任务全部落入此情形（论文称为 Outcome 2）。在涌现点处，cross-entropy loss 也出现 "elbow"（拐点）。但这并未解释下游指标为何涌现，也无法预测涌现发生的规模。
+关键发现：即使下游指标（EM/BLEU/accuracy）接近随机且不改善，**cross-entropy loss 仍在持续改善**——即对数似然的改进被下游指标掩盖。六项任务全部落入此情形（论文称为 Outcome 2）。在三个生成式任务的涌现点处，cross-entropy loss 也出现 "elbow"（拐点）；三个分类任务则表现为在随机阶段 cross-entropy 持续改善。但这并未解释下游指标为何涌现，也无法预测涌现发生的规模。
 
 对多选题的进一步分析：正确响应与错误响应的对数概率都随规模下降（因更大模型产生更不极端的概率），但二者最终在某一规模处分叉，对应任务性能的大幅上升。
 

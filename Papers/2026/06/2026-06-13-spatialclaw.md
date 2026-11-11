@@ -39,7 +39,7 @@ SpatialClaw提出的解决方案简单而深刻：**将代码本身作为VLM age
 SpatialClaw的核心贡献可归纳为以下五点：
 
 **1. 代码作为动作接口的理论框架**
-首次系统性地论证了为什么代码是空间推理agent的理想接口。论文的核心洞察是："一次新的空间分析不是一个新的API接口，而是在中间证据驱动下，跨步骤组装感知工具和数值基元的新组合。"这一洞察从根本上区分了SpatialClaw与之前的方法——它不是提供更多工具或更复杂的API，而是提供一种组合工具的通用语言（Python代码）。
+系统性地论证了为什么代码是空间推理agent的理想接口。论文的核心洞察是："一次新的空间分析不是一个新的API接口，而是在中间证据驱动下，跨步骤组装感知工具和数值基元的新组合。"这一洞察从根本上区分了SpatialClaw与之前的方法——它不是提供更多工具或更复杂的API，而是提供一种组合工具的通用语言（Python代码）。
 
 **2. 持久化内核工作空间**
 设计了六个精心设计的入口点（InputImages、Metadata、tools、show()、vlm、ReturnAnswer()），将复杂的多模态推理任务封装为自然Python编程环境。工具集包括：
@@ -65,19 +65,19 @@ SpatialClaw的核心贡献可归纳为以下五点：
 证明了无需任何微调或任务特定适配，同一套系统prompt、工具集和超参数可以在20个不同的空间推理benchmark上取得SOTA结果。这6个VLM骨干网络（Qwen3.5-397B/122B、Qwen3.6-35B/27B、Gemma4-31B/26B）在SpatialClaw框架下均取得显著增益，证明了方法的通用性。
 
 **5. 全面的实验验证**
-在20个空间推理benchmark上进行系统评估，覆盖静态3D、多视角、动态4D视频等任务类型。平均准确率达到59.9%，超越之前最佳方法（SpaceTools）11.2个百分点，在最具挑战性的任务（如DSI-Bench）上获得超过20个百分点的增益。
+在20个空间推理benchmark上进行系统评估，覆盖静态3D、多视角、动态4D视频等任务类型。平均准确率达到59.9%，超越之前最佳方法（SpaceTools）11.2个百分点，在最具挑战性的任务（如DSI-Bench）上平均获得约18个百分点的增益，部分模型超过20个百分点。
 
 ### 1.4 关键数字速览
 
 | 指标 | 数值 | 对比基线 | 说明 |
 |------|------|----------|------|
 | 平均准确率（20个benchmark） | 59.9% | SpaceTools: 48.7% | +11.2 pp |
-| 最佳模型表现（Qwen3.6-27B） | 62.7% | No-tool: 53.4% | +9.3 pp |
-| 视频4D任务增益 | +18.3% | SpaceTools | 动态场景优势明显 |
-| 多视角任务增益 | +14.3% | SpaceTools | 跨视角一致性处理 |
-| DSI-Bench增益（Qwen3.6-27B） | +20.1 pp | SpaceTools | 单任务最大提升 |
-| MindCube增益（Qwen3.6-27B） | +18.9 pp | SpaceTools | 3D推理能力验证 |
-| 支持VLM骨干网络 | 6个 | 27B–397B | 模型规模覆盖广 |
+| 最佳模型表现（Qwen3.6-27B） | 62.7% | No-tool: 55.0% | +7.7 pp |
+| 视频4D任务增益（DSI-Bench，六模型平均） | +18.3 pp | No-tool（六模型平均） | 动态场景优势明显 |
+| 多视角任务增益（MindCube，六模型平均） | +14.3 pp | No-tool（六模型平均） | 跨视角一致性处理 |
+| DSI-Bench增益（Qwen3.6-27B） | +20.1 pp | No-tool（Qwen3.6-27B） | 单任务最大提升 |
+| MindCube增益（Qwen3.6-27B） | +18.9 pp | No-tool（Qwen3.6-27B） | 3D推理能力验证 |
+| 支持VLM骨干网络 | 6个 | 26B–397B | 模型规模覆盖广 |
 | 总benchmark数量 | 20个 | 覆盖5大任务类型 | 全方位评估 |
 | 最大步数预算 | 30步 | N_max=30 | 平衡效率与能力 |
 
@@ -217,10 +217,10 @@ SpatialClaw的核心洞察在论文中表述为：
 工具增强的VLM并非新概念。Visual Programming和ViperGPT最早提出让VLM生成代码来组合视觉模型，Code-as-Policies将这一思想扩展到机器人控制。然而，这些方法都采用"单次代码生成"模式——要求VLM在见到任何中间结果之前提交完整程序。这在简单任务上有效，但在复杂多步骤推理中表现不佳，因为无法修正早期错误。
 
 **Agentic Spatial Reasoning**
-SpaceTools和pySpatial是最接近SpatialClaw的工作。SpaceTools设计了空间推理工具的固定API（如`spatial_relationship()`、`cross_view_localize()`），pySpatial提供了类似的工具集。然而，这两种方法都将agent限制在预定义的API调用中，无法灵活组合工具或根据中间结果调整策略。论文的Table 2显示，这两种方法的平均准确率分别为53.4%（SpaceTools）和55.2%（pySpatial），显著低于SpatialClaw的59.9%。
+SpaceTools和pySpatial是最接近SpatialClaw的工作。SpaceTools使用结构化工具调用（预定义API，并通过监督演示与交互式强化学习微调VLM），pySpatial则属于单次代码生成（生成一个完整的3D视觉程序）。然而，两者都缺少SpatialClaw的多步迭代能力：SpaceTools受限于固定API，难以自由组合工具；pySpatial在观察任何中间结果之前就必须提交完整程序，难以根据中间结果调整策略。论文的Table 3显示，在Gemma4-31B骨干上，SpaceTools和pySpatial的平均准确率分别为48.7%和47.8%，显著低于SpatialClaw的59.9%（Table 2中No-tool和Single-pass分别为53.4%和55.2%）。
 
 **Benchmark发展**
-空间推理的评估标准也在快速发展。早期的Task 1（Gao et al., 2024）主要测试单视角关系，而现在的benchmark如MindCube（多视角3D重建）、DSI-Bench（跨视角定位）、PAI-Bench（视频4D推理）等，测试的是更深层次的空间理解能力。SpatialClaw在这些更具挑战性的benchmark上表现尤其出色，这证明了代码接口在复杂任务中的必要性。
+空间推理的评估标准也在快速发展。论文采用的benchmark如MindCube（多视角空间推理）、DSI-Bench（视频空间与4D推理）、PAI-Bench（视频空间与4D推理）等，测试的是更深层次的空间理解能力。SpatialClaw在这些更具挑战性的benchmark上表现尤其出色，这证明了代码接口在复杂任务中的必要性。
 
 ### 2.5 为什么现在是正确时机？
 
@@ -233,7 +233,7 @@ Gemma4和Qwen3.5/3.6等模型在代码生成任务上已经达到实用水平，
 SAM3和Depth Anything 3等模型提供了高质量的视觉基元，agent可以依赖这些基础工具而不必担心视觉感知质量成为瓶颈。
 
 **3. 多模态基础设施的成熟**
-Jupyter内核的持久化、LangGraph的agent状态管理、vLLM的高效推理，这些基础设施使得SpatialClaw的工程实现成为可能。论文的代码仓库显示，整个系统被设计为三个独立服务（VLM推理、感知工具、Agent），这种模块化设计便于部署和扩展。
+Jupyter内核的持久化、LangGraph的agent状态管理、vLLM的高效推理，这些基础设施使得SpatialClaw的工程实现成为可能。论文描述了两个可独立扩展的服务角色（LLM推理与感知工具），Agent循环运行在每样本的持久化IPython kernel中；这种模块化设计便于部署和扩展。
 
 SpatialClaw不是对VLM架构的改进，而是对VLM使用方式的重新思考。它证明了：**在正确的接口设计下，现有的VLM已经具备惊人的空间推理能力——我们需要做的，只是让它们以正确的方式访问和组合工具。**
 
@@ -257,15 +257,15 @@ SpatialClaw的核心技术创新在于维护一个**状态化Python内核**，�
 - agent可通过工具函数访问任意图像的像素数据
 
 **2. Metadata（元数据字典）**
-- 包含相机内参（intrinsic matrix）、外参（extrinsic matrix）、深度尺度因子
-- 预计算的3D场景边界（bounding box）、物体数量等统计信息
+- 包含视频输入的帧率、时长和帧索引，帮助agent在问题涉及具体时间戳时理解时序结构
+- 相机内参/外参、深度和稠密点图由`tools.Reconstruct`返回
 - 这些元数据减少了agent重复提取基础信息的需要
 
 **3. tools（感知与几何工具包）**
 工具包包含以下核心模块：
 
 - **Reconstruct**：基于Depth Anything 3的3D重建工具，输入单张或多视角图像，输出稠密点云或深度图
-- **SAM3**：Segment Anything Model 3的封装，提供2D/3D分割能力
+- **SAM3**：Segment Anything Model 3的封装，提供图像/视频分割能力（支持文本、点、框提示）
 - **Mask utilities**：分割后处理（合并、过滤、IoU计算）
 - **Geometry utilities**：3D变换（rotation, translation）、投影矩阵计算、点-面距离
 - **SciPy spatial**：KDTree、最近邻查询、凸包计算（通过预导入SciPy库）
@@ -286,7 +286,7 @@ SpatialClaw的核心技术创新在于维护一个**状态化Python内核**，�
 
 **6. ReturnAnswer()（答案提交接口）**
 - agent调用此函数提交最终答案
-- 参数：数值答案（float/int）、字符串答案、或结构化输出（坐标列表、选项目ID）
+- 参数：字符串（str）、整数（int）或浮点数（float）；坐标/选项需先格式化为其中一种
 - 调用后agent循环终止，答案被解析为benchmark所需的格式
 
 ### 3.1.2 工具预加载策略
@@ -426,7 +426,7 @@ def safe_execute(code_str):
 
 **执行机制**：
 - 代码通过Jupyter Kernel的`execute()`方法运行
-- 执行超时设置为每单元60秒（防止无限循环）
+- 执行设有每单元墙钟超时（防止无限循环；论文未给出具体秒数）
 - 异常会被捕获并转化为traceback字符串，传递到Stage 4
 
 ### 3.2.4 Stage 4 - Feedback Assembly（多模态反馈组装）
@@ -463,18 +463,18 @@ def safe_execute(code_str):
 当agent认为已经获得最终答案时，调用：
 
 ```python
-ReturnAnswer(answer=0.9439, unit="meters")
+ReturnAnswer(0.9439)
 ```
 
 **答案验证逻辑**：
 - 数值答案：检查是否为`int`或`float`类型（拒绝字符串形式的数字）
 - 字符串答案：检查是否在benchmark允许的选项集合中
-- 坐标答案：检查维度和数值范围（如像素坐标应在图像尺寸内）
+- 自由文本/多选答案：检查是否符合该benchmark要求的答案格式
 
 **验证失败时**：
 - agent收到错误信息：`"Invalid answer format. Expected float, got str."`
 - 循环继续，agent可以重新提交或继续计算
-- 提交尝试不计入N_max步数预算（避免惩罚因格式错误导致的重试）
+- 格式错误的提交会记为一步并继续下一步；论文未说明提交尝试可豁免N_max预算
 
 **验证成功时**：
 - agent循环终止
@@ -483,33 +483,33 @@ ReturnAnswer(answer=0.9439, unit="meters")
 
 **步数预算约束**：
 - N_max=30步（每个代码单元执行计为1步）
-- 超过30步强制终止，返回当前最优猜测或空答案
-- 大部分任务在5-10步内完成（Table 1的附录统计）
+- 超过30步强制终止，并通过CoT回退或正则提取返回best-effort答案（不会返回空答案）
+- 论文未报告各任务的实际步数分布
 
 ### 3.2.6 完整案例：测量heater到door的距离
 
 以论文Figure 2为例，展示agent如何通过五阶段循环完成空间推理任务：
 
-**任务**：给定一个室内场景的多视角图像，计算heater（加热器）到door（门）的3D欧氏距离。
+**任务**：给定一个室内场景的视频帧，要求从每个物体最近点的位置测量heater（加热器）到door（门）的距离（米）。
 
 **Stage 1 - Planning**：
 ```
 Plan:
-1. Reconstruct the 3D scene from multi-view images
+1. Reconstruct the 3D scene from input frames
 2. Segment the heater and door objects using SAM3
 3. Extract 3D point clouds for each object
-4. Compute centroids of the point clouds
-5. Calculate Euclidean distance between centroids
+4. Measure the object distance (try centroid distance first, then nearest-point distance)
+5. Return numerical answer in meters
 ```
 
 **Stage 2 - Code Generation (Step 1)**：
 ```python
-# Purpose: Reconstruct 3D scene from multi-view images
+# Purpose: Reconstruct 3D scene from input frames
 # Reasoning: Need depth information to compute 3D distances
 # Next Goal: Obtain a dense point cloud of the scene
 
 # Code START
-point_cloud = Reconstruct(InputImages, metadata=Metadata)
+point_cloud = tools.Reconstruct(InputImages)
 show(point_cloud)
 # Code END
 ```
@@ -517,10 +517,10 @@ show(point_cloud)
 **Stage 3 - Execution**：
 - AST检查通过
 - 执行Reconstruct工具（调用Depth Anything 3）
-- 生成包含数百万点的3D点云
+- 生成稠密点云，并保留相机内参/外参等重建信息
 
 **Stage 4 - Feedback**：
-- stdout: `"Reconstructed 3,245,678 points"`
+- 变量摘要：`"New variables: point_cloud (Reconstruction), depth (list), extrinsics (list), intrinsics (list), points (list)"`
 - show()图像：3D点云的彩色投影，不同深度用不同颜色编码
 
 **Stage 2 - Code Generation (Step 2)**：
@@ -530,8 +530,11 @@ show(point_cloud)
 # Next Goal: Extract masks for both objects
 
 # Code START
-masks = SAM3(InputImages, prompts=["heater", "door"])
-show(masks)
+masks = {
+    "heater": tools.SAM3(InputImages[1], "radiator"),
+    "door": tools.SAM3(InputImages[2], "door"),
+}
+show(masks["heater"], masks["door"])
 # Code END
 ```
 
@@ -558,9 +561,9 @@ door_points = point_cloud[masks['door']]
 
 **Stage 2 - Code Generation (Step 4)**：
 ```python
-# Purpose: Compute centroids and distance
-# Reasoning: Centroid-to-centroid distance approximates object distance
-# Next Goal: Obtain final distance value
+# Purpose: Compute centroids and distance (first attempt)
+# Reasoning: A centroid-to-centroid distance is a first approximation, but the question asks for closest-point distance
+# Next Goal: Obtain a distance value and check whether it matches the question
 
 # Code START
 heater_centroid = heater_points.mean(axis=0)
@@ -575,19 +578,42 @@ print(f"Distance: {distance:.4f} meters")
 - 计算L2范数
 
 **Stage 4 - Feedback**：
-- stdout: `"Distance: 0.9439 meters"`
-- 变量摘要：`"New variables: heater_centroid (shape=(3,)), door_centroid (shape=(3,)), distance (0.9439)"`
+- stdout: `"Distance: 1.4807 meters"`
+- 变量摘要：`"New variables: heater_centroid (shape=(3,)), door_centroid (shape=(3,)), distance (1.4807)"`
+- 该质心距离与题目要求的“最近点距离”不符，agent据此决定改用`scipy.spatial.KDTree`
+
+**Stage 2 - Code Generation (Step 5)**：
+```python
+# Purpose: Measure the closest-point distance with KDTree
+# Reasoning: The question asks for the closest-point distance, not the centroid distance
+# Next Goal: Obtain the corrected minimum distance
+
+# Code START
+door_tree = scipy.spatial.KDTree(door_points)
+distances, _ = door_tree.query(heater_points, k=1)
+min_distance = distances.min()
+print(f"Min distance: {min_distance:.4f} meters")
+# Code END
+```
+
+**Stage 3 - Execution**：
+- 以door点云构建KDTree
+- 查询每个heater点到door点云的最近邻
+
+**Stage 4 - Feedback**：
+- stdout: `"Min distance: 0.9439 meters"`
+- 该结果与题目要求的“最近点距离”一致，也与标注答案0.9米相符
 
 **Stage 5 - Answer Submission**：
 ```python
-ReturnAnswer(answer=0.9439, unit="meters")
+ReturnAnswer(0.9439)
 ```
 
 **验证通过**，agent循环终止，最终答案：**0.9439米**。
 
 **关键观察**：
-- 整个过程使用了**7步**（规划 + 6个代码单元），远低于30步预算
-- 每个代码单元都依赖前一步的输出（如`point_cloud`被后续mask过滤使用）
+- 整个过程由规划加5个代码单元组成（重建、分割、过滤、质心距离、KDTree修正），远低于30步预算
+- 关键在于反馈驱动修正：agent看到质心距离1.4807后改用KDTree最近点查询，才得到0.9439
 - show()反馈让agent能够确认分割质量（如果mask不完整，可以调整SAM3参数）
 
 ---
@@ -701,9 +727,11 @@ print(f"Mean distance: {mean_distance:.4f}m")
 
 **对比实验数据**（Table 2, Interface Ablation）：
 - No-tool baseline: 53.4%
-- Single-pass code: 55.2% (+1.8 pp)
-- Structured tool-call (SpaceTools): 56.7% (+3.3 pp vs single-pass)
-- **SpatialClaw**: 59.9% (+6.5 pp vs structured)
+- Single-pass code: 55.2% (+1.8 pp vs No-tool)
+- Structured tool-call（Table 2的结构化接口基线，并非Table 3的SpaceTools）: 56.7% (+3.3 pp vs No-tool; +1.5 pp vs single-pass)
+- **SpatialClaw**: 59.9% (+6.5 pp vs No-tool; +3.2 pp vs structured)
+
+（Table 3中的SpaceTools在Gemma4-31B上的平均准确率为48.7%。）
 
 **6.5个百分点的增益**主要来自：
 1. 动态策略调整（如median→mean→KDTree的切换）
@@ -712,15 +740,15 @@ print(f"Mean distance: {mean_distance:.4f}m")
 
 ### 3.3.3 灵活性-效率权衡
 
-**潜在代价**：
-- 每个样本需要多轮VLM调用（平均7步，每步一次代码生成）
-- 总token消耗：规划(100 tokens) + 7步代码生成(每步~500 tokens) + 反馈处理(每步~200 tokens) ≈ **5600 tokens/样本**
+**潜在代价（以下为作者估算，论文未报告步数与token统计）**：
+- 每个样本需要多轮VLM调用（按平均7步、每步一次代码生成估算）
+- 总token消耗（估算）：规划(100 tokens) + 7步代码生成(每步~500 tokens) + 反馈处理(每步~200 tokens) ≈ **5600 tokens/样本**
 
-**对比单次代码**：
+**对比单次代码（估算）**：
 - 单次VLM调用生成完整代码（~2000 tokens）
 - 总token消耗：**2000 tokens/样本**
 
-**Token效率比**：5600 / 2000 = 2.8倍
+**Token效率比（估算）**：5600 / 2000 = 2.8倍
 
 **但性能提升**：从55.2%到59.9%（+4.7 pp）
 
@@ -1014,7 +1042,7 @@ SpatialClaw在6个不同的VLM骨干网络上进行了全面测试，覆盖26B�
 | Gemma 4 | Gemma4-31B | 31B |
 | Gemma 4 | Gemma4-26B | 26B |
 
-这一设计选择具有重要的科学意义：通过在同一框架下测试从27B到397B的超大参数跨度，研究者能够明确回答"模型规模是否等于空间推理能力"这一根本问题。
+这一设计选择具有重要的科学意义：通过在同一框架下测试从26B到397B的超大参数跨度，研究者能够明确回答"模型规模是否等于空间推理能力"这一根本问题。
 
 ### Benchmark覆盖
 
@@ -1062,18 +1090,20 @@ Table 1展示了所有6个VLM在20个benchmark上的详细结果。每个数字�
 
 | Benchmark类别 | 最大增益模型 | 增益幅度 | 代表性任务 |
 |--------------|------------|---------|-----------|
-| 多视角推理 | Qwen3.6-27B | +14.3% (近似，Figure分析) | 从多个角度整合3D信息 |
-| 4D视频推理 | Qwen3.6-27B | +18.3% (近似，Figure分析) | 动态场景中的时空推理 |
+| 多视角推理 | Qwen3.6-27B | +15.0 pp（类别平均，据Table 1计算） | 从多个角度整合3D信息 |
+| 4D视频推理 | Qwen3.6-27B | +9.3 pp（类别平均，据Table 1计算） | 动态场景中的时空推理 |
 | 单图3D推理 | [VERIFY: 需要具体数据] | [VERIFY: 需要具体数据] | 单张图像的3D关系推断 |
 | 通用空间推理 | [VERIFY: 需要具体数据] | [VERIFY: 需要具体数据] | 广泛空间认知任务 |
 | 通用视频理解 | [VERIFY: 需要具体数据] | [VERIFY: 需要具体数据] | 动态场景空间关系 |
+
+注：论文正文的+14.3/+18.3分别是MindCube/DSI-Bench的六模型平均增益，并非单一模型或类别增益。
 
 #### 单个benchmark的明星表现者
 
 三个最显著的增益案例（均为Qwen3.6-27B）：
 
 1. **DSI-Bench：+20.1 pp**
-   - 任务类型：多视角3D关系推理
+   - 任务类型：视频空间与4D推理（动态空间智能）
    - 基线准确率：[VERIFY: 研究材料中未给出基线准确率]
    - SpatialClaw准确率：[VERIFY: 研究材料中未给出绝对准确率]
    - 增益解读：接近20个百分点的提升在空间推理领域是革命性的
@@ -1084,15 +1114,17 @@ Table 1展示了所有6个VLM在20个benchmark上的详细结果。每个数字�
    - SpatialClaw准确率：[VERIFY: 研究材料中未给出绝对准确率]
    - 增益解读：近乎19个百分点的提升验证了代码接口对复杂3D任务的价值
 
-3. **PAI-Bench：+2.3 pp**（72.1 vs 69.8）
-   - 任务类型：[VERIFY: 需要确认具体任务类型]
-   - 基线准确率：[VERIFY: 研究材料中未给出基线准确率]
-   - SpatialClaw准确率：[VERIFY: 研究材料中未给出绝对准确率]
-   - 增益解读：PAI-Bench主要测试物理空间交互理解，代码接口允许agent通过几何原语精确计算物体间的空间关系
+3. **SPAR-Bench：+13.1 pp**（68.1 vs 55.0）
+   - 任务类型：多视角空间推理
+   - 基线准确率：55.0
+   - SpatialClaw准确率：68.1
+   - 增益解读：多视角任务上的显著提升，验证了代码接口在跨视角组合推理中的价值
+
+（PAI-Bench的增益为+2.3 pp，属于小幅提升；见Table 1。）
 
 ### 超越SOTA
 
-在所有6个VLM上，SpatialClaw的平均准确率（59.9%，基于Gemma4-31B）超越了当时最佳的专门系统SpaceTools **11.2个百分点**。这一成就的意义在于：
+在Gemma4-31B骨干上，SpatialClaw的平均准确率（59.9%）超越了当时最佳的专门系统SpaceTools（48.7%）**11.2个百分点**；论文未报告其他五个骨干与SpaceTools的对比。这一成就的意义在于：
 
 - SpaceTools是专门为空间推理设计的系统，可能有任务特定的优化
 - SpatialClaw是通用框架，使用相同的系统prompt和工具集处理所有任务
@@ -1100,7 +1132,7 @@ Table 1展示了所有6个VLM在20个benchmark上的详细结果。每个数字�
 
 ### 跨模型一致性
 
-所有6个VLM都在所有benchmark上获得了正向增益，没有出现负收益的案例。这证明了SpatialClaw的接口设计是**普遍有效的**，而非依赖于特定模型的特性。
+6个VLM的平均准确率均获得了正向增益，但并非每个benchmark都为正；Table 1中仍有多项负增益（如Qwen3.5-397B在ERQA/Omni3D/SpatialTree上分别为-1.0/-1.9/-5.1 pp，Gemma4-31B在BLINK上为-2.3 pp）。这证明了SpatialClaw的接口设计在多数任务上**普遍有效**，且并非依赖于特定模型的特性。
 
 ### 关键洞察：接口 > 规模
 
@@ -1157,7 +1189,7 @@ Table 2使用Gemma4-31B模型，在统一benchmark上对比四种接口设计：
 
 #### Structured → SpatialClaw：+3.2 pp
 
-**增益幅度**：3.2个百分点的提升是之前两阶提升之和的**近一倍**。
+**增益幅度**：3.2个百分点的提升与之前两阶提升之和（+3.3 pp）基本相当。
 
 **原因分析**：
 - **完全编程自由**：不再受限于预定义API，可以任意组合感知基元和数值计算
@@ -1178,7 +1210,7 @@ Table 2使用Gemma4-31B模型，在统一benchmark上对比四种接口设计：
 - 从Single-pass到Structured的1.5 pp提升：规范化有帮助  
 - 从Structured到SpatialClaw的3.2 pp提升：**完全灵活性才是关键**
 
-最后一阶的提升是前两阶之和的两倍，这证明了"代码作为接口"的设计不是渐进改进，而是质的飞跃。
+最后一阶的提升（+3.2 pp）与前两阶之和（+3.3 pp）基本相当，且明显高于任一单阶提升，这体现了"代码作为接口"设计的显著价值。
 
 ## 5.4 组件消融
 
@@ -1279,39 +1311,42 @@ AST（Abstract Syntax Tree）安全检查在代码执行前进行静态扫描，
 
 ## 6.1 核心代码示例
 
-### 测量heater到door的距离（Figure 2完整代码）
+### 测量heater到door的距离（依据Figure 2整理的示意代码）
 
-以下是论文Figure 2中展示的完整5步代码，展示了SpatialClaw如何通过代码接口逐步分析空间关系：
+以下是依据论文Figure 2流程整理的示意代码（接口与变量名有简化，并非图中原文）；Figure 2(c)实际使用`tools.SAM3`、`tools.Reconstruct`、`tools.get_centroid`、`tools.dist`与`scipy.spatial.KDTree`，并展示了质心距离1.4807（错误）→KDTree最近点距离0.9439（正确）的修正过程。
 
 ```python
-# Step 1: Load and segment the input image
-images = InputImages()  # Load RGB-D image
-mask_heater = SAM3(images, prompt="heater")
-mask_door = SAM3(images, prompt="door")
+# Step 1: Segment the heater and door, reconstruct the 3D scene
+seg_h = tools.SAM3(InputImages[1], "radiator")
+seg_d = tools.SAM3(InputImages[2], "door")
+recon = tools.Reconstruct(InputImages[::100])
+show(seg_h, seg_d)  # visual feedback
 
-# Step 2: Reconstruct 3D scene from depth
-scene_3d = Reconstruct(images)  # Depth Anything V3
-heater_3d = scene_3d.extract(mask_heater)
-door_3d = scene_3d.extract(mask_door)
+# Step 2: Extract 3D points and compute centroids (first attempt)
+points_h = recon.points[seg_h]
+points_d = recon.points[seg_d]
+centroid_h = tools.get_centroid(points_h)
+centroid_d = tools.get_centroid(points_d)
+dist = tools.dist(centroid_h, centroid_d)
+print(f"Distance: {dist}")  # 1.4807 — wrong (centroid distance)
 
-# Step 3: Compute centroids
-centroid_heater = heater_3d.centroid()
-centroid_door = door_3d.centroid()
+# Step 3: Revise with nearest-point search
+tree_d = scipy.spatial.KDTree(points_d)
+dists, _ = tree_d.query(points_h, k=1)
+min_dist = dists.min()
+print(f"Min distance: {min_dist}")  # 0.9439 — correct
 
-# Step 4: Visualize intermediate result
-show(heater_3d, door_3d, centroids=[centroid_heater, centroid_door])
-
-# Step 5: Calculate distance and return answer
-distance = np.linalg.norm(centroid_heater - centroid_door)
-ReturnAnswer(f"The distance from heater to door is {distance:.2f} meters")
+# Step 4: Submit answer
+ReturnAnswer(0.9439)
 ```
 
 **代码亮点**：
 
-1. **逐步验证**：通过show()在步骤4可视化3D重建结果，agent可以检查heater和door是否被正确识别
-2. **状态复用**：步骤5直接使用步骤2生成的3D对象和步骤3计算的质心，无需重复计算
-3. **工具组合**：SAM3（分割）→ Reconstruct（3D重建）→ NumPy（数值计算）的天然组合
-4. **自然语言答案**：ReturnAnswer()将数值结果转换为自然语言描述
+1. **逐步验证**：第一步通过show()可视化分割结果，agent可以检查heater和door是否被正确识别
+2. **状态复用**：后续步骤直接复用第一步生成的mask、重建结果和点云，无需重复计算
+3. **工具组合**：SAM3（分割）→ Reconstruct（3D重建）→ NumPy/SciPy（几何计算）的天然组合
+4. **错误修正**：质心距离1.4807不符合"最近点"要求，agent据此改用scipy.spatial.KDTree，得到0.9439并提交
+5. **答案提交**：ReturnAnswer()提交数值答案
 
 ### ReturnAnswer()调用示例
 
@@ -1340,7 +1375,7 @@ else:
 
 **ReturnAnswer()的语义**：
 - 调用ReturnAnswer()会终止agent循环，将参数作为最终答案返回
-- 未调用ReturnAnswer()且达到N_max步时，使用最后一次执行的输出作为答案
+- 未调用ReturnAnswer()且达到N_max步时，终止节点先尝试CoT回退（直接从关键帧作答），必要时再用正则从最近消息/变量中提取答案
 - ReturnAnswer()的参数会被自动格式化为评估脚本可解析的形式
 
 ### 迭代修正模式示例
@@ -1545,7 +1580,7 @@ git submodule update --init --recursive
 
 ### 三服务架构启动
 
-SpatialClaw采用**服务分离架构**，三个独立服务通过HTTP通信：
+SpatialClaw的**服务分离架构**（论文描述两个可独立扩展的服务角色：LLM推理与感知工具；agent循环运行在每样本的持久化IPython内核中，实践中作为driver进程启动）按三个进程部署，通过HTTP通信：
 
 #### 服务1：vLLM推理服务
 
@@ -1997,7 +2032,7 @@ result = custom_analysis(images.rgb, param=0.5)
 - **MindCube**：3D空间关系推理
 - **SPAR-Bench**：[VERIFY: 需要确认具体任务类型]
 - **MMSI**：[VERIFY: 需要确认具体任务类型]
-- **DSI-Bench**：多视角3D关系推理
+- **DSI-Bench**：视频空间与4D推理（动态空间智能）
 - **PAI-Bench**：物理空间交互理解，测试物体间空间关系推理
 
 **挑战**：

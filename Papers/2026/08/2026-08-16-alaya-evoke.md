@@ -21,14 +21,14 @@ Evoke 是一个交互式视频世界模型：将场景几何持久化于外部�
 | Figure 6 | 长/短视界教师蒸馏出的学生对比 | §3.3 |
 | Figure 7 | 短时记忆召回可视化 | §3.4 |
 | Figure 8 | evocation 受控评估：中途子句实现率 67% / 需替换几何 4% | §4.4 |
-| Figure 10 | 几何路径成本分解 | §7 |
-| Figure 11 | 教师 prompt 调度：4 分钟 rollout × 12 条 20 s 指令 | §8 |
-| Figure 12 | 定性 rollout 汇总：9 个会话、4 类场景 | §9 |
+| Figure 10 | 几何路径成本分解 | 附录 B |
+| Figure 11 | 教师 prompt 调度：4 分钟 rollout × 12 条 20 s 指令 | 附录 C |
+| Figure 12 | 定性 rollout 汇总：9 个会话、4 类场景 | 附录 D |
 | Table 1 | WBench 导航 split（158 例）分组得分 | §4.1 |
 | Table 2 | VBench-2.0 与 VBench-Long 总分对比 | §4.1 |
-| Table 3 | VBench-2.0 完整榜单 | §10 |
-| Table 4 | VBench-Long 完整榜单 | §10 |
-| Table 7 | WBench 公共榜单（30 个系统） | §11 |
+| Table 3 | VBench-2.0 完整榜单 | 附录 E |
+| Table 4 | VBench-Long 完整榜单 | 附录 E |
+| Table 7 | WBench 公共榜单 Top-10（榜单共 30 个系统） | 附录 F |
 
 ![Figure 2: evocation 案例](Figures/2026-08-16-alaya-evoke-fig2.png)
 
@@ -109,7 +109,7 @@ $$\mathcal{L}_W(\theta) = \mathbb{E}_k\!\left[\, D\!\left( q_\theta^{\,k:k+W-1} 
 
 其中 $q_\theta$ 为学生在窗口 $[k,\ k+W-1]$ 上的自强制生成分布，$p$ 为参考分布，$D$ 为散度型差异度量。
 
-监督视界 $W$ 的取值由漂移的可检测尺度决定：degradation drift 局部可检，短视界教师即可发现；content drift 需跨长距离比较，只有 $W$ 足够大时教师才能"看见"并惩罚。$W$ 的收益先大后饱和，约 30 s 处饱和；监督视界无需与最终会话时长成比例——30 s 的监督即可支撑小时级会话。训练时的具体配置为 1 个 GT 前缀 + 20 个生成 chunk = 189 latent 帧 = 753 pixel 帧 ≈ 31.4 s。附录 §8 在 13 种扰动条件下测得 $W > 2$ chunks 后 teacher–critic detectability 变化不大，提示收益更多来自完整的长视界训练过程而非窗口长度本身。
+监督视界 $W$ 的取值由漂移的可检测尺度决定：degradation drift 局部可检，短视界教师即可发现；content drift 需跨长距离比较，只有 $W$ 足够大时教师才能"看见"并惩罚。$W$ 的收益预期先大后饱和；论文采用约 30 s 的监督视界，但正文未报告 30 s 处的定量饱和点；监督视界无需与最终会话时长成比例——30 s 的监督即可支撑小时级会话。训练时的具体配置为 1 个 GT 前缀 + 20 个生成 chunk = 189 latent 帧 = 753 pixel 帧 ≈ 31.4 s。附录 C 在 13 种扰动条件下测得 $W > 2$ chunks 后 teacher–critic detectability 变化不大，提示收益更多来自完整的长视界训练过程而非窗口长度本身。
 
 ### 3.3 教师：长视界交互监督
 
@@ -216,10 +216,10 @@ Table 1 为论文主结果表：9 个少步交互式世界模型在 WBench 导�
 - **Video Quality（82.79，领先第 2 名 LingBot-World v2 fast 的 81.77）**：最大单项增益来自 Aesthetic（66.12 vs 第 2 名 64.4）；HPSv3-Norm 73.75 位列第 2（leader 74.6），明显高于多数少步系统——HPSv3 是人工偏好评分，说明 3 步蒸馏并未显著牺牲主观画质。
 - **Setting（83.76，领先第 2 名 LingBot-World fast 的 77.90 达 5.86）**：Scene 维度 74.68 远超所有对比（第 2 名 66.7），与 Evoke 的持久场景状态设计直接相关——场景结构跨 chunk 保持一致正是世界状态库的目标。
 - **Consistency（86.87，与 HY-World 1.5 ar-distill 的 86.86 基本持平、差 0.01，LingBot-World v2 fast 86.49 次之）**：Segment 满分 100.00，Geometric 92.68 领先，但 Perspective（69.74）与 Photometric（82.53）落后——Perspective 弱反映相机控制路径限制，Photometric 弱则与论文 §4.2 承认的"光度统计稳定但非永久保真"一致。
-- **Physical（72.06，领先第 2 名 LingBot-World v2 fast 的 69.05）**：Causal Fidelity 82.44 大幅领先（第 2 名 76.7），Visual Plausibility 61.67 排名第 1——因果保真度优势与长视界监督暴露的远距一致性问题直接相关。
+- **Physical（72.06，领先第 2 名 LingBot-World v2 fast 的 69.05）**：Causal Fidelity 82.44 大幅领先（第 2 名 76.7），Visual Plausibility 61.67 排名第 1——论文将这一增益与 Evoke 对持久场景状态和长时生成的强调相联系（§4.1），未单独归因于长视界监督。
 - **Interaction/Navigation（78.63，第 6）**：是 Evoke 最弱的一组，落后 HY-World 1.5 ar-distill（87.5）、Happy Oyster（85.1）、LingBot-World v2 fast（82.8）、Matrix-Game 2.0（80.6）与 LingBot-World fast（79.4）五个系统，论文归因于当前相机控制路径的局限。
 
-**WBench 公共榜单（Table 7）。** 同一运行放入 WBench 公开榜单（该 split 按五个组分的非加权均值排名，共 30 个任意采样预算的系统；Interaction 组在此 split 即导航维度）。Evoke 以 3 步、无 CFG 采样，而榜单中多数行使用各自的多步默认采样器，因此比较**不是 step-matched**。Evoke 以 80.8 Average 领先榜单第 1（比第二名 HiDream-O1-World 的 80.7 高 0.1，论文声明该幅度的领先与文中拒绝视为胜出的差异同阶）。下表仅展示前 10 名，完整榜单（30 个系统）见论文 Table 7。
+**WBench 公共榜单（Table 7）。** 同一运行放入 WBench 公开榜单（该 split 按五个组分的非加权均值排名，共 30 个任意采样预算的系统；Interaction 组在此 split 即导航维度）。Evoke 以 3 步、无 CFG 采样，而榜单中多数行使用各自的多步默认采样器，因此比较**不是 step-matched**。Evoke 以 80.8 Average 领先榜单第 1（比第二名 HiDream-O1-World 的 80.7 高 0.1，论文声明该幅度的领先与文中拒绝视为胜出的差异同阶）。下表即论文 Table 7 的前 10 名；论文 Table 7 本身只列出 top-10（该 split 共排名 30 个系统，但论文未给出完整 30 行）。
 
 | # | Model | Average | Quality | Setting | Inter. | Consist. | Phys. |
 |---|--------|:---:|:---:|:---:|:---:|:---:|:---:|
@@ -236,7 +236,7 @@ Table 1 为论文主结果表：9 个少步交互式世界模型在 WBench 导�
 
 > † 为作者对已发布学生模型的自行评估，非榜单提交。数值来源：论文 Table 7（精确值）。
 
-**通用视频质量（Table 2）。** 尽管仅使用 3 次 CFG-free 评估，Evoke 在 VBench-2.0（Zheng et al., 2025）与 VBench-Long（Huang et al., 2024；2025b）上与多步系统保持竞争力，说明交互生成所需的高效性并未带来通用视频质量的大幅下降。两个比较均非 step-matched（Evoke 3 步无 CFG，对手段列使用各自多步默认采样器）。协议偏差声明于论文附录 §10。
+**通用视频质量（Table 2）。** 尽管仅使用 3 次 CFG-free 评估，Evoke 在 VBench-2.0（Zheng et al., 2025）与 VBench-Long（Huang et al., 2024；2025b）上与多步系统保持竞争力，说明交互生成所需的高效性并未带来通用视频质量的大幅下降。两个比较均非 step-matched（Evoke 3 步无 CFG，对手段列使用各自多步默认采样器）。协议偏差声明于论文附录 E。
 
 | Benchmark | Evoke | Rank | Leader | Nearest peer |
 |-----------|:---:|:---:|:---:|:---:|
@@ -390,7 +390,7 @@ prefix | long(16) | mid(2) | warp(W) | prev_short(1) | noise(W)
 3. **实时性仍不足**：单张 H200 上每 1.5 s chunk 需 2.11 s 扩散 wall clock，未达实时；论文指出需更高压缩的视频 VAE、更高效的少步生成器与更低成本的几何条件。
 4. **导航/透视指标偏弱**：WBench 上 Navigation（78.63）与 Perspective（69.74）相对落后，反映当前相机控制路径的局限。
 5. **定时控制的边界**：需要替换世界状态库已锚定几何的指令实现率仅 4%，持久几何会抵抗覆盖；evocation 能力依赖 per-chunk 条件接口，但其独立因果归因未被消融证明（短/长教师无显著差异）。
-6. **比较的非对称性**：所有基准比较均非 step-matched（Evoke 3 步无 CFG vs 对手段多步默认），VBench-2.0 领先 Veo 3 的 0.05 分与 VBench-Long 的协议偏差（单采样、clip 时长差异）意味着排名不应过度解读。
+6. **比较的非对称性**：VBench-2.0/VBench-Long 与 WBench 公开榜单的比较均非 step-matched（Evoke 3 步无 CFG vs 对手段多步默认）；Table 1 的 WBench 导航 split 对比对象均为少步系统。VBench-2.0 领先 Veo 3 的 0.05 分与 VBench-Long 的协议偏差（单采样、clip 时长差异）意味着排名不应过度解读。
 7. **无永久记忆**：世界状态库是有限时间窗口（90 s 几何），提供「保留覆盖内的恒定成本召回」而非「每个访问过位置的永久记忆」。
 8. **监督视界与条件调度的独立因果未被完全分离**：§4.4 的匹配短/长教师对比在中途实现率上无显著差异，论文明确将 per-chunk 条件视为「表达定时控制的接口」而非「能力的孤立因果解释」；13 种扰动下的 detectability 扫描也显示收益来自完整训练过程而非窗口长度本身。
 
@@ -401,4 +401,4 @@ prefix | long(16) | mid(2) | warp(W) | prev_short(1) | noise(W)
 - **双向教师与因果学生失配**：Zhu et al. (2026)。
 - **长视频生成**：Cui et al. (2025)、Liu et al. (2025) 的长视频目标；Ball et al. (2025)、He et al. (2025b)、Sun et al. (2025) 的扩展生成视界系统。
 - **相关基准**：WBench（Ying et al., 2026）、VBench-2.0（Zheng et al., 2025）、VBench-Long（Huang et al., 2024/2025b）。
-- **相关系统**：Genie 3（Bruce et al., 2024）、LingBot-World（Robbyant Team, 2026）、HY-World、Kling 3.0、Wan 2.7、HiDream-O1-World 等（论文 Table 1/7 对比对象）。
+- **相关系统**：Genie 3（Ball et al., 2025）、LingBot-World（Robbyant Team, 2026）、HY-World、Kling 3.0、Wan 2.7、HiDream-O1-World 等（论文 Table 1/7 对比对象）。

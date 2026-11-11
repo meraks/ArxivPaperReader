@@ -1,7 +1,7 @@
 # BDH-CQ: In-Context Learning with Recurrent Latent Reasoning
 
 > **论文**：BDH-CQ: In-Context Learning with Recurrent Latent Reasoning
-> **作者**：B. Engdahl, A. Kosowski, J. Chorowski, Z. Stamirowska, P. Uznański, J. Jiang, R. Phadke, R. Kinas, R. Zhong（Pathway）
+> **作者**：B. Engdahl, A. Kosowski, J. Chorowski, Z. Stamirowska, P. Uznański, J. Jiang, R. Phadke（Pathway）；R. Kinas（Bielik AI）；R. Zhong（New York University）
 > **arXiv ID**：2608.09888
 > **发表时间**：2026-08-10（v1）
 > **许可协议**：MIT（配套代码仓库）
@@ -35,8 +35,8 @@ BDH-CQ 是一个结合 in-context learning（推理时演示更新循环记忆�
 
 1. **系统**：提出 BDH-CQ，将「演化式循环记忆的 in-context learning」与「结构化连续潜空间的迭代推理」统一进同一计算结构——演示在推理时更新循环记忆，查询通过高维潜空间迭代求解，中间推理状态不解码为语言；任务标识符与评估任务演示对均不参与训练，推理时零参数更新。
 2. **成本–准确率前沿突破**：150M 参数配置在公共 ARC-AGI-1 评估集上达到 29.5% pass@2，每任务约 0.85 H200 GPU 秒、计算成本 $0.00070——按 ARC Prize 2026 年 7 月报价比 GPT 5.6 Luna (Low)（34.2%，$0.040/任务）便宜约 57 倍；计入 OpenAI 7 月 30 日 80% 降价后约 11 倍。独立黑盒审计（Bielik + NYU 共同作者）复现 29.5%。
-3. **能力画像**：用 ConceptARC 16 概念家族与受控 ARC-like 干预实验系统刻画能力与失败边界——稠密映射绑定（96/96）、传播/拷贝无限外推（48/48）、排序/嵌套的执行与外推区分、组合的表示依赖、任务内一致性的短板（52/160 部分成功）。
-4. **开源工具**：发布 arc-task-gen（MIT）——生成分布匹配 ARC-AGI-1 公共评估集的新任务，用于评估模型对未见任务的泛化；BDH 架构代码亦开源（pathwaycom/bdh，3.5k+ stars）。
+3. **能力画像**：用 ConceptARC 16 概念家族与受控 ARC-like 干预实验系统刻画能力与失败边界——稠密映射绑定（96/96）、传播/拷贝在测试范围内持续正确（48/48）、排序/嵌套的执行与外推区分、组合的表示依赖、任务内一致性的短板（52/160 部分成功）。
+4. **受控任务**：用 ARC-like 受控任务检验系统能从演示中学到并表达哪些概念（代码库链接见文首；论文正文未将其列为贡献）。
 
 ### 1.3 关键结果速览
 
@@ -162,7 +162,7 @@ $$T_i = \left(\{(x_{i,j}, y_{i,j})\}_{j=1}^{K_i}, \{(x^{\mathrm{test}}_{i,q}, y^
 
 **成本口径说明**：报告的美元价值从排行榜 score–cost 平面的实测硬件时间计算。默认点约 0.85 H200 GPU 秒/任务，按 $3/H200-小时折算 $0.00070/任务。排行榜上其他系统使用其报告成本（可能为硬件估算或 API 价格），因此成本比较的精确性受各系统报告口径差异影响。ARC Prize 2026 年 7 月数据中 GPT 5.6 Luna (Low) 为 34.2% @ $0.040；OpenAI 2026 年 7 月 30 日宣布 80% 公开 API 降价后，实际比价约为 11 倍而非 57 倍。
 
-**独立评估**：由 Bielik 与纽约大学共同作者（Remigiusz Kinas、Richard Zhong）执行的独立黑盒审计，在文档化协议下（无权重访问）复现了部署系统的 29.5% pass@2；审计还评估了 ConceptARC 与手工构建评估集。此外，Transformer 架构共同作者 Łukasz Kaiser 亦复现了 ARC-AGI-1 结果。
+**独立评估**：由 Bielik 与纽约大学共同作者（Remigiusz Kinas、Richard Zhong）执行的独立黑盒审计，在文档化协议下（无权重访问）复现了部署系统的 29.5% pass@2；审计还评估了 ConceptARC 与手工构建评估集。
 
 ### 5.2 能力画像：ARC-AGI-1 与 ConceptARC 总体表现
 
@@ -381,7 +381,7 @@ opaque ConceptARC 复现中，全部 75 个单候选记录在 rank one 已正确
 ### 7.1 系统级局限
 
 - **专有实现**：维度、精确更新规则与实现细节未公开；训练配方 proprietary——第三方无法复现训练过程，只能进行黑盒行为评估
-- **评估子集性质**：ARC-AGI-1 公共评估集作为公共基准，无法完全隔离少样本规则归纳与对任务的潜在先验熟悉；arc-task-gen 生成的私有评估集（37.2% 解决率）提供互补度量
+- **评估子集性质**：ARC-AGI-1 公共评估集作为公共基准，无法完全隔离少样本规则归纳与对任务的潜在先验熟悉；校准生成集（37.2% 解决率；论文未披露生成器名称）提供互补度量
 - **严格任务一致性的持续短板**：52/160 ConceptARC 任务存在部分成功，Copy/Order 家族严格任务仅 2/10——规则归纳后未一致应用
 - **组合的表示依赖**：颜色交换未在打乱布局家族可靠习得（1/24）且从未与重定位组合（0/72），说明组合能力依赖操作的具体表示
 - **条件执行与参数化边界**：条件规则选择（−43.3 pp）与演示缺失参数（30.0%→0.0%）暴露条件绑定限制；长排序（长度 8 仅 1/24）显示执行瓶颈

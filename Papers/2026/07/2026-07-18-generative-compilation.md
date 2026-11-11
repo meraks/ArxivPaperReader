@@ -26,7 +26,7 @@
 | Figure 8 | FR 类型规则（含 Lean 机械化修正） | 第 4 章 |
 | Figure 9 | FR 部分语法定义 | 第 4 章 |
 | Figure 10 | 实现关系 (Realization) 定义 | 第 4 章 |
-| Figure 11 | SFR Sealor 定义（13 种 case） | 第 4 章 |
+| Figure 11 | SFR Sealor 定义（11 种 case） | 第 4 章 |
 | Figure 13 | 错误种类分布直方图 | 第 6 章 |
 | Figure 14 | Restart Budget 分析 | 第 6 章 |
 | Figure 15 | 端到端运行示例 (rustls-webpki) | 附录 |
@@ -156,14 +156,14 @@ b ṭ ::= b             还没有任何内容
        | b v           部分值
        | box b ṭ        部分堆分配
        | copy b ẇ      部分复制
-       | ...           （共约 13 种情况）
+       | ...           （Fig. 9 共 11 个 production）
 ```
 
 **实现关系**（Realization ⇝）：b ṭ ⇝ ṭ 表示 ṭ 通过扩展 b ṭ 得到（即自回归生成的建模）。这不同于 sealing——sealing 可能丢弃或修改未完成片段。
 
 ### 4.4 SFR Sealor
 
-SFR 是一个语法导向的 sealor，按 13 种 case 定义。其设计核心是：保留生成的结构以暴露类型检查义务，抽象掉尚未生成信息的部分。
+SFR 是一个语法导向的 sealor，按 11 种 case 定义。其设计核心是：保留生成的结构以暴露类型检查义务，抽象掉尚未生成信息的部分。
 
 关键设计选择：
 - 完全生成的项（ṭ）保持原样不变
@@ -176,7 +176,7 @@ SFR 是一个语法导向的 sealor，按 13 种 case 定义。其设计核心�
 2. Corollary 5.2：顶层的完备性
 3. Theorem 5.3：提升到任意字符串
 
-**选择性可靠性**（Theorem 5.5）：SFR 在 statement boundaries（{l ṭ; b，即完整语句后）上可靠。这是一个在实践中频繁出现的、有用的局部可靠性保证。
+**选择性可靠性**（Corollary 5.6 / Theorem 5.7；Theorem 5.5 为其中间引理）：SFR 在 statement boundaries（{l ṭ; b，即完整语句后）上可靠。这是一个在实践中频繁出现的、有用的局部可靠性保证。
 
 ### 4.5 Lean 机械化
 
@@ -272,7 +272,7 @@ Translation 任务中最频繁的错误是类型不匹配（E0308, 38.2%）和�
 
 ### 7.2 相关工作
 
-- **Constrained Decoding** [23, 31, 39, 43, 53]：GC 与之互补——GC 不试图替代 constrained decoding，而是提供一种黑盒兼容的替代方案。两者可组合使用
+- **Constrained Decoding** [23, 31, 39, 43, 53]：GC 提供一种黑盒兼容的替代方案；但论文明确指出 GC 不适合 constrained decoding（GC 保证 global completeness，而 constrained decoding 需要 global soundness）
 - **Compiler Feedback Loops** [5, 9, 56]：post-generation feedback 是当前主流实践，GC 将其扩展到生成过程中
 - **Program Synthesis** [44]：形式化合成方法提供更强的正确性保证，但需要完整的规范输入
 - **Type Error Localization** [48, 55]：专注于诊断质量的提升，GC 利用现有编译器而非重新实现诊断
@@ -280,7 +280,7 @@ Translation 任务中最频繁的错误是类型不匹配（E0308, 38.2%）和�
 ### 7.3 未来方向
 
 - 将 sealor 方法论扩展到 Rust 标准库和 unsafe 代码
-- 探索 GC 与 constrained decoding 的组合使用
+- 自动化 sealor 构造，把调用时机交由 coding agent 决定，探索白盒模型访问，并将诊断用作训练信号（§8）
 - 支持更多具有丰富静态语义的语言（Haskell、OCaml、Scala 等）
 - 利用增量编译和 lazy checking 进一步降低编译开销
 - 改进 sealor 的 soundness 覆盖范围（超越 statement boundaries）

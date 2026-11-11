@@ -1,6 +1,6 @@
 
 
-> **论文**：Ring-Zero: Scaling Zero RL to a Trillion Parameters for Emergent Reasoning · **作者**：Xinyu Tang, Gangqiang Cao, Yurou Liu et al. (Ant Group) · **arXiv**：2607.12395 · **日期**：2026-07-14
+> **论文**：Ring-Zero: Scaling Zero RL to a Trillion Parameters for Emergent Reasoning · **作者**：Xinyu Tang, Qianggang Cao, Yurou Liu et al.（中国人民大学、蚂蚁集团、清华大学、浙江大学） · **arXiv**：2607.12395 · **日期**：2026-07-14
 >
 > **代码仓库**：https://github.com/inclusionAI/Ring-V2.5（44 Stars, MIT License）
 >
@@ -12,7 +12,7 @@
 
 ### 核心贡献
 
-Ring-Zero 是首次将零强化学习（Zero RL）扩展到万亿参数规模的系统研究。基于 Ant Group 的 Ling-2.5 基座模型，论文通过简洁稳定的四阶段训练管线，在无需任何人工标注数据的前提下，使 Ring-2.5-1T-Zero 在 AIME 2026 上达到 93.2% 的准确率，接近 GPT-5.5（98.3%）和 Gemini 3.1 Pro（98.2%）等闭源前沿模型。
+Ring-Zero 系统性地将零强化学习（Zero RL）扩展到万亿参数规模。基于 Ant Group 的 Ling-2.5 基座模型，论文通过简洁稳定的四阶段训练管线，在无需任何人工标注数据的前提下，使 Ring-2.5-1T-Zero 在 AIME 2026 上达到 93.2% 的准确率，接近 GPT-5.5（98.3%）和 Gemini 3.1 Pro（98.2%）等闭源前沿模型。
 
 论文的核心发现印证了 AI 领域的"苦涩教训"：当模型规模达到万亿参数后，复杂的工程设计和人工设计的启发式规则变得完全多余——模型自发涌现出拟人化推理、结构化格式、自我验证、并行推理和上下文焦虑等高级认知策略。
 
@@ -20,7 +20,7 @@ Ring-Zero 是首次将零强化学习（Zero RL）扩展到万亿参数规模的
 
 - **AIME 2026**：Ring-2.5-1T-Zero（第二阶段 RL，YaRN=2）达 93.2%（Ring 系列最高），第三阶段 High 模式 91.4%，仅采用第一阶段的零RL已达 84.2%
 - **四阶段流水线**：第一阶段 RL（引导推理）→ 自蒸馏（压缩与稳定）→ 第二阶段 RL（样本级损失优化）→ 第三阶段 RL（自适应推理深度）
-- **CoT 质量**：仅用 100K 蒸馏样本（DeepSeek-R1 使用 800K）即可在 Qwen2.5-32B 上达到 78.4%（vs R1 蒸馏的 72.6%），平均仅 6,368 tokens/题
+- **CoT 质量**：仅用 100K 蒸馏样本（DeepSeek-R1 使用 800K）即可在 Qwen2.5-32B 上达到 78.4%（vs R1 蒸馏的 72.6%），在五个模型均答对的 AIME 子集上平均仅 6,368 tokens/题
 - **规模效应**：1T 模型在 AIME 2024 上达 89.1%，是 104B 模型（71.2%）的 1.25 倍
 - **计算资源**：320 × H200 GPU
 
@@ -29,15 +29,15 @@ Ring-Zero 是首次将零强化学习（Zero RL）扩展到万亿参数规模的
 | 编号 | 内容 | 章节 |
 |------|------|------|
 | **Figure 1** | 四阶段训练管线架构图 | 第 3 章 |
-| **Figure 2** | 第一阶段 RL 训练动态（收益/长度/熵） | 第 5 章 |
+| **Figure 2** | 第一阶段 RL 训练动态（初始数据/新数据的奖励与序列长度） | 第 5 章 |
 | **Figure 3** | CoT 质量评估（可理解性/可复现性/效率） | 第 5 章 |
 | **Figure 4** | RL 算法对比（CISPO/DAPO/GRPO/GSPO） | 第 5 章 |
 | **Figure 5** | KL 惩罚消融（有无对比） | 第 5 章 |
 | **Figure 6** | 引擎失配缓解策略对比 | 第 5 章 |
-| **Figure 7-8** | 格式奖励设计影响 | 第 5 章 |
+| **Figure 7-8** | Figure 7：格式奖励设计影响；Figure 8：窗口大小（16k vs 32k）对比 | 第 5 章 |
 | **Figure 9** | 超参数分析（学习率/采样数/损失降维） | 第 5 章 |
 | **Figure 10** | 发现 vs 锐化两阶段现象 | 第 5 章 |
-| **Table 1** | 主实验结果（7个数学基准 × 20+ 模型配置） | 第 5 章 |
+| **Table 1** | 主实验结果（7个数学基准 × 19 个模型配置） | 第 5 章 |
 
 ## 第 2 章 研究背景与动机
 
@@ -132,7 +132,7 @@ $$ \mathcal{L}_{\text{Ring-2.5-1T-Zero-III}}(\theta)=-\sum_{k\in\{\text{l},\text
 
 $$ r_i = r_{\text{acc},i} + r_{\text{format},i} $$
 
-格式奖励 $r_{\text{format},i} \in \{0,1\}$ 检查 `<think>...</think><answer>...</answer>` 结构和 EOS 终止。早期阶段使用规则匹配，后期使用 Qwen3-Next-80B-A3B-Instruct 作为 LLM-as-a-Judge。
+格式奖励 $r_{\text{format},i} \in \{0,1\}$ 只检查 `<think>...</think><answer>...</answer>` 结构和 EOS 终止；准确率奖励 $r_{\text{acc},i}$ 早期阶段使用规则匹配，后期改用 Qwen3-Next-80B-A3B-Instruct 作为 LLM-as-a-Judge。
 
 ## 第 4 章 基础设施优化
 
@@ -209,11 +209,11 @@ RL 训练中重要性比率涉及指数运算（softmax），数值误差在比�
 
 ### 5.4 消融实验
 
-**RL 算法对比**：CISPO > DAPO > GRPO > GSPO（速度递降），不稳定性的排序完全相同。CISPO 加速最快但最易熵崩溃。
+**RL 算法对比**：CISPO > DAPO > GRPO（速度与不稳定性同序）；GSPO 保持高熵但序列长度增长有限，不适合从零引导。CISPO 加速最快但最易熵崩溃。
 
-**KL 惩罚**：无 KL 惩罚 → 灾难性失败（训练-推理 logit 差距无限增长、熵崩溃、奖励归零）。
+**KL 惩罚**：无 KL 惩罚 → 灾难性失败（训练-推理 logit 差距无限增长、熵崩溃、奖励崩溃）。
 
-**引擎失配缓解**：Baseline（标准 SGLang logits）约 800 步崩溃；IcePop 延迟至 2700 步仍失败；论文的 Megatron 作为分子方案**无限期维持稳定训练**。
+**引擎失配缓解**：Baseline（标准 SGLang logits）约 800 步崩溃；IcePop 延迟至 2700 步仍失败；论文的 Megatron 作为分子方案**在图中约 3000 步的训练中保持稳定**。
 
 **格式奖励**：单标签格式 → 模型在答案后追加无穷垃圾文本；双闭合标签 + EOS → 正确终止。
 
@@ -230,7 +230,7 @@ RL 训练中重要性比率涉及指数运算（softmax），数值误差在比�
 - **模拟偷懒与猜测**："瞎凑"（fudge）、"蒙一个"（wing it）等回避严格计算的倾向
 - **自我表扬**："天才"（genius）、"搞定"（nailed it）等正向反馈
 
-这些痕迹源于预训练数据中的论坛讨论和人类思维过程，说明模型不仅模仿数学逻辑，也在模仿人类的认知动态和情感特征。
+论文推测这些痕迹可能源于预训练数据中的论坛讨论和人类思维过程，说明模型不仅模仿数学逻辑，也在模仿人类的认知动态和情感特征。
 
 ### 6.2 结构化格式
 

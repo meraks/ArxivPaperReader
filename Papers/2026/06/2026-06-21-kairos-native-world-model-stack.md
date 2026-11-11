@@ -1,11 +1,11 @@
-# Kairos: A Native World Model Stack for Physical AI
+# Kairos: A Regret-Aware Native World-Action Model Stack for Physical AI
 
 ## 论文元数据
-- 标题：Kairos: A Native World Model Stack for Physical AI
+- 标题：Kairos: A Regret-Aware Native World-Action Model Stack for Physical AI
 - 作者：Kairos Team, Fei Wang, Shan You, Qiming Zhang, Tao Huang, Zuoyi Fu, Zhisheng Zheng, Yunlong Xi, Feng Lv, Xiaoming Wu, Zeyu Liu, Cong Wan, Pu Li, Ruiqing Yang, Xiaoou Li, Wei Wang, Kangkang Zhu, Yuwei Zhang, Shi Fu, Zheng Zhang, Xiaoning Wu, Xuzeng Fan, Dacheng Tao, Xiaogang Wang
 - arXiv ID：2606.16533
 - 提交日期：2026-06-15
-- 官方代码：[kairos-sensenova](https://github.com/kairos-agi/kairos-sensenova) (Apache 2.0)
+- 官方代码：[kairos](https://github.com/kairos-agi/kairos) (Apache 2.0)
 - HuggingFace：[kairos-agi](https://huggingface.co/kairos-agi)
 - 模型参数：4B
 
@@ -13,11 +13,11 @@
 
 ## Ch1: 论文概述与核心贡献
 
-Kairos是由商汤科技Sensenova团队于2026年6月发布的原生世界模型栈，专为Physical AI（物理人工智能）设计。该工作提出了从预训练阶段就原生融合物理规律、行为语义和具身基础（embodied grounding）的范式，而非将通用视频生成器通过解耦微调（decoupled fine-tuning）适配到机器人控制任务。
+Kairos是Kairos Team（论文首页标注ACE Robotics）于2026年6月发布的原生世界模型栈，专为Physical AI（物理人工智能）设计。该工作提出了从预训练阶段就原生融合物理规律、行为语义和具身基础（embodied grounding）的范式，而非将通用视频生成器通过解耦微调（decoupled fine-tuning）适配到机器人控制任务。
 
-### 四大核心挑战
+### 核心挑战
 
-Kairos针对Physical AI世界建模面临的四个根本性问题：
+论文提出五项要求并列出五个耦合瓶颈。为叙述方便，这里归纳为四个主题（将“控制充分状态保持”并入长程状态维护，将“反事实动作闭合”并入理解-控制鸿沟）：
 
 **1. 碎片化世界学习（Fragmented World Learning）**
 
@@ -25,7 +25,7 @@ Kairos针对Physical AI世界建模面临的四个根本性问题：
 
 **2. 长程状态维护（Long-Horizon State Maintenance）**
 
-主流Transformer架构依赖滑动窗口注意力（sliding-window attention），其有效视野受限。对于需要数千步推理的具身任务（如"从厨房取物品放入抽屉"），窗口内无法捕获完整因果链，导致误差累积失控。Kairos证明纯窗口架构会产生不可约的过剩风险（irreducible excess risk，Theorem 1）。
+主流Transformer架构依赖滑动窗口注意力（sliding-window attention），其有效视野受限。对于需要数千步推理的具身任务（如"从厨房取物品放入抽屉"），窗口内无法捕获完整因果链，导致误差累积失控。Kairos证明当未来目标依赖窗口外信息时，纯窗口架构会产生不可约的过剩风险（irreducible excess risk，Theorem 1）。
 
 **3. 理解-控制鸿沟（Understanding-to-Control Gap）**
 
@@ -61,10 +61,10 @@ Kairos采用统一的Mixture-of-Transformers（MoT）栈，三个子模块共享
 - **DSWA（Dilated Sliding-Window Attention）**：中程依赖，通过膨胀采样跨越多帧
 - **GLA（Gated Linear Attention）**：全局因果记忆，基于GatedDeltaNet的delta更新规则
 
-形式化地，GLA维护全局状态 $h_t$，更新规则为：
-$$h_t = \alpha_t \odot h_{t-1} + \beta_t \odot (k_t \odot v_t^T)$$
+形式化地，GLA维护全局状态矩阵 $S_t$，其门控 delta 更新为（论文 Eq. 6）：
+$$S_t = \alpha_t S_{t-1} + \beta_t (v_t - v^{\text{old}}_t) k_t^T, \quad v^{\text{old}}_t = S_{t-1}k_t$$
 
-其中遗忘门 $\alpha_t \in [0,1]^d$ 控制历史记忆衰减，写入强度 $\beta_t \in [0,1]^d$ 调节新信息权重。门控机制使模型可选择性保留长期因果（如"杯子在桌上"）而丢弃无关细节（如背景纹理）。
+其中遗忘门 $\alpha_t \in (0,1)$ 控制历史记忆衰减，写入强度 $\beta_t \in (0,1)$ 调节新信息权重；更新先检索旧值 $v^{\text{old}}_t$，再以 $v^{\text{new}}_t = \beta_t v_t + (1-\beta_t)v^{\text{old}}_t$ 插值后写入。门控机制使模型可选择性保留长期因果（如"杯子在桌上"）而丢弃无关细节（如背景纹理）。
 
 理论保证（Theorem 2）证明混合记忆架构的长程过剩风险有界：
 $$R_T(\hat{f}_h) - R_T(f^*) \leq (L\epsilon + L_G \cdot \frac{\xi}{1-\rho})^2$$
@@ -74,8 +74,8 @@ $$R_T(\hat{f}_h) - R_T(f^*) \leq (L\epsilon + L_G \cdot \frac{\xi}{1-\rho})^2$$
 **支柱3：部署感知系统协同设计（Deployment-Aware Co-Design）**
 
 Kairos从训练阶段就优化推理效率，实现：
-- 480p分辨率实时生成：单卡Nvidia A800 11.7秒，4卡并行3.0秒
-- 边缘部署：通过蒸馏得到轻量版本，支持Agibot G1、Unitree G1、Songling PIPER等机器人平台
+- 480p 5秒视频生成：单卡Nvidia A800 11.7秒，4卡并行3.0秒（论文仅称4卡设置达到实时吞吐）
+- 边缘部署：通过时间步蒸馏降低采样成本；论文报告A800与RTX5090的延迟，未给出Agibot G1/Unitree G1/Songling PIPER等机器人平台的部署验证
 
 ### 关键成果
 
@@ -83,15 +83,16 @@ Kairos在多个基准上达到SOTA：
 
 | 基准 | 指标 | Kairos 4B |
 |------|------|-----------|
-| PAI-Bench-robot | Success Rate | 80.03 |
-| WorldModelBench-robot | TI2V | 9.08 |
-| DreamGen Bench | PA | 0.529 |
-| DreamGen Bench | IF | 0.609 |
-| VideoPHY | - | ~45.x |
-| WorldModelBench | - | 8.94 |
-| PAI-Bench | - | 80.84 |
+| PAI-Bench-robot | Overall Score（Domain 88.59） | 82.57 |
+| WorldModelBench-robot | TI2V Total Score | 9.30 |
+| DreamGen Bench | AVG_PA | 0.538 |
+| DreamGen Bench | AVG_IF | 0.698 |
+| DreamGen Bench | AVG_Score | 0.618 |
+| VideoPHY | Average Score | 45.55 |
+| WorldModelBench | TI2V / T2V | 8.89 / 8.99 |
+| PAI-Bench | Overall Score | 80.8 |
 
-在机器人专用基准（PAI-Bench-robot、WorldModelBench-robot）上，Kairos 4B超过更大参数的竞品：Cosmos 2.5-2B、Wan 2.2-5B、Cosmos 2.5-14B。在通用世界建模任务（PAI-Bench、WorldModelBench）上亦保持竞争力。
+在机器人专用基准（PAI-Bench-robot、WorldModelBench-robot）上，Kairos 4B超过更大参数的Cosmos 2.5-14B等模型，并与16B Cosmos3-Nano基本持平；Cosmos 2.5-2B与Wan 2.2-5B属于更小模型。在通用世界建模任务（PAI-Bench、WorldModelBench）上亦保持竞争力。
 
 ### 与现有工作的核心差异
 
@@ -137,7 +138,7 @@ Kairos的主张是：Physical AI的世界模型必须是**原生**（native）�
 **瓶颈1：数据异质性（Data Heterogeneity）**
 
 Physical AI需要三类数据：
-- **Web Video**：规模最大（数亿小时），但缺乏动作标注和embodiment信息
+- **Web Video**：规模最大（数百万小时原始视频；标准化后为数亿个视频片段），但缺乏动作标注和embodiment信息
 - **Human Demo**：包含操作意图（如"抓取杯子的手法"），但视角和动作空间与机器人不同
 - **Robot Trajectory**：直接可用的控制信号，但收集成本高，且数据稀缺
 
@@ -207,7 +208,7 @@ Stage 1的训练目标主要是视频预测和生成，迫使模型建立对物�
 
 **Stage 2: 人类行为数据**
 
-第二阶段引入结构化的人类行为数据，实现语义对齐。数据来源包括：Ego4D等第一人称视角数据集、EPIC-KITCHINS等日常交互数据、人类操作演示视频等。与Stage 1的被动观测不同，这一阶段的数据包含明确的人类意图和目标导向行为：抓取、放置、工具使用、多步骤任务执行等。
+第二阶段引入结构化的人类行为数据，实现语义对齐。数据来源包括：Koala-36M、OpenHumanVid、VidGen等公开数据集，以及第一人称/第三人称人类操作演示视频和自采第一人称操作数据。与Stage 1的被动观测不同，这一阶段的数据包含明确的人类意图和目标导向行为：抓取、放置、工具使用、多步骤任务执行等。
 
 Stage 2的关键作用是将Stage 1学到的物理先验与任务语义关联起来。例如，"倒水"这一行为不仅仅是液体的流动，还包含目标（将水从容器A转移到容器B）、约束（避免溢出）、终止条件（容器A为空或容器B满）等高层语义信息。通过人类行为数据，模型学习到哪些物理模式是实现特定任务的有效手段，从而建立起物理动态与任务目标之间的映射。
 
@@ -273,19 +274,15 @@ Video DiT的架构基于标准DiT，但针对时序建模进行了优化。具�
 
 **Action DiT：预测未来动作token**
 
-Action DiT负责预测未来动作序列，其规模约为Video DiT的1/5。这是因为动作空间的维度通常远小于视觉空间：机器人动作可能只包含关节角度、末端执行器位姿等数十个维度，而视觉空间包含数千个像素特征。
+Action DiT负责预测未来动作序列，采用比Video DiT更小的规模以提升部署效率（论文未给出具体比例）。这是因为动作空间通常低维且长度近乎固定，而视觉latent是高维、变长的时空表示。
 
 Action DiT的输入与Video DiT类似（当前观测、历史动作、文本指令），但输出是动作空间的离散化表示。论文中未明确说明动作的具体表示方式，可能的方式包括：关节位置的量化编码、末端执行器轨迹的waypoint、或者高层skill的原语索引。
 
 **Joint attention masking防止信息泄漏**
 
-MoT的关键设计是Video DiT和Action DiT之间的交互方式。两个分支共享部分层（通过cross-attention相互通信），但使用严格的注意力masking避免信息泄漏。具体而言：
+MoT的关键设计是video–action联合建模的统一注意力masking。输入序列分为History Video Tokens、Future Video Tokens、Future Action Tokens三组。历史视频token只attend历史token，防止未来状态信息泄漏；未来视频token与未来动作token都以历史视觉上下文为条件；未来视频token使用稀疏时空注意力，未来动作token在动作序列上使用更宽范围的注意力。动作分支不依赖未来视频token，因此视频与动作联合训练，但动作推理无需显式生成未来视频。
 
-1. Video DiT可以attend to历史动作token，但不attend to未来动作 token（如果使用teacher forcing训练）
-2. Action DiT可以attend to历史观测token和当前观测token，但不attend to未来观测token
-3. Video DiT和Action DiT在特定层进行cross-attention，交换中间表征
-
-这种masking策略确保训练时的因果关系正确：未来动作不能影响未来观测（否则模型会偷看答案），但动作和观测可以通过共享表征相互约束。例如，Video DiT生成的未来状态应该与Action DiT预测的动作物理一致，Action DiT生成的动作应该在Video DiT预测的物理环境中可执行。
+这种非对称交互确保训练时的因果关系正确：未来动作不能影响未来观测（否则模型会偷看答案），但动作和观测通过共享的历史视觉上下文相互约束。例如，Video DiT生成的未来状态应该与Action DiT预测的动作物理一致，Action DiT生成的动作应该在Video DiT预测的物理环境中可执行。
 
 ### 3.2.3 架构优势
 
@@ -329,48 +326,37 @@ GLA通过GatedDeltaNet实现全局记忆，核心机制是delta update rule + fo
 
 **Delta update rule**
 
-传统RNN（如LSTM）的隐状态更新可以表示为：h_t = f(h_{t-1}, x_t)，其中f是复杂的非线性函数。GatedDeltaNet简化这一更新为delta rule：
+GatedDeltaNet维护一个可学习的关联记忆矩阵 $S_t \in \mathbb{R}^{d_v \times d_k}$，用于缓解普通线性注意力的"key collision"问题：它不是纯加性写入，而是先检索旧关联、再写入新关联。每步先由输入 $x_t$ 投影出 query、key、value：
 
-$$ h_t = h_{t-1} + \Delta h_t $$
+$$q_t = W_Q x_t,\quad k_t = W_K x_t,\quad v_t = W_V x_t,\quad \beta_t = \sigma(W_\beta x_t)$$
 
-其中 $\Delta h_t$ 是当前时刻对记忆的"增量更新"。这一设计的优势是计算效率：更新线性层可以通过增量计算实现，避免每次都从头计算完整状态。
+随后检索旧值并插值：
+
+$$v^{\text{old}}_t = S_{t-1}k_t,\quad v^{\text{new}}_t = \beta_t v_t + (1-\beta_t)v^{\text{old}}_t$$
 
 **Forget gate $\alpha_t$**
 
-Forget gate控制历史记忆的衰减速度，取值范围[0,1]。$\alpha_t$ 接近1时保留较多历史信息，$\alpha_t$ 接近0时快速遗忘历史。在实现中，$\alpha_t$ 是一个可学习的门控机制，根据当前输入动态调整：
+Forget gate控制历史记忆的衰减速度，取值范围(0,1)。$\alpha_t$ 接近1时保留较多历史信息，$\alpha_t$ 接近0时快速遗忘历史。它是一个可学习的门控机制：
 
-$$ \alpha_t = \sigma(W_\alpha x_t + b_\alpha) $$
+$$\alpha_t = \sigma(W_\alpha x_t)$$
 
-其中 $\sigma$ 是sigmoid函数，将输出映射到[0,1]。
-
-Forget gate的作用是使模型能够自适应地决定记忆长度。对于关键事件（如"物体被抓取"），模型可以设置较高的 $\alpha_t$，将这一信息持久保存；对于无关细节（如背景中的微小变化），模型可以设置较低的 $\alpha_t$，快速遗忘以节省记忆容量。
+其中 $\sigma$ 是sigmoid函数。Forget gate使模型能够自适应地决定记忆长度：对关键事件（如"物体被抓取"）设置较高的 $\alpha_t$ 以持久保存，对无关细节设置较低的 $\alpha_t$ 以快速遗忘。
 
 **Writing strength $\beta_t$**
 
-Writing strength控制当前信息写入记忆的强度，取值范围[0,1]。$\beta_t$ 的计算方式与forget gate类似：
+Writing strength控制当前信息写入记忆的强度，取值范围(0,1)。它由 $\beta_t = \sigma(W_\beta x_t)$ 得到。论文的gated delta update为：
 
-$$ \beta_t = \sigma(W_\beta x_t + b_\beta) $$
+$$S_t = \alpha_t S_{t-1} - v^{\text{old}}_t k_t^T + v^{\text{new}}_t k_t^T = \alpha_t S_{t-1} + \beta_t (v_t - v^{\text{old}}_t)k_t^T$$
 
-Writing strength与forget gate共同作用，决定记忆更新的净效果：
-
-$$ h_t = \alpha_t \odot h_{t-1} + \beta_t \odot \Delta h_t $$
-
-其中 $\odot$ 是逐元素乘法。当 $\beta_t$ 高时，当前信息被强力写入记忆；当 $\beta_t$ 低时，记忆主要保持历史状态。
+即先移除旧关联、再写入插值后的新关联；当 $\beta_t$ 高时当前信息被更强地写入。
 
 **GatedDeltaNet的完整更新**
 
-GatedDeltaNet的完整更新规则包含三个步骤：
+完整更新规则包含三个步骤：
 
-1. **Delta计算**：根据当前输入计算增量更新
-   $$ \Delta h_t = \phi(W_h x_t + b_h) $$
-   其中 $\phi$ 是激活函数（如SiLU）。
-
-2. **Gate计算**：计算forget gate和writing strength
-   $$ \alpha_t = \sigma(W_\alpha x_t + b_\alpha) $$
-   $$ \beta_t = \sigma(W_\beta x_t + b_\beta) $$
-
-3. **状态更新**：应用gated delta rule
-   $$ h_t = \alpha_t \odot h_{t-1} + \beta_t \odot \Delta h_t $$
+1. **特征提取**：由输入投影得到 $q_t,k_t,v_t$ 与writing strength $\beta_t$。
+2. **检索与插值**：$v^{\text{old}}_t = S_{t-1}k_t$，$v^{\text{new}}_t = \beta_t v_t + (1-\beta_t)v^{\text{old}}_t$。
+3. **门控状态更新**：$S_t = \alpha_t S_{t-1} + \beta_t(v_t - v^{\text{old}}_t)k_t^T$；输出为 $o_t = S_t q_t$。
 
 这一更新规则的复杂度是O(n)，每个时刻的计算只依赖于当前输入和上一时刻状态，无需与所有历史状态计算attention。
 
@@ -380,15 +366,15 @@ GatedDeltaNet的完整更新规则包含三个步骤：
 
 GLA的这一特性使其能够捕获长程因果依赖。例如，在一个"跨越30秒的物体抓取任务"中，模型需要在第0帧记住"目标物体位置"，在第300帧执行"抓取"动作。传统SWA/DSWA由于窗口限制可能无法直接看到这一信息，而GLA通过持久记忆可以将关键信息保存到需要的时候。
 
-### 3.3.5 工业首创：Hybrid Linear Attention算子
+### 3.3.5 Hybrid Linear Attention算子
 
-LinearDiT是world model领域第一个Hybrid Linear Attention算子，首次实现开源world model的real-time on-robot inference。
+LinearDiT将SWA、DSWA、GLA混合在统一的DiT backbone中；论文未声称这是首个Hybrid Linear Attention算子，也未声称已实现on-robot实时推理。
 
 **实时性能**
 
-论文报告的实时性能数据：480p分辨率下，单块Nvidia A800需要11.7秒生成1秒视频，4块A800通过并行计算将时间降至3.0秒。这一性能接近实时要求（考虑到机器人控制通常需要10-20Hz的频率，即0.05-0.1秒的推理时间），表明LinearDiT在保持生成质量的同时实现了工业级的推理速度。
+论文报告的实时性能数据：480p、5秒视频下，单块Nvidia A800需要11.7秒，4块A800通过并行计算将时间降至3.0秒；论文仅称4卡设置达到实时吞吐。单卡11.7秒并不满足机器人控制通常10-20Hz（0.05-0.1秒）的闭环预算。
 
-实时性的关键在于GLA的线性复杂度和SWA/DSWA的稀疏建模。传统world model（如基于标准Transformer的实现）无法在单GPU上处理长视频序列，而LinearDiT通过混合三种注意力机制，将复杂度从O(n²)降至O(n)，使实时部署成为可能。
+实时性的关键在于GLA的线性复杂度和SWA/DSWA的稀疏建模。传统world model（如基于标准Transformer的实现）难以在单GPU上处理长视频序列，而LinearDiT通过混合三种注意力机制，将复杂度从O(n²)降至O(n)，使长序列的高效推理成为可能。
 
 **部署优势**
 
@@ -414,8 +400,8 @@ SWA、DSWA、GLA三者在LinearDiT中协同工作，分别处理不同时间尺�
 
 **定理陈述**
 
-任何window-restricted predictor都存在不可约的excess risk：
-$$ R_w^* - R_{full}^* = \mathbb{E}[\text{Var}(m_t | W_t^{(w)})] > 0 $$
+当 $m_t$ 不能由窗口信息 $W_t^{(w)}$ 恢复时，window-restricted predictor存在不可约的excess risk：
+$$ R_w^* - R_{full}^* = \mathbb{E}[\text{Var}(m_t | W_t^{(w)})] \ge 0, \qquad R_w^* > R_{full}^* \iff m_t \text{ 不是 } W_t^{(w)}\text{-可测的} $$
 
 其中：
 - $R_w^*$ 是窗口大小为w的预测器的最优风险
@@ -426,7 +412,7 @@ $$ R_w^* - R_{full}^* = \mathbb{E}[\text{Var}(m_t | W_t^{(w)})] > 0 $$
 
 **定理含义**
 
-定理1表明：如果预测器只能访问有限窗口的历史信息，那么即使采用最优预测策略，仍然存在不可避免的预测误差。这个误差的来源是状态的条件方差：给定窗口信息外，仍有部分状态信息无法被确定，导致预测不确定性。
+定理1表明：如果预测器只能访问有限窗口的历史信息，且真实状态依赖窗口外信息，那么即使采用最优预测策略，仍然存在不可避免的预测误差。这个误差的来源是状态的条件方差：给定窗口信息外，仍有部分状态信息无法被确定，导致预测不确定性。
 
 从信息论角度看，这一定理反映了信息缺失的代价。如果真实状态 $m_t$ 依赖于窗口外的历史信息（例如t-w之前的某个关键事件），那么仅根据 $W_t^{(w)}$ 无法完美预测 $m_t$。这种信息缺失造成的误差是系统性的，无法通过增加模型容量或优化训练过程消除。
 
@@ -442,7 +428,7 @@ $$ R_w^* - R_{full}^* = \mathbb{E}[\text{Var}(m_t | W_t^{(w)})] > 0 $$
 
 **对window-restricted模型的启示**
 
-定理1意味着任何仅使用SWA或DSWA的world model都无法达到最优预测性能。即使窗口大小设置得很大，仍然存在"窗口盲区"：关键事件发生在窗口外，导致预测失效。从优化角度看，增大窗口可以减小excess risk，但无法将其降为零；同时，增大窗口会显著增加计算复杂度，抵消线性注意力的优势。
+定理1意味着当未来目标依赖窗口外信息时，仅使用SWA或DSWA的world model无法达到最优预测性能。即使窗口大小设置得很大，仍然存在"窗口盲区"：关键事件发生在窗口外，导致预测失效。从优化角度看，增大窗口可以减小excess risk，但只要状态仍依赖窗口外信息就无法将其降为零；同时，增大窗口会显著增加计算复杂度，抵消线性注意力的优势。
 
 ### 3.4.2 Corollary 1：显式下界
 
@@ -453,8 +439,8 @@ $$ R_w^* - R_{full}^* \geq P(E) \cdot \alpha \cdot (1-\alpha) \cdot (\mu_1 - \mu
 
 其中：
 - $P(E)$ 是关键事件发生在窗口外的概率
-- $\alpha$ 是事件对当前状态的影响权重
-- $\mu_1, \mu_2$ 是事件发生前后的状态均值
+- $\alpha$ 是给定事件E下两种未来目标期望 $\mu_1$、$\mu_2$ 的条件概率（分别为 $\alpha$ 和 $1-\alpha$）
+- $\mu_1, \mu_2$ 是两种可能的未来目标期望
 - $(\mu_1 - \mu_2)^2$ 是状态差异的平方
 
 **推论含义**
@@ -463,7 +449,7 @@ $$ R_w^* - R_{full}^* \geq P(E) \cdot \alpha \cdot (1-\alpha) \cdot (\mu_1 - \mu
 
 1. **$P(E)$：事件发生率**。关键事件（如物体被抓取、环境突变）发生在窗口外的概率越高，excess risk越大。如果关键事件总是在窗口内（例如短预测视界），则 $P(E) \approx 0$，下界趋近零。
 
-2. **$\alpha$：影响权重**。事件对当前状态的影响越大（$\alpha$ 接近0或1），excess risk越大。如果事件对当前状态几乎没有影响（$\alpha \approx 0.5$，即前后状态均值相近），则excess risk较小。
+2. **$\alpha$：条件概率**。$\alpha(1-\alpha)$ 在 $\alpha=0.5$ 时最大，在 $\alpha\to0$ 或 $\alpha\to1$ 时趋近0；因此当两种未来目标等概率（最不确定）时 excess risk 最大。
 
 3. **$(\mu_1 - \mu_2)^2$：状态差异幅度**。事件导致的状态变化越大，excess risk越大。例如，一个"杯子从桌面掉落"事件导致状态从"杯子在桌面"变为"杯子在地面"，状态差异大，excess风险高；而一个"轻微移动"事件导致的状态变化小，excess风险低。
 
@@ -476,7 +462,7 @@ $$ R_w^* - R_{full}^* \geq P(E) \cdot \alpha \cdot (1-\alpha) \cdot (\mu_1 - \mu
 - 假设窗口大小为30帧（约1秒），任务总时长为300帧（约10秒）
 - 抓取事件在50%的情况下发生在窗口外：$P(E) = 0.5$
 - 抓取导致状态均值从"目标位置"变为"手部位置"：$\mu_1 - \mu_2 = 1.0$（归一化距离）
-- 事件影响权重 $\alpha = 0.8$（抓取后80%的概率物体在手部）
+- 事件条件概率 $\alpha = 0.8$（抓取后80%的概率物体在手部）
 
 则excess risk下界为：
 $$ 0.5 \times 0.8 \times 0.2 \times 1.0^2 = 0.08 $$
@@ -501,7 +487,7 @@ $$ R_t(\hat{\mu}_t) - R_t^* \leq (L\varepsilon + L_G \cdot \xi/(1-\rho))^2 \quad
 
 **定理含义**
 
-定理2表明：混合记忆架构（SWA+DSWA+GLA）可以在长视界上控制误差累积。与定理1的"不可约误差"不同，定理2给出的是"可逼近界"：只要满足特定条件，混合记忆的风险可以任意接近最优风险。
+定理2表明：混合记忆架构（SWA+DSWA+GLA）可以在长视界上控制误差累积。与定理1的"不可约误差"不同，定理2给出的是误差上界：在假设下 $R_t(\hat{\mu}_t)-R_t^* \le (L\varepsilon+L_G\xi/(1-\rho))^2$；只有 $\varepsilon=\xi=0$（Corollary 2）时才精确达到最优风险，一般情形只能由该界约束。
 
 界的形式是两项之和的平方：
 
@@ -519,7 +505,7 @@ $$ R_t(\hat{\mu}_t) - R_t^* \leq (L\varepsilon + L_G \cdot \xi/(1-\rho))^2 \quad
 
 在Kairos中，定理2的假设条件对应具体设计：
 
-1. **Bayes predictor分解**：Kairos的MoT架构将预测分解为Video DiT（对应SWA/DSWA的局部时序建模）和Action DiT（对应GLA的全局记忆建模），符合定理的分解假设。
+1. **Bayes predictor分解**：定理2将Bayes最优预测器分解为共享表示 $U$ 与三个时间分支 $C$（SWA）、$D$（DSWA）、$G$（GLA）；Video DiT和Action DiT都建立在含混合注意力的backbone上，GLA是backbone的全局通路，并非Action DiT专属。
 
 2. **Contractive gated delta update**：GLA中的forget gate $\alpha_t$ 和writing strength $\beta_t$ 通过学习获得，训练过程会倾向于收敛到 $\rho < 1$ 的参数设置，因为扩张性记忆会导致训练不稳定和预测性能下降。
 
@@ -561,7 +547,7 @@ Kairos的LinearDiT正是遵循这些原则设计的：SWA/DSWA捕获局部/中�
 
 - **基准比较**：界提供了不同架构（如纯window-restricted vs. 混合记忆）的理论比较基准，避免仅凭经验判断优劣。
 
-论文的实验结果（在多个benchmark上达到SOTA）可以看作定理2的实际验证：Kairos在长视界任务上的优异表现，与定理预测的"混合记忆控制误差累积"一致。
+论文的实验结果（在多个benchmark上达到SOTA）只是代理证据，并非定理2的实证验证：论文明确说理论分析不应被读作通用保证，闭环验证仍需未来工作。Kairos在长视界任务上的表现与"混合记忆控制误差累积"的直觉一致，但未直接检验该误差界。
 
 ---
 
@@ -575,21 +561,22 @@ Kairos在Physical AI核心任务上展现出显著的性能优势，特别是在
 
 ### 4.1.1 PAI-Bench-robot
 
-PAI-Bench-robot是评估机器人世界模型在复杂操作场景中理解能力的关键benchmark。Kairos-Robot在该测试中取得**80.03%**的成绩，显著超越对比基线模型：
+PAI-Bench-robot是评估机器人世界模型在复杂操作场景中理解能力的关键benchmark。Kairos-Robot在该测试（TI2V）中取得**Overall Score 82.57（Domain Score 88.59）**，显著超越多数对比基线模型：
 
-- Kairos-Robot (4B): **80.03%**
-- Cosmos 2.5-14B: 79.4%
-- Lingbot: 79.96%
-- Wan 2.2-5B: 78.6%
-- Cosmos 2.5-2B: 78.3%
+- Kairos-Robot (4B): **Overall 82.57（Domain 88.59）**
+- Cosmos 2.5-14B: 79.40
+- Lingbot (28B): 79.97
+- Wan 2.2-5B: 78.63
+- Cosmos 2.5-2B: 78.26
 
 值得注意的是，Kairos-Robot以4B参数量超越了14B参数的Cosmos 2.5-14B模型，证明了CEDC数据curriculum在机器人任务上的有效性。
 
 ### 4.1.2 WorldModelBench-robot TI2V
 
-WorldModelBench-robot TI2V（Text-to-Image-to-Video）测试模型在给定初始帧和文本指令下生成连续视频的能力。Kairos-Robot在该任务上达到**9.08**的分数，在所有对比模型中取得最优性能：
+WorldModelBench-robot TI2V（Text-to-Image-to-Video）测试模型在给定初始帧和文本指令下生成连续视频的能力。Kairos-Robot在该任务上达到**9.30**的Total Score，在所有对比模型中取得最优性能：
 
-- Kairos-Robot (4B): **9.08**
+- Kairos-Robot (4B): **9.30**
+- Cosmos3-Nano (16B): 9.26
 - Cosmos 2.5-2B: 9.04
 - Lingbot: 9.04
 - Cosmos 2.5-14B: 8.94
@@ -601,23 +588,23 @@ WorldModelBench-robot TI2V（Text-to-Image-to-Video）测试模型在给定初�
 
 DreamGen Bench是评估机器人动作生成质量的核心benchmark，包含Physics-Accurate (PA)和Image-Fidelity (IF)两个维度。
 
-**Physics-Accurate (PA) 分数：**
+**Physics-Accurate (PA) 分数（AVG_PA）：**
 
-- Kairos-Robot (4B): **0.529**
+- Kairos-Robot (4B): **0.538**
 - Cosmos 2.5-14B: 0.495
 - Lingbot: 0.466
-- Cosmos 2.5-2B: 0.418
+- Cosmos 2.5-2B: 0.419
 - Wan 2.2-5B: 0.314
 
-**Image-Fidelity (IF) 分数：**
+**Image-Fidelity (IF) 分数（AVG_IF）：**
 
-- Kairos-Robot (4B): **0.609**
+- Kairos-Robot (4B): **0.698**
 - Cosmos 2.5-2B: 0.568
 - Lingbot: 0.569
-- Wan 2.2-5B: 0.543
+- Wan 2.2-5B: 0.554
 - Cosmos 2.5-14B: 0.478
 
-Kairos-Robot在PA指标上的显著优势（相比Cosmos 2.5-14B提升6.8%）证明了CEDC数据curriculum在物理先验建模方面的有效性。在IF指标上，Kairos-Robot同样领先所有基线模型，展示了其在视觉保真度与物理一致性之间的良好平衡。
+Kairos-Robot的AVG_Score为**0.618**。在PA指标上相比Cosmos 2.5-14B提升约8.7%，相对所列基线领先约4–22个百分点；在IF指标上属于第一梯队，仅次于14B Wan2.2的0.703。这展示了其在视觉保真度与物理一致性之间的良好平衡。
 
 ### 4.2 通用世界建模Benchmark
 
@@ -625,65 +612,53 @@ Kairos-Robot在PA指标上的显著优势（相比Cosmos 2.5-14B提升6.8%）证
 
 ### 4.2.1 PAI-Bench
 
-在通用世界理解任务中，Kairos 3.0-4B达到**80.84%**的准确率，与规模更大的对比模型相当：
+在通用世界理解任务（TI2V）中，Kairos 3.0-4B达到**Overall Score 80.8**，与规模更大的对比模型相当：
 
-- Cosmos 2.5-14B: 81.0%
-- Cosmos 2.5-2B: 81.0%
-- Kairos 3.0-4B: **80.84%**
-- Wan 2.2-5B: 80.4%
+- Cosmos 2.5-14B: 81.0
+- Cosmos 2.5-2B: 81.0
+- Kairos 3.0-4B: **80.8**
+- Wan 2.2-5B: 80.4
 
 考虑到Kairos 3.0-4B参数量显著少于Cosmos 2.5-14B，该结果证明了混合线性注意力架构在参数效率上的优势。
 
 ### 4.2.2 WorldModelBench
 
-WorldModelBench是评估世界模型视频生成与预测能力的综合性benchmark。Kairos 3.0-4B在该测试中取得**8.94**分：
+WorldModelBench是评估世界模型视频生成与预测能力的综合性benchmark。论文在TI2V和T2V两种设置下评测，Kairos 3.0-4B分别取得**8.89**和**8.99**分：
 
-- Cosmos 2.5-14B: 9.02
-- Kairos 3.0-4B: **8.94**
-- Cosmos 2.5-2B: 8.86
-- Wan 2.2-5B: 8.70
+- Cosmos 2.5-14B: 8.95 / 9.09
+- Kairos 3.0-4B: **8.89 / 8.99**
+- Cosmos 2.5-2B: 8.71 / 9.01
+- Wan 2.2-5B: 8.53 / 8.87
 
-Kairos与更大规模的Cosmos 2.5-14B性能接近（差距仅0.9%），进一步验证了线性注意力机制在长序列建模上的有效性。
+Kairos与更大规模的Cosmos 2.5-14B性能接近（TI2V差距约0.7%，T2V差距约1.1%），进一步验证了线性注意力机制在长序列建模上的有效性。
 
 ### 4.2.3 VideoPHY
 
-VideoPHY benchmark专注于评估模型在物理现象生成任务上的表现。Kairos 3.0-4B在该测试中达到**45.x**分的成绩（注：完整数值在原文中截断），成为首个在该benchmark上取得领先成绩的开源世界模型。
+VideoPHY benchmark专注于评估模型在物理现象生成任务上的表现。Kairos 3.0-4B在该测试中达到**45.55**的平均分，为表中最高（Cosmos-Predict2.5-14B为45.16、2B为44.64、Wan2.2-5B为38.85）。论文只称其取得最高平均分，未声称“首个”。
 
 ### 4.3 消融实验分析
 
-论文通过系统性消融实验验证混合线性时间注意力架构各组件的独立贡献。
+论文的消融集中在数据课程、VLM编码器与联合生成-预测训练上，未对SWA/DSWA/GLA三个注意力组件做逐项移除实验。
 
-### 4.3.1 混合注意力组件贡献
+### 4.3.1 Human-centric数据与VLM编码器
 
-混合线性时间注意力由三个核心组件构成：
+- **Human-centric数据扩展（WorldModelBench-Robot）：** 加入大规模human-centric数据后，Instruction Following 2.10→2.33，Total Score 9.08→9.25。
+- **更强VLM编码器：** 从Qwen2.5-VL-7B-Instruct升级到Qwen3.5-2B后，Instruction Following 2.33→2.36，Total Score 9.25→9.30。
+- **LIBERO-Plus上的human-centric预训练：** 无human-centric数据83.0，有human-centric数据89.0（+6.0）。
 
-1. **Sliding-Window Attention (SWA)：** 处理局部动态，窗口内复杂度为O(n²)但在全局上保持线性
-2. **Dilated Sliding-Window Attention (DSWA)：** 捕捉中程依赖，通过膨胀因子扩大感受野
-3. **Gated Linear Attention (GLA)：** 维持全局因果记忆，复杂度严格线性O(n)
+### 4.3.2 联合生成-预测训练
 
-消融实验显示，去除任一组件都会导致性能下降：
-- 移除SWA：局部动态建模能力下降，短期预测准确率降低
-- 移除DSWA：中程交互理解减弱，动作连贯性下降
-- 移除GLA：长程状态维护失效，无法维持跨帧一致性
-
-### 4.3.2 数据配比影响
-
-CEDC数据curriculum的渐进式设计对最终性能至关重要：
-
-- **Stage 1 (Web-scale video)：** 提供基础物理先验，但不包含动作
-- **Stage 2 (Human behavior)：** 引入人类动作模式，增强人机交互理解
-- **Stage 3 (Robot trajectory)：** 端到端机器人轨迹微调，直接优化控制任务
-
-实验表明，跳过Stage 2直接从视频预训练到机器人轨迹会导致性能下降12-15%，证明了渐进式curriculum的必要性。
+- **只训练Action DiT vs 联合训练：** 65.8→89.0（+23.2）。
+- **推理时联合去噪（Kairos-joint）：** 89.0→90.8。
 
 ### 4.3.3 理论边界验证
 
 论文通过Theorem 1和Theorem 2提供了混合记忆架构的理论保证：
 
-- **Theorem 1：** 证明窗口受限的预测器会遭受不可约的过量风险，验证了持久状态记忆的必要性
+- **Theorem 1：** 证明当目标依赖窗口外信息时，窗口受限的预测器会遭受不可约的过量风险，支持持久状态记忆的必要性
 - **Theorem 2：** 证明混合记忆机制的长程过量风险有界，界为 (Lε + L_G·ξ/(1-ρ))²
 
-实验数据与理论界吻合，证明了混合线性时间注意力架构在控制误差累积方面的有效性。
+论文未用实验直接检验该理论界；实验结果只是代理证据（proxy evidence），不是对定理的实证确认。
 
 ### 4.4 推理效率
 
@@ -701,21 +676,21 @@ Kairos的Deployment-Aware System Co-Design在保持性能的同时显著提升�
 
 ### 4.4.2 实际推理性能
 
-在Nvidia A800 GPU上，Kairos实现了工业首个real-time on-robot inference：
+在Nvidia A800上，论文报告Kairos-4B-robot 480P（5s）蒸馏模型的延迟为：单卡11.7秒、四卡3.0秒；论文仅称4卡设置达到实时吞吐，并未声称已实现on-robot实时推理：
 
-- **单卡A800 (480p生成)：** 11.7秒
-- **四卡A800 (480p生成)：** 3.0秒
-- **边缘端部署：** 通过蒸馏版本支持，延迟降低60%
+- **单卡A800 (480p, 5s)：** 11.7秒
+- **四卡A800 (480p, 5s)：** 3.0秒
+- **RTX5090 (480p, 5s)：** 单卡11.4秒 / 四卡5.7秒
 
-相比传统DiT架构，Kairos的推理速度提升3-4倍，使得480p分辨率的实时视频生成成为可能。
+单卡11.7秒并不满足机器人控制通常10–20Hz的闭环预算。论文报告相对Wan2.2-5B有约2.5–3.7倍加速、相对Cosmos-Predict2.5-14B有约28–85倍加速；4卡设置下480p 5s达到实时吞吐。
 
 ### 4.4.3 蒸馏模型优化
 
-为满足边缘端部署需求，论文通过知识蒸馏技术将4B模型压缩至更小规模：
+为满足边缘端部署需求，论文采用timestep distillation，将480P模型蒸馏为4-step生成器：
 
-- 性能损失控制在5%以内
-- 推理延迟降低60%
-- 支持在Agibot G1、Unitree G1、Songling PIPER等机器人平台上实时运行
+- 论文称蒸馏模型的视觉质量与时序一致性可与教师模型相比，并显著降低采样成本
+- 定量对比（如FVD、成功率）留待未来工作；论文未报告参数量压缩比例、<5%的性能损失或60%的延迟降低
+- 未给出Agibot G1、Unitree G1、Songling PIPER等机器人平台的部署验证
 
 蒸馏版本证明了Kairos架构的可扩展性，为Physical AI的大规模部署奠定基础。
 
@@ -724,15 +699,15 @@ Kairos的Deployment-Aware System Co-Design在保持性能的同时显著提升�
 综合所有benchmark结果，Kairos-Robot (4B)展现出显著的性能优势：
 
 1. **参数效率：** 以4B参数量超越或匹敌14B参数的Cosmos 2.5-14B
-2. **物理一致性：** 在DreamGen Bench PA指标上领先6-20个百分点
-3. **推理效率：** 实现工业首个real-time on-robot inference
+2. **物理一致性：** 在DreamGen Bench PA指标上领先所列基线约4–22个百分点（相对Cosmos 2.5-14B约8.7%）
+3. **推理效率：** 4卡A800上480P 5s达到实时吞吐（3.0s）；论文未声称on-robot实时推理
 4. **通用能力：** 在通用世界建模benchmark上与更大模型相当
 
 这些结果验证了CEDC数据curriculum、混合线性时间注意力架构与Deployment-Aware Co-Design三位一体设计的有效性。
 
 ## Ch5 代码实现详解
 
-Kairos代码仓库（https://github.com/kairos-agi/kairos-sensenova）采用Apache 2.0许可证开源，提供了从预训练checkpoint到推理部署的完整pipeline。
+Kairos代码仓库（https://github.com/kairos-agi/kairos）采用Apache 2.0许可证开源，提供了从预训练checkpoint到推理部署的完整pipeline。
 
 ### 5.1 仓库结构概览
 
@@ -810,13 +785,12 @@ def hybrid_linear_attention(x, swa_window, dswa_dilation, gla_gate):
 
 ### 5.5 硬件支持
 
-Kairos支持以下机器人硬件平台：
+论文的部署延迟只在NVIDIA A800与RTX5090上报告：
 
-- **Agibot G1：** 开源双臂机器人
-- **Unitree G1：** 人形机器人平台
-- **Songling PIPER：** 工业机械臂
+- **NVIDIA A800：** 480P、5s，23.5GB显存，单卡11.7秒 / 四卡3.0秒
+- **NVIDIA RTX5090：** 480P、5s，13.9GB显存，单卡11.4秒 / 四卡5.7秒
 
-部署时需根据硬件算力选择模型变体：标准4B版本适用于A800 GPU，蒸馏版本适用于边缘端部署。
+论文未给出Agibot G1、Unitree G1、Songling PIPER等机器人平台的部署或实时运行验证；AgiBotWorld、Unitree等仅作为数据集/基线引用出现。
 
 ## Ch6 局限性与总结
 
@@ -833,19 +807,16 @@ Kairos支持以下机器人硬件平台：
 
 ### 6.1.2 推理效率瓶颈
 
-尽管已实现real-time 480p生成，但在更高分辨率和更复杂场景下推理效率仍需优化：
-- 720P分辨率的实时推理尚未完全实现（目前存在4B-720P模型但效率数据未公开）
+尽管4卡设置下480p达到实时吞吐，但在更高分辨率和更复杂场景下推理效率仍需优化：
+- 720P的实时推理尚未实现：论文Table 5报告720P、5s、TI2V下Kairos-4B为1 GPU 43秒 / 4 GPU 9秒（23.5GB、2.3 PFlops）
 - 边缘端部署需要依赖蒸馏版本，会有一定性能损失
 - 多模态输入（如结合触觉、力觉传感器）的推理pipeline尚未成熟
 
 ### 6.1.3 Embodiment覆盖范围
 
-当前CEDC数据curriculum主要覆盖以下机器人类型：
-- 双臂机器人（如Agibot G1）
-- 人形机器人（如Unitree G1）
-- 工业机械臂（如Songling PIPER）
+当前CEDC数据curriculum的数据来自开放世界视频、human-centric数据，以及AgiBotWorld-Beta、DROID等机器人数据集；论文未按具体机器人平台给出覆盖范围。
 
-其他embodiment类型（如四足机器人、无人机、软体机器人）的数据覆盖仍有限，限制了模型的泛化能力。
+其他embodiment类型（如四足机器人、无人机、软体机器人）的数据覆盖未做评估，泛化能力仍有待验证。
 
 ### 6.1.4 长程推理能力
 
@@ -888,20 +859,20 @@ Kairos支持以下机器人硬件平台：
 
 ### 6.3 总结
 
-Kairos作为首个native world model stack for Physical AI，通过CEDC数据curriculum、混合线性时间注意力架构与Deployment-Aware Co-Design三位一体设计，在机器人专用与通用世界建模benchmark上取得SOTA性能。
+Kairos作为一个regret-aware的native world-action model stack，通过CEDC数据curriculum、混合线性时间注意力架构与Deployment-Aware Co-Design三位一体设计，在机器人专用与通用世界建模benchmark上取得SOTA性能。
 
 ### 6.3.1 核心贡献回顾
 
 1. **Native Pre-training：** CEDC将异构数据组织为渐进式学习hierarchy，从被动观察到人类模仿再到机器人具身
 2. **Native Architecture：** 混合线性时间注意力（SWA + DSWA + GLA）在保持线性复杂度的同时实现长程状态维护
-3. **理论保证：** Theorem 1和Theorem 2提供了混合记忆架构的必要性与充分性证明
-4. **Deployment-Aware：** 实现工业首个real-time on-robot inference，480p生成仅需3.0秒（4卡A800）
+3. **理论保证：** Theorem 1和Theorem 2（在假设下）提供了混合记忆架构的必要性与近似充分性分析
+4. **Deployment-Aware：** 480P 5s在4卡A800上达到实时吞吐（3.0秒）；论文未声称on-robot实时推理
 
 ### 6.3.2 性能总结
 
-- **机器人任务：** 在PAI-Bench-robot、WorldModelBench-robot TI2V、DreamGen Bench上全面超越基线模型
+- **机器人任务：** 在PAI-Bench-robot、WorldModelBench-robot TI2V、DreamGen Bench上取得领先或极具竞争力的成绩（DreamGen AVG_IF仅次于Wan2.2-14B）
 - **通用建模：** 在PAI-Bench、WorldModelBench、VideoPHY上与更大规模模型相当
-- **推理效率：** 以4B参数量匹敌或超越14B参数模型，实现3-4倍推理速度提升
+- **推理效率：** 以4B参数量匹敌或超越14B参数模型；相对Wan2.2-5B约2.5–3.7倍加速，相对Cosmos-Predict2.5-14B约28–85倍
 
 ### 6.3.3 意义与展望
 

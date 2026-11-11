@@ -1,5 +1,5 @@
 > **论文**：Random Attention: Rethinking KV Cache Eviction for Efficient Reasoning
-> **作者**：Heng Wang, Jielin Qiu, Wenting Zhao, Cheng Qian, Liangwei Yang, Silvio Savarese, Shelby Heinecke, Huan Wang（Salesforce AI Research）；Jiawei Han, Heng Ji（UIUC）；Heng Wang、Cheng Qian 另兼属 UIUC
+> **作者**：Heng Wang, Jielin Qiu, Wenting Zhao, Cheng Qian, Liangwei Yang, Weizhi Zhang, Silvio Savarese, Shelby Heinecke, Huan Wang（Salesforce AI Research）；Jiawei Han, Heng Ji（UIUC）；Heng Wang、Cheng Qian 另兼属 UIUC；Weizhi Zhang 另兼属 University of Illinois Chicago
 > **arXiv ID**：2609.03430
 > **发表时间**：2026-09-03
 > **许可协议**：Apache-2.0（官方代码）
@@ -9,11 +9,11 @@
 
 ### 1.1 一句话定位
 
-这篇论文直接检验了 KV cache 驱逐领域最核心的隐含前提——"用一个分数估计每个缓存 token 日后的重要性、再保住 top-K"是否真的有效——并证明**选择信号（selection signal）的贡献几乎为零**：只要保护 prompt、其余位置在每个 attention head 内做 i.i.d. 均匀随机驱逐（Random Attention），就能匹配乃至超越最强的启发式驱逐器，同时在 vLLM 部署下获得显著更高的吞吐。
+这篇论文直接检验了 KV cache 驱逐领域最核心的隐含前提——"用一个分数估计每个缓存 token 日后的重要性、再保住 top-K"是否真的有效——并证明**选择信号（selection signal）的贡献几乎为零**：只要保护 prompt、其余位置在每个 attention head 内做 i.i.d. 均匀随机驱逐（Random Attention），就能匹配最强的启发式基线，并在 31/60 个基线格中显著领先，同时在 vLLM 部署下获得显著更高的吞吐。
 
 ### 论文图表总览
 
-论文正文含 4 张主表（另含附录 Table 5–11）与 5 张编号 Figure（Figure 1：精度与 vLLM 吞吐总览（§1）；Figure 2：2×–16× 压缩压力扫描（§4.3）；Figure 3：跨头冗余探针 a/b/c（§5.2）；Figure 4：按 token 年龄的保留率（附录 D）；Figure 5：等内存吞吐（附录 G））。下表总览以主表为主，报告未复制图片文件、正文引用 Figure 编号时对应论文原文：
+论文正文含 4 张主表（另含附录 Table 5–11）与 6 张编号 Figure（Figure 1：精度与 vLLM 吞吐总览（§1）；Figure 2：打分驱逐与 Random Attention 方法示意（§3）；Figure 3：2×–16× 压缩压力扫描（§4.3）；Figure 4：跨头冗余探针 a/b/c（§5.2）；Figure 5：按 token 年龄的保留率（附录 D）；Figure 6：等内存吞吐（附录 G））。下表总览以主表为主，报告未复制图片文件、正文引用 Figure 编号时对应论文原文：
 
 | 编号 | 内容 | 章节 |
 |------|------|------|
@@ -33,7 +33,7 @@
 
 ### 1.3 关键结果速览
 
-- **随机驱逐匹配最强基线**：4 个模型（Qwen3-4B/14B/32B、Phi-4-reasoning）× 6 个推理任务上，Random Attention 与最强启发式基线整体可比；在数学、科学类任务上表现尤为突出，竞赛数学（AIME/HMMT）上无人真正拉开差距（名义领先均在噪声内，30 题任务上 run-to-run 波动约 ±5 点）。
+- **随机驱逐匹配最强基线**：4 个模型（Qwen3-4B/14B/32B、Phi-4-reasoning）× 6 个推理任务上，Random Attention 与最强启发式基线整体可比；在数学、科学类任务上表现尤为突出，竞赛数学（AIME/HMMT）上无人真正拉开差距（名义领先均在噪声内，60 题合并集合上 run-to-run 波动约 ±4 点，附录 E 报 2–5 点）。
 - **31/60 显著领先**：60 组基线对比（baseline comparisons）中，Random Attention 在 31 组显著领先，仅 1 组显著落后（TriAttention 在 Qwen3-32B code 任务上领先约 3 点）。
 - **vLLM 吞吐 +32–43%**：32k token 生成长度下，比最强基线 TriAttention 每秒多产出 32–43% 的 token（Qwen3-4B/Phi-4-reasoning/Qwen3-14B/Qwen3-32B 上分别为 +37%/+43%/+40%/+32%）；等内存比较下相对 Full attention 达到约 3–10× 吞吐，K=1024 高压缩下最高 28.8×。
 - **两机制解释**：(1) prompt 是脆弱部分——所有方法都保 prompt 后，差距大部分消失（如 SnapKV 在 MATH500 K=1024 上 0.703→0.829，Recency 诊断基线 0.246→0.843）；(2) 推理轨迹通过两级冗余自我保护——planted-fact 探针显示一个事实保留在单个 head 内几乎无法检索（最佳单头仅 3%），保留在多个 head 中则几乎总能检索（两头 60%、三头 83%、八头 99%）。真正留给选择信号的，只剩"只陈述一次、从不复述的罕见事实"，而推理轨迹很少产生这种信息。
@@ -181,17 +181,17 @@ Table 1 报告了 Qwen3-4B、Phi-4-reasoning、Qwen3-32B 三个模型的主网�
 | TriAttention | 0.891 | 0.625 | 0.654 | 0.493 | 0.843 |
 | **Random Attention（本文）** | **0.870** | **0.628** | **0.642** | **0.505** | **0.820** |
 
-在该规模上 3 个基线格显著领先：TriAttention 在 LiveCodeBench（+2.6 分，p=0.007）、TriAttention 在 MATH500（+2.1 分，p=0.02）、VaSE 在 AIME（+2.6 分，p=0.007），与其在 Qwen3-32B AIME 的名义优势一致。
+在该规模上 3 个基线格显著领先：TriAttention 在 LiveCodeBench（+2.3 分，p=0.007）、TriAttention 在 MATH500（+2.1 分，p=0.02）、VaSE 在 AIME（+2.6 分，p=0.007），与其在 Qwen3-32B AIME 的名义优势一致。
 
 **数学与科学推理上，选择信号买不到任何东西。** 在 MATH500 和 GPQA-D 上，随机驱逐在全部三个模型上显著超越 VaSE 与 SnapKV，并在 Qwen3-4B 上显著超越 R-KV。没有任何选择器在这些任务上显著击败随机驱逐：TriAttention 名义领先的 0.3-0.6 分（两个 GPQA-D 格）落在噪声范围内。
 
-**竞赛数学上同样无人拉开差距。** AIME 与 HMMT 样本更少更难，比较噪声更大：16 次采样下 SnapKV 在每个模型上都显著落后于随机驱逐，R-KV（Qwen3 系）与 VaSE（Phi-4-reasoning）同理，但没有任何选择器显著领先。名义领先双向出现：VaSE 在 Qwen3-32B AIME 领先 1.7 分、HMMT 领先 1.5 分，而两种方法在 30 题集合上的 run-to-run 标准差即达 ±5 分。预算收紧后这些任务才开始分离，且方向对随机驱逐有利（见 §4.3）。
+**竞赛数学上同样无人拉开差距。** AIME 与 HMMT 样本更少更难，比较噪声更大：16 次采样下 SnapKV 在每个模型上都显著落后于随机驱逐，R-KV（Qwen3 系）与 VaSE（Phi-4-reasoning）同理，但没有任何选择器显著领先。名义领先双向出现：VaSE 在 Qwen3-32B AIME 领先 1.6 分、HMMT 领先 1.5 分，而两种方法在 60 题合并集合上的 run-to-run 标准差即约 ±4 分（附录 E：2–5 点）。预算收紧后这些任务才开始分离，且方向对随机驱逐有利（见 §4.3）。
 
 **代码推理上，多数信号式选择器因更长的 prompt 而崩溃。** LiveCodeBench 是唯一出现大差距的任务：SnapKV 在每个模型上输给随机驱逐 20-35 分；VaSE 在 Phi-4-reasoning 上崩至 0.373（落后 29 分），且在 3 个模型中的 2 个被置灰；R-KV 同样被置灰。TriAttention 与随机驱逐在 Qwen3-4B 与 Phi-4-reasoning 上打平，在 Qwen3-32B 上领先约 3 分——这是主网格中唯一的显著基线胜。原因在 prompt 长度：LiveCodeBench prompt 平均 557 tokens，是同 tokenizer 下 MATH500 的约 6 倍，最长者可消耗 K=3072 预算的近一半。因此未能保住 prompt 的选择器在代码任务上损失最大；第 5 章将证明保住 prompt 即可弥合 SnapKV 与 VaSE 的差距。随机驱逐本身固定钉住全部 prompt token，在代码任务上其预算在"选择"开始前就有很大一块被 prompt 占用——大量代码 prompt 是脚手架内容（I/O 格式、harness 指令），更聪明的规则或可压缩而非整段钉住，作者将此留给未来工作，因为随机驱逐作为零假设的价值恰在于无可调参数。
 
-### 4.3 压缩压力：预算越紧，随机驱逐与最强基线的差距越大
+### 4.3 压缩压力：预算越紧，随机驱逐与 TriAttention 保持持平，两者对 VaSE 的领先逐步拉开
 
-Figure 2 给出了 Qwen3-4B 与 Phi-4-reasoning 在四个数学/科学任务上从 2 倍到 16 倍压缩的扫描。两个模型家族讲同一个故事：2 倍压缩时所有方法都贴近 Full attention；预算收紧后，随机驱逐始终与 TriAttention 持平，而两者对 VaSE 的领先逐步拉开。LiveCodeBench 未纳入扫描，因为其 prompt 在极小预算下无法容纳。
+Figure 3 给出了 Qwen3-4B 与 Phi-4-reasoning 在四个数学/科学任务上从 2 倍到 16 倍压缩的扫描。两个模型家族讲同一个故事：2 倍压缩时所有方法都贴近 Full attention；预算收紧后，随机驱逐始终与 TriAttention 持平，而两者对 VaSE 的领先逐步拉开。LiveCodeBench 未纳入扫描，因为其 prompt 在极小预算下无法容纳。
 
 ## 第 5 章 为什么选择信号买不到什么：两级冗余解释
 
@@ -219,13 +219,13 @@ Figure 2 给出了 Qwen3-4B 与 Phi-4-reasoning 在四个数学/科学任务上�
 
 除文本级冗余（推理轨迹会复述仍在使用的值，Cai et al. 2025 已指出）外，还有第二层跨头冗余：每个 KV head 各自缓存每个 token 的副本，驱逐按 head 独立决策，只有全部 KV head 恰好都丢掉某 token 时它才真正丢失。
 
-论文用 planted-fact 探针实验展示模型如何利用第二层冗余。合成事实（例如"令 z_q = 4729"，每次使用全新变量与值）被植入真实模型生成的 MATH500 推理轨迹，问题在事实植入 1,536 tokens 之后才出现——期间缓存被驱逐约 15 次。实验控制的是哪些 KV head 保留该事实：条件 = 选定一组 head 钉住事实 token，其余 head 全部驱逐事实，背景驱逐为标准的逐头均匀采样。两个指标衡量存活：Retrieval（贪心解码在问题处复现值的轨迹比例）与分级 recall R（公式 4，衡量保留副本相对"永不驱逐事实"的对数概率增益）。
+论文用 planted-fact 探针实验展示模型如何利用第二层冗余。合成事实（例如"令 z_q = 4729"，每次使用全新变量与值）被植入真实模型生成的 MATH500 推理轨迹，问题在事实植入 1,536 tokens 之后才出现——期间缓存被驱逐约 15 次。实验控制的是哪些 KV head 保留该事实：条件 = 选定一组 head 钉住事实 token，其余 head 全部驱逐事实，背景驱逐为标准的逐头均匀采样。两个指标衡量存活：Retrieval（贪心解码在问题处复现值的轨迹比例）与分级 recall R（附录 B 公式 2，衡量保留副本相对"永不驱逐事实"的对数概率增益）。
 
 探针揭示模型以两种方式利用冗余：
 
-**副本跨 head 池化，且呈强超加性。** 注意力 head 存在分工：Qwen3-4B 的 8 个 KV head 中仅 3 个能单独保留可用的事实轨迹（与 Wu et al. 2025 的 retrieval-head 分工一致），且单独都很弱——最佳单 head 在 3% 试验中产出该值，次佳 1%。但读出不依赖任何单一 head：同样的两个 head 合起来在 60% 试验中产出事实，三个 head 达 83%，全部 8 个达 99%（Figure 3a）。池化因此是强超加性的，一对 head 的价值是各自单打独斗之和的数倍；它甚至跨事实生效——两个保存在不同 head、答案都需要用到的值，合起来 R=0.31，而各自单独仅 0.10 与 0.16（Figure 3b）。对驱逐策略的直接推论：只要**某些** head 保住副本，值就可继续使用——这正是独立逐头随机抽取所最大化的性质。在真实 MATH500 轨迹上这层额外覆盖甚至不需要：共享抽取（所有 head 用同一随机位置集）在 4 倍与 8 倍压缩下与随机驱逐仅差 0.3 分（Appendix D），因为文本级冗余已保住复述副本；跨头层承担的是文本未复述的内容，即探针所在的场景。
+**副本跨 head 池化，且呈强超加性。** 注意力 head 存在分工：Qwen3-4B 的 8 个 KV head 中仅 3 个能单独保留可用的事实轨迹（与 Wu et al. 2025 的 retrieval-head 分工一致），且单独都很弱——最佳单 head 在 3% 试验中产出该值，次佳 1%。但读出不依赖任何单一 head：同样的两个 head 合起来在 60% 试验中产出事实，三个 head 达 83%，全部 8 个达 99%（Figure 4a）。池化因此是强超加性的，一对 head 的价值是各自单打独斗之和的数倍；它甚至跨事实生效——两个保存在不同 head、答案都需要用到的值，合起来 R=0.31，而各自单独仅 0.10 与 0.16（Figure 4b）。对驱逐策略的直接推论：只要**某些** head 保住副本，值就可继续使用——这正是独立逐头随机抽取所最大化的性质。在真实 MATH500 轨迹上这层额外覆盖甚至不需要：共享抽取（所有 head 用同一随机位置集）在 4 倍与 8 倍压缩下与随机驱逐仅差 0.3 分（Appendix D），因为文本级冗余已保住复述副本；跨头层承担的是文本未复述的内容，即探针所在的场景。
 
-**副本形态无关紧要。** 将事实逐 token 打散摊到各 head，使任意两个连续 token 都不共享 head、任何 head 都无连续可读片段：retrieval 几乎不变（0.33 对完整句子的 0.39），recall 基本不变（R=0.75 对 0.76）。真实 MATH500 轨迹上同样不敏感：连续块从 1 增至 64 tokens 无损；块大小 256 才出现精度下降（此时预算每 head 只剩 4 或 2 个块，且 2 块更差）——重要的是每 head 块数而非块长（Figure 3c）。两发现合起来说明：答案取决于某个需要值的可用副本是否在**某处**存活，而非哪个副本、在哪个 head、以什么形态。
+**副本形态无关紧要。** 将事实逐 token 打散摊到各 head，使任意两个连续 token 都不共享 head、任何 head 都无连续可读片段：retrieval 几乎不变（0.33 对完整句子的 0.39），recall 基本不变（R=0.75 对 0.76）。真实 MATH500 轨迹上同样不敏感：连续块从 1 增至 64 tokens 无损；块大小 256 才出现精度下降（此时预算每 head 只剩 4 或 2 个块，且 2 块更差）——重要的是每 head 块数而非块长（Figure 4c）。两发现合起来说明：答案取决于某个需要值的可用副本是否在**某处**存活，而非哪个副本、在哪个 head、以什么形态。
 
 ### 5.3 留给选择信号的残余空间：一次性事实
 
@@ -241,7 +241,7 @@ Figure 2 给出了 Qwen3-4B 与 Phi-4-reasoning 在四个数学/科学任务上�
 
 （来源：论文 Table 3。log p=0 表示模型必然产出正确口令；−18 表示口令实际上已从缓存消失。）
 
-随机驱逐从未复现口令；retrieval 精确跟踪各选择信号所打分的注意力统计量——R-KV 的 importance 累加全历史注意力，84% 情况下找到口令；VaSE 的采样注意力约 1/3 找到；SnapKV 与 TriAttention 的近期窗口信号几乎从不。Wang (2026) 已证明无冗余时随机缓存必在 pointer-chasing 场景丢失信息。然而找针能力既非聚合精度的充分条件也非必要条件：R-KV 是最佳找针者，在 Table 1 却只领先一列；TriAttention 是主表最强基线，在此几乎一无所获。真实轨迹上该场景罕见，因为模型持续复述仍在使用的信息——但这是任何内容相关信号仍可增值的方向，也是后续研究应聚焦的地方。
+随机驱逐从未复现口令；R-KV 的冗余惩罚（青睐与其余缓存不同的 key，一次性口令正是如此）可能解释了它的 84% 找回率；VaSE 约 1/3 找到；SnapKV 与 TriAttention 几乎从不。Wang (2026) 已证明无冗余时随机缓存必在 pointer-chasing 场景丢失信息。找针能力是真实的选择能力，但既非聚合精度的充分条件也非必要条件：R-KV 是最佳找针者，在 Table 1 却只领先一列；TriAttention 是主表最强基线，在此几乎一无所获。真实轨迹上该场景罕见，因为模型持续复述仍在使用的信息——但这是任何内容相关信号仍可增值的方向，也是后续研究应聚焦的地方。
 
 ## 第 6 章 效率评估与部署
 
@@ -275,7 +275,7 @@ Figure 2 给出了 Qwen3-4B 与 Phi-4-reasoning 在四个数学/科学任务上�
 
 （来源：论文 Appendix G Table 10。压缩缓存可容纳 109-200 条并发序列，Full 仅 28/20——3-10 倍加速主要来自容量。）
 
-残余排序来自打分 pass：随机驱逐不算任何分数、装入最大 batch、峰值占用最小（101/89 GB），达到 Full attention 吞吐的 10.0 倍与 8.8 倍；16k 生成下排序不变。更紧的 MATH500 预算 K=1024 下同一协议达 28.8 倍（584 序列、5110 tok/s，比 SnapKV 多 16%、比 VaSE 多 20%——Table 11）。注意 TriAttention 行跑的是其 PyTorch 移植版（论文声明尚无优化内核），3 倍差距反映未融合实现而非方法本身；§6.1 的 vLLM 对比（用其发布内核）才是方法级比较。
+残余排序来自打分 pass：随机驱逐不算任何分数、装入最大 batch，达到 Full attention 吞吐的 10.0 倍与 8.8 倍。更紧的 MATH500 预算 K=1024 下同一协议达 28.8 倍（584 序列、5110 tok/s，比 SnapKV 多 16%、比 VaSE 多 20%——Table 11）。注意 TriAttention 行跑的是其 PyTorch 移植版（论文声明尚无优化内核），3 倍差距反映未融合实现而非方法本身；§6.1 的 vLLM 对比（用其发布内核）才是方法级比较。
 
 单轮驱逐计时（Appendix G Table 9，K=1024、4096 解码步、空闲节点、单流）：随机驱逐 0.30 ms/轮（占解码 0.57%），SnapKV 0.37 ms、R-KV 0.58 ms、VaSE 0.74 ms、TriAttention 1.47-1.64 ms（占 2.49-2.67%）。
 
@@ -299,7 +299,7 @@ LiveCodeBench 是全部 6 个任务中唯一存在大差距的任务，论文将
 
 ### 7.2 罕见一次性事实：留给选择信号的窄缝
 
-§5.3 的 passcode 探针（把一个一次性事实植在 57 轮驱逐之前）划出了随机驱逐的真实失败域：Random Attention 检索率为 0.000（logprob −18.35），而 R-KV 凭其冗余惩罚设计找回 84%（VaSE 0.344、SnapKV 0.004、TriAttention 0.016）。也就是说，"只陈述一次、从不复述的罕见事实"确实是选择信号的价值所在——只是推理轨迹很少产生这种信息（两级冗余意味着重要信息通常被复述、被多头复制）。此外论文引用 Wang (2026) 指出随机 cache 在 pointer-chasing 类任务上必然失败。延伸问题：**needle-finding 能力 ≠ aggregate strength**——长程单点依赖的 agent / 工具调用场景（文件句柄、变量名回指）可能是随机驱逐需要让位给信号方法的边界，值得单独评估。
+§5.3 的 passcode 探针（把一个一次性事实植在 57 轮驱逐之前）划出了随机驱逐的真实失败域：Random Attention 检索率为 0.000（logprob −18.35），而 R-KV 凭其冗余惩罚设计找回 84%（VaSE 0.344、SnapKV 0.004、TriAttention 0.016）。也就是说，"只陈述一次、从不复述的罕见事实"确实是选择信号的价值所在——只是推理轨迹很少产生这种信息（两级冗余意味着重要信息通常被复述、被多头复制）。此外论文引用 Wang (2026) 指出在无冗余时随机 cache 在 pointer-chasing 类任务上必然失败。延伸问题：**needle-finding 能力 ≠ aggregate strength**——长程单点依赖的 agent / 工具调用场景（文件句柄、变量名回指）可能是随机驱逐需要让位给信号方法的边界，值得单独评估。
 
 ### 7.3 matched protection 后的残留差距
 
@@ -313,4 +313,4 @@ prompt 保护解释了大部分差距但不是全部（附录 C）：Qwen3-32B G
 
 ### 7.5 统计与适用范围
 
-竞赛数学任务（AIME 每组仅 30 题）的 run-to-run 波动约 ±5 点，名义领先多在噪声内；论文用 paired problem-clustered bootstrap 95% CI + exact sign test 控制了这一点，但读者解读单格数字时仍需谨慎。更宏观地，本文结论限定于"推理模型的长 CoT 场景"——正是两级冗余成立的场景；将其外推到非推理生成（摘要、翻译、对话）前，冗余假设需要重新验证。
+竞赛数学任务（AIME 2025 与 2026 各 30 题合并为 60 题、HMMT 60 题）的 run-to-run 波动约 ±4 点（附录 E：2–5 点），名义领先多在噪声内；论文用 paired problem-clustered bootstrap 95% CI + exact sign test 控制了这一点，但读者解读单格数字时仍需谨慎。更宏观地，本文结论限定于"推理模型的长 CoT 场景"——正是两级冗余成立的场景；将其外推到非推理生成（摘要、翻译、对话）前，冗余假设需要重新验证。

@@ -9,7 +9,7 @@
 > **发布日期**: 2026-05-21
 > **arXiv链接**: https://arxiv.org/abs/2605.22817
 > **PDF链接**: https://arxiv.org/pdf/2605.22817
-> **代码链接**: 暂无公开代码仓库（论文发布日期为2026年5月21日，代码可能后续发布）
+> **代码链接**: https://github.com/ryanboldi/vpo（论文脚注 1）
 > **关键词**: Reinforcement Learning, LLM Post-Training, Vector Rewards, Test-Time Search, GRPO, Diversity, Policy Optimization
 
 ---
@@ -57,7 +57,7 @@
 
 3. **随机奖励标量化（Stochastic Reward Scalarization）**：用 **Dirichlet 分布**上的权重采样替代固定权重，直接优化**期望 best-of-N** 目标，这是 GRPO 优势估计器的**即插即用替换**。
 
-4. **全面实验验证**：在4个任务域（Maze、MuSiQue、EUREQA、ToolRL）和1个大规模扩展研究（LiveCodeBench）上，VPO 在搜索预算增长时**持续拉开与所有基线的差距**。
+4. **全面实验验证**：在4个任务域（Maze、MuSiQue、EUREQA、ToolRL）和1个大规模扩展研究（LiveCodeBench）上，VPO 在搜索预算增长时通常保持对标量基线的优势，并在多数任务上随 k 增大而扩大差距（ToolRL 上与 Max@k 基本持平，Maze 的 best@3 上 Max@k 略高）。
 
 5. **深刻洞察**：证明了单独使用多答案或单独使用随机标量化都**不够**——两者的结合才是关键。
 
@@ -157,7 +157,7 @@ VPO 本质上是 **GRPO 的优势估计器的替换**：
 - **基线方法**：GRPO, Multi-RLVR, Random-Weighting GRPO, Max-at-K Training, MaxRL, Goal-Conditioned GRPO, GDPO
 - **评估指标**：best@k（在 k 个候选中选最好的）和 diversity（多样性）
 - **评估任务**：4个核心任务 + 1个大规模扩展研究
-- **训练框架**：基于 OpenRLGRPO 框架实现
+- **训练框架**：基于 veRL（生成使用 vLLM）实现
 
 ### 4.2 主要结果
 
@@ -191,11 +191,11 @@ VPO 本质上是 **GRPO 的优势估计器的替换**：
 | 配置 | 多答案？ | 随机标量化？ | 结果 |
 |------|:------:|:----------:|------|
 | GRPO | ✗ | ✗ | 模式坍塌 |
-| Multi-RLVR | ✓ | ✗ | 多样性在训练中坍塌 |
+| Multi-RLVR | ✓ | ✗ | 多样性停滞或低于 VPO |
 | Random-Weighting GRPO | ✗ | ✓ | 不稳定 |
 | **VPO** | **✓** | **✓** | **稳定且多样** |
 
-- Multi-RLVR 的奖励空间多样性在 Maze、MuSiQue、ToolRL 上**训练过程中坍塌**
+- Multi-RLVR 的奖励空间多样性在 Maze、MuSiQue、ToolRL 上**训练过程中停滞或低于 VPO**（EUREQA 上与 VPO 接近）
 - 多答案提示提供的是多样性的*能力*而非*激励*
 - 随机标量化给不同位置提供了专门化的激励
 
@@ -246,15 +246,15 @@ VPO 本质上是 **GRPO 的优势估计器的替换**：
 
 ### 5.4 计算效率：1倍 VPO > 3倍 GRPO
 
-这是论文最实用的发现之一。在相同计算预算下，VPO 显著优于 GRPO；即使 GRPO 获得 3 倍计算资源，仍然不如 VPO。这意味着 VPO 不仅效果好，而且**计算更高效**。
+这是论文最实用的发现之一。训练计算难以完全对齐，但 VPO 仍优于获得约 3 倍 rollout 的 GRPO。这意味着 VPO 不仅效果好，而且**计算更高效**。
 
 ### 5.5 文本条件化的局限性
 
-目标条件化（Goal Conditioning）的失败揭示了一个重要问题：当前 LLM 无法可靠地将"请关注维度 A"这样的文本指令转化为实际的行为偏好。VPO 通过训练时的隐式激励避开了这个问题。
+目标条件化（Goal Conditioning）在 Maze（Qwen3-4B）上的失败揭示了一个重要问题：目标条件化 GRPO 发生模式坍塌并开始忽略条件（w），无法可靠地将文本编码的偏好转化为有效行为；论文未证明该现象普遍适用于所有 LLM/任务。VPO 通过训练时的隐式激励避开了这个问题。
 
 ### 5.6 与 GRPO 的兼容性
 
-VPO 仅替换 GRPO 的优势估计器，对训练框架的改动极小。这使得它可以**零成本集成**到现有的 GRPO 训练流程中。
+VPO 主要替换 GRPO 的优势估计器，但还需配合多答案提示与答案解析，因此对现有 GRPO 流程改动较小，但并非**零成本集成**。
 
 ---
 
@@ -272,9 +272,9 @@ VPO 仅替换 GRPO 的优势估计器，对训练框架的改动极小。这使�
 
 1. **奖励维度依赖**：需要任务天然具有可分解的向量奖励结构。对于确实只有单一标量奖励的任务（如某些人类偏好评估），可能需要人工构造奖励维度
 2. **多答案链的效率**：m=3 个候选在一次前向传播中生成，虽然共享 prefix 但仍增加了推理成本
-3. **超参数敏感度**：论文未充分讨论 Dirichlet 分布参数 α 和标量化采样数 K 的敏感性
+3. **超参数敏感度**：论文已讨论标量化采样数 K 的敏感性（App. F.1），但未系统研究 Dirichlet 参数 α 的敏感性
 4. **大规模验证不足**：LiveCodeBench 的结果描述相对简略，缺少完整的数据表格
-5. **代码未公开**：截至精读日期（2026-05-23），论文代码尚未公开发布，限制了可复现性
+5. **代码已公开**：论文脚注给出代码仓库 https://github.com/ryanboldi/vpo，可复现性较好
 
 ### 6.3 未来方向
 
@@ -293,7 +293,7 @@ VPO 是一篇**高质量、高影响力**的工作。它不是在现有范式上
 
 1. **VPO 论文**: Bahlous-Boldi, R., et al. "Vector Policy Optimization: Training for Diversity Improves Test-Time Search." arXiv:2605.22817, 2026.
 2. **GRPO**: Shao, Z., et al. "DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models." arXiv:2402.03300, 2024.
-3. **AlphaEvolve**: Novak, A., et al. "AlphaEvolve: A coding agent for scientific and algorithmic discovery." Google DeepMind, 2025.
+3. **AlphaEvolve**: Novikov, A., et al. "AlphaEvolve: A coding agent for scientific and algorithmic discovery." arXiv:2506.13131, 2025.
 4. **PPO**: Schulman, J., et al. "Proximal Policy Optimization Algorithms." arXiv:1707.06347, 2017.
 5. **DPO**: Rafailov, R., et al. "Direct Preference Optimization: Your Language Model is Secretly a Reward Model." NeurIPS 2023.
 6. **Multi-RLVR**: 相关多答案训练方法

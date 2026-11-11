@@ -162,7 +162,7 @@ $$\mathcal{C}(i, i_{\text{gt}}, q, a) = \mathbf{1}[\mathcal{M}(i, q) \neq a \ \w
 
 | 奖励 | 公式 | 优势 | 劣势 |
 |------|------|------|------|
-| Editing Guidance ($r_{\text{guide}}$) | $\mathbf{1}[\mathcal{M}(i_{\text{edit}}, q) = a]$ | 最忠实于端到端目标 | 受 $\mathcal{M}$ 能力天花板限制 |
+| Editing Guidance ($r_{\text{guide}}$) | $\mathbf{1}[\mathcal{M}(i, i_{\text{edit}}, q) = a]$ | 最忠实于端到端目标 | 受 $\mathcal{M}$ 能力天花板限制 |
 | Editing Correctness ($r_{\text{correct}}$) | $\mathbf{1}[\mathcal{J}(i, i_{\text{edit}}, q) = 1]$ | 可超越 $\mathcal{M}$ 天花板 | Judge 模型存在噪声 |
 
 组合奖励：
@@ -185,11 +185,10 @@ for batch in dataloader:
     # 计算每个编辑的奖励
     rewards = [0.5 * r_guide(edit) + 0.5 * r_correct(edit) for edit in edits]
     
-    # 成对偏好比较 + GRPO 梯度更新
-    # 选择最佳和最差编辑构建偏好对
-    best = edits[argmax(rewards)]
-    worst = edits[argmin(rewards)]
-    loss = pref_grpo_loss(best, worst, rewards)
+    # 成对偏好比较：组内两两计算 win rate，组内归一化为优势
+    win_rate = pairwise_win_rate(edits, rewards)
+    advantages = normalize(win_rate)
+    loss = grpo_loss(edits, advantages)
     loss.backward()
     optimizer.step()
 ```
@@ -222,7 +221,7 @@ judge_model = "Qwen3-VL-8B-Instruct"  # 同时作为理解模型和 Judge
 │
 └── Step 3: Reason（推理）
     如果 use_edited:
-        answer = M(i_edit, q)
+        answer = M(i, i_edit, q)  # 联合原始图与编辑图
     否则:
         answer = M(i, q)  # 安全回退
 ```
@@ -252,7 +251,7 @@ judge_model = "Qwen3-VL-8B-Instruct"  # 同时作为理解模型和 Judge
 | Gemini-3.1-Flash-Lite | 65.08 | 70.55 | **+5.47 (+8.4%)** |
 | Kimi K2.5 (1T MoE) | 76.55 | 81.16 | **+4.61 (+6.0%)** |
 
-**关键发现**：ETCHR 的提升在**所有规模的模型**上都保持一致，从 8B 到 1T 参数，说明解耦编辑器的增益不受理解模型能力限制。
+**关键发现**：ETCHR 的提升在**所有规模的模型**上都保持一致，从 8B 到 1T 参数，说明解耦编辑器在 8B–1T 规模的理解模型上均能带来稳定增益；但端到端性能仍受理解模型能力上限约束（见论文 Limitations）。
 
 **按任务族细分（Qwen3-VL-8B）**：
 
@@ -262,7 +261,7 @@ judge_model = "Qwen3-VL-8B-Instruct"  # 同时作为理解模型和 Judge
 | Maze（逻辑推理） | 27.5 | 38.5 | **+11.0 (+40.0%)** |
 | DL3DV-2k（3D 理解） | 70.8 | 78.6 | **+7.8 (+11.0%)** |
 | Frozen Lake（逻辑推理） | 9.5 | 13.5 | **+4.0 (+42.1%)** |
-| Fine-grained Perception | ~60+ | ~63+ | +3~4 |
+| 细粒度感知（V*Bench / HRBench） | 84.8 / 78.1·74.5 | 86.9 / 80.6·75.3 | +2.1 / +2.5·+0.8 |
 
 **亮点**：结构性任务（拼图 +16.1、迷宫 +11.0）提升最大，正是 Tool-based 方法无法覆盖的领域。
 
@@ -274,7 +273,7 @@ judge_model = "Qwen3-VL-8B-Instruct"  # 同时作为理解模型和 Judge
 | Thyme | Tool-based | 49.69 | 2/5 |
 | ThinkMorph-7B | Unified | 44.05 | 5/5（质量差） |
 | Bagel-Zebra-CoT | Unified | 38.27 | 5/5（质量差） |
-| Nano Banana 2 | Closed-source | ~58 | 5/5 |
+| Nano Banana 2（100 样本子集） | Closed-source | 49.60（Qwen3-VL）/ 61.24（Gemini） | 5/5 |
 | **ETCHR + Qwen3-VL-8B** | **Decoupled** | **60.77** | **5/5** |
 
 **关键结论**：
@@ -289,8 +288,8 @@ judge_model = "Qwen3-VL-8B-Instruct"  # 同时作为理解模型和 Judge
 | **Stage I SFT** | 在所有 5 个任务族上均有显著提升，是主要贡献来源 |
 | **Stage II RL** | 在感知/图表上额外增加 ~1 个百分点，在结构性任务上几乎无增益（GRPO 采样对结构性编辑的语义多样性有限） |
 | **单奖励 vs 双奖励** | $r_{\text{guide}}$ 或 $r_{\text{correct}}$ 单独使用均不如组合；Correctness 提供保真度底线，Guidance 提升任务上限 |
-| **Verify 机制** | 移除验证导致性能下降，尤其在编辑正确率较低的任务上；验证有效过滤了误导性编辑 |
-| **Task-level Meta-Prompt** | 移除后跨任务干扰显著增加，平均下降 2-3 个百分点 |
+| **Verify 机制** | 移除验证总体导致小幅下降；对 Qwen3-VL-8B，增益主要出现在骨干准确率已较高的感知/图表任务（约 80%），在逻辑/拼图/3D 上增益很小甚至为负（3D 轻微回退）；验证可过滤误导性编辑 |
+| **Task-level Meta-Prompt** | 移除后跨任务干扰显著增加（论文仅定性描述，未报告具体平均降幅） |
 
 ---
 
@@ -338,7 +337,7 @@ Editing Guidance 和 Editing Correctness 的互补关系揭示了一个重要原
 
 ### 6.2 局限性
 
-- **编辑质量的天花板**：Diffusion 模型的编辑正确率在深度推理任务上仍然较低（如 Frozen Lake 仅 9.5→13.5），说明"生成侧 Gap"并未完全解决
+- **编辑质量的天花板**：Diffusion 模型的编辑正确率随推理深度增加而急剧下降（Fig. 2(b)），Frozen Lake 下游 Pass@1 也仅 9.5→13.5，说明"生成侧 Gap"并未完全解决
 - **RL 阶段收益有限**：Stage II 在结构性任务上几乎无增益，说明当前的 RL 方法（Pref-GRPO）对复杂视觉编辑的优化能力不足
 - **依赖理解模型作为 Judge**：Judge 模型的能力限制了奖励信号的质量，形成了一定的循环依赖
 - **计算成本**：编辑器推理（FLUX.2 的 30 步 Diffusion）+ 验证 + 推理，整体延迟较高，可能不适合实时应用
@@ -355,8 +354,8 @@ ETCHR 提出了一个**概念清晰、工程实用**的视觉推理增强框架�
 ## 七、参考文献
 
 1. Gu, A., & Dao, T. (2023). Mamba: Linear-Time Sequence Modeling with Selective State Spaces. *arXiv:2312.00752*.
-2. Wu, J., et al. (2025). DeepEyes: Incentivizing "Thinking with Images" via Reinforcement Learning. *arXiv:2504.11830*.
-3. Shao, L., et al. (2024). V*: Guided Visual Search as a Core Capability in Multimodal LLMs. *CVPR 2024*.
+2. Zheng, Z., et al. (2025). DeepEyes: Incentivizing "Thinking with Images" via Reinforcement Learning. *arXiv:2505.14362*.
+3. Wu, P., & Xie, S. (2024). V*: Guided Visual Search as a Core Mechanism in Multimodal LLMs. *CVPR 2024*.
 4. Labs, B. (2025). FLUX.2: Next-Generation Text-to-Image Generation. Black Forest Labs.
 5. Shao, Z., et al. (2024). DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models. *arXiv:2402.03300*.
 6. Team, InternLM (2025). InternLM-XComposer: A Vision-Language Large Model for Advanced Text-image Comprehension and Composition. *arXiv:2309.15112*.

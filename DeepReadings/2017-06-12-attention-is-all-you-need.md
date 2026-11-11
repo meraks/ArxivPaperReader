@@ -1,7 +1,7 @@
 # 《Attention Is All You Need》论文精读报告
 
 - **论文标题**: Attention Is All You Need
-- **作者**: Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez, Łukasz Kaiser, Illia Polosukhin (Google Brain/Google Research)
+- **作者**: Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N. Gomez (University of Toronto), Łukasz Kaiser, Illia Polosukhin (Google Brain/Google Research)
 - **发表**: NeurIPS 2017
 - **arXiv**: 1706.03762
 - **核心思想**: 提出 Transformer 架构，完全基于注意力机制，摒弃循环和卷积
@@ -261,11 +261,11 @@ PE 的正弦函数**波长**构成一个**几何级数（geometric progression�
 
 #### 4.5.2 为什么选正余弦而非可学习位置嵌入
 论文选择三角函数版本有两个理论理由：
-1. **相对位置的可线性表示性**：由于 $\sin/\cos$ 的和角公式，$PE_{pos+k}$ 可以表示为 $PE_{pos}$ 的**线性函数**（依赖固定偏移 $k$）。这使得模型能很容易地学会"**关注相对位置**"，因为任意固定相对偏移 $k$ 的位置编码之间都存在一个不随 $pos$ 变化的线性变换。
-2. **外推能力**：正余弦函数对任意长度 $pos$ 都有定义，使模型能外推到比训练中见过的更长的序列。
+1. **相对位置的可线性表示性**：由于 $\sin/\cos$ 的和角公式，$PE_{pos+k}$ 可以表示为 $PE_{pos}$ 的**线性函数**（依赖固定偏移 $k$）。论文假设这能让模型很容易地学会"**关注相对位置**"，因为任意固定相对偏移 $k$ 的位置编码之间都存在一个不随 $pos$ 变化的线性变换。
+2. **外推能力**：正余弦函数对任意长度 $pos$ 都有定义，论文认为这可能使模型外推到比训练中见过的更长的序列。
 
 #### 4.5.3 实证：学习版 vs 正弦版几乎相同
-论文在 Table 3 的实验（变体 E）中比较了**可学习的位置嵌入（learned positional embedding）**与本文正弦 PE：**两者结果几乎相同（nearly identical）**。作者据此推断，正弦版本之所以被采用，并非因为它在指标上明显更优，而是因为它能天然外推到更长序列、且不增加可学习参数。
+论文在 Table 3 的实验（变体 E）中比较了**可学习的位置嵌入（learned positional embedding）**与本文正弦 PE：**两者结果几乎相同（nearly identical）**。作者据此推断，正弦版本之所以被采用，并非因为它在指标上明显更优，而是因为它可能外推到更长序列、且不增加可学习参数。
 
 ### 4.6 Why Self-Attention：与循环/卷积的三维对比（Table 1）
 
@@ -300,10 +300,10 @@ PE 的正弦函数**波长**构成一个**几何级数（geometric progression�
 
 > 当 $k = n$ 时，可分离卷积的复杂度恰好**等价于 self-attention 层 + position-wise feed-forward 层的组合**——这正是 Transformer 的设计方案。
 
-这一等价性意味着：Transformer 的「self-attention + FFN」并非随意拼接，而是在计算最优意义下等价于一个**全局感受野的可分离卷积**（$k=n$），同时以 $O(1)$ 路径长度避免了空洞卷积的 $O(\log_k n)$ 深度瓶颈。换言之，Transformer 用**注意力 + 逐位置 MLP** 的组合，在数学上达到了卷积方案在计算效率和全局建模能力上的上限，且路径更短。
+这一等价性意味着：Transformer 的「self-attention + FFN」并非随意拼接，而是在计算最优意义下等价于一个**全局感受野的可分离卷积**（$k=n$），同时以 $O(1)$ 路径长度避免了空洞卷积的 $O(\log_k n)$ 深度瓶颈。换言之，Transformer 用**注意力 + 逐位置 MLP** 的组合，在计算复杂度上等价于一个核宽为 $n$ 的可分离卷积，且路径更短。
 
 #### 4.6.4 可解释性作为额外优势
-除上述三项量化指标外，论文还指出 self-attention 带**可解释性（interpretability）**红利：不同的 attention head 明显在执行**不同的任务**（例如有的头学到了语法依存、有的头关注长距离共指），可以通过可视化注意力分布来检视模型"在看哪里"。这一性质是循环/卷积网络难以提供的。
+除上述三项量化指标外，论文还指出 self-attention 带**可解释性（interpretability）**红利：不同的 attention head 明显在执行**不同的任务**（例如有的头学到了语法依存、有的头关注长距离共指），可以通过可视化注意力分布来检视模型"在看哪里"。论文仅将其列为 self-attention 的附带优势（side benefit），并未与循环/卷积网络作此对比。
 
 ---
 
@@ -366,7 +366,7 @@ $$\text{lrate} = d_{\text{model}}^{-0.5} \cdot \min\!\left(\text{step}^{-0.5},\;
 
 #### 5.1.4 正则化
 
-论文使用两项正则化手段抑制过拟合：
+论文称使用三类正则化手段抑制过拟合（正文分列 Residual Dropout 与 Label Smoothing，其中 Residual Dropout 段还包含对 embedding 与位置编码之和的 dropout）：
 
 1. **Residual Dropout（残差 Dropout）**：对每个子层的输出（在 residual addition 与 LayerNorm 之前）以概率 $P=0.1$ 施加 dropout；此外也对 encoder/decoder 中 embedding 与 positional encoding 的加和施加 dropout。base 与 big（EN-FR）均用 $P=0.1$，big（EN-DE）用 $P=0.3$。
 2. **Label Smoothing（标签平滑）**：$\varepsilon_{ls} = 0.1$。即把 one-hot 标签的 1 改为 $1-\varepsilon+\varepsilon/V$，其余类各分到 $\varepsilon/V$（$V$ 为词表大小）。这使模型不必对单一类过度自信，论文指出它"损害了 log-likelihood（PPL 略升）但提升了 BLEU 与准确率"。
@@ -469,7 +469,7 @@ Transformer 两个变体在两个翻译任务上的 BLEU（newstest2014 测试�
 
 **(E) 可学习的位置嵌入 vs 正弦位置编码**
 
-将正弦 PE 替换为**可学习的位置嵌入**，开发集结果与正弦版**几乎相同（near identical）**。作者据此推断：正弦 PE 的采用并非因为它在 BLEU 上更优，而是因为它能**外推到比训练时更长的序列**、且不引入额外可学习参数（见第 4 章位置编码论证）。
+将正弦 PE 替换为**可学习的位置嵌入**，开发集结果与正弦版**几乎相同（near identical）**。作者据此推断：正弦 PE 的采用并非因为它在 BLEU 上更优，而是因为它可能**外推到比训练时更长的序列**、且不引入额外可学习参数（见第 4 章位置编码论证）。
 
 #### 5.3.3 big 配置小结
 
@@ -493,7 +493,7 @@ big 模型相对 base 的提升来自三个方向同时扩容：$d_{\text{model}
 要点：
 
 - 仅使用 **40K 句训练数据**，Transformer 就超越了 BerkeleyParser 等专用句法分析器，而 RNN seq2seq 在此小数据场景下此前无法达到 SOTA；
-- WSJ-only 取得 **91.3 F1**；半监督设置进一步提升到 **92.7 F1**，仅次于 RNN Grammar（93.3, generative）；
+- WSJ-only 取得 **91.3 F1**；半监督设置进一步提升到 **92.7 F1**，低于 Table 4 中的 Luong et al. (2015) multi-task（93.0）与 RNN Grammar（93.3, generative）；论文正文仅将 RNN Grammar 列为例外；
 - 这一结果表明：Transformer 并非只对机器翻译过拟合，其架构本身具有**良好的任务无关泛化能力**，这是其后来能席卷多模态各领域的早期信号。
 
 ### 5.5 本章小结

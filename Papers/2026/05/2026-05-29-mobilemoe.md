@@ -52,8 +52,8 @@ Pre-training → Mid-training → SFT → INT4 QAT
 | 模型 | 激活参数 | 总参数 | INT4 权重显存 | 推理 FLOPs（相对 dense） |
 |------|---------|--------|--------------|------------------------|
 | MobileMoE-S | 272M | 1.3B | 0.68 GB | ~2-4× fewer |
-| MobileMoE-M | 528M | 2.8B | 1.40 GB | ~2-4× fewer |
-| MobileMoE-L | 922M | 5.3B | 2.65 GB | ~2-4× fewer |
+| MobileMoE-M | 528M | 2.8B | 1.48 GB | ~2-4× fewer |
+| MobileMoE-L | 922M | 5.3B | 2.75 GB | ~2-4× fewer |
 
 ---
 
@@ -96,7 +96,7 @@ graph TD
 - **E**：每层的专家数量（routed experts）
 - **k**：每个 token 激活的 top-k 专家数
 
-论文 sweep 范围：E ∈ {1,2,4,8,16,32}，k ∈ {1,2,4}
+论文 sweep 范围：E ∈ {1,2,4,8,16,32}（固定 g=1、s=×），另见下文的 g sweep 与 shared expert 消融；k 不是单独 sweep 的维度（最终配置为 top-4）
 
 #### 维度 2：专家粒度 (Expert Granularity, g)
 
@@ -120,7 +120,7 @@ $$L(N_{act}, D, \hat{E}, x) = A_x \hat{E}^{δ_x} N_{act}^{α_x + γ_x \ln \hat{E
 - $N_{act}$：激活参数数量（active parameters）
 - $D$：训练数据量（tokens）
 - $\hat{E}$：归一化的专家数量
-- $x$：架构配置 $(E, k, g, s)$
+- $x$：架构配置 $(g, s)$（专家数量 E 由 $\hat{E}$ 刻画）
 
 **中国解释**：这是一个两部分的损失函数：
 1. **第一项** $A_x \hat{E}^{δ_x} N_{act}^{α_x + γ_x \ln \hat{E}}$：关于激活参数的损失
@@ -212,7 +212,7 @@ $$L_z = λ_z \sum (\log \sum \exp(z_i))^2$$
 2. **Per-token top-k normalization**：对每个 token 的 top-k 专家概率进行归一化
 
 **优势**：
-- 减少了 softmax 的计算开销
+- 各专家独立打分，避免 softmax 的强制竞争，路由分布更平滑
 - 更细粒度的专家控制
 
 ### Grouped MLP
@@ -365,13 +365,13 @@ graph TD
 | Qwen3.5 2B | 1.9B (dense) | 53.3 | -6.5 |
 | SmolLM2 1.7B | 1.7B (dense) | 50.7 | -9.1 |
 | Gemma 3 270M | 270M (dense) | 33.5 | -26.3 |
-| MobileLLM-Pro | 1.2B (dense) | 43.7 | -16.1 |
+| MobileLLM-Pro | 1.1B (dense) | 47.0 | -12.8 |
 
 **逐行解读**：
 - **MobileMoE-S (46.5)**: 超过 Gemma 3 270M (33.5) **13.0分**，在相似参数量下建立了新的性能 frontier
 - **MobileMoE-M (55.4)**: 超过 Qwen3.5 2B (53.3) **2.1分**，但只有 1/3.6 的激活参数（528M vs 1.9B）
 - **MobileMoE-L (59.8)**: 超过 OLMoE-1B-7B (52.4) **7.4分**，同时减少 30% 激活参数和 23% 总参数
-- **MobileLLM-Pro (43.7)**: 作为 Meta 前作，已被 MobileMoE-S (46.5) 超越，展示了 MoE 架构的进步
+- **MobileLLM-Pro (47.0)**: 作为 Meta 前作，MobileMoE-S (46.5) 的 Base 平均仍略低 0.5 分，但以 272M 激活参数接近其水平
 
 ### SFT Models: 分领域能力
 
@@ -395,29 +395,29 @@ graph TD
 |------|------------|------------|-----------|------|
 | **HumanEval** | 65.2% | 36.0% | - | +29.2% |
 | **MATH500** | 32.2% | 8.4% | - | +23.8% |
-| **MBPP** | 61.0% | 40.4% | - | +20.6% |
+| **MBPP** | 52.4% | 30.2% | - | +22.2% |
 
 **逐行解读**：
 - **HumanEval (65.2%)**: MobileMoE-L 几乎是 OLMoE-1B-7B (36.0%) 的**两倍性能**，展示了 MoE 在代码生成上的巨大优势
 - **MATH500 (32.2%)**: 相比 OLMoE-1B-7B (8.4%) 有 **3.8倍** 提升，表明细粒度专家对数学推理特别有效
-- **MBPP (61.0%)**: 代码生成的另一基准，MobileMoE-L 同样显著领先
+- **MBPP (52.4%)**: 代码生成的另一基准，MobileMoE-L 同样显著领先（较 OLMoE-1B-7B 的 30.2% 高 22.2 分）
 
 ### 知识与推理基准
 
 | 基准 | MobileMoE-L | OLMoE-1B-7B | Qwen3.5 2B |
 |------|------------|------------|-----------|
-| **MMLU** | 48.8% | 44.5% | 53.1% |
-| **NQ** | 42.8% | 30.9% | 32.9% |
-| **TQA** | 54.8% | 44.5% | 48.5% |
-| **BoolQ** | 71.6% | 65.4% | 75.8% |
-| **DROP** | 56.2% | 48.6% | 53.7% |
+| **MMLU** | 59.6% | 52.6% | 54.1% |
+| **NQ** | 26.7% | 20.6% | 10.9% |
+| **TQA** | 58.1% | 62.3% | 32.6% |
+| **BoolQ** | 75.7% | 74.8% | 69.4% |
+| **DROP** | 64.7% | 29.8% | 53.6% |
 
 **逐行解读**：
-- **MMLU**: Qwen3.5 2B (53.1%) 仍领先，但 MobileMoE-L (48.8%) 显著优于 OLMoE-1B-7B (44.5%)
-- **NQ (Natural Questions)**: MobileMoE-L (42.8%) 领先优势明显，超过 OLMoE 11.9 分
-- **TQA (TriviaQA)**: MobileMoE-L (54.8%) 同样显著领先
-- **BoolQ**: Qwen3.5 2B (75.8%) 仍领先，MoE 模型在此基准上优势有限
-- **DROP**: MobileMoE-L (56.2%) 领先，展示了 MoE 在数值推理上的优势
+- **MMLU**: MobileMoE-L (59.6%) 领先 Qwen3.5 2B (54.1%) 与 OLMoE-1B-7B (52.6%)
+- **NQ (Natural Questions)**: MobileMoE-L (26.7%) 领先优势明显，超过 OLMoE 6.1 分，Qwen3.5 2B (10.9%) 明显落后
+- **TQA (TriviaQA)**: OLMoE-1B-7B (62.3%) 略高于 MobileMoE-L (58.1%)，Qwen3.5 2B (32.6%) 明显落后
+- **BoolQ**: MobileMoE-L (75.7%) 领先 Qwen3.5 2B (69.4%) 与 OLMoE-1B-7B (74.8%)
+- **DROP**: MobileMoE-L (64.7%) 领先，Qwen3.5 2B (53.6%) 次之，OLMoE-1B-7B (29.8%) 最低；这与论文“MoE 优势集中于 knowledge 与 reading”的结论一致
 
 ### 性能-效率 Pareto Frontier
 
@@ -433,7 +433,7 @@ graph TD
 
     subgraph Dense_Baselines
         E[Gemma 3 270M: 33.5]
-        F[MobileLLM-Pro 1.2B: 43.7]
+        F[MobileLLM-Pro 1.1B: 47.0]
         G[Qwen3.5 2B: 53.3]
     end
 
@@ -458,7 +458,7 @@ graph TD
 2. **MobileMoE-M**: 以 1/3.6 激活参数超越 Qwen3.5 2B
 3. **MobileMoE-L**: 以更少参数超越 OLMoE-1B-7B，并在代码/数学上显著领先
 4. **MoE 优势领域**: 代码生成、数学推理、知识密集型任务
-5. **Dense 优势领域**: 部分推理任务（如 BoolQ）
+5. **Dense 优势领域**: 推理类任务（如 BBH/GSM8K，Qwen3.5-2B 更强）；MoE 在 knowledge 与 reading（含 BoolQ、DROP）优势最强
 
 ---
 
@@ -528,7 +528,7 @@ graph LR
 |------|-----------|--------------|-------|
 | **Prefill** | 1.8-3.8× faster | - | 1.8-3.8× |
 | **Decode** | 2.2-3.4× faster | - | 2.2-3.4× |
-| **Peak RSS (4k ctx)** | -22% | - | 9-22% lower |
+| **Peak RSS** | 4k: -9%；8k: -22% | - | 9-22% lower |
 
 **逐行解读**：
 - **Prefill (1.8-3.8×)**: 在处理 prompt 时，MobileMoE-S 的加速效果显著，得益于并行化的专家计算
@@ -542,15 +542,15 @@ graph LR
 | 模型 | INT4 权重显存 | 总显存预算 |
 |------|-------------|-----------|
 | MobileMoE-S | 0.68 GB | ≤5 GB |
-| MobileMoE-M | 1.40 GB | ≤5 GB |
-| MobileMoE-L | 2.65 GB | ≤5 GB |
+| MobileMoE-M | 1.48 GB | ≤5 GB |
+| MobileMoE-L | 2.75 GB | ≤5 GB |
 
 ### 与 Dense 模型的对比
 
-在相同的 INT4 权重显存下：
-- **MobileMoE-S (0.68 GB)** vs **MobileLLM-Pro (0.68 GB)**
-  - MobileMoE-S 在性能上显著领先（46.5 vs 43.7）
-  - MobileMoE-S 在推理速度上领先 2-4×
+在相近的 INT4 权重显存下（0.68 vs 0.55 GB）：
+- **MobileMoE-S (0.68 GB, QAT Avg 44.0)** vs **MobileLLM-Pro (0.55 GB, QAT Avg 45.5)**
+  - 性能差距约 1.5 分（MobileMoE-S 略低），但知识类基准显著更高（MMLU +9.4）
+  - MobileMoE-S 在推理速度上领先：prefill 1.8-3.8×、decode 2.2-3.4×
 
 ---
 
@@ -599,9 +599,9 @@ graph LR
 ### 与前身工作的演进关系
 
 ```
-MobileLLM (2024) → MobileLLM-Pro (2024) → MobileMoE (2026)
+MobileLLM (2024) → MobileLLM-Pro (2025) → MobileMoE (2026)
     ↓                   ↓                      ↓
- Dense 1B          Dense 1.2B              Sparse 0.3-0.9B active
+ Dense 1B          Dense 1.1B              Sparse 0.3-0.9B active
                     优化训练                 MoE 架构
                     开源数据                 四阶段训练
 ```
@@ -624,7 +624,7 @@ MobileLLM (2024) → MobileLLM-Pro (2024) → MobileMoE (2026)
    - Mixtral 8x7B (Mistral AI, 2024)
 
 3. **深入**：研究 MoE 扩展定律
-   - Joint MoE Scaling Laws (Krajewski et al., 2024)
+   - Joint MoE Scaling Laws (Ludziejewski et al., 2025)
    - DeepSeek-MoE (DeepSeek, 2025)
 
 4. **前沿**：阅读本论文
@@ -633,9 +633,9 @@ MobileLLM (2024) → MobileLLM-Pro (2024) → MobileMoE (2026)
 ### 论文链接与补充材料
 
 - **arXiv**: https://arxiv.org/abs/2605.27358
-- **License**: CC BY 4.0（完全开源）
-- **代码**: 待发布（论文表明将开源）
-- **模型**: 待发布（论文表明将开源）
+- **数据**: 以开源许可公开（论文列出 CC-BY-4.0、Apache 2.0 等数据许可；未给出论文自身许可）
+- **代码**: 论文未提供或声明发布
+- **模型**: 论文未提供或声明发布
 
 ### 总结
 

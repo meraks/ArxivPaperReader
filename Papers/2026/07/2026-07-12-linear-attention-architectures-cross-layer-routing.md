@@ -18,7 +18,7 @@ Transformer 语言模型依赖的 Softmax 自注意力机制虽然表达能力�
 ## 1.3 四大贡献
 
 1. **统一循环记忆符号框架**：将 Softmax 注意力与四种线性注意力变体（DeltaNet、Gated DeltaNet、Kimi Delta Attention、Gated DeltaNet-2）表达为通用的循环记忆更新形式，清晰揭示了它们在表达力、记忆衰减、擦除/写入控制等方面的差异。
-2. **系统性的实证对比**：在 350M 参数 / 15B token 的设置下进行受控对比，覆盖 5 种架构 × 2 种堆叠模式（混合/纯线性）× 2 种优化器（AdamW/Muon），包含验证损失、吞吐量、序列长度缩放、大规模扩展（1.3B/40B、3B/60B）和下游评估。
+2. **系统性的实证对比**：在 350M 参数 / 15B token 的设置下进行受控对比，覆盖 5 种架构（Softmax 仅 dense 基线；其余四种含混合/纯线性两种堆叠）× 2 种优化器（AdamW/Muon），包含验证损失、吞吐量、序列长度缩放、大规模扩展（1.3B/40B、3B/60B）和下游评估。
 3. **跨层路由机制（CLER / CLVR）**：提出轻量级线性时间跨层路径——CLER 将下层 delta-rule 写入误差注入上层；CLVR 将下层写入值注入共享残差流——验证了写入值而非写入误差是有效的跨层信号。
 4. **开源 Megatron 实现**：提供基于 Megatron-LM 的训练实现，包含所有线性注意力内核和训练启动器。
 
@@ -37,7 +37,7 @@ Transformer 语言模型依赖的 Softmax 自注意力机制虽然表达能力�
 |------|------|------|
 | Figure 1 | CLER 跨层误差残差架构图 | 第 4 章 |
 | Figure 2 | CLVR 跨层值路由架构图 | 第 4 章 |
-| Figure 3 | 350M/15B 验证损失与吞吐量 Pareto 前沿 | 第 5 章 |
+| Figure 3 | 350M/15B 验证损失随训练 token 的缩放曲线 | 第 5 章 |
 | Figure 4 | 学习率消融网格（各架构×优化器） | 第 5 章 |
 | Figure 5 | 学习率消融等值线图 | 第 5 章 |
 | Figure 6 | 序列长度迭代时间缩放曲线 | 第 5 章 |
@@ -154,7 +154,7 @@ $$
 
 ## 3.2 DeltaNet
 
-DeltaNet 用误差纠正的 delta 规则替换朴素加法线性注意力（Yang et al., 2024）：
+DeltaNet 用误差纠正的 delta 规则替换朴素加法线性注意力（Schlag et al., 2021）：
 
 $$
 W^{(i)} = W^{(i-1)} + \beta^{(i)} r^{(i)} \otimes \kappa^{(i)} \tag{14}
@@ -281,7 +281,7 @@ CLER 是一条侧通道而非新的混合器：循环更新、门控和输出读
 
 ![Figure 1: CLER 跨层误差残差架构图](Figures/2026-07-12-linear-attention-architectures-cross-layer-routing-fig1.png)
 
-*图1：CLER 将下层 delta-rule 写入误差沿侧通道注入上层值目标。实验结果证明此方案因空间不匹配而无效。*
+*图1：CLER 将下层 delta-rule 写入误差沿侧通道注入上层值目标。实验结果显示该方案未优于匹配基线，作者将其归因于空间不匹配。*
 
 ## 4.4 Cross-Layer Value Routing（CLVR）
 
@@ -332,7 +332,7 @@ Table 7 总结了 CLER-H 和 CLVR 在所有可用宿主/规模设置下的匹配
 | 模型规模 | 350M 参数类，深度 20-24 层 |
 | 隐藏维度 | 1024，FFN 维度 2816，16 注意力头，4 查询组 |
 | 序列长度与批大小 | 4096，全局批大小 128 |
-| 精度与硬件 | bf16，单 GH200 节点（4 GPU，CSCS Alps） |
+| 精度与硬件 | bf16；受控 350M 运行使用单 GH200 节点（4 GPU，CSCS Alps） |
 | Token 预算 | 主对比：350M / 15B；大规模：1.3B / 40B，3B / 60B |
 | 优化器 | AdamW 和 Muon/NorMuon |
 | 正则化 | 权重衰减 0.1，梯度裁剪 1.0，Adam betas 0.9/0.95 |
@@ -345,9 +345,9 @@ Table 7 总结了 CLER-H 和 CLVR 在所有可用宿主/规模设置下的匹配
 
 ## 5.2 350M/15B 验证损失与吞吐量前沿（Table 2）
 
-![Figure 3: 350M/15B 验证损失与吞吐量 Pareto 前沿](Figures/2026-07-12-linear-attention-architectures-cross-layer-routing-fig3.png)
+![Figure 3: 350M/15B 验证损失随训练 token 的缩放曲线](Figures/2026-07-12-linear-attention-architectures-cross-layer-routing-fig3.png)
 
-*图3：350M/15B 运行的验证损失与归一化吞吐量 Pareto 前沿。KDA+Muon+hybrid 达到最低损失（2.273），纯 GDN+AdamW 达到最高吞吐量（100%）。*
+*图3：350M/15B 运行中验证损失随训练 token 的缩放曲线（各架构/优化器/堆栈）。最低最终损失为 KDA+Muon+hybrid（2.273）；最高归一化吞吐量为纯 GDN+AdamW（100%），吞吐量数据见表2。*
 
 | 架构 | 优化器 | 堆叠 | 相对速度 | 饱和损失 | 最终损失 |
 |------|--------|------|---------|---------|---------|
@@ -478,7 +478,7 @@ Muon 下 CLER-Gated 损失略高于基线，CLER-DeltaNet 获得极小改善（<
 ## 6.4 仓库数据
 
 - **Stars/Forks**：信息未完整记录（GitHub 页面加载时出错，无法获取精确计数）
-- **许可证**：CC-BY-4.0
+- **许可证**：仓库代码沿用 Megatron-LM 的 NVIDIA 版权许可（BSD 风格）；论文本身为 arXiv CC BY 4.0
 
 ---
 

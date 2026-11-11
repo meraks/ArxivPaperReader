@@ -5,7 +5,7 @@
 > - **标题**：FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness
 > - **作者**：Tri Dao, Daniel Y. Fu, Stefano Ermon, Atri Rudra, Christopher Ré
 > - **arXiv**：[2205.14135](https://arxiv.org/abs/2205.14135)
-> - **官方代码**：[Dao-AILab/flash-attention](https://github.com/Dao-AILab/flash-attention)
+> - **官方代码**：[Dao-AILab/flash-attention](https://github.com/Dao-AILab/flash-attention)（论文原文链接为 https://github.com/HazyResearch/flash-attention，仓库现迁移至此）
 
 ---
 
@@ -21,22 +21,22 @@
 ### 1.1 摘要逐句解读
 
 **原文（Abstract Opening）**:
-"Attention mechanisms are a staple of state-of-the-art natural language processing and computer vision models, but the quadratic memory and computational costs of the attention matrix make them prohibitively expensive for long sequences."
+"Transformers are slow and memory-hungry on long sequences, since the time and memory complexity of self-attention are quadratic in sequence length."
 
 **中文解读**：
-注意力机制已成为 NLP 和 CV 领域 SOTA 模型的标配，但其 $O(N²)$ 的内存和计算成本使得长序列应用变得不可承受。这里的"quadratic"指随序列长度 N 呈二次方增长，这是标准注意力的根本瓶颈。
+Transformer 在长序列上又慢又耗内存，因为自注意力的时间和内存复杂度随序列长度呈二次增长。这里的"quadratic"指随序列长度 N 呈二次方增长，这是标准注意力的根本瓶颈。
 
 **原文（Core Contribution）**:
-"We propose FlashAttention, an exact attention algorithm that uses two techniques to speed up attention and reduce memory usage: (1) **tiling** to reduce the number of HBM accesses, and (2) **recomputation** to reduce the memory footprint of the backward pass."
+"We propose FlashAttention, a new attention algorithm that computes exact attention with far fewer memory accesses. ... We apply two well-established techniques to address these challenges. (i) We restructure the attention computation to split the input into blocks and make several passes over input blocks, thus incrementally performing the softmax reduction (also known as tiling). (ii) We store the softmax normalization factor from the forward pass to quickly recompute attention on-chip in the backward pass..."
 
 **中文解读**：
-FlashAttention 是首个"精确"（非近似）注意力加速算法，通过分块和重计算两大技术，在不改变数学结果的前提下显著提速降存。"exact"是关键——不同于 Sparse Transformer、Linformer 等近似方法，FlashAttention 的输出与标准注意力数值完全一致。
+FlashAttention 是一种"精确"（非近似）注意力加速算法，通过分块（tiling）和重计算（recomputation）两大技术，在不改变数学结果的前提下显著提速降存。"exact"是关键——不同于 Sparse Transformer、Linformer 等近似方法，FlashAttention 的输出与标准注意力数值完全一致。
 
 **原文（IO-Awareness Insight）**:
-"Unlike approximate attention methods, FlashAttention does not trade off quality for speed, and is empirically shown to be the fastest attention on a wide range of practical settings."
+"Up to sequence length of 512, FlashAttention is both faster and more memory-efficient than any existing attention method, whereas for sequence length beyond 1K, some approximate attention methods (e.g., Linformer) start to become faster."
 
 **中文解读**：
-通过 IO-Awareness（显存层次感知），FlashAttention 在标准基准测试中全面超越近似方法。这揭示了性能优化的新方向：减少 GPU HBM 与 SRAM 间的数据搬运，而非仅仅减少 FLOPs。
+通过 IO-Awareness（显存层次感知），FlashAttention 在序列长度不超过 512 时比现有方法更快、更省内存；但对更长序列（超过 1K），部分近似方法（如 Linformer）开始更快。这揭示了性能优化的新方向：减少 GPU HBM 与 SRAM 间的数据搬运，而非仅仅减少 FLOPs。
 
 ---
 
@@ -76,7 +76,7 @@ $$O = PV \quad \text{(3. 加权求和)}$$
 整个前向/反向传播融合为单个 CUDA kernel，减少 kernel launch 开销和中间结果的 HBM 写入。
 
 #### 5. **Block-Sparse FlashAttention**（扩展）
-支持块稀疏模式，扩展至 64K 序列长度（Table 2，Path-256 任务）。
+支持块稀疏模式，扩展至 64K 序列长度（Table 6，Path-256 任务）。
 
 ---
 
@@ -104,7 +104,7 @@ $$O = PV \quad \text{(3. 加权求和)}$$
 
 ---
 
-### 1.5 性能速查表（来自论文 Table 1, Table 2）
+### 1.5 性能速查表（来自论文 Table 1–3）
 
 | 任务 | 模型 | 序列长度 | 加速比 | 对比基线 |
 |------|------|----------|--------|----------|
@@ -114,7 +114,7 @@ $$O = PV \quad \text{(3. 加权求和)}$$
 | LRA | 各种 | 1K-4K | 2.4× | 标准基线 |
 | Block-sparse LRA | 稀疏 Transformer | - | 2.8× | 稀疏基线 |
 
-**长序列突破**（Table 2）：
+**长序列突破**（Table 4、Table 6）：
 - GPT-2 4K：perplexity 提升 0.7，且比 Megatron-LM 1K 快 30%
 - Path-X (16K)：准确率 61.4% —— 首个超过随机水平的 Transformer
 - Path-256 (64K，block-sparse)：准确率 63.1%
@@ -394,9 +394,9 @@ $$B_r \times d + 2 \times B_c \times d + B_r \times B_c + B_r \times d \leq M$$
 - $B_r \times d$：存储部分输出 $O_i$
 - $M$：可用 SRAM 大小（A100 约 192KB/SM）
 
-**典型值**（论文 Table 1）：
+**典型值**：
 - $d = 64$ 或 $128$
-- $B_r = B_c = 128$ 或 $256$
+- 按 Algorithm 1：$B_c = \lceil M/(4d) \rceil$，$B_r = \min(\lceil M/(4d) \rceil, d)$，故通常 $B_r \le d$
 - $M \approx 100$ KB（实用值，考虑其他开销）
 
 **分块数量**：
@@ -460,71 +460,64 @@ $$o_k^{\text{new}} = \frac{e^{m_k - m_k^{\text{new}}} \cdot l_k \cdot o_k + e^{s
 
 ```
 Input: Q ∈ R^(N×d), K ∈ R^(N×d), V ∈ R^(N×d)
-Parameters: 分块大小 B_r, B_c（满足 SRAM 约束）
+Parameters: 分块大小 B_c = ⌈M/(4d)⌉, B_r = min(⌈M/(4d)⌉, d)
 Output: O ∈ R^(N×d)
 
-# 外层初始化
+# 初始化（Algorithm 1 line 2-4）
 T_r = ⌈N / B_r⌉, T_c = ⌈N / B_c⌉  # 块数量
 O = zeros(N, d)                  # 输出矩阵初始化
-for i = 1 to T_r:                # 遍历 Q 的所有块
-    # 初始化第 i 个 Q 块的统计量
-    m_i = -∞                     # 当前最大值（初始化为负无穷）
-    l_i = 0                      # 当前归一化因子
-    O_i = zeros(B_r, d)          # 当前输出块
+l = zeros(N)                     # 每行归一化因子
+m = -∞ * ones(N)                 # 每行最大值
+
+# 外层循环：遍历 K, V 的所有块（line 5）
+for j = 1 to T_c:
+    # line 6：加载 K_j, V_j 到 SRAM
+    K_j = K[(j-1)B_c+1 : jB_c, :]        # B_c × d
+    V_j = V[(j-1)B_c+1 : jB_c, :]        # B_c × d
     
-    # 内层循环：遍历 K, V 的所有块
-    for j = 1 to T_c:
-        # === SRAM 计算开始 ===
-        # 加载当前块到 SRAM
+    # 内层循环：遍历 Q 的所有块（line 7）
+    for i = 1 to T_r:
+        # line 8：加载 Q_i, O_i, l_i, m_i 到 SRAM
         Q_i = Q[(i-1)B_r+1 : iB_r, :]        # B_r × d
-        K_j = K[(j-1)B_c+1 : jB_c, :]        # B_c × d
-        V_j = V[(j-1)B_c+1 : jB_c, :]        # B_c × d
+        O_i = O[(i-1)B_r+1 : iB_r, :]        # B_r × d
+        l_i = l[(i-1)B_r+1 : iB_r]           # B_r
+        m_i = m[(i-1)B_r+1 : iB_r]           # B_r
         
-        # 计算注意力分数（在 SRAM 中）
+        # line 9：计算注意力分数（在 SRAM 中）
         S_ij = Q_i @ K_j.T                    # B_r × B_c，不写回 HBM！
         
-        # === Online Softmax 更新 ===
-        for k = 1 to B_r:                    # 遍历 Q_i 的每一行
-            # 计算块内最大值
-            m_ij_k = max(S_ij[k, :])          # 第 k 行的最大值
-            
-            # 更新全局最大值
-            m_new = max(m_i[k], m_ij_k)
-            
-            # 缩放旧统计量（如果最大值变化）
-            if m_new != m_i[k]:
-                l_i[k] *= exp(m_i[k] - m_new)
-                O_i[k, :] *= exp(m_i[k] - m_new)
-            
-            # 更新归一化因子
-            l_new = l_i[k] + sum(exp(S_ij[k, :] - m_new))
-            
-            # 更新输出矩阵（注意：不除以 l_new，最终归一化在循环外统一进行）
-            O_i[k, :] += exp(S_ij[k, :] - m_new) @ V_j
-            # 注意：与原始实现的关键区别——此处在循环内不除以 l_new，
-            # 所有贡献先以未归一化形式累加，最终在 line 550 一次性除以 l_i
-            
-            # 保存新统计量
-            m_i[k] = m_new
-            l_i[k] = l_new
-        # === SRAM 计算结束 ===
-    
-    # 最终归一化并保存
-    O[(i-1)B_r+1 : iB_r, :] = O_i / l_i[:, None]
+        # === Online Softmax 更新（line 10-11）===
+        m_ij = rowmax(S_ij)                  # 块内行最大值
+        P_ij = exp(S_ij - m_ij[:, None])     # 未归一化概率
+        l_ij = rowsum(P_ij)
+        m_new = max(m_i, m_ij)
+        l_new = exp(m_i - m_new) * l_i + exp(m_ij - m_new) * l_ij
+        
+        # line 12：更新 O_i 并立即写回 HBM（已除以 l_new）
+        O_i = diag(l_new)^(-1) * (diag(l_i) * exp(m_i - m_new) * O_i
+                                  + exp(m_ij - m_new) * P_ij @ V_j)
+        O[(i-1)B_r+1 : iB_r, :] = O_i
+        
+        # line 13：保存新统计量
+        l[(i-1)B_r+1 : iB_r] = l_new
+        m[(i-1)B_r+1 : iB_r] = m_new
+    # === SRAM 计算结束 ===
 
 return O
 ```
 
 **关键观察**：
 1. $S_{ij}$ 只在 SRAM 中存在，从未写回 HBM
-2. 每个 $Q_i$ 块处理完后，其对应的输出 $O_i$ 才写回 HBM
+2. 每次内层迭代都会更新并写回 $O_i$（line 12）；外层每处理一个 K/V 块，就对全部 Q 块各写回一次 O
 3. 统计量 $m_i, l_i$ 与每个 $Q_i$ 块绑定（每行独立）
 
 ---
 
 ### 4.5 外层的归一化
 
-**最终归一化步骤**：
+**说明**：论文 Algorithm 1 在每次内层迭代就按 $l_i^{new}$ 归一化并写回 $O_i$（line 12）；下面给出的是数学等价的延后归一化写法（先累积未归一化输出，最后统一归一化），常见于实现代码。
+
+**延后归一化步骤**：
 $$O_{\text{final}} = \text{diag}(l)^{-1} \cdot O$$
 
 其中：
@@ -580,7 +573,7 @@ graph TB
     Softmax -->|新统计量| stats
     Softmax --> O_part
     
-    O_part -->|写回（块 i 完成后）| O_full
+    O_part -->|写回（每次内层迭代 line 12）| O_full
     
     style S_ij fill:#ffcccc,stroke:#ff0000,stroke-width:2px
     style O_part fill:#ccffcc
@@ -588,9 +581,9 @@ graph TB
 
 **数据流特点**：
 1. $S_{ij}$ 红色标记：表示只在 SRAM 中存在，不写回 HBM
-2. $O_{\text{part}}$ 绿色标记：表示最终输出，仅在块处理完成后写回
-3. 外层循环：遍历所有 Q 块（$T_r$ 次）
-4. 内层循环：遍历所有 K, V 块（$T_c$ 次）
+2. $O_{\text{part}}$ 绿色标记：表示最终输出，每次内层迭代更新后写回（line 12）
+3. 外层循环：遍历所有 K, V 块（$T_c$ 次）
+4. 内层循环：遍历所有 Q 块（$T_r$ 次）
 5. 总计算量：$T_r \times T_c$ 次块对处理
 
 ---
@@ -685,18 +678,23 @@ dQ = zeros(N, d)
 dK = zeros(N, d)
 dV = zeros(N, d)
 
-# 外层循环：遍历 Q 块
-for i = 1 to T_r:
-    # 初始化第 i 个 Q 块的梯度累积
-    dP_i = zeros(B_r, N)  # 对 P 的梯度（第 i 个 Q 块对应的所有 P 列）
+# 外层循环：遍历 K, V 块
+for j = 1 to T_c:
+    # 加载 K_j, V_j，并在 SRAM 中初始化 dK_j, dV_j 的累积器
+    K_j = K[(j-1)B_c+1 : jB_c, :]
+    V_j = V[(j-1)B_c+1 : jB_c, :]
+    dK_j_acc = zeros(B_c, d)
+    dV_j_acc = zeros(B_c, d)
     
-    # 内层循环：遍历 K, V 块
-    for j = 1 to T_c:
-        # === SRAM 重新计算 ===
+    # 内层循环：遍历 Q 块
+    for i = 1 to T_r:
         # 加载当前块
         Q_i = Q[(i-1)B_r+1 : iB_r, :]
-        K_j = K[(j-1)B_c+1 : jB_c, :]
-        V_j = V[(j-1)B_c+1 : jB_c, :]
+        O_i = O[(i-1)B_r+1 : iB_r, :]
+        dO_i = dO[(i-1)B_r+1 : iB_r, :]
+        dQ_i = dQ[(i-1)B_r+1 : iB_r, :]
+        m_i = m[(i-1)B_r+1 : iB_r]
+        l_i = l[(i-1)B_r+1 : iB_r]
         
         # 重新计算 S_ij（在前向中计算过，但未保存）
         S_ij = Q_i @ K_j.T
@@ -707,21 +705,25 @@ for i = 1 to T_r:
             P_ij[k, :] = exp(S_ij[k, :] - m_i[k]) / l_i[k]
         
         # === 梯度计算 ===
-        # 对 V 的梯度（累积）
-        dV_j_local = P_ij.T @ dO[(i-1)B_r+1 : iB_r, :]
-        dV[(j-1)B_c+1 : jB_c, :] += dV_j_local
+        # 对 V 的梯度（在 SRAM 中累积）
+        dV_j_acc += P_ij.T @ dO_i
         
-        # 对 P 的梯度（累积）
-        dP_ij = dO[(i-1)B_r+1 : iB_r, :] @ V_j.T
+        # 对 P 的梯度
+        dP_ij = dO_i @ V_j.T
         
         # 对 S 的梯度（Softmax 反向）
-        # dS_ij = P_ij ⊙ (dP_ij - rowsum(dP_ij ⊙ P_ij))
         for k = 1 to B_r:
             dS_ij[k, :] = P_ij[k, :] * (dP_ij[k, :] - sum(dP_ij[k, :] * P_ij[k, :]))
         
-        # 对 Q 和 K 的梯度（累积）
-        dQ[(i-1)B_r+1 : iB_r, :] += dS_ij @ K_j
-        dK[(j-1)B_c+1 : jB_c, :] += dS_ij.T @ Q_i
+        # 对 Q 的梯度（line 21：写回 dQ_i）
+        dQ[(i-1)B_r+1 : iB_r, :] = dQ_i + dS_ij @ K_j
+        
+        # 对 K 的梯度（在 SRAM 中累积）
+        dK_j_acc += dS_ij.T @ Q_i
+    
+    # line 24：写回 dK_j, dV_j
+    dK[(j-1)B_c+1 : jB_c, :] = dK_j_acc
+    dV[(j-1)B_c+1 : jB_c, :] = dV_j_acc
 
 return dQ, dK, dV
 ```
@@ -796,19 +798,23 @@ dQ = zeros(N, d)
 dK = zeros(N, d)
 dV = zeros(N, d)
 
-# 外层循环：遍历 Q 块
-for i = 1 to T_r:
-    Q_i = Q[(i-1)B_r+1 : iB_r, :]      # 加载 Q_i 到 SRAM
-    O_i = O[(i-1)B_r+1 : iB_r, :]      # 加载 O_i 到 SRAM
-    dO_i = dO[(i-1)B_r+1 : iB_r, :]    # 加载 dO_i 到 SRAM
-    m_i = m[(i-1)B_r+1 : iB_r]         # 加载 m_i 到 SRAM
-    l_i = l[(i-1)B_r+1 : iB_r]         # 加载 l_i 到 SRAM
+# 外层循环：遍历 K, V 块
+for j = 1 to T_c:
+    K_j = K[(j-1)B_c+1 : jB_c, :]      # 加载 K_j 到 SRAM
+    V_j = V[(j-1)B_c+1 : jB_c, :]      # 加载 V_j 到 SRAM
+    dK_j_acc = zeros(B_c, d)           # 在 SRAM 中累积 dK_j
+    dV_j_acc = zeros(B_c, d)           # 在 SRAM 中累积 dV_j
     
-    # 内层循环：遍历 K, V 块
-    for j = 1 to T_c:
+    # 内层循环：遍历 Q 块
+    for i = 1 to T_r:
         # === SRAM 重新计算开始 ===
-        K_j = K[(j-1)B_c+1 : jB_c, :]  # 加载 K_j 到 SRAM
-        V_j = V[(j-1)B_c+1 : jB_c, :]  # 加载 V_j 到 SRAM
+        # 加载当前块（Algorithm 4 line 10）
+        Q_i = Q[(i-1)B_r+1 : iB_r, :]
+        O_i = O[(i-1)B_r+1 : iB_r, :]
+        dO_i = dO[(i-1)B_r+1 : iB_r, :]
+        dQ_i = dQ[(i-1)B_r+1 : iB_r, :]
+        m_i = m[(i-1)B_r+1 : iB_r]
+        l_i = l[(i-1)B_r+1 : iB_r]
         
         # 重新计算 S_ij（前向中计算过，但未保存）
         S_ij = Q_i @ K_j.T              # B_r × B_c
@@ -819,9 +825,8 @@ for i = 1 to T_r:
             P_ij[k, :] = exp(S_ij[k, :] - m_i[k]) / l_i[k]
         
         # === 梯度计算开始 ===
-        # 对 V 的梯度
-        dV_j = P_ij.T @ dO_i            # B_c × d
-        dV[(j-1)B_c+1 : jB_c, :] += dV_j
+        # 对 V 的梯度（在 SRAM 中累积）
+        dV_j_acc += P_ij.T @ dO_i       # B_c × d
         
         # 对 P 的梯度
         dP_ij = dO_i @ V_j.T            # B_r × B_c
@@ -834,21 +839,23 @@ for i = 1 to T_r:
             # Softmax 雅可比
             dS_ij[k, :] = P_ij[k, :] * (dP_ij[k, :] - rowsum_dP_P)
         
-        # 对 Q 的梯度
-        dQ_i_local = dS_ij @ K_j        # B_r × d
-        dQ[(i-1)B_r+1 : iB_r, :] += dQ_i_local
+        # 对 Q 的梯度（line 21：dQ_i 写回 HBM）
+        dQ[(i-1)B_r+1 : iB_r, :] = dQ_i + dS_ij @ K_j
         
-        # 对 K 的梯度
-        dK_j_local = dS_ij.T @ Q_i      # B_c × d
-        dK[(j-1)B_c+1 : jB_c, :] += dK_j_local
+        # 对 K 的梯度（在 SRAM 中累积）
+        dK_j_acc += dS_ij.T @ Q_i
         # === SRAM 计算结束 ===
+    
+    # line 24：写回 dK_j, dV_j
+    dK[(j-1)B_c+1 : jB_c, :] = dK_j_acc
+    dV[(j-1)B_c+1 : jB_c, :] = dV_j_acc
 
 return dQ, dK, dV
 ```
 
 **关键特点**：
 1. 所有 $S_{ij}$ 和 $P_{ij}$ 在 SRAM 中重新计算
-2. 梯度 $dQ, dK, dV$ 在 HBM 中累积（原子加法）
+2. $dQ_i$ 在内层循环中直接写回 HBM 累积；$dK_j, dV_j$ 先在 SRAM 中按 K/V 块累积，外层循环结束时写回 HBM
 3. 总计算量：前向 $4N^2d$（QK^T 与 PV 各 $2N^2d$），反向约 $10N^2d$（重算 $S_{ij}$ + $dV=P^T·dO$ + $dP=dO·V^T$ + $dQ=dS·K$ + $dK=dS^T·Q$ 各 $2N^2d$ + Softmax 反向等额外开销），总计约 $14N^2d$ FLOPs
 4. HBM 访问：$\Theta(N²d²/M)$（远小于标准的 $\Theta(N²)$）
 
@@ -976,7 +983,7 @@ $$\frac{d²}{M} \approx \frac{16384}{100000} = 0.16 \quad (d=128)$$
 $$\frac{\text{FlashAttention}}{\text{Standard}} = \frac{N²d²/M}{N²} = \frac{d²}{M} \in [0.04, 0.16]$$
 
 **实际加速**：
-- HBM 访问减少：$6×$ 到 $25×$
+- HBM 访问减少：实测最多约 $9×$（Fig. 2：40.3 GB → 4.4 GB）；上文的 $M/d²$ 理论比值约 $6×$ 到 $25×$，并非实测加速
 - 墙钟时间加速：$2×$ 到 $3×$（考虑其他开销）
 
 **关键洞察**：
@@ -1066,7 +1073,7 @@ $$\text{IO accesses} = \Omega\left(\frac{Nd + Nd + N²}{\sqrt{M}}\right) = \Omeg
 
 **为什么是 $d²/M$ 而非 $d/M$？**
 - 每次交互不仅加载 $Q_i, K_j$，还需加载部分 $V$
-- 完整分析得到 $N²d²/M$（论文 Appendix A.2）
+- 完整分析得到 $N²d²/M$（论文 Appendix C，Proof of Theorem 2）
 
 **结论**：
 - FlashAttention 的 IO 复杂度 $\Theta(N²d²/M)$ 匹配下界 $\Omega(N²d²/M)$
@@ -1085,7 +1092,7 @@ $$\text{IO accesses} = \Omega\left(\frac{Nd + Nd + N²}{\sqrt{M}}\right) = \Omeg
 
 ---
 
-### 7.1 训练加速实验（Table 1, Table 2）
+### 7.1 训练加速实验（Table 1–3）
 
 **实验设置**：
 - 硬件：NVIDIA A100 40GB
@@ -1105,7 +1112,7 @@ $$\text{IO accesses} = \Omega\left(\frac{Nd + Nd + N²}{\sqrt{M}}\right) = \Omeg
 
 ---
 
-**GPT-2 训练**（Table 1，序列长度 1K）：
+**GPT-2 训练**（Table 2，序列长度 1K）：
 
 | 模型 | 基线 | FlashAttention | 加速比 |
 |------|------|----------------|--------|
@@ -1119,39 +1126,40 @@ $$\text{IO accesses} = \Omega\left(\frac{Nd + Nd + N²}{\sqrt{M}}\right) = \Omeg
 
 ---
 
-**LRA（Long-Range Arena）基准**（Table 1，序列 1K-4K）：
+**LRA（Long-Range Arena）基准**（Table 3，序列 1K-4K）：
 
-| 任务 | 序列长度 | 基线 | FlashAttention | 加速比 |
-|------|----------|------|----------------|--------|
-| ListOps | 2K | - | - | **2.4×** |
-| Text Classification | 4K | - | - | **2.4×** |
-| Image Classification | 1K | - | - | **2.4×** |
-| Retrieval | 1K | - | - | **2.4×** |
+| 任务 | 序列长度 |
+|------|----------|
+| ListOps | 2K |
+| Text Classification | 4K |
+| Image Classification | 1K |
+| Retrieval | 4K |
 
 **解读**：
 - LRA 是长序列基准（1K-4K），$N²$ 项主导
-- FlashAttention 平均加速 2.4×
+- FlashAttention 在 LRA 五个任务上的平均加速为 2.4×（Table 3 仅报告平均值）
 - 验证了长序列任务的显著优势
 
 ---
 
-**Block-Sparse FlashAttention**（Table 2，稀疏模式）：
+**Block-Sparse FlashAttention**（Table 3、Table 6）：
 
-| 任务 | 序列长度 | 基线 | FlashAttention | 加速比 |
-|------|----------|------|----------------|--------|
-| Path-X | 16K | - | - | **2.8×** |
-| Path-256 | 64K | - | - | **2.8×** |
+| 任务 | 序列长度 | Block-Sparse FlashAttention |
+|------|----------|------------------------------|
+| LRA（平均加速） | 1K-4K | **2.8×** |
+| Path-X | 16K | **56.0% 准确率** |
+| Path-256 | 64K | **63.1% 准确率** |
 
 **解读**：
-- Block-Sparse 进一步扩展到超长序列（16K-64K）
-- 加速比提升至 2.8×（稀疏模式减少额外计算）
+- Block-Sparse 在 LRA 上平均加速 2.8×（Table 3）
+- 进一步扩展到超长序列：Path-X 56.0%、Path-256 63.1%（Table 6）
 - 开启了新的应用场景（长文档、基因组等）
 
 ---
 
 ### 7.2 长序列质量提升
 
-**GPT-2 4K 序列训练**（Table 2）：
+**GPT-2 4K 序列训练**（Table 4）：
 
 | 模型 | 序列长度 | Perplexity | 速度（vs Megatron-LM） |
 |------|----------|------------|------------------------|
@@ -1171,29 +1179,27 @@ $$\text{IO accesses} = \Omega\left(\frac{Nd + Nd + N²}{\sqrt{M}}\right) = \Omeg
 
 ### 7.3 Path-X/Path-256 突破（首个超过随机的 Transformer）
 
-**Path-X 任务**（Table 2，序列长度 16K）：
+**Path-X 任务**（Table 6，序列长度 16K）：
 
-| 模型 | 准确率 | 随机基线 |
-|------|--------|----------|
-| 标准 Transformer | 50.2% | 50% |
-| Sparse Transformer | 58.3% | 50% |
-| **FlashAttention** | **61.4%** | 50% |
+| 模型 | 准确率 |
+|------|--------|
+| 标准 Transformer、Linformer 等基线 | OOM 或仅随机水平（Table 6 无数值） |
+| **FlashAttention** | **61.4%** |
 
 **解读**：
 - Path-X 是路径发现任务（16K 序列）
-- 标准 Transformer 接近随机（50.2%）
+- 论文指出此前所有 Transformer 基线要么 OOM，要么仅达随机水平
 - **FlashAttention 首次显著超过随机（61.4%）**
 - 证明长序列注意力的有效性
 
 ---
 
-**Path-256 任务**（Table 2，序列长度 64K）：
+**Path-256 任务**（Table 6，序列长度 64K）：
 
-| 模型 | 准确率 | 随机基线 |
-|------|--------|----------|
-| 标准 Transformer | OOM | 50% |
-| Sparse Transformer | 60.8% | 50% |
-| **Block-Sparse FlashAttention** | **63.1%** | 50% |
+| 模型 | 准确率 |
+|------|--------|
+| 标准 Transformer、Linformer 等基线 | OOM 或仅随机水平（Table 6 无数值） |
+| **Block-Sparse FlashAttention** | **63.1%** |
 
 **解读**：
 - Path-256 超长序列（64K），标准 Transformer 内存溢出
@@ -1204,24 +1210,24 @@ $$\text{IO accesses} = \Omega\left(\frac{Nd + Nd + N²}{\sqrt{M}}\right) = \Omeg
 
 ### 7.4 Block-Sparse FlashAttention 扩展
 
-**Block-Sparse 模式**（Figure 4）：
+**Block-Sparse 模式**（§3.3；Fig. 2 右图展示稀疏度与加速的关系）：
 
 ```
 标准注意力（密集）：
 Q × K^T → 全 N×N 矩阵
 
 Block-Sparse（块稀疏）：
-Q × K^T → 只计算特定块（局部 + 全局）
+Q × K^T → 只计算稀疏掩码 M 中非零的块
 ```
 
 **分块模式**：
-- **局部块**：相邻位置（如 ±128 位置）
-- **全局块**：定期采样（如每 1024 位置）
-- **稀疏度**：约 10-25% 的块被计算
+- 下游实验使用固定的 butterfly 稀疏模式（§3.3）
+- 论文未给出 ±128 局部块、每 1024 全局块或 10-25% 密度的具体设置
 
-**性能**（Table 2）：
-- Path-X（16K）：2.8× 加速，61.4% 准确率
-- Path-256（64K）：2.8× 加速，63.1% 准确率
+**性能**（Table 3、Table 6）：
+- LRA 上 block-sparse FlashAttention 平均加速 2.8×（Table 3）
+- Path-X（16K）：dense FlashAttention 61.4%，block-sparse FlashAttention 56.0%（Table 6）
+- Path-256（64K）：block-sparse FlashAttention 63.1%（Table 6）
 
 **权衡**：
 - **优势**：扩展到 64K 序列，进一步加速
@@ -1233,9 +1239,9 @@ Q × K^T → 只计算特定块（局部 + 全局）
 
 **FlashAttention（2022）的局限**：
 
-1. **仅支持单头注意力**：
-   - 多头需要循环调用，未充分利用 Tensor Core
-   - FlashAttention-2 解决（多头融合）
+1. **需为每种注意力实现编写 CUDA kernel**：
+   - 用比 PyTorch 更底层的语言实现，工程成本高，且实现未必可跨 GPU 架构迁移（论文 §5）
+   - 论文另指出：IO-aware 方法可向其他模块扩展、多 GPU 的 IO 分析是未来方向
 
 2. **未支持 GQA（Grouped Query Attention）**：
    - LLM 推理关键优化（减少 KV cache）
@@ -1820,26 +1826,16 @@ def flash_attn_forward_kernel(
                 # 更新全局最大值
                 m_new = max(m_i[k], m_ij)  # 逐元素 max
                 
-                # 缩放旧统计量（如果最大值变化）
-                if m_new != m_i[k]:
-                    scale = exp(m_i[k] - m_new)  # (H,) 向量
-                    l_i[k] *= scale
-                    O_i[k] *= scale[:, None]  # 广播到 D 维
+                # 缩放旧统计量
+                scale = exp(m_i[k] - m_new)  # (H,) 向量
+                l_new = l_i[k] * scale + sum(exp(S_ij[k, :] - m_new), axis=0)  # (H,)
                 
-                # 更新归一化因子
-                l_new = l_i[k] + sum(exp(S_ij[k, :] - m_new), axis=0)  # (H,)
-                
-                # 更新输出矩阵（论文 Algorithm 1 Line 18-19）
-                # O_i[k] = (l_i_old * exp(m_i[k]-m_new) * O_i[k] + exp(S_ij-m_new)@V_j) / l_new
-                # 其中 l_i_old 是更新前的 l_i[k]（已在上一步更新）
-                l_i_old = l_i[k] * exp(m_i[k] - m_new)  # 旧 l 重新缩放
-                
-                # 计算新贡献
+                # 更新输出矩阵（论文 Algorithm 1 line 12）
                 P_ij = exp(S_ij[k, :, None] - m_new[None, :])  # (B_c, H)
                 contrib = P_ij.T @ V_block                        # (H, D) 等价于 exp(S_ij-m_new)@V_j
                 
                 # 合并新旧贡献，一次性归一化
-                O_i[k] = (l_i_old[:, None] * O_i[k] + contrib) / l_new[:, None]
+                O_i[k] = (l_i[k] * scale[:, None] * O_i[k] + contrib) / l_new[:, None]
                 
                 # 保存新统计量
                 m_i[k] = m_new
@@ -1860,13 +1856,13 @@ def flash_attn_forward_kernel(
 
 **外层循环初始化**：
 ```python
-# 初始化统计量（Algorithm 1 第 4-6 行）
+# 初始化统计量（Algorithm 1 line 2-4）
 m_i = -inf * ones((B_r, H), dtype=float32)  # Algorithm 1: m_i ← -∞
 l_i = zeros((B_r, H), dtype=float32)         # Algorithm 1: l_i ← 0
 O_i = zeros((B_r, H, D), dtype=float32)      # Algorithm 1: O_i ← 0
 ```
 
-**内层循环的 SRAM 加载**（Algorithm 1 第 8-10 行）：
+**内层循环的 SRAM 加载**（Algorithm 1 line 6、8）：
 ```python
 # Algorithm 1: Load Q_i, K_j, V_j from HBM to SRAM
 Q_block = load_from_HBM(Q, i*B_r, (i+1)*B_r)  # Q_i ← Q[(i-1)Br+1 : iBr, :]
@@ -1874,43 +1870,38 @@ K_block = load_from_HBM(K, j*B_c, (j+1)*B_c)  # K_j ← K[(j-1)Bc+1 : jBc, :]
 V_block = load_from_HBM(V, j*B_c, (j+1)*B_c)  # V_j ← V[(j-1)Bc+1 : jBc, :]
 ```
 
-**计算注意力分数**（Algorithm 1 第 11 行）：
+**计算注意力分数**（Algorithm 1 line 9）：
 ```python
 # Algorithm 1: S_ij ← Q_i @ K_j^T
 S_ij = tensorcore_matmul(Q_block, K_block)  # 使用 Tensor Core 加速
 S_ij *= softmax_scale                       # 应用 1/√d 缩放
 ```
 
-**Online Softmax 更新**（Algorithm 1 第 12-21 行）：
+**Online Softmax 更新**（Algorithm 1 line 10-13）：
 ```python
 for k in range(B_r):
-    # Algorithm 1 第 12 行：m_ij ← rowmax(S_ij)
+    # Algorithm 1 line 10：m_ij ← rowmax(S_ij)
     m_ij = max(S_ij[k, :])
     
-    # Algorithm 1 第 13 行：m_new ← max(m_i, m_ij)
+    # Algorithm 1 line 11：m_new ← max(m_i, m_ij)
     m_new = max(m_i[k], m_ij)
     
-    # Algorithm 1 第 14-16 行：缩放旧统计量
-    if m_new != m_i[k]:
-        scale = exp(m_i[k] - m_new)
-        l_i[k] *= scale
-        O_i[k] *= scale[:, None]
+    # Algorithm 1 line 11：缩放旧统计量
+    scale = exp(m_i[k] - m_new)
+    l_new = l_i[k] * scale + sum(exp(S_ij[k, :] - m_new), axis=0)
     
-    # Algorithm 1 第 17 行：l_new ← l_i + sum(exp(S_ij - m_new))
-    l_new = l_i[k] + sum(exp(S_ij[k, :] - m_new), axis=0)
+    # Algorithm 1 line 12：更新输出并按 l_new 归一化
+    P_ij = exp(S_ij[k, :, None] - m_new[None, :])  # (B_c, H)
+    contrib = tensorcore_matmul(P_ij, V_block)     # (H, D)
+    O_i[k] = (l_i[k] * scale * O_i[k] + contrib) / l_new
     
-    # Algorithm 1 第 18-20 行：更新输出\n    # 正确公式：O_i_new = (l_i_old * exp(m_i - m_new) * O_i + exp(S_ij - m_new) @ V_j) / l_new\n    # 先以未归一化形式累加，循环外统一除以 l_i（最终值）\n    P_ij = exp(S_ij[k, :, None] - m_new[None, :])  # (B_c, H)\n    contrib = tensorcore_matmul(P_ij, V_block)       # (H, D)\n    O_i[k] = O_i[k] * l_i[k] + contrib               # 未归一化累加\n    O_i[k] /= l_new                                  # 一次性归一化
-    
-    # Algorithm 1 第 21-23 行：保存新统计量
+    # Algorithm 1 line 13：保存新统计量
     m_i[k] = m_new
     l_i[k] = l_new
 ```
 
-**最终归一化**（Algorithm 1 第 24 行）：
+**写回 HBM**（归一化已在 line 12 的更新中完成）：
 ```python
-# Algorithm 1: O_i ← O_i / l_i
-O_i /= l_i[:, :, None]
-
 # 写回 HBM
 write_to_HBM(O, i*B_r, (i+1)*B_r, O_i)
 write_to_HBM(softmax_lse, i*B_r, (i+1)*B_r, log(l_i))  # 保存 softmax_lse 用于反向

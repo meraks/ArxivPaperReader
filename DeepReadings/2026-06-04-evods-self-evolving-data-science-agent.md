@@ -193,7 +193,7 @@ flowchart LR
 
     subgraph S4 [Stage 4: Expansion]
         direction TB
-        G{"使用频率<br/>c(a_new) ≥ τ=3?"}
+        G{"重复合成次数<br/>c(a_new) ≥ τ=3?"}
         H[/"正式加入<br/>Action Space A_i"/]
         I["留在缓存 ΔA_i 中"]
         G -- "是" --> H
@@ -229,13 +229,13 @@ flowchart LR
 不是立即加入action space！所有验证通过的技能先存入**合成技能仓库** ΔA_i。这个中间缓存避免了直接污染action space——许多一次性使用的技能如果直接加入，会增加后续工具选择的噪声。
 
 #### Stage 4: Expansion（使用频率驱动的扩展）
-**关键设计**：只有使用频率超过阈值 τ=3 的技能才被正式纳入action space。
+**关键设计**：只有同一技能的重复合成次数（generation count）c(a_new) 达到阈值 τ=3 时，才被正式纳入action space（论文称之为 usage-frequency-aware 扩展）。
 
 ```
 A_i ← A_i ∪ {a_new ∈ ΔA_i | c(a_new) ≥ τ}
 ```
 
-为什么选 τ=3？
+为什么选 τ=3？（以下为报告作者的推测，论文仅说明取 τ=3）
 - τ=1：任何偶然合成的一次性技能都加入，引入噪声
 - τ=2：可能只是巧合
 - τ=3：表明该能力在不同场景下确实被反复需要
@@ -246,7 +246,7 @@ A_i ← A_i ∪ {a_new ∈ ΔA_i | c(a_new) ≥ τ}
 在测试过程中，EvoDS合成了 **279个技能**，被调用 **925次**，**69%的跨任务重用率**。这证明：
 
 1. **合成技能具有真正的通用性**：不是任务特定的hack
-2. **使用频率阈值机制有效**：频繁重用的技能被提升，一次性技能被自然淘汰
+2. **重复合成阈值机制有效**：反复出现需求的技能被提升，一次性技能被自然淘汰
 3. **跨benchmark泛化**：在DA-Code上合成的技能在ScienceAgentBench上也有用（9.3%提升）
 
 ### 4.5 案例分析
@@ -318,7 +318,7 @@ if 上下文即将超限 → 预防性压缩
 | SAB (102题) | 18 | **0** |
 | MLE-Dojo (10题) | 3 | **0** |
 
-**完全的零OOT失败**。这在数据科学Agent领域是前所未有的。
+**完全的零OOT失败**：EvoDS 在这四个 benchmark 上完全消除了 out-of-token-limit 失败。
 
 此外，Figure 3展示了EvoDS vs DeepAnalyze在不同上下文长度下的表现：
 - 当上下文超过20K tokens时，DeepAnalyze几乎无法解决任何实例
@@ -344,7 +344,7 @@ if 上下文即将超限 → 预防性压缩
 
 **数据构建**：
 - 使用EvoDS框架，教师模型在训练数据上执行
-- 每实例收集8个rollout，**只保留成功的轨迹**
+- 每实例收集8个rollout
 - Manager产生主轨迹 τ_main，每个子智能体产生子轨迹 τ_sub
 - 总计**36K条轨迹**
 
@@ -453,7 +453,7 @@ Figure 4展示了RL训练过程中两个关键指标：
   - 总选择空间 = M × max(N_i)，但有效搜索空间大大缩小
   - 每个决策点的熵降低
 
-证明位于Appendix A.3，采用PAC-Bayesian分析，基于子智能体间相互独立的action space分解。
+证明位于Appendix A.3，采用高斯扰动假设下的尾界与union bound分析，基于子智能体间互不相交的action space分解。
 
 ### 7.2 Theorem 5.2：信息瓶颈对齐
 
@@ -528,7 +528,7 @@ min_{p(z|c)} I(Z; C) - λ I(Z; Y),  λ > 0
 **核心结论**：
 
 1. **ACC是最关键的模块**：w/o acc下降16.3%，验证了上下文管理对长程推理的核心作用。
-2. **分层 > 工具 > RL > ASA**（按影响排序）
+2. **RL > 工具 > 分层 > ASA**（按AVG降幅排序；除ACC外，RL与专项工具影响最大）
 3. **所有模块互补**：没有一个模块是冗余的。
 
 ### 8.3 跨任务技能复用 (RQ3)
@@ -561,7 +561,7 @@ min_{p(z|c)} I(Z; C) - λ I(Z; Y),  λ > 0
 **启示**：
 - **指令遵循是最大瓶颈** (52%)：说明基础模型的理解能力是上限
 - **协调错误占18%**：多智能体通信仍有改进空间
-- **推理缺陷仅12%**：得益于ASA的技能抽象，逻辑错误相对较少
+- **推理缺陷仅12%**：执行逻辑错误相对较少（论文未将其归因于ASA）
 
 ### 8.5 上下文长度鲁棒性
 
@@ -720,14 +720,14 @@ bash run_rl.sh
                                     (inference) (training+inference)
 ```
 
-EvoDS的独特定位：**首篇将技能获取+上下文管理统一到分层多智能体RL训练的工作**。
+EvoDS的独特定位：**将技能获取+上下文管理统一到分层多智能体RL训练的工作**。
 
 ### 10.4 延伸阅读
 
 - **数据科学Agent**: DS-Agent (Guo et al., 2024), AutoKaggle (Li et al., 2025), DeepAnalyze (Zhang et al., 2025)
-- **自我进化Agent**: LATM (Cai et al., 2024), ML-Master2 (Huang et al., 2025)
+- **自我进化Agent**: LATM (Cai et al., 2024), ML-Master2 (Zhu et al., 2026)
 - **上下文压缩**: LLMLingua (Jiang et al., 2023), Selective Context (Li et al., 2024)
-- **多智能体RL**: MATPO (Liu et al., 2025), MAPPO (Yu et al., 2022)
+- **多智能体RL**: MATPO (Mo et al., 2025), MAPPO (Yu et al., 2022)
 - **GRPO**: Shao et al., 2024 (DeepSeekMath)
 - **VERL框架**: https://github.com/volcengine/verl
 
@@ -743,7 +743,7 @@ EvoDS代表了数据科学Agent从"一次性工具调用者"到"持续自我进�
 2. **技能外部化是自我进化关键**：ASA的四阶段流程（合成→验证→缓存→频率驱动扩展）为技能进化提供了可操作的框架
 3. **上下文管理需要学习而非规则**：ACC的主动压缩策略（"我应该在此时压缩吗？"vs"啊我超限了必须压缩"）将上下文管理从被动防御升级为主动优化
 
-EvoDS虽然仅在8B参数上训练，但其精心设计的框架使其超越14B开源基线，并在长程任务上超越闭源方案。这证明了**框架设计 > 模型规模**在Agent系统中的重要性。
+EvoDS虽然仅在8B参数上训练，但其精心设计的框架使其超越14B开源基线，并在MLE-Dojo长程任务上超过闭源最佳ReAct+o4-mini（0.311 vs 0.308）。这证明了**框架设计 > 模型规模**在Agent系统中的重要性。
 
 ---
 

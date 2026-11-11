@@ -4,7 +4,7 @@
 > 标题: OpenThoughts-Agent: Data Recipes for Agentic Models
 > 作者: Negin Raoof, Richard Zhuang, Marianna Nezhurina, Etash Guha et al. (Stanford, UC Berkeley, UT Austin, NYU, JSC, LAION, Open-Sci Collective)
 > arXiv ID: 2606.24855
-> 发表/提交日期: 2026-06-24
+> 发表/提交日期: 2026-06-23
 > 官方代码: [OpenThoughts-Agent](https://github.com/open-thoughts/OpenThoughts-Agent)
 
 ---
@@ -48,7 +48,7 @@ OT-Agent 构建于前期 OpenThoughts 推理数据工作 [16] 的洞察之上，
 
 ### 1.5 最终性能：OpenThinker-Agent-32B
 
-OpenThinker-Agent-32B（Qwen3-32B + 100K OpenThoughts-Agent-v2 SFT 数据）在 7 个 agentic benchmark 上与最强开放数据对照模型 Nemotron-Terminal-32B（训练量 264K [35]）的对比如下（均为 Qwen3-32B 基座）。注：264K 训练数据量来自 Nemotron-Terminal 论文 [35]，非本文直接报告。
+OpenThinker-Agent-32B（Qwen3-32B + 100K OpenThoughts-Agent-v2 SFT 数据）在 7 个 agentic benchmark 上与最强开放数据对照模型 Nemotron-Terminal-32B（训练量 264K [35]）的对比如下（均为 Qwen3-32B 基座）。注：264K 训练数据量由本文 Table 1 直接列出（引自 Nemotron-Terminal 论文 [35]）。
 
 | Benchmark | OpenThinker-Agent-32B (100K) | Nemotron-Terminal-32B (264K) | Δ (pp) |
 |---|---|---|---|
@@ -94,7 +94,7 @@ LLM 评估在过去五年快速演进：从 GPT-3 时代以 MMLU 等多选题、
 | Tmax [20] | SFT | A simple recipe for terminal agents | Terminal |
 | OpenHands [44] | 框架 | 开放平台，将 AI 作为通用软件 agent | 基础设施 |
 
-*264K 训练数据量来自 Nemotron-Terminal 论文 [35] 本身，非本论文直接报告。
+*264K 训练数据量由本文 Table 1 直接列出（引自 Nemotron-Terminal 论文 [35]）。
 
 ### 2.3 核心问题：单一 benchmark 与 SFT/RL 割裂
 
@@ -198,7 +198,7 @@ Task Sourcing 回答"任务从哪里来"。论文系统枚举并比较了 **95 �
 |----------|------------|----------------------|
 | Top-1（单一最优策略） | 16.65 | −0.57 |
 | Top-4（前 4 策略混合） | 18.19 | +0.49 |
-| Top-8（前 8 策略混合） | 一致优于 Top-1 基线 | —（精确均值论文未在此单列） |
+| Top-8（前 8 策略混合） | 17.49 | +0.19 |
 
 （来源：§3.1–§3.2）
 
@@ -235,13 +235,13 @@ Task Augmentation 测试"是否应主动改写任务以提升难度或多样性"
 
 ### 3.4 Task Filtering（任务过滤）
 
-Task Filtering 在抽样后、生成 rollout 前，剔除低质量或不适合 agent 训练的任务。论文比较了"无过滤"基线与基于 LLM 的过滤（用一个判别模型对每个任务打分/筛选）（来源：§3.4）。
+Task Filtering 在抽样后、生成 rollout 前，剔除低质量或不适合 agent 训练的任务。论文比较了多种任务过滤策略，以**随机选择（Random）**为基线，其中包括基于 LLM 的难度信号过滤（用一个判别模型对每个任务打分/筛选）（来源：§3.4）。
 
 **核心结果**：引入 LLM-based filter 带来平均 **+3 pp** 的提升（来源：§3.4）。
 
-**判别器选择的取舍**：论文进一步比较了不同模型作为过滤器——其中 **GPT-5 在过滤时消耗更多 token，但效果不一定更好**（来源：§3.4）。这与 §3.5 的教师模型结论形成呼应：在数据生产各环节，"最强模型 ≠ 最高性价比选择"。
+**判别信号的选择**：论文进一步采用 GPT-5 的信号来筛选任务——保留 GPT-5 解题需要更长响应（更多 token）的任务是所有测试过滤器中效果最好的策略，平均比随机选择高约 3 pp（来源：§3.4）。论文比较的是过滤策略本身，并未比较 GPT-5 与其他过滤器模型，因此不能据此得出"GPT-5 作过滤器效果不一定更好"。
 
-**配方结论**：用 LLM 做任务过滤是高 ROI 步骤（+3 pp 平均提升）；但过滤器的选择应兼顾成本与效果，而非无脑选用最强模型。
+**配方结论**：用 LLM 做任务过滤是高 ROI 步骤（+3 pp 平均提升）；其中以 GPT-5 响应长度（保留解题需更多 token 的任务）为最佳策略。
 
 ### 3.5 Teacher Model（教师模型）
 
@@ -258,13 +258,13 @@ Teacher Model 决定由哪个模型执行 agentic rollout、产出训练轨迹�
 - 作为最强候选的 **GPT-5.3-Codex** 反而是最差教师，导致 Terminal-Bench 上约 **~5%** 的下降（来源：§3.5，近似值）；
 - 核心结论：**最强模型 ≠ 最佳教师**。
 
-**机制理解**：学生模型（Qwen3-32B）从教师分布中模仿行为风格，而非直接继承能力；过强或风格不匹配的教师会引入负迁移，这在 infra 类任务（Terminal-Bench）上尤为明显（~5% 下降即为直接证据）。可理解为教师的"可模仿性"取决于其行为分布与学生目标分布的对齐，而非其绝对能力。
+**机制理解**：学生模型（Qwen3-8B，§3 全部消融的统一基座）从教师分布中模仿行为风格，而非直接继承能力；过强或风格不匹配的教师会引入负迁移，这在 infra 类任务（Terminal-Bench）上尤为明显（~5% 下降即为直接证据）。可理解为教师的"可模仿性"取决于其行为分布与学生目标分布的对齐，而非其绝对能力。
 
 **配方结论**：选教师应以实测消融为准，而非按排行榜选最强模型；在本配方中，**GLM-4.7-AWQ** 是兼顾效果与成本的最佳教师。
 
 ### 3.6 Filtering Agent Rollouts（agent 轨迹过滤）
 
-最后一个阶段对教师产出的 agentic rollout 轨迹进行过滤，决定哪些轨迹进入训练集。论文以**轨迹的 turn 数（对话轮数）**为筛选维度，扫描了不同阈值（来源：§3.6）。
+最后一个阶段对教师产出的 agentic rollout 轨迹进行过滤，决定哪些轨迹进入训练集。论文比较了三种轨迹过滤规则——**min turns ≥5、filter timeouts、filter subagent traces**（来源：§3.6）。
 
 **核心结果**：过滤保留 **≥5 turns** 的轨迹带来最大提升（来源：§3.6）。该规则可形式化为：
 
@@ -315,7 +315,7 @@ def filter_rollouts(rollouts, min_turns: int = 5):
 
 ### 4.2 合成增强突破瓶颈
 
-为突破多样性瓶颈，论文引入**合成增强（synthetic augmentation）**：以一个高质量小任务集为种子，合成生成大量**新的、互不重复的**任务，从而直接扩充任务分布的支撑集（来源：§4）。
+为突破多样性瓶颈，论文引入**合成增强（synthetic augmentation）**：以一个高质量小任务集为种子，对其底层问题套用 §3.3 的指令改写策略生成大量不同的**表面形式**，从而提升任务描述的表述多样性，而不引入新的底层问题（来源：§4）。
 
 **案例：StackExchange-Tezos**：
 
@@ -328,7 +328,7 @@ def filter_rollouts(rollouts, min_turns: int = 5):
 
 **核心结果**：合成增强**突破了多样性瓶颈**，使缩放曲线在 31.6K 之后恢复**单调提升**，一路延伸至 **100K**（来源：§4）。
 
-**机制**：合成增强生成的是**全新任务**（扩大分布）而非**旧任务副本**（不增加分布支撑），因而绕开了 §4.1 的同质性边际收益递减。需要强调的是，这一结论与 §3.3 的"不改写原始任务"并不冲突——§3.3 的负结果是"扰动/改写已有任务"，而合成增强是"生成全新任务"，前者扰乱分布、后者扩张分布，方向相反。
+**机制**：合成增强在**同一批底层问题**（Tezos 的 997 个）上生成多样的表面形式（约 902 → 21K+），扩大的是任务描述的表述多样性，而非新增底层任务；它绕开了 §4.1 因表面形式重复导致的同质性边际收益递减。需要强调的是，这一做法正是复用 §3.3 的指令改写策略——§3.3 在常规混合上作增强未带来增益，而这里把同一套改写用于多样性受限的 Tezos 来源以扩充表面形式，二者并不矛盾。
 
 **配方含义**：缩放的天花板由任务多样性决定；当固定来源饱和时，合成增强是把"数量缩放"转化为"多样性缩放"的关键手段，是突破 31.6K plateau 的唯一有效杠杆。
 
@@ -337,7 +337,7 @@ def filter_rollouts(rollouts, min_turns: int = 5):
 基于 §3 的最优配方叠加 §4.2 的合成增强，论文组装了最终的 **100K** 训练集，并在 Qwen3-32B 上微调。最终数据集由以下要素构成（来源：§4）：
 
 - **4 个任务来源**（多源混合，含编程类与 infra 类）；
-- **合成增强 Tezos**（997 → ~21K unique tasks，用于突破多样性瓶颈）；
+- **合成增强 Tezos**（997 个底层问题 → ~21K 表面形式，用于突破多样性瓶颈）；
 - **GLM-4.7-AWQ** 教师产出的 rollouts；
 - **≥5 turns** 的轨迹过滤。
 
@@ -364,7 +364,7 @@ OT-Agent 的 RL 研究定位为 SFT 配方的**补充性探索**（a *focused* r
 
 受计算约束，RL 实验在 **8B 规模**开展，而非 32B（来源：§5）。
 
-- **算法**：**RLOO**（Reinforcement Learning from Looping Objectives）；
+- **算法**：**RLOO**（REINFORCE Leave-One-Out，REINFORCE 风格优化）；
 - **归一化**：采用 **per-prompt std normalization**（按 prompt 维度做标准差归一化）；
 - **正则化**：**无 KL 正则、无熵正则**（no KL penalty, no entropy regularization）（来源：§5）；
 - **起点**：从 OT-Agent 的 **SFT checkpoint 继续训练**（即在已 SFT 的模型上叠加 RL，而非从 base 起步）。
@@ -404,9 +404,9 @@ RL 带来的最显著现象是**探索行为的涌现**（来源：§5），体�
 | 思考 token 数 | **+116%** | 模型自主延长推理链，出现更长的 deliberation |
 | 工具调用次数 | **+31%** | 模型更积极地发起多步工具交互 |
 
-（来源：§5；思考 token +116%、工具调用 +31% 均为 RL 相对 SFT checkpoint 的增长）
+（来源：附录 F.1、Table 21；思考 token +116%、工具调用 +31% 均为 RL 相对 SFT checkpoint 的增长）
 
-**关键论断**：这两项变化证明 RL 带来的是**真正的能力变化（genuine capability change）**，而非表面对齐（surface alignment）（来源：§5）。若 RL 只是在 SFT 分布上做微调，思考/工具行为的量级不会出现 ~116% 级别的跃迁；量级跃迁说明 RL 改变了模型的策略分布，催生了 SFT 阶段未充分出现的探索型行为模式。
+**关键论断**：论文在附录 F.1 通过三项观察——工具错误绝对数上升（+48%）、单次工具错误率仅 +4.1 pp、mark_task_complete 占比上升（+1.1 pp）——以及 held-out 上的 fail→pass 增益（100 个 SWE-Bench-Verified 任务中 18 个翻转、仅 1 个回归），论证这是**真正的能力变化（genuine capability change）**，而非 reward hacking 或格式伪影。思考 token +116% 与工具调用 +31% 是其中的行为证据，并非全部依据。
 
 **训练方式排序**：
 
@@ -420,17 +420,17 @@ $$\text{SFT} + \text{RL} \;>\; \text{纯 SFT} \;>\; \text{RL-only}$$
 
 ### 5.4 8B 结果
 
-在 8B 规模上，SFT+RL 配方相对 base 与纯 SFT 的提升如下（来源：§5）：
+在 8B 规模上，base、纯 SFT（100K）与 SFT+RL（RL 冷启动 SFT checkpoint + RLOO）的结果对比如下（来源：§5、Table 10）：
 
 | 8B 配置 | SWE-Bench Verified | 7-benchmark 平均 | 说明 |
 |---------|-------------------|------------------|------|
-| Qwen3-8B base | 基准线 | 基准线 | — |
-| OT-Agent SFT-only | 优于 base | 优于 base | 论文未在 RL 章节单列绝对值 |
-| OT-Agent SFT+RL | **base + 5.4 pp**（SWE-Bench-V） | **base + 18 pp**（全 7 benchmark） | SFT checkpoint 叠加 RLOO |
+| Qwen3-8B base | 13.2% | 10.2% | 基准线 |
+| OT-Agent SFT-only (100K) | 38.9% | 27.4% | 纯 SFT |
+| OT-Agent SFT+RL | **31.9%**（较 base +18.7 pp；较 RL 冷启动 SFT checkpoint +5.4 pp） | **27.9%**（较 base +18 pp） | SFT checkpoint 叠加 RLOO |
 
-（来源：§5；+5.4 pp 为 SFT+RL 在 SWE-Bench Verified 上的提升，+18 pp 为全 7 benchmark 平均相对 base 的提升。各配置绝对值论文未在 RL 章节逐一列出，故仅以差值/定性呈现，不补造绝对数字。）
+（来源：Table 10、附录 E；表中绝对值为论文 Table 10 所列。+5.4 pp 是 SFT+RL 相对 RL 冷启动 SFT-only checkpoint 的 RL 增益（附录 E），并非相对 base；相对 base 的 SWE-Bench Verified 提升为 31.9% − 13.2% = +18.7 pp。7-benchmark 平均 27.9% 较 base 10.2% 提升约 18 pp。）
 
-**配方结论**：RL 的增益集中在两点——一是**量级化的探索涌现**（思考 token +116%、工具调用 +31%），二是**端到端能力提升**（SWE-Bench-V +5.4 pp、7-benchmark +18 pp）。SFT 提供先验、RL 释放探索，二者组合是 OT-Agent 在 8B 上的最强配置。
+**配方结论**：RL 的增益集中在两点——一是**量级化的探索涌现**（思考 token +116%、工具调用 +31%），二是**端到端能力提升**（SWE-Bench-V 31.9%，较 RL 冷启动 SFT checkpoint +5.4 pp；7-benchmark 平均 27.9%，较 base +18 pp）。SFT 提供先验、RL 释放探索，二者组合是 OT-Agent 在 8B 上的最强配置。
 
 ---
 
@@ -461,7 +461,7 @@ OT-Agent-32B 以 §3 最优配方 + §4 合成增强组装的 100K 训练集微�
 
 ### 6.2 关键分析
 
-**能力维度差异化领先**。OT-Agent-32B 在 SWE-Bench 上 **+12.1 pp** 的领先幅度远大于 Terminal-Bench 的 **+1.1 pp**（来源：§6，差值由上表精确列导出）。这与 §3.1 揭示的"任务类型↔能力"同构关系一致：OT-Agent 的数据配方同时纳入了编程类（SWE-Smith 等）与 infra 类（StackExchange-SuperUser 等）来源，但编程类训练信号更强、更密集，因而在 SWE-Bench 这类代码修复任务上的迁移最显著；Terminal-Bench 的提升受限，部分源于 infra 类任务来源的覆盖深度相对编程类更浅。
+**能力维度差异化领先**。OT-Agent-32B 在 SWE-Bench 上 **+12.1 pp** 的领先幅度远大于 Terminal-Bench 的 **+1.1 pp**（来源：§6，差值由上表精确列导出）。这与 §3.1 揭示的"任务类型↔能力"同构关系一致：OT-Agent 的数据配方同时纳入了编程类（SWE-Smith 等）与 infra 类（StackExchange-SuperUser 等）来源。（报告作者推断）这一差距可能与 Top-4 来源中编程类（SWE-Smith、IssueTasks）与 infra 类（StackExchange-SuperUser、StackExchange-Tezos）任务的构成有关，但论文本身仅报告任务类型与 benchmark 的 spiky 对应，未对此作因果归因。
 
 **跨场景泛化而非单 benchmark 优化**。对比已有开放工作（SWE-Smith、SERA、Nemotron-Terminal）均"针对单一 benchmark"（来源：摘要、§1、§2），OT-Agent 的贡献在于同时在 7 个异构 benchmark（代码修复、终端操作、函数调用、通用 agent、金融 agent 等）上取得综合领先，平均 **+3.9 pp** 的提升是在**跨任务族**意义上成立的，而非在某一 benchmark 上过拟合刷分。
 
@@ -615,7 +615,7 @@ python eval/local/run_eval.py
 19. **[36]** Qwen Team, "Qwen3.5: Towards native multimodal agents," 2026.
 20. **[37]** Raoof et al., "Evalchemy," 2025.
 21. **[38]** Shen et al., "SERA: Soft-verified efficient repository agents," 2026.
-22. **[41]** GLM Team, "GLM-4 technical report," 2025. (GLM-4.7-AWQ)
+22. **[41]** GLM Team, "GLM-4.5: Agentic, reasoning, and coding (ARC) foundation models," 2025. (GLM-4.7-AWQ)
 23. **[44]** Wang et al., "OpenHands: An open platform for AI software developers as generalist agents," ICLR 2025.
 24. **[45]** Yang et al., "Qwen3 technical report," 2025.
 25. **[47]** Yang et al., "SWE-Smith: Scaling data for software engineering agents," 2025.

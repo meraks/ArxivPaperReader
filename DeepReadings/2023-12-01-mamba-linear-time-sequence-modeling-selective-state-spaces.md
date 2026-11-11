@@ -42,7 +42,7 @@ Mamba 是一种新型的序列建模架构，基于**选择性状态空间模型
 2. **选择机制**: 使 SSM 的部分参数（$\Delta, B, C$）依赖于输入，实现**内容感知 (content-aware)** 推理；$A$ 仍是固定可学习矩阵
 3. **4-5× 推理吞吐量**: 相比同等规模 Transformer，推理吞吐量提升 4-5×，主要因为没有 KV cache 允许更大 batch size
 4. **百万长度序列**: 性能随序列长度增长（DNA、音频上扩展到 1M tokens 仍提升），合成任务上可外推到 1M（训练时长的 4000×）
-5. **简化架构**: 将 H3 架构中的"SSM block + MLP block"合并为单一模块，主体参数 $3ED^2$（$E=2$ 时即 $6D^2$），与 Transformer 的 $12D^2$（MHA + MLP）参数匹配
+5. **简化架构**: 将 H3 架构中的"SSM block + MLP block"合并为单一模块，主体参数 $3ED^2$（$E=2$ 时即 $6D^2$），并通过两层堆叠（two stacks）与 Transformer 的 $12D^2$（MHA + MLP）参数匹配
 
 > **类比理解**: Mamba 可以想象成一个智能秘书，Transformer 需要记住对话中的每句话（$O(L^2)$ 关联记忆 + KV cache），而 Mamba 只需要维护一个固定大小的"工作记忆"（状态 $h \in \mathbb{R}^{D \times N}$），通过选择机制动态决定记住什么/遗忘什么。就像读书时，秘书只记关键笔记，原始文字可以扔掉。
 
@@ -52,8 +52,7 @@ Mamba 是一种新型的序列建模架构，基于**选择性状态空间模型
 |------|------|
 | Introduction | 提出 Transformer $O(N^2)$ 问题，引出选择性 SSM |
 | Background | 回顾 SSM 和注意力机制的基础 |
-| Selective State Spaces | 详细阐述选择机制及其理论基础 |
-| Mamba: Selective SSMs for Language | 将 SSM 应用于语言建模的具体架构 |
+| Selective State Space Models | 选择机制、硬件感知并行算法，以及用于语言建模的 Mamba 架构（Section 3） |
 | Experiments | 多维度验证性能和效率 |
 
 ---
@@ -81,7 +80,7 @@ $$ \text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right
 | 架构 | 复杂度 | 核心问题 |
 |------|--------|----------|
 | Linear Attention（如 Performer, Linear Transformer） | $O(L)$ | 表达能力有限，难以建模复杂依赖 |
-| Gated Linear RNN（如 RWKV, RetNet） | $O(L)$ | 推理需序列化（无法用 KV cache 加速）；Mamba 论文 Section 2.1 也将 RWKV 归为 Linear Attention / Linear RNN 系列 |
+| Gated Linear RNN（如 RWKV, RetNet） | $O(L)$ | 推理需序列化（无法用 KV cache 加速）；Mamba 论文 Section 2（SSM Architectures 段）也将 RWKV 归为 Linear Attention / Linear RNN 系列 |
 | 传统 SSM (S4) | $O(L)$ | 参数固定，无法进行**内容感知推理** |
 
 ### 2.3 内容感知推理的重要性
@@ -110,7 +109,7 @@ y(t) &= \mathbf{C}\,h(t)
 \end{aligned}
 $$
 
-其中（论文 Section 2.4 维度定义）：
+其中（论文 Section 2 的 Structure and Dimensions 段）：
 - $h(t)$: 隐藏状态，$\in \mathbb{R}^{N}$
 - $x(t)$: 输入信号（标量，1 通道）—— 论文 baseline；多通道时每个通道独立
 - $y(t)$: 输出信号（标量）
@@ -174,7 +173,7 @@ $$ \mathcal{K}_t = C \bar{A}^t \bar{B} $$
 
 ### 3.4 LTI 性质与 S4D
 
-**LTI (Linear Time-Invariant)**：传统 S4 的参数 $(\Delta, \mathbf{A}, \mathbf{B}, \mathbf{C})$ 都是**固定的**，与输入和时间步无关（论文 Section 2.3）。即：
+**LTI (Linear Time-Invariant)**：传统 S4 的参数 $(\Delta, \mathbf{A}, \mathbf{B}, \mathbf{C})$ 都是**固定的**，与输入和时间步无关（论文 Section 2 的 Linear Time Invariance 段）。即：
 $$\Delta_t = \Delta,\quad \mathbf{A}_t = \mathbf{A},\quad \mathbf{B}_t = \mathbf{B},\quad \mathbf{C}_t = \mathbf{C} \quad \forall t$$
 
 由 LTI 性质，递推可展开为**全局卷积**（论文 Eq. 3）：$y = x * \bar{\mathbf{K}}$，其中卷积核 $\bar{\mathbf{K}} = (\mathbf{C}\bar{\mathbf{B}}, \mathbf{C}\bar{\mathbf{A}}\bar{\mathbf{B}}, \ldots)$ 是固定可预计算的，可通过 FFT 等高效算法并行训练。
@@ -255,7 +254,7 @@ $$ \Delta_t = \text{softplus}\!\left(\text{Parameter} + \text{Broadcast}_D(\text
 **序列格式**: `[0, 0, ..., key, key, ..., 0, 0, ..., ?]`
 
 **结果**:
-- Transformer (自注意力): 完美复制（$O(L^2)$ 复杂度）
+- Transformer (自注意力): 论文未在 Selective Copying 上测试（理论上可完美复制，$O(L^2)$ 复杂度）
 - S4 (无选择机制): 无法区分需要复制的内容
 - Mamba: 完美复制（$O(L)$ 复杂度）
 
@@ -483,7 +482,7 @@ $$ \text{SiLU}(x) = x \cdot \sigma(x) $$
 
 ### 7.1 合成任务
 
-**论文 Figure 4 (Selective Copying, 序列长度 4096) 实际数据**：
+**论文 Table 1 (Selective Copying, 序列长度 4096) 实际数据**：
 
 | 模型 (Model) | 架构 (Arch.) | 序列层 (Layer) | 准确率 |
 |------|------|------|-----|
@@ -499,9 +498,9 @@ $$ \text{SiLU}(x) = x \cdot \sigma(x) $$
 **关键对比**：
 - S4 (LTI, 无选择) 仅 18.3% — 几乎随机水平
 - 仅换 layer 为 S6（保留 S4 架构）→ 跃升到 97.0%，说明**核心来自选择机制**
-- Mamba + S6 完整配置达到 99.8%（论文 Figure 4 中 S4 模型对 18.3%，Mamba 完整模型 99.8%，差距 81.5 个百分点）
+- Mamba + S6 完整配置达到 99.8%（论文 Table 1 中 S4 模型对 18.3%，Mamba 完整模型 99.8%，差距 81.5 个百分点）
 
-**Induction Heads（论文 Figure 5）**：
+**Induction Heads（论文 Table 2；完整数值见 Table 11）**：
 - Mamba 能完美外推到 1M 长度的序列（约训练时长的 **4000×**）
 - 其他方法（H3、Hyena 等）最长只能外推到 2× 训练长度
 
@@ -512,10 +511,10 @@ $$ \text{SiLU}(x) = x \cdot \sigma(x) $$
 **数据集**: The Pile（300B tokens 训练，论文 Section 4.2）
 
 **模型配置**:
-- Mamba: 130M / 370M / 790M / 1.4B（Mamba-3B 在 Section 4 之外的后续工作中）
+- Mamba: 130M / 370M / 790M / 1.4B / 2.8B（摘要中称 Mamba-3B）
 - 基线: Pythia（与 Mamba 相同 tokenizer / 数据集 / 训练长度）
 
-**验证集困惑度**（论文 Table 1，使用 NeoX tokenizer）：
+**验证集困惑度**（论文 Table 3，使用 NeoX tokenizer）：
 
 | 模型 | Pile ppl ↓ | LAMBADA ppl ↓ |
 |------|--------|--------|
@@ -530,7 +529,7 @@ $$ \text{SiLU}(x) = x \cdot \sigma(x) $$
 
 ### 7.3 下游任务评估
 
-**Zero-shot 评估**（LAMBADA、HellaSwag、PIQA、Arc-E、Arc-C、WinoGrande 平均准确率，论文 Table 1）：
+**Zero-shot 评估**（LAMBADA、HellaSwag、PIQA、Arc-E、Arc-C、WinoGrande 平均准确率，论文 Table 3）：
 
 | 模型 | 参数量 | 平均准确率 ↑ |
 |------|--------|------------|
@@ -541,15 +540,15 @@ $$ \text{SiLU}(x) = x \cdot \sigma(x) $$
 | Pythia-1B | 1B | 51.9% |
 | **Mamba-790M** | 790M | **57.1%** |
 
-**结论**: Mamba-790M (57.1%) 平均准确率超过 Pythia-1B (51.9%)——同等参数量下平均提升约 +2 到 +5 个百分点；Mamba-790M 甚至逼近 Pythia-1.4B (55.2%)。
+**结论**: Mamba-790M (57.1%) 平均准确率超过 Pythia-1B (51.9%)——同等参数量下平均提升约 +2 到 +5 个百分点；Mamba-790M 甚至超过 Pythia-1.4B (55.2%)。
 
 ### 7.4 推理吞吐量
 
 **论文 Section 4.5 结论**：Mamba 相比同等规模的 Transformer 实现了 **4-5× 更高的推理吞吐量**，原因是**没有 KV cache**，可以使用更高的 batch size。
 
-论文图 12 给出了具体的速度曲线，但具体数值（tokens/s）依赖 batch size 和 prompt 长度，未在正文表格中明确列出。定性结论是：随着 prompt 增长，Transformer 因 KV cache 内存压力增大而无法扩 batch，Mamba 因常数大小状态可保持高 batch，因而吞吐量优势进一步扩大。
+论文 Figure 8（右）给出了具体的速度曲线（实验配置见 Appendix E.5），但具体数值（tokens/s）依赖 batch size 和 prompt 长度，未在正文表格中明确列出。定性结论是：随着 prompt 增长，Transformer 因 KV cache 内存压力增大而无法扩 batch，Mamba 因常数大小状态可保持高 batch，因而吞吐量优势进一步扩大。
 
-> **更正说明**：上一版文档中具体的"352K / 500K / 200K / 1.76M"等数字无法在论文正文核实，建议删除具体数字或标注"出自图 12 实验配置"。
+> **更正说明**：上一版文档中具体的"352K / 500K / 200K / 1.76M"等数字无法在论文正文核实，建议删除具体数字或标注"出自 Figure 8（右）实验配置"。
 
 ### 7.5 长序列性能
 
@@ -1232,7 +1231,7 @@ Mamba 代表了序列建模的重要突破，通过**选择机制**解决了传�
 
 1. Gu, A., & Dao, T. (2023). Mamba: Linear-Time Sequence Modeling with Selective State Spaces. arXiv:2312.00752.
 2. Gu, A., Goel, K., & Ré, C. (2021). Efficiently Modeling Long Sequences with Structured State Spaces. ICLR 2022.
-3. Dao, T., Gu, A., Ratner, A., Ré, C., & Rudra, A. (2022). FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness. NeurIPS 2022.
+3. Dao, T., Fu, D. Y., Ermon, S., Rudra, A., & Ré, C. (2022). FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness. NeurIPS 2022.
 
 ---
 

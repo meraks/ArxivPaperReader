@@ -35,7 +35,7 @@ iLLaDA 相对 LLaDA 的改进集中在架构、训练规模与推理策略三方
 
 ### 1.3 Base 模型性能
 
-iLLaDA-Base 在 8 项基准上平均 63.9，超越 LLaDA-Base（51.1，+12.8）与 Dream 7B（61.4），并持平 Qwen2.5 7B（63.3）。这是非自回归模型首次在平均分上与同规模强自回归 baseline 持平。
+iLLaDA-Base 在 8 项基准上平均 63.9，超越 LLaDA-Base（51.1，+12.8）与 Dream 7B（61.4），平均分略高于 Qwen2.5 7B（63.3）。
 
 单项亮点：
 
@@ -46,7 +46,7 @@ iLLaDA-Base 在 8 项基准上平均 63.9，超越 LLaDA-Base（51.1，+12.8）�
 
 ### 1.4 Instruct 模型性能
 
-iLLaDA-Instruct 平均 67.1，超越 LLaDA-Instruct（54.5）与 Dream 7B Instruct（60.2），但落后于 Qwen2.5 7B Instruct（77.1）。MMLU-Redux 上 iLLaDA 取得所有对比模型中最高分 76.4。Instruct 与 Qwen2.5 的差距主要归因于 iLLaDA 缺少 RL 对齐阶段。单项亮点：MATH 56.7（+14.5 vs LLaDA）、HumanEval 65.9（+16.5 vs LLaDA）。
+iLLaDA-Instruct 平均 67.1，超越 LLaDA-Instruct（54.5）与 Dream 7B Instruct（60.2），但落后于 Qwen2.5 7B Instruct（77.1）。MMLU-Redux 上 iLLaDA 取得所有对比模型中最高分 76.4。Instruct 与 Qwen2.5 的差距被论文推测主要源于 iLLaDA 缺少 RL 对齐阶段。单项亮点：MATH 56.7（+14.5 vs LLaDA）、HumanEval 65.9（+16.5 vs LLaDA）。
 
 ### 1.5 贡献小结
 
@@ -243,7 +243,7 @@ def variable_length_generate(model, prompt, block_size, max_blocks):
 **关键发现**：
 
 - iLLaDA-Base 在 MMLU（74.8）、BBH（71.3）、ARC-C（60.8）、GSM8K（81.9）四项上超越 Qwen2.5 7B
-- 平均分 63.9，略高于 Qwen2.5 7B（63.3，+0.6）——非自回归模型首次在平均分上达到强自回归 baseline 水平
+- 平均分 63.9，略高于 Qwen2.5 7B（63.3，+0.6），即非自回归模型平均分略高于同规模强自回归 baseline
 - 相对 LLaDA-Base 全面领先（平均 +12.8），尤其在 BBH（+21.6）与 ARC-C（+14.9）上提升巨大
 - 相对 Dream 7B 平均领先 +2.5
 - 在代码任务上 iLLaDA 仍有差距：HumanEval 50.0 弱于 Dream 7B（57.9）与 Qwen2.5（56.7），MBPP 57.8 弱于 Qwen2.5（63.6）
@@ -274,9 +274,9 @@ def variable_length_generate(model, prompt, block_size, max_blocks):
 
 iLLaDA-Instruct 与 Qwen2.5 的差距（67.1 vs 77.1，−10.0）主要由对齐方法差异导致：
 
-- Qwen2.5 经历完整的 SFT + RL 对齐（如 RLHF/RLAIF），RL 阶段显著提升指令遵循与推理质量
+- Qwen2.5 在 SFT 之后还进行了 RL 对齐（论文未具体说明算法），RL 阶段可能提升指令遵循与推理质量
 - iLLaDA 仅进行 SFT，未引入任何 RL 阶段
-- 论文将这一 gap 明确归因于 RL 对齐的缺失，而非扩散范式本身的局限
+- 论文推测（we believe）这一 gap largely 源于 Qwen2.5 在 SFT 后额外的 RL 对齐；结论部分措辞为 may partly explain，并未排除扩散范式本身的局限
 
 证据：iLLaDA-Base 已能与 Qwen2.5 持平（63.9 vs 63.3），说明扩散范式在基础能力上不逊色；gap 主要出现在经对齐的 Instruct 阶段。这指向"补齐 RL 对齐"作为最直接的改进方向。
 
@@ -291,18 +291,18 @@ confidence scoring 在全部三项上一致优于 likelihood scoring，差距 +1
 
 ### 5.5 SFT Epoch 消融（Fig 1）
 
-随 SFT epochs 增加，GSM8K、MATH、MMLU-Pro 性能持续提升至 12 epochs，曲线未见明显饱和。这表明：
+随 SFT epochs 增加，GSM8K、MATH、MMLU-Pro 总体上升，但并非单调：GSM8K 在 epoch 3→6 由 ~86.6 回落至 ~85.0，随后升至 ~89.0；MMLU-Pro 在 epoch 6 后趋于平台化。论文仅表述为 performance generally improves，且注明因算力限制未训练超过 12 epochs。这表明：
 
 - 指令数据在扩散 LM 上的多轮复用有效，支持将 SFT 训练延长至 12 epochs
 - 扩散 LM 对数据重用的响应不同于自回归模型（后者往往在少数 epoch 后出现过拟合）
 
-|Fig 1 显示 GSM8K 从~86%提升至~90%、MATH 从~48%提升至~57%、MMLU-Pro 从~50%提升至~52%（趋势近似，基于曲线目视）。该持续提升曲线印证了扩散 LM 在 SFT 阶段的数据重用效应。
+|Fig 1 显示 GSM8K 在 epoch 3→6 由 ~86.6 降至 ~85.0、随后升至 ~89.0，MATH 从~50 提升至~56.5，MMLU-Pro 从~48.4 提升至~52.3 并在 epoch 6 后趋于平台（趋势近似，基于曲线目视）。该曲线印证了扩散 LM 在 SFT 阶段的数据重用效应。
 
 ### 5.6 评估细节
 
-- 多项选择任务（MMLU、BBH、ARC-C、Hellaswag、PIQA 等）采用 confidence-based scoring
-- 生成任务（GSM8K、MATH、HumanEval、MBPP）采用 variable-length block generation
-- 不同任务设置不同的 block 长度：BBH/GSM8K/MATH/MBPP 采用 block length 32（max length 1024），HumanEval 采用 block length 512（max length 512）。Instruct 模型设置有差异：GSM8K/HumanEval block=32 (max 2048)、MMLU-Pro/MATH block=32 (max 4096)、MBPP block=16 (max 2048)、MMLU-Redux block=3-4 (max 3-4)
+- 多项选择任务（MMLU、ARC-C、Hellaswag、PIQA 等）采用 confidence-based scoring
+- 生成任务（BBH、GSM8K、MATH、HumanEval、MBPP）采用 variable-length block generation；其中 BBH 仅在 Base 评估中以开放生成方式评估
+- 不同任务设置不同的 block 长度：BBH/GSM8K/MATH/MBPP 采用 block length 32（max length 1024），HumanEval 采用 block length 512（max length 512）。Instruct 模型设置有差异：GSM8K/HumanEval block=32 (max 2048)、MMLU-Pro/MATH block=32 (max 4096)、MBPP block=16 (max 2048)、MMLU block=4 (max 4)、MMLU-Redux block=3 (max 3)
 - **推理 loop 缓解**：扩散模型在长链推理时可能出现重复推理（repetitive reasoning）现象，论文通过递增 `</think>` token 的出现概率来缓解，鼓励模型尽早终止推理 trace 并输出最终答案
 
 ---
@@ -394,7 +394,7 @@ def confidence_score(model, prompt, candidate):
 
 ### 7.1 局限性
 
-1. **缺少 RL 对齐**：iLLaDA 仅用 SFT，未引入 RL 阶段。这是 Instruct 模型落后 Qwen2.5（67.1 vs 77.1，−10.0）的主要原因。论文明确将这一 gap 归因于 RL 缺失，而非扩散范式局限——iLLaDA-Base 已能与 Qwen2.5 持平（63.9 vs 63.3）即为佐证。
+1. **缺少 RL 对齐**：iLLaDA 仅用 SFT，未引入 RL 阶段。论文推测（we believe）这一差距 largely 源于 Qwen2.5 在 SFT 后额外的 RL 对齐，结论中表述为 RL 缺失 may partly explain，并非定论——iLLaDA-Base 已能与 Qwen2.5 持平（63.9 vs 63.3）即为佐证。
 
 2. **规模限制**：仅在 8B 规模验证，缺乏与自回归模型在完全匹配条件下的对照（matched comparison）。现有对比（vs Qwen2.5 7B、Dream 7B）虽规模相近，但训练数据、词表、训练 token 量等条件并非完全对齐，难以精确归因性能差异的来源。
 

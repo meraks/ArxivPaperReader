@@ -1,7 +1,7 @@
 # 《DFM Mimir v1》论文精读报告
 
 > **论文**：DFM Mimir v1: An Open HRM Delivering Frontier Performance at 1B Parameters Using Only Permissible Post-Training Data
-> **作者**：Peter Schneider-Kamp, Jacob Nielsen, Gianluca Barmina, Kenneth Enevoldsen, Lukas Galke Poech（南丹麦大学 / Ordbogen A/S / 奥胡斯大学；OdenseNLP / 丹麦基础模型项目 DFM）
+> **作者**：Peter Schneider-Kamp, Jacob Nielsen, Gianluca Barmina, Danial Namazifard, Annemette Brok Pirchert, Kenneth Enevoldsen, Lukas Galke Poech（南丹麦大学 / Ordbogen A/S / 奥胡斯大学；丹麦基础模型项目 DFM）
 > **arXiv ID**：2608.13517
 > **发表时间**：2026-08-13
 > **许可协议**：训练框架 Apache 2.0；模型权重 MIMIR License v1.0（研究模型许可）
@@ -11,13 +11,13 @@
 
 ### 1.1 一句话定位
 
-本文发布 Mimir v1——首个完全基于 permissible post-training data（开放许可、协议授权或 EU TDM 研究例外）从零训练的 1B 参数 Hierarchical Reasoning Model（HRM）：仅用 161 个数据集、每 epoch 70.48B tokens，在 20 个基准上做到英文平均分与 Qwen3.5 4B 仅差 0.3 分、Math & Code 较同架构的 HRM-Text 1B 提升 36.7%，并刷新丹麦语 SOTA。
+本文发布 Mimir v1——首个完全基于 permissible post-training data（开放许可、协议授权或 EU TDM 研究例外）从零训练的 1.78B 参数 Hierarchical Reasoning Model（HRM，1.38B 非嵌入 + 0.40B 嵌入；论文亦称 sub-2B）：仅用 161 个数据集、每 epoch 70.48B tokens，在 20 个基准上做到英文平均分与 Qwen3.5 4B 仅差 0.3 分、Math & Code 较同架构的 HRM-Text 1B 提升 36.7%，并刷新丹麦语 SOTA。论文同一版本还发布继续训练的 Mimir v1.5（103B tokens/epoch，English / Math & Code / Danish Avg 分别为 77.8 / 71.1 / 63.0）；本报告除特别说明外讨论 v1。
 
 ### 论文图表总览
 
 | 编号 | 内容 | 详见 |
 |------|------|------|
-| Figure 1 | 聚合成绩图（Mimir 1B 与对比模型在 English / Math & Code / Danish 三组的平均分） | 第 5 章 |
+| Figure 1 | 聚合成绩图（Mimir v1/v1.5 与 0.8B–9B 对比模型在 English / Math & Code / Danish 三组的平均分） | 第 5 章 |
 | Table 1 | 数据分类分布（8 类功能分类的 token 量与占比） | 第 3 章 |
 | Table 2 | 语言分布 | 第 3 章 |
 | Table 3 | 数据处理形式 | 第 3 章 |
@@ -27,26 +27,26 @@
 | Table 7 | 英文基准 | 第 5 章 |
 | Table 8 | 数学与代码基准 | 第 5 章 |
 | Table 9 | 丹麦语基准 | 第 5 章 |
-| Table 10 | 全部 161 个训练数据集清单（HF 标识、处理形态、token 规模，附录 A） | 第 6 章 |
-| Table 11 | 评测基准配置（数据集来源与 N-shots，附录 B） | 第 5 章 |
+| Table 10 | 全部 161 个训练数据集清单（HF 标识、处理形态、token 规模，附录 E；论文 Table 13） | 第 6 章 |
+| Table 11 | 评测基准配置（数据集来源与 N-shots，附录 F；论文 Table 14） | 第 5 章 |
 
 ### 1.2 核心贡献
 
-1. **基于 permissible 数据从零训练的 1B HRM**：在严格许可约束（开放许可 / 协议授权 / EU TDM 研究例外）下，用 161 个数据集、70.48B tokens/epoch 训练 1B 参数 HRM，证明不依赖大规模非合规语料也能达到前沿性能；模型权重（HuggingFace `danish-foundation-models/DFM-Mimir`）、训练框架（Apache 2.0）与数据配方几乎全部开放（少量协议授权数据除外）。
-2. **丹麦语 SOTA**：Danish Avg 56.8%，远超全部对比模型（次优 Gemma 4 E2B think 49.9%、第三 Qwen 3.5 4B 49.2%），并在 DaLA（96.1%）、GEC（85.6%）、WikiQA（66.8%）上全面领先，验证了 HRM 架构对低资源语言的适用性。
+1. **基于 permissible 数据从零训练的 1.78B HRM（sub-2B）**：在严格许可约束（开放许可 / 协议授权 / EU TDM 研究例外）下，用 161 个数据集、70.48B tokens/epoch 训练 1.78B 参数 HRM，证明不依赖大规模非合规语料也能达到前沿性能；模型权重（HuggingFace `danish-foundation-models/DFM-Mimir`）、训练框架（Apache 2.0）与数据配方几乎全部开放（少量协议授权数据除外）。
+2. **丹麦语 SOTA**：Danish Avg 56.8%，超过全部外部对比模型（次优 Gemma 4 E4B think 54.5%、其后 Gemma 4 E4B 53.6% 与 Qwen 3.5 9B 53.1%；论文的 v1.5 进一步达 63.0%），并在 DaLA（96.1%）、GEC（85.6%）、WikiQA（66.8%）上领先所有外部模型，验证了 HRM 架构对低资源语言的适用性。
 3. **合成 transplant 数据集**：针对 HRM-Text 原始数据中不符合 DFM 许可标准的部分，用 Gemma4 31B 生成并经质量审计的合成数据集进行替换，效果相当或更优。
 4. **生成式任务导向的数据配比**：训练数据从「判别式多选题」转向「自由生成式」，83% tokens 来自非 Sapient 集合，56.1% 按 exact-match 评分（GSM8K / MATH / DROP），使数据形式与评测目标对齐。
 
 ### 1.3 关键结果速览
 
-| 指标 | Mimir 1B | 参照 | 说明 |
+| 指标 | Mimir v1 (1.78B) | 参照 | 说明 |
 |------|----------|------|------|
-| GSM8K | 89.9% | Gemma4 E2B (think) 90.3% | 全局第二、同参数量级第一 |
+| GSM8K | 89.9% | Gemma4 E2B (think) 90.3% | 并非全表第二；同参数量级（除 v1.5 外）第一 |
 | English Avg | 69.0% | Qwen3.5 4B 69.3% | 仅差 0.3 分 |
-| Danish Avg | 56.8% | Qwen3.5 4B 49.2% | 领先 7.6 分，设立 SOTA |
+| Danish Avg | 56.8% | Gemma4 E4B (think) 54.5% | 外部模型最高，领先 2.3 分；v1.5 为 63.0% |
 | Math & Code Avg | 64.1% | HRM-Text 1B 46.9% | 相对提升 36.7% |
 
-- **英文单项领先**：BoolQ 87.8%、Winogrande 73.5%、DROP 83.1%，均超过包括 Qwen3.5 4B 在内的所有对比模型。
+- **英文单项表现**：BoolQ 87.8%、Winogrande 73.5%、DROP 83.1%；其中 DROP 为全部外部对比模型最高，但 BoolQ/Winogrande 低于更大模型（Qwen 3.5 9B 89.3/75.1，Gemma 4 E4B think 88.4/76.1；BoolQ 还低于 Ouro 2.6B 的 89.0）。
 - **代码能力从无到有**：HumanEval 56.7%，而 HRM-Text 1B 为 0.0%。
 - **训练成本可控**：1.65M steps，8×NVIDIA B200（180GB HBM3e），不到 3 周，平均 step 时间 <1.1s。
 
@@ -64,7 +64,9 @@
 
 HRM 概念论文（arXiv:2506.21734）与 HRM-Text（arXiv:2605.20613，Sapient，Guan Wang et al.）提供了另一条路径：HRM 采用双时间尺度循环结构——高层模块 H（慢）与低层模块 L（快）两个 Transformer 对同一输入 embedding 反复迭代、以加性方式注入彼此状态：
 
-$$z_H \leftarrow \mathrm{embed}(x)\cdot s,\qquad z_L \leftarrow \mathbf{0}$$
+$$z_H \leftarrow \mathrm{embed}(x)\cdot s,\qquad z_L \leftarrow z_{L,\mathrm{init}}$$
+
+其中 $z_{L,\mathrm{init}}$ 为可学习状态（论文原文：a learned state）。
 
 $$\begin{aligned}
 &\textbf{for}\ h = 1,\dots,\mathrm{H\_cycles}:\\
@@ -102,7 +104,7 @@ Mimir v1 的训练数据是本文的核心创新载体：161 个数据集、每 
 
 ### 3.2 语言分布
 
-Table 2（论文 Table 2）给出语料按语言的分布。语料以英语为主（68.6%），丹麦语占 24.7%（8 个类别中有 6 个完全为英语），双语丹麦语-英语数据占 6.5%：
+Table 2（论文 Table 7）给出语料按语言的分布。语料以英语为主（68.6%），丹麦语占 24.7%（8 个类别中有 6 个完全为英语），双语丹麦语-英语数据占 6.5%：
 
 | 语言 | Tokens/epoch | 占比 |
 |:-----|:---:|:---:|
@@ -115,7 +117,7 @@ Table 2（论文 Table 2）给出语料按语言的分布。语料以英语为�
 
 ### 3.3 数据处理的七种形式
 
-数据集以七种不同形态进入训练语料，反映数据管线的处理阶段。Table 3（论文 Table 3）汇总各形态的 token 规模：
+数据集以七种不同形态进入训练语料，反映数据管线的处理阶段。Table 3（论文 Table 6）汇总各形态的 token 规模：
 
 | 处理形态 | Tokens/epoch | 占比 |
 |:---------|:---:|:---:|
@@ -131,7 +133,7 @@ Table 2（论文 Table 2）给出语料按语言的分布。语料以英语为�
 
 ### 3.4 数据集中度与重复策略
 
-Table 4（论文 Table 4）列出按每 epoch 采样 token 数排序的前 10 大数据集。语料高度集中：这 10 个数据集合计占 66.5% 的 token，前 3 个占 38.1%，其余 151 个数据集合计占 33.5%：
+Table 4（论文 Table 8）列出按每 epoch 采样 token 数排序的前 10 大数据集。语料高度集中：这 10 个数据集合计占 66.5% 的 token，前 3 个占 38.1%，其余 151 个数据集合计占 33.5%：
 
 | 数据集 | Tokens/epoch | 占比 |
 |:-------|:---:|:---:|
@@ -186,7 +188,7 @@ return z_H
 
 ### 4.2 Mimir 配置
 
-Table 5（论文 Table 5）给出 Mimir v1 的完整架构配置：
+Table 5（论文 Table 9）给出 Mimir v1 的完整架构配置：
 
 | 超参数 | 值 |
 |:-------|:---:|
@@ -204,7 +206,7 @@ Table 5（论文 Table 5）给出 Mimir v1 的完整架构配置：
 
 ### 4.3 训练设置
 
-Table 6（论文 Table 6）汇总训练超参数：
+Table 6（论文 Table 10）汇总训练超参数：
 
 | 超参数 | 值 |
 |:-------|:---:|
@@ -232,11 +234,11 @@ Mimir 在 20 个基准上评测，覆盖英语、数学与代码、丹麦语三�
 
 ### 5.2 英文基准
 
-Table 7（论文 Table 7）给出英文基准结果（BoolQ/Winogrande/Hellaswag/MMLU/ARC-C 为 Acc，DROP 为 F1，GovReport 为 R1）：
+Table 7（论文 Table 2）给出英文基准结果（BoolQ/Winogrande/Hellaswag/MMLU/ARC-C 为 Acc，DROP 为 F1，GovReport 为 R1；表中为部分基线，完整行见论文 Table 2）：
 
 | 模型 | BoolQ | Wino. | Hella. | MMLU | ARC-C | DROP | GovRep. | **Avg.** |
 |:-----|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **Mimir 1B** | **87.8** | **73.5** | 67.3 | 57.5 | 81.6 | **83.1** | 32.0 | **69.0** |
+| **Mimir v1 (1.78B)** | **87.8** | **73.5** | 67.3 | 57.5 | 81.6 | **83.1** | 32.0 | **69.0** |
 | HRM-Text 1B | 87.5 | 70.4 | 60.4 | 58.7 | 82.2 | 78.1 | 25.4 | 66.1 |
 | Qwen 3.5 0.8B | 69.8 | 48.9 | 37.0 | 51.5 | 68.4 | 45.2 | 32.5 | 50.5 |
 | Gemma 3 1B | 62.4 | 49.1 | 30.6 | 37.5 | 43.5 | 7.0 | 29.5 | 37.1 |
@@ -247,15 +249,15 @@ Table 7（论文 Table 7）给出英文基准结果（BoolQ/Winogrande/Hellaswag
 | Gemma 4 E2B | 64.1 | 56.7 | 55.6 | 59.3 | 69.8 | 57.3 | 33.6 | 56.6 |
 | Gemma 4 E2B (think) | 83.4 | 63.0 | 55.8 | 72.0 | 86.8 | 70.8 | 34.7 | 66.6 |
 
-Mimir 在 BoolQ（87.8%）、Winogrande（73.5%）、DROP（83.1% F1）上超越所有对比模型；在 ARC-C（81.6%）上仅次于 Gemma 4 E2B think（86.8%）与 Qwen 3.5 4B（92.9%）。平均分 69.0%，仅比 Qwen 3.5 4B（69.3%）低 0.3 个百分点，超过 2-3B 档次的 SmolLM3 3B（63.1%）与 Gemma 4 E2B 两种模式（56.6% / 66.6%）。注意 Mimir 在 MMLU（57.5%）上低于 HRM-Text 1B（58.7%）与 SmolLM3 3B（60.2%），这是生成式训练配比（自由生成优先）在多选题基准上的代价。
+Mimir v1 的 DROP（83.1% F1）高于全部外部对比模型，但 BoolQ（87.8%）与 Winogrande（73.5%）并非全表最高——二者均低于 8–9B 的 Qwen 3.5 9B（89.3% / 75.1）与 Gemma 4 E4B think（88.4% / 76.1%），BoolQ 还低于 Ouro 2.6B（89.0%）。ARC-C（81.6%）低于 Qwen 3.5 9B（94.1%）、Ouro 2.6B（93.0%）、Ministral 3 8B（90.1%）与 Gemma 4 E2B think（86.8%）。平均分 69.0%，低于 Qwen 3.5 4B（69.3）、Ouro 2.6B（70.2）、Ministral 3 8B（71.3）、Gemma 4 E4B think（72.3）与 Qwen 3.5 9B（77.1），也低于 v1.5（77.8），但高于 SmolLM3 3B（63.1%）与 Qwen 3.5 2B（58.2%）；Gemma 4 E2B 在论文中归入 4–5B 档（56.6% / think 66.6%）。注意 Mimir 在 MMLU（57.5%）上低于 HRM-Text 1B（58.7%）与 SmolLM3 3B（60.2%），这是生成式训练配比（自由生成优先）在多选题基准上的代价。
 
 ### 5.3 数学与代码基准
 
-Table 8（论文 Table 8）给出 Math & Code 结果（均为 Acc）：
+Table 8（论文 Table 3）给出 Math & Code 结果（均为 Acc；表中为部分基线，完整行见论文 Table 3）：
 
 | 模型 | GSM8K | MATH | HumanEval | **Avg.** |
 |:-----|:---:|:---:|:---:|:---:|
-| **Mimir 1B** | **89.9** | 45.8 | **56.7** | **64.1** |
+| **Mimir v1 (1.78B)** | **89.9** | 45.8 | **56.7** | **64.1** |
 | HRM-Text 1B | 84.8 | 56.0 | 0.0 | 46.9 |
 | Qwen 3.5 0.8B | 49.1 | 36.1 | 30.5 | 38.6 |
 | Gemma 3 1B | 49.7 | 37.2 | 42.7 | 43.2 |
@@ -266,15 +268,15 @@ Table 8（论文 Table 8）给出 Math & Code 结果（均为 Acc）：
 | Gemma 4 E2B | 88.3 | 64.2 | 73.8 | 75.4 |
 | Gemma 4 E2B (think) | 90.3 | 49.1 | 72.0 | 70.5 |
 
-Mimir 在其参数量级内 GSM8K（89.9%）与 HumanEval（56.7%）领先；GSM8K 全局第二（仅次于 Gemma 4 E2B think 的 90.3%），HumanEval 优于 Qwen 3.5 2B（47.6%）。MATH 上 Mimir（45.8%）低于 HRM-Text 1B（56.0%）——这与英文基准 MMLU 的表现一致，反映 Mimir 的合成/生成式数据在部分封闭式推理基准上的权衡。平均分 64.1% 比 HRM-Text 1B（46.9%）提升 36.7%，比 SmolLM3 3B（67.9%）低 3.8%。
+Mimir v1 在 <2B（除 v1.5 外）内 GSM8K（89.9%）与 HumanEval（56.7%）领先；但 GSM8K 并非全表第二——Qwen 3.5 9B（95.5）、Gemma 4 E4B think（93.8）、Gemma 4 E4B（92.0）、Ministral 3 8B（91.7）与 v1.5（91.7）均更高，Gemma 4 E2B think（90.3）也略高。HumanEval 优于 Qwen 3.5 2B（47.6%）。MATH 上 Mimir（45.8%）低于 HRM-Text 1B（56.0%）——这与英文基准 MMLU 的表现一致，反映 Mimir 的合成/生成式数据在部分封闭式推理基准上的权衡。平均分 64.1% 比 HRM-Text 1B（46.9%）提升 36.7%，比 SmolLM3 3B（67.9%）低 3.8%。
 
 ### 5.4 丹麦语基准
 
-Table 9（论文 Table 9）给出丹麦语基准结果（10 个任务 + 平均）。这是 Mimir 的主场：HRM-Text 1B 在丹麦语上的惨淡表现（Avg 21.7%）说明其自定义 tokenizer 与训练数据对丹麦语覆盖严重不足，而 Mimir 通过 Gemma-4 tokenizer + 24.7% 丹麦语语料实现了质的飞跃：
+Table 9（论文 Table 4）给出丹麦语基准结果（10 个任务 + 平均）。这是 Mimir 的主场：HRM-Text 1B 的丹麦语平均仅 21.7%；报告作者推测这可能与其 tokenizer 与训练数据对丹麦语的覆盖不足有关（论文未做该归因），而 Mimir 通过 Gemma-4 tokenizer + 24.7% 丹麦语语料实现了大幅提升：
 
 | 模型 | Angry Tweets | DaLA | GEC | PIQA | Daisy | WikiQA | WMT | N.News | IFEval | Hella.-DA | **Avg.** |
 |:-----|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| **Mimir 1B** | **67.4** | **96.1** | **85.6** | 53.7 | **9.6** | **66.8** | 53.9 | 35.87 | 63.9 | 35.3 | **56.8** |
+| **Mimir v1 (1.78B)** | **67.4** | **96.1** | **85.6** | 53.7 | **9.6** | **66.8** | 53.9 | 35.87 | 63.9 | 35.3 | **56.8** |
 | HRM-Text 1B | 42.4 | 26.7 | 0.5 | 13.0 | 0.0 | 34.9 | 25.4 | 26.76 | 18.5 | 28.8 | 21.7 |
 | Qwen 3.5 0.8B | 53.8 | 51.0 | 0.7 | 56.5 | 0.7 | 41.6 | 37.8 | 35.30 | 39.6 | 25.0 | 34.2 |
 | Gemma 3 1B | 54.4 | 41.0 | 3.3 | 72.2 | 1.4 | 42.6 | 45.1 | 35.56 | 47.2 | 24.8 | 36.8 |
@@ -284,23 +286,25 @@ Table 9（论文 Table 9）给出丹麦语基准结果（10 个任务 + 平均�
 | Qwen 3.5 4B | 69.1 | 50.1 | 42.6 | 70.4 | 4.7 | 57.1 | 52.1 | 37.03 | 73.7 | 34.7 | 49.2 |
 | Gemma 4 E2B | 64.6 | 56.7 | 36.9 | 46.3 | 5.6 | 44.1 | 55.2 | 35.67 | 75.5 | 25.6 | 44.6 |
 | Gemma 4 E2B (think) | 67.7 | 66.8 | 23.4 | 63.9 | 5.1 | 59.3 | 56.0 | 36.30 | 81.2 | 39.0 | 49.9 |
-| Munin-Apertus 8B | 60.6 | 46.1 | 42.1 | 81.5 | 12.5 | 49.9 | 55.8 | 30.30 | 53.0 | 24.5 | 45.6 |
-| Munin-Mistral 8B | 61.3 | 48.8 | 26.4 | 76.9 | 8.4 | 48.4 | 51.8 | 32.92 | 67.8 | 33.6 | 45.6 |
-| Munin-Qwen 9B | 69.1 | 60.6 | 11.4 | 38.9 | 5.4 | 55.7 | 56.1 | 35.89 | 71.8 | 34.3 | 43.9 |
+| Qwen 3.5 9B | 68.9 | 70.1 | 52.0 | 62.0 | 8.5 | 50.4 | 54.8 | 22.3 | 70.8 | 70.7 | 53.1 |
+| Apertus 8B | 63.5 | 51.5 | 37.6 | 69.4 | 10.8 | 59.4 | 55.8 | 21.3 | 56.0 | 40.0 | 46.5 |
+| Ministral 3 8B | 63.9 | 58.9 | 17.9 | 63.0 | 7.3 | 48.7 | 50.2 | 18.4 | 48.6 | 45.5 | 42.2 |
+| Gemma 4 E4B | 69.7 | 63.0 | 49.4 | 71.3 | 7.9 | 53.5 | 57.3 | 22.0 | 77.3 | 64.3 | 53.6 |
+| Gemma 4 E4B (think) | 69.9 | 72.6 | 39.7 | 69.4 | 7.6 | 60.6 | 57.5 | 21.4 | 80.4 | 66.2 | 54.5 |
 
-Mimir 在语法任务（DaLA 96.1% F1、GEC 85.6% EM）、问答任务（WikiQA 66.8% EM）上超越所有对比模型（包括 8-9B 的 Munin 系列），在 Nordjylland News 摘要（35.87 chrF）上接近最优。平均分 56.8% 遥遥领先——次优为 Gemma 4 E2B (think) 的 49.9%，Qwen 3.5 4B（49.2%）居第三。PIQA（53.7%）与 IFEval（63.9%）弱于 Qwen 3.5 4B（70.4% / 73.7%）与 Gemma 4 E2B think（63.9% / 81.2%），表明常识与指令跟随仍受 1B 参数量限制。
+Mimir 在语法任务（DaLA 96.1% F1、GEC 85.6% EM）、问答任务（WikiQA 66.8% EM）上超越所有外部对比模型（包括 8-9B 的 Qwen 3.5 9B、Gemma 4 E4B 系列与 Apertus 8B），在 Nordjylland News 摘要（35.87 chrF）上接近最优。平均分 56.8% 大幅领先——外部模型次优为 Gemma 4 E4B (think) 的 54.5%，其后为 Gemma 4 E4B（53.6%）与 Qwen 3.5 9B（53.1%）；论文的 v1.5 达 63.0%。PIQA（53.7%）与 IFEval（63.9%）弱于 Qwen 3.5 4B（70.4% / 73.7%）与 Gemma 4 E2B think（63.9% / 81.2%），表明常识与指令跟随仍受 1.78B（sub-2B）参数量限制。
 
-![Figure 1: Aggregate results comparing DFM Mimir 1B against the HRM-Text 1B, Qwen 3.5 2B and Gemma 4 E2B, displaying highly competitive performance across 20 benchmarks.](Figures/2026-08-19-dfm-mimir-permissible-hrm-fig1.png)
+![Figure 1: Aggregate results comparing Mimir v1 and v1.5 against frontier models from 0.8B to 9B, such as HRM-Text 1B, Gemma 4 E4B, and Qwen 3.5 9B, displaying highly competitive performance across 20 benchmarks.](Figures/2026-08-19-dfm-mimir-permissible-hrm-fig1.png)
 
-*图1：论文 Figure 1 展示了 Mimir 1B 与 HRM-Text 1B、Qwen 3.5 2B、Gemma 4 E2B 在英语、数学与代码、丹麦语三组套件上的平均分对比——Mimir 在丹麦语上的优势与在英语上的竞争力一目了然，是全文核心结论的可视化。*
+*图1：论文 Figure 1 展示了 Mimir v1 与 v1.5 相对 0.8B–9B 前沿模型（如 HRM-Text 1B、Gemma 4 E4B、Qwen 3.5 9B）在英语、数学与代码、丹麦语三组套件上的聚合平均分——Mimir 在丹麦语上的优势与在英语上的竞争力一目了然，是全文核心结论的可视化。*
 
 ### 5.5 总体分析
 
 三个维度的对比呈现一致图景：
 
-- **同架构对比**：Mimir 相对 HRM-Text 1B 的改进集中在数据与训练配方——英语 Avg 66.1% → 69.0%（+2.9 pp）、Math & Code 46.9% → 64.1%（+36.7% 相对提升）、丹麦语 21.7% → 56.8%。HRM-Text 1B 的 HumanEval 为 0.0%、丹麦语 GEC 仅 0.5%、DaLA 仅 26.7%，说明其自定义 tokenizer 与数据配比在代码与丹麦语上的系统性缺陷；Mimir 的 Gemma-4 tokenizer 与生成式数据配比直接修复了这两块短板。
-- **跨规模对比**：Mimir 1B 在英语与丹麦语平均分上逼近乃至超过 4-5B 模型（Qwen 3.5 4B 英语 69.3% vs Mimir 69.0%；丹麦语 49.2% vs 56.8%），在 GSM8K 上超过所有 2-3B 与 4-5B 模型（除 Gemma 4 E2B think 外）。这与 HRM 架构「固定参数量下近似无界计算深度」的设计目标一致。
-- **明确的短板**：MATH（45.8%）、MMLU（57.5%）与 IFEval 指令跟随（丹麦语 63.9%）弱于同量级最优模型；Math & Code 平均分仍落后 Gemma 4 E2B（75.4%）11.3 pp。论文将 MATH/MMLU 的落后归因于数据配比从多选题向自由生成的转变（exact-match 导向），将整体差距归因于参数量与数据规模上限。
+- **同架构对比**：Mimir 相对 HRM-Text 1B 的改进集中在数据与训练配方——英语 Avg 66.1% → 69.0%（+2.9 pp）、Math & Code 46.9% → 64.1%（+36.7% 相对提升）、丹麦语 21.7% → 56.8%。HRM-Text 1B 的 HumanEval 为 0.0%、丹麦语 GEC 仅 0.5%、DaLA 仅 26.7%；报告作者推测这与两者在 tokenizer 与数据配比上的差异有关，但论文未做消融，不能据此断言因果。
+- **跨规模对比**：Mimir v1（1.78B）在英语与丹麦语平均分上逼近乃至超过 4-5B 模型（Qwen 3.5 4B 英语 69.3% vs Mimir 69.0%；丹麦语 49.2% vs 56.8%），在 GSM8K 上超过所有 2-3B 与 4-5B 模型（除 Gemma 4 E2B think 外）。这与 HRM 架构「固定参数量下近似无界计算深度」的设计目标一致。
+- **明确的短板**：MATH（45.8%）、MMLU（57.5%）与 IFEval 指令跟随（丹麦语 63.9%）弱于同量级最优模型；Math & Code 平均分仍落后 Gemma 4 E2B（75.4%）11.3 pp。报告作者推测 MATH/MMLU 的落后与数据配比从多选题向自由生成的转变（exact-match 导向）有关；论文本身未对该落后做归因，仅在 Related Work 中称指令格式训练数据可能是其超越对比模型的「one plausible contributor」，并明确表示未隔离该因素。
 
 ## 第 6 章 代码实现与开源生态
 
@@ -324,22 +328,22 @@ Mimir 的训练框架完全开源：https://github.com/schneiderkamplab/HRM-Text
 
 ### 6.3 数据开源
 
-161 个训练数据集几乎全部在 HuggingFace Hub 上公开（论文附录 A 的 Table 10 列出完整清单与 token 规模），例外仅为协议授权数据（DBC、Lex.dk，约 0.67B tokens）与许可不允许公开共享的部分。数据管线 companion 仓库 schneiderkamplab/data_io（及上游 sapientinc/data_io）负责清洗、分词与分层采样。
+161 个训练数据集几乎全部在 HuggingFace Hub 上公开（论文附录 E 的 Table 13 列出完整清单与 token 规模），例外仅为协议授权数据（DBC、Lex.dk，约 0.67B tokens）与许可不允许公开共享的部分。数据管线 companion 仓库 schneiderkamplab/data_io（及上游 sapientinc/data_io）负责清洗、分词与分层采样。
 
 ## 第 7 章 局限性与未来方向
 
 ### 7.1 Math & Code 仍落后于更大有效规模的模型
 
-Mimir 的 Math & Code Avg 为 64.1%，落后 Gemma 4 E2B 的 75.4%（think 模式 70.5%）约 11.3 分，也落后 SmolLM3 3B（67.9%）3.8 分。需要指出的是，Gemma 4 E2B 虽以有效参数命名，实际为 5B 总参数 / 2.3B 有效参数，仍显著大于 Mimir 的 1B。细项上差距同样明显：MATH 45.8% vs 64.2%，HumanEval 56.7% vs 73.8%。
+Mimir 的 Math & Code Avg 为 64.1%，落后 Gemma 4 E2B 的 75.4%（think 模式 70.5%）约 11.3 分，也落后 SmolLM3 3B（67.9%）3.8 分。需要指出的是，Gemma 4 E2B 虽以有效参数命名，实际为 5B 总参数 / 2.3B 有效参数，仍显著大于 Mimir 的 1.78B。细项上差距同样明显：MATH 45.8% vs 64.2%，HumanEval 56.7% vs 73.8%。
 
 ### 7.2 助手能力有限，RL 尚未探索
 
-论文自述模型的通用助手能力仍然有限。一个佐证是丹麦语 IFEval：Mimir 1B 为 63.9%，低于 Gemma4 E2B (think) 的 81.2% 与 Qwen3.5 4B 的 73.7%。此外，强化学习（RL）后训练完全未探索，作者将其留作后续提升指令遵循与推理能力的方向。
+论文自述模型的通用助手能力仍然有限。一个佐证是丹麦语 IFEval：Mimir v1（1.78B）为 63.9%，低于 Gemma4 E2B (think) 的 81.2% 与 Qwen3.5 4B 的 73.7%。此外，强化学习（RL）后训练完全未探索，作者将其留作后续提升指令遵循与推理能力的方向。
 
 ### 7.3 HRM 缩放行为待研究
 
-本文只在 1B 规模上验证了「permissible post-training 数据 + HRM」的配方，HRM 在更大参数量与更大计算预算下的缩放行为（scaling behavior）仍是开放问题。
+本文在 1.78B 规模（v1 及其继续训练版本 v1.5，均属 sub-2B）上验证了「permissible post-training 数据 + HRM」的配方；论文将 HRM 在更大参数量与更大计算预算下的缩放行为（scaling behavior）列为未来工作。
 
 ### 7.4 数据全开放目标
 
-将训练数据完全开放是项目的持续目标：当前模型权重已在 Hugging Face Hub 发布，训练框架以 Apache 2.0 开源，论文亦给出 161 个数据集的完整清单（Appendix A, Table 10），以便社区审计与复现。
+将训练数据完全开放是项目的持续目标：当前模型权重已在 Hugging Face Hub 发布，训练框架以 Apache 2.0 开源，论文亦给出 161 个数据集的完整清单（Appendix E, Table 13），以便社区审计与复现。

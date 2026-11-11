@@ -1,10 +1,10 @@
 > **论文**：Mask-Aware Policy Gradients for Diffusion Language Models
 > **作者**：Haran Raajesh, Kulin Shah, Adam Klivans, Philipp Krähenbühl (The University of Texas at Austin)
 > **arXiv ID**：2607.15200
-> **发表时间**：2026-07-18
+> **发表时间**：2026-07-16
 > **会议**：COLM 2026
 > **许可协议**：CC BY 4.0
-> **代码仓库**：https://github.com/Haran71/mask-aware-policy-gradients（代码即将发布）
+> **代码仓库**：https://github.com/Haran71/mask-aware-policy-gradients
 
 ## 第 1 章 概述
 
@@ -30,13 +30,13 @@
 1. **形式化双阶段动作MDP**：将MDLM的生成过程建模为每步先预测token、再选择remasking位置的双阶段MDP，证明策略梯度自然分解为token项和masking项。
 2. **概率化remasking机制**：提出基于Plackett-Luce采样的概率化remasking替代贪心top-K选择，使得remasking决策可微分，从而纳入策略梯度优化。
 3. **零额外开销的位置梯度**：位置log-probability仅从模型自身的输出logits计算，无需额外参数或前向传播，兼容任何标准策略梯度算法（论文使用GSPO）。
-4. **全面SOTA**：在GSM8K（87.1%）、MATH500（44.2%）、HumanEval（44.0%）、MBPP（53.4%）上超越所有现有方法，训练效率比最强基线SPG快1.9倍。
+4. **全面SOTA**：在GSM8K（87.1%）、MATH500（44.2%）、HumanEval（44.0%）、MBPP（53.4%）上超越所有现有方法，达到74%准确率比最强基线SPG快1.9倍（达到SPG最终准确率约15小时 vs SPG约18小时）。
 
 ### 1.3 关键结果速览
 
-- GSM8K：**87.1%**（生成长度512），相比StepMerge提升 +2.1pp
-- MATH500：**44.2%**（生成长度512），相比StepMerge提升 +2.4pp
-- HumanEval：**44.0%**（生成长度512），相比StepMerge提升 +2.9pp
+- GSM8K：**87.1%**（生成长度512），相比StepMerge提升 +2.3pp
+- MATH500：**44.2%**（生成长度512），相比StepMerge提升 +3.0pp
+- HumanEval：**44.0%**（生成长度512），相比StepMerge提升 +3.3pp
 - MBPP：**53.4%**（生成长度512），相比StepMerge提升 +2.5pp
 - 相比SPG达到74%准确率加速 **1.9倍**（4.5h vs 8.6h）
 - 在Sudoku上达到 **96.2%**（生成长度512），超越SPG的93.1%
@@ -76,7 +76,7 @@ $$
 
 现有方法分为两类：
 
-**ELBO方法**（d1、GDPO、SPG等）估计对数似然为ELBO变体，仅建模token预测分量。SPG（Sandwiched Policy Gradient）结合ELBO和EUBO边界，是目前最强的ELBO基线。
+**ELBO方法**（d1、GDPO、SPG等）估计对数似然为ELBO变体，仅建模token预测分量。SPG（Sandwiched Policy Gradient）结合ELBO和EUBO边界，是本文设置下最强的ELBO基线。
 
 **轨迹方法**（d2/StepMerge等）在轨迹级别上重写期望回报，估计轨迹对数似然 $\log \pi_{\boldsymbol{\theta}}(\boldsymbol{z}|\boldsymbol{c})$。但现有轨迹方法将MDLM轨迹简化为仅包含token预测步骤的序列，完全忽略了remasking位置选择对轨迹概率的贡献。
 
@@ -140,7 +140,7 @@ $$
 | 额外参数 | 无 | 无 | 无 | 需训练一个独立模块 |
 | 训练成本[^1] | ~160 GPU小时 | ~360 GPU小时 | ~300 GPU小时 | ~800 GPU小时 |
 
-与DCoLT的关键区别：DCoLT需要训练一个独立的位置选择头，而本文方法从模型自身的token log-likelihood导出位置分数，无需额外参数且训练效率更高（290步/小时 vs DCoLT的48步/小时）。
+与DCoLT的关键区别：DCoLT需要训练一个独立的位置选择头，而本文方法从模型自身的token log-likelihood导出位置分数，无需额外参数且训练效率更高（290步/小时 vs DCoLT full replay的48步/小时；DCoLT w/ StepMerge为280步/小时）。
 
 ## 第 4 章 实验设置与主结果
 
@@ -215,7 +215,7 @@ $$
 
 ### 5.1 训练效率（Table 2）
 
-本文比较了与SPG（最强ELBO基线）的训练效率，全部使用相同硬件（8× H100）和配置：
+本文比较了与SPG（本文设置下最强ELBO基线）的训练效率，全部使用相同硬件（8× H100）和配置：
 
 **(a) 效率总结**
 
@@ -238,7 +238,7 @@ $$
 | 79% | — | 16.5 | — |
 | 80% | — | 18.3 | — |
 
-虽然本文方法的每步吞吐量较低（290 vs 360步/小时，因为轨迹估计器每次优化需要更多前向传播），但位置感知梯度在更少的步数内收敛到更高的准确率。两个方法在3个随机种子上的最终准确率差异不超过0.2个百分点，因此这些差异不来自随机波动。
+虽然本文方法的每步吞吐量较低（290 vs 360步/小时，因为轨迹估计器每次优化需要更多前向传播），但位置感知梯度在更少的步数内收敛到更高的准确率。本文方法的最终准确率在3个随机种子间的波动不超过0.2个百分点，因此81.0与78.5的差异不来自随机波动。
 
 ### 5.2 推理Block Size消融
 
@@ -255,7 +255,7 @@ $$
 | StepMerge | 83.3 | 39.1 | 83.7 | 40.2 | 58.7 | 23.8 |
 | **Ours** | **85.9** | **42.2** | **86.3** | **43.6** | **63.1** | **27.5** |
 
-本文方法在所有block size上均超越基线，且差距随block size增大而扩大。对SPG的领先从+2.0（block 32 GSM8K）增长到+4.3（full sequence GSM8K），对StepMerge从+2.6增长到+4.4。这验证了随着扩散窗口扩大，位置选择的重要性增加：更大的block在每步呈现更多掩码位置，增加了remasking顺序的多样性，放大了masking-aware优化带来的收益。
+本文方法在SPG和StepMerge两个直接对比基线、所有block size上均取得更优结果，且相对二者的差距随block size增大而扩大。对SPG的领先从+2.0（block 32 GSM8K）增长到+4.3（full sequence GSM8K），对StepMerge从+2.6增长到+4.4。这验证了随着扩散窗口扩大，位置选择的重要性增加：更大的block在每步呈现更多掩码位置，增加了remasking顺序的多样性，放大了masking-aware优化带来的收益。
 
 ### 5.3 与DCoLT的对比（Table 5）
 
@@ -275,15 +275,15 @@ LLaDOU（DCoLT，Huang et al., 2025）与本文共享「remasking顺序应纳入
 
 1. **仅评估了LLaDA-8B-Instruct和Dream-7B两个基座**：方法在更大规模MDLM（如LLaDA-13B及以上）上的表现尚未验证。
 2. **位置梯度的理论最优性未证明**：虽然论文证明了token-only梯度可能遗漏改进方向，但未证明本文的分解方式是最优的。
-3. **仅使用GSPO作为RL算法**：位置梯度与其他RL算法（如GRPO、PPO）的兼容性有待检验。
-4. **代码仓库暂为空仓**：论文声称代码即将发布，但目前不可用，限制了可复现性。
+3. **主结果仅使用GSPO**：附录E.2对比了RLOO和GRPO并验证了兼容性（GSPO最强），但未测试PPO等更广泛的RL算法及更大规模设置。
+4. **代码仓库暂为空仓**：论文给出了代码链接 https://github.com/Haran71/mask-aware-policy-gradients，但当前无法获取内容（论文未说明发布状态），限制了可复现性。
 
 ### 6.2 延伸阅读
 
 - **LLaDA**（Nie et al., 2025）：首个大规模纯扩散语言模型，本文的基座模型，证明了扩散LLM可接近自回归性能。
-- **SPG**（Wang et al., 2026）：当前最强的ELBO基线，结合ELBO和EUBO边界进行策略梯度估计。
+- **SPG**（Wang et al., 2026）：本文设置下最强的ELBO基线，结合ELBO和EUBO边界进行策略梯度估计。
 - **StepMerge/d2**（Wang et al., 2025a）：轨迹方法的代表，将去噪步分组简化轨迹对数似然估计。
-- **DCoLT/LLaDOU**（Huang et al., 2025）：首个将位置选择纳入策略的工作，但需独立位置头。
+- **DCoLT/LLaDOU**（Huang et al., 2025）：将位置选择纳入RL策略的代表工作，但需独立位置头。
 - **GSPO**（Zheng et al., 2025）：本文使用的RL优化算法，通过序列级裁剪改进GRPO。
 
 [^1]: 训练成本为其他方法的估算值。Ours (~160) 和 DCoLT (~800) 来自论文 Table 5；ELBO 方法 (~360) 基于 SPG 报告的训练规模和硬件配置推算；StepMerge (~300) 基于轨迹方法的典型训练规模推算。这些数值为估算，仅供参考。

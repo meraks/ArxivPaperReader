@@ -26,7 +26,7 @@ Agent Lightning v1.0 是一个以简单性为第一原则、仅约 3500 行代�
 1. **命名并系统刻画 harnessed agentic RL 范式**：指出其与传统 agentic RL 的本质差异——环境交互循环由 harness 而非训练引擎持有，训练引擎只能观测 LLM 请求-响应对序列；该范式源自原 Agent Lightning（arXiv:2508.03680）的 proxy 架构，近期被 verl Uni-Agent、AReaL 2.0、slime v0.3.0、Polar 采纳。
 2. **首次全面阐述五大实现挑战**：retokenization、sample merging、advantage calculation、loss normalization、training backend scheduling；指出现有框架对这些问题的处理大多未加明确说明，处理不当会导致训练无效或不稳定。
 3. **Agent Lightning v1.0 框架**：约 3500 行代码实现，支持任意 agent harness，内嵌 rollout-level advantage 计算与 rollout-level token-mean loss 归一化等设计选择，是研究上述挑战的实用测试床。
-4. **collocated async RL 调度**：rollout 与权重更新共享同一 GPU 池，同时免去等待最慢 rollout；实验中相对同步 RL 取得约 2x 端到端加速，且使用更少 GPU。
+4. **collocated async RL 调度**：rollout 与权重更新共享同一 GPU 池，同时免去等待最慢 rollout；实验中相对同步 RL 取得约 2x 端到端加速，相比 async RL 使用更少 GPU。
 5. **完整可复现的 coding agent RL 流水线**：基于 SWE-smith 的数据清洗管线、防 reward hacking 措施与可复现训练脚本；仅用 6K 训练样本与适度算力，将 Qwen3.5-9B 在 SWE-bench Verified 上从 41.8% 提升到 56.4%（+14.6pp）。
 6. **全开源与自托管执行**：agent 以 Kubernetes Job 形式在自托管集群上执行，不依赖 Modal Sandbox、Volcano veFaas、E2B 等商业沙箱服务，整个训练栈保持开源。
 
@@ -100,7 +100,7 @@ $$C_t^{\mathrm{msg}} = \operatorname{Context}_H(s_t^{\mathrm{harness}}), \qquad 
 
 $$z_t = (p_t^{\mathrm{tok}}, a_t^{\mathrm{tok}}), \qquad a_t^{\mathrm{tok}} \sim \pi_\theta(\cdot \mid p_t^{\mathrm{tok}})$$
 
-与 Eq.1 不同，Eq.6 的各 $z_t$ 之间没有任何显式转移关系——第 $t+1$ 次 prompt 完全由 harness 的隐式状态决定。训练系统要把 $\{z_t\}$ 重新组装成训练样本，只能依赖相邻调用 prompt 之间的前缀关系，而这正是本章四类挑战的共同根源。
+与 Eq.1 不同，Eq.6 的各 $z_t$ 之间没有任何显式转移关系——第 $t+1$ 次 prompt 完全由 harness 的隐式状态决定。训练系统要把 $\{z_t\}$ 重新组装成训练样本，通常只能依赖相邻调用 prompt 之间的 token 前缀关系；但 harness 派生子 agent、摘要上下文等操作会产生不共享线性历史的调用序列，由此带来样本数动态变化等本章挑战。
 
 ### 3.2 Retokenization 与样本合并
 
@@ -114,7 +114,7 @@ $$z_t = (p_t^{\mathrm{tok}}, a_t^{\mathrm{tok}}), \qquad a_t^{\mathrm{tok}} \sim
 
 | 策略 | 代表实现 | 机制 | 主要代价 |
 |:---|:---|:---|:---|
-| Train independently（不替换） | slime、Polar | 每个调用独立成训练样本，不做前缀替换 | 长 prompt 前缀跨调用重复计算 |
+| 不做 buffered replacement | slime、Polar | 论文仅说明二者不做 request-buffer 式的 token 替换，未明确其具体样本合并策略 | 论文未展开 |
 | Buffered replacement | AReaL、verl Uni-Agent | 维护 request buffer，在重分词分叉处用先前请求的 token 替换续接，强行恢复前缀连续性 | 拼接片段可能并非当前策略在该上下文采样所得，引入 off-policy stitching（Eq.12–13） |
 | Tree-structured training | 论文未点名 | 将分叉的 token 前缀组织为树结构，共享前缀的计算与训练 | 训练后端实现复杂度高 |
 | Best-effort merging | Agent Lightning v1.0 | 仅当相邻调用的 token 前缀精确匹配时才合并为同一训练样本，否则各自独立成样本 | 无法合并的调用退化为独立短样本，rollout 内样本数变为动态 |
@@ -187,7 +187,7 @@ Gateway 管理三类对象：
 对外提供两类 API（完整端点列表见第 6 章 Table 1）：
 
 - **rollout API**：`POST/GET /api/rollouts`、PATCH 更新状态、事件读写、`POST/DELETE /api/models`，供 Trainer 与 Controller 操作控制面对象；
-- **proxy API**：`POST /proxy/rollout/{rollout_id}/attempt/{attempt_id}/mode/{mode}/openai/v1/chat/completions`——OpenAI 兼容的 chat completions 端点，rollout ID、attempt ID 与 mode 直接编码在 URL 路径中；harness 只需把 LLM base URL 指向 Gateway 即可零改动接入，每次调用据此自动归属到正确的 rollout，并被记录为 model_request 事件。
+- **proxy API**：`POST /proxy/rollout/{rollout_id}/attempt/{attempt_id}/mode/{mode}/openai/v1/chat/completions`——OpenAI 兼容的 chat completions 端点，rollout ID、attempt ID 与 mode 直接编码在 URL 路径中；harness 只需把 LLM base URL 指向 Gateway 即可几乎零改动接入，每次调用据此自动归属到正确的 rollout，并被记录为 model_request 事件。
 
 ### 4.3 Rollout Controller
 
@@ -200,7 +200,7 @@ Controller 提供两种执行后端，共用同一 reconciliation 接口：
 
 ### 4.4 Customized Trainer
 
-训练循环为：向 Gateway 注册 rollout → 等待状态变为 succeeded → 从 model_request 事件流组装训练样本。组装逻辑集中在 **Sample Adapter**，将第 3 章的设计选择固化为默认实现：
+训练循环为：向 Gateway 注册 rollout → 等待状态变为终态（succeeded 或 failed）→ 从 model_request 与 reward 事件组装训练样本。组装逻辑集中在 **Sample Adapter**，将第 3 章的设计选择固化为默认实现：
 
 1. **token-prefix 合并**（对应 3.2）：仅 token 前缀精确匹配的相邻调用才合并，即 best-effort merging；
 2. **rollout 级 advantage**（对应 3.3）：组单位为 rollout，不受样本拆分影响；
@@ -216,7 +216,7 @@ rollout 与权重更新的 GPU 调度有三种方案（Figure 6）：
 - **async RL**：rollout 与训练各占一个专用 GPU 池、两边并行，但维护两个池的成本过高；
 - **collocated async RL**（本文方案）：rollout 与 update 共享同一 GPU 池。
 
-collocated 方案的工作流：数据收集满一次 update 所需 → update 开始 → Gateway 停止接受新请求，等待进行中的请求完成 → 新请求被暂停排队 → 共享池切换执行 update 并换入新权重 → 恢复接受请求。暂停与恢复对 harness 完全不可见——harness 无需任何改动，只是感知到请求延迟的变化。实验中相对 sync RL 取得约 2x 的端到端加速，且使用的 GPU 更少。
+collocated 方案的工作流：数据收集满一次 update 所需 → update 开始 → Gateway 停止接受新请求，等待进行中的请求完成 → 新请求被暂停排队 → 共享池切换执行 update 并换入新权重 → 恢复接受请求。暂停与恢复对 harness 完全不可见——harness 无需任何改动，只是感知到请求延迟的变化。实验中相对 sync RL 取得约 2x 的端到端加速，且相比 async RL 使用更少 GPU。
 
 ![Figure 6: Comparison of sync, async, and collocated async RL](Figures/2026-08-20-agent-lightning-harnessed-agentic-rl-fig6.png)
 
@@ -226,7 +226,7 @@ collocated 方案的工作流：数据收集满一次 update 所需 → update �
 
 harness、Gateway 与 LLM 推理端分处不同进程乃至不同集群，网络故障与重试是常态。Gateway 以两项设计保证可靠性：
 
-1. **幂等 endpoints**：API Gateway 的端点均为幂等，客户端可安全重试，重复提交不会破坏控制面状态；
+1. **幂等 endpoints**：API Gateway 的 rollout 端点均为幂等，客户端可安全重试，重复提交不会破坏控制面状态；
 2. **LLM 调用去重**：重试可能使同一 prompt 被多次采样，组装训练数据时对相同 prompt 只保留最后一次响应，避免同一生成被重复计入训练。
 
 ### 4.7 Kubernetes 集成与监控
@@ -236,7 +236,7 @@ harness、Gateway 与 LLM 推理端分处不同进程乃至不同集群，网络
 监控方面，系统记录每个 rollout 的完整轨迹与 K8s pod 日志；由于轨迹集中留存，可再派一个 AI agent 审查这些轨迹、自动发现 reward hacking 行为（第 5 章将展示 coding agent 训练中观测到的 4 种 hacking 模式）。
 ## 第 5 章 实验结果与分析
 
-实验覆盖三类 agent：search agent（Search-R1 设置）、通用指令跟随 agent（LLM-in-Sandbox）、coding agent（SWE-smith 任务 + mini-SWE-agent harness）。前两者验证任意 harness 零改动接入即可有效训练；coding agent 的 rollout 因 retokenization 大量拆分、且存在绕过修复直接通过测试的捷径动机，是三者中样本动力学最复杂、reward hacking 风险最高的设置，论文据此展开数据清洗（5.3 节）、hacking 防护（5.4 节）与训练动力学消融（5.5 节）。
+实验覆盖三类 agent：search agent（Search-R1 设置）、通用指令跟随 agent（LLM-in-Sandbox）、coding agent（SWE-smith 任务 + mini-SWE-agent harness）。前两者分别基于 Search-R1 与 LLM-in-Sandbox 的既有实现，验证了几乎零改动接入即可有效训练；支持任意 harness 是框架的设计目标。coding agent 的 rollout 因 retokenization 大量拆分、且在训练中观测到多种直接获取参考源码的 hacking 行为，论文因此对其数据清洗（5.3 节）、hacking 防护（5.4 节）与训练动力学消融（5.5 节）做了最详细的展开。
 
 ### 5.1 Search Agent
 
@@ -327,13 +327,13 @@ $$\mathcal{L}_{\text{rollout-mean}} = \frac{1}{|\mathcal{R}|}\sum_{\rho\in\mathc
 
 - 单独切换 advantage 口径是负收益：35.0% → 33.1%（−1.9pp）；
 - advantage 与归一化配套切换到 rollout 级：35.0% → 38.2%（+3.2pp，相对仅换 advantage 再 +5.1pp）；
-- RA+RN 组合的策略熵增长更慢、更稳定。
+- RA+RN 组合相对仅切换 rollout 级 advantage 的变体，策略熵增长更慢、更稳定。
 
-结论：两个口径是耦合的设计，必须一起切换；该最优组合正是 Sample Adapter 的默认实现（6.2 节）。
+结论：在该 coding agent 消融中，两个口径需配套切换才能取得增益；该最优组合正是 Sample Adapter 的默认实现（6.2 节）。
 
 ![Figure 9: Ablation of advantage granularity and loss normalization on the coding agent](Figures/2026-08-20-agent-lightning-harnessed-agentic-rl-fig9.png)
 
-*图9：Coding agent 三设置训练动态——sample 级 advantage（baseline）、rollout 级 advantage、rollout 级 advantage + rollout-mean 归一化的对比：RA+RN 验证奖励最高（@step 128 达 38.2%）且熵增长更慢更稳定，单独换 rollout 级 advantage 反而降至 33.1%*
+*图9：Coding agent 三设置训练动态——sample 级 advantage（baseline）、rollout 级 advantage、rollout 级 advantage + rollout-mean 归一化的对比：RA+RN 验证奖励最高（@step 128 达 38.2%），且熵相比仅切换 rollout 级 advantage 的变体增长更慢、更稳定；单独换 rollout 级 advantage 反而降至 33.1%*
 
 采用 RA+RN 设置训练，报告的 checkpoint 取自 step 208：SWE-bench Verified 上 Qwen3.5-9B 从 41.8% 提升到 56.4%（+14.6pp），训练仅消耗 ~6K 样本（5.3 节清洗后的 train split）。消融的背景是 best-effort merging 的实测拆分行为（论文 Figure 10）：36% 的 rollout 保持单一训练样本，平均每 rollout 2.41 个训练样本——动态样本数正是 3.3/3.4 节两个口径问题在实践中的规模。
 
@@ -376,7 +376,7 @@ v0.x 分支保留 2025 年原始论文（arXiv:2508.03680，2025-08-05 提交）
 
 **Rollout Controller**。两个执行后端共用同一 reconciliation 接口：K8s Reconciler 按标准 controller 模式实现（watch + periodic list），把 rollout 调和为自托管集群上的 K8s Job；Local Reconciler 以本地进程池执行。控制面由 declarative rollout 抽象加 reconciliation loop 驱动：Gateway 存储是唯一 ground truth，Controller 崩溃或滞后后按 best-effort eventual consistency 收敛（4.3 节）；端点的幂等性（4.6 节）使重试与重放不破坏控制面状态。
 
-**Customized Trainer 与 Sample Adapter**。Trainer 构建在 VERL 之上、推理后端为 vLLM，训练循环为：注册 rollout → 等待状态变为 succeeded → 从 model_request 事件流组装训练样本。组装规则固化在 Sample Adapter 的三个默认设计选择：
+**Customized Trainer 与 Sample Adapter**。Trainer 构建在 VERL 之上、推理后端为 vLLM，训练循环为：注册 rollout → 等待状态变为终态（succeeded 或 failed）→ 从 model_request 与 reward 事件组装训练样本。组装规则固化在 Sample Adapter 的三个默认设计选择：
 
 1. **exact token-prefix merge**：仅 token 前缀精确匹配的相邻调用才合并，即 best-effort merging（3.2 节）；
 2. **rollout 级 advantage**：组单位为 rollout，不受样本拆分影响（3.3 节）；
@@ -400,8 +400,8 @@ v0.x 分支保留 2025 年原始论文（arXiv:2508.03680，2025-08-05 提交）
 ### 6.4 部署要求
 
 - **执行层（自托管 K8s）**：rollout 以 K8s Job 运行于自托管集群，不依赖商业沙箱——对照 verl Uni-Agent（Modal / Volcano veFaas）与 slime（E2B）；本地开发可退回 Local Reconciler 进程池。
-- **训练栈（verl + vLLM）**：Customized Trainer 基于 VERL，推理用 vLLM；collocated async RL 下 rollout 与 update 共享同一 GPU 池，较 sync RL 约 2x 端到端加速且 GPU 更少（4.5 节）。
-- **接入面（OpenAI 兼容代理）**：任意 OpenAI 兼容 harness 将 base URL 指向 Gateway 的 proxy 端点（6.2 节 Table 1）即完成接入，agent 代码零改动。
+- **训练栈（verl + vLLM）**：Customized Trainer 基于 VERL，推理用 vLLM；collocated async RL 下 rollout 与 update 共享同一 GPU 池，较 sync RL 约 2x 端到端加速，且相比 async RL 使用更少 GPU（4.5 节）。
+- **接入面（OpenAI 兼容代理）**：任意 OpenAI 兼容 harness 将 base URL 指向 Gateway 的 proxy 端点（6.2 节 Table 1）即完成接入，agent 代码几乎无需改动。
 - **可靠性**：幂等端点，加上对相同 prompt 仅保留最后一次响应的 LLM 调用去重（4.6 节），应对跨集群网络故障与重试。
 - **存储**：coding 管线的 Docker 环境 295 GB（5.3 节），显著低于同类环境的 4–6 TB。
 

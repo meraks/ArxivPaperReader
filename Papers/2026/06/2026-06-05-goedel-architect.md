@@ -5,7 +5,7 @@
 
 > **论文标题**：Goedel-Architect: Streamlining Formal Theorem Proving with Blueprint Generation and Refinement  
 > **作者**：Jui-Hui Chung\*, Ziyang Cai\*, Zihao Li, Qishuo Yin, Rohit Agarwal, Simon Park, Rodrigo Porto, Narutatsu Ri, Ziran Yang, Shange Tang, Xingyu Dang, Hongzhou Lin, Mengdi Wang, Danqi Chen, Chi Jin, Liam H Fowl\*†, Sanjeev Arora†  
-> **机构**：Princeton Language and Intelligence (PLI), Princeton University  
+> **机构**：Princeton Language and Intelligence (PLI), Princeton University；Hongzhou Lin 属 Amazon（论文注明本工作独立于 Amazon 的工作）  
 > **arXiv**：[2606.06468](https://arxiv.org/abs/2606.06468) | **日期**：2026-06-05  
 > **模型**：DeepSeek-V4-Flash (284B-A13B MoE) | **成本**：~$0.44/题  
 
@@ -19,7 +19,7 @@ Goedel-Architect 是一个**以依赖图蓝图（Blueprint）为核心**的智�
 
 ### 1.2 为什么这篇论文重要
 
-AI在数学领域的进展令人瞩目——从IMO金牌到解决Erdős问题——但这些成就背后是**昂贵的闭源模型**（AlphaProof、Gemini）和**巨大的计算预算**。Goedel-Architect 的价值在于证明了：使用**完全开源的模型**（DeepSeek-V4-Flash）和**精心设计的智能体Pipeline**，可以在形式化定理证明上匹敌甚至超越依赖闭源前沿模型的系统，而成本仅为后者的 **1/500**。
+AI在数学领域的进展令人瞩目——从IMO金牌到解决Erdős问题——但这些成就背后是**昂贵的闭源模型**（AlphaProof、Gemini）和**巨大的计算预算**。Goedel-Architect 的价值在于证明了：使用**完全开源的模型**（DeepSeek-V4-Flash）和**精心设计的智能体Pipeline**，可以在形式化定理证明上匹敌甚至超越更昂贵的系统——每道题约 **$0.44**，比次优开源Pipeline（Hilbert，约 $244/题）最高低约 **500倍**。
 
 > **类比理解**：如果把形式化定理证明比作建造一座大楼，传统方法（如Hilbert）是"雇佣顶级建筑师（Gemini）逐层施工，发现错误就推倒重来"，而Goedel-Architect是"先用AI画出完整的施工蓝图（依赖图），然后派多个工人（并行证明器）同时建造不同部分，哪个部分出问题就**整体调整蓝图**而不是原地死磕"。
 
@@ -38,9 +38,9 @@ AI在数学领域的进展令人瞩目——从IMO金牌到解决Erdős问题—
 | 基准 | 成绩 | 模式 |
 |------|------|------|
 | MiniF2F-test | **99.2%** pass@1 | 标准 |
-| MiniF2F-test | **100%** pass@1 | +NL证明引导 |
+| MiniF2F-test | **100%**（其中2题额外NL引导采样，非pass@1） | +NL证明引导 |
 | PutnamBench | **75.6%** pass@1 | 标准 |
-| PutnamBench | **88.8%** pass@1 | +NL证明引导 |
+| PutnamBench | **88.8%** pass@4 (+NL) | +NL证明引导 |
 | IMO 2025 | **4/6** 题 | +NL证明引导 |
 | Putnam 2025 | **11/12** 题 | +NL证明引导 |
 | USAMO 2026 | **3/6** 题 | +NL证明引导 |
@@ -62,7 +62,7 @@ Goedel-Architect将先前工作分为三类，并指出了各自的局限：
 | 类别 | 代表系统 | 特点 | 局限 |
 |------|---------|------|------|
 | **非Agent证明器** | Goedel-Prover, DeepSeek-Prover, Kimina-Prover | 单次前向生成，无工具交互 | MiniF2F表现尚可，PutnamBench <15% |
-| **Agent证明器** | AxProverBase, Numina-Lean-Agent | LLM与Lean编译器+Mathlib交织推理 | 使用闭源前沿模型（GPT-4, Claude），成本高 |
+| **Agent证明器** | AxProverBase, Numina-Lean-Agent | LLM与Lean编译器+Mathlib交织推理 | 使用闭源前沿模型（Claude Opus 4.5），成本高 |
 | **Pipeline系统** | Hilbert, Seed-Prover, Draft-Sketch-Prove | 多阶段分解/精炼/草图 | Hilbert：递归分解树但闭源Gemini骨干；Seed-Prover：闭源Pipeline |
 
 **核心差距**：没有一个系统同时满足**(a)开源骨干、(b)开放Pipeline、(c)竞赛级性能、(d)可负担成本**。Goedel-Architect正是填补这一空白的尝试。
@@ -124,7 +124,7 @@ Goedel-Architect 的核心是一个**三阶段循环**：
                              │
                     ┌────────▼────────┐
                     │  循环至全部求解   │
-                    │  或达到最大迭代(4) │
+                    │  或达到精炼预算(8)  │
                     └─────────────────┘
 ```
 
@@ -149,7 +149,7 @@ Goedel-Architect 的核心是一个**三阶段循环**：
 - **输出**：单个 Lean 4 文件，包含 `@[blueprint]` 标注的定义和引理节点
 - **核心格式**：每个引理节点体为 `:= by sorry_using [dep1, dep2, ...]`，声明依赖关系
 - **编译验证**：生成的蓝图必须通过Lean编译器——确保所有节点类型正确、依赖图无环、主定理为唯一汇点
-- **温度**：0.7（比证明阶段的1.0低，因为蓝图需要更结构化）
+- **重试**：生成失败时最多重试8次（单次最大262,144 tokens）
 
 ```lean
 -- 蓝图生成器输出的示例结构
@@ -176,8 +176,7 @@ theorem main_theorem (a b : ℕ) : (a+b)^2 ≥ 4*a*b := by
   - **Lean编译器**：类型检查、揭示当前目标状态
   - **Mathlib语义检索**：在Mathlib中搜索相关定理和策略
 - **策略**：LLM与工具交织交互，直到闭合目标或耗尽预算
-- **预算**：每引理最多64次采样
-- **温度**：1.0（需要多样性探索不同证明路径）
+- **预算**：每引理最多重试4次（单次最大65,536 tokens）
 - **失败返回**：结构化诊断报告（错误类型、失败原因、尝试过的路径）
 - **特殊能力**：当发现反例时，可证明**否定命题**而非原命题
 
@@ -189,7 +188,7 @@ theorem main_theorem (a b : ℕ) : (a+b)^2 ≥ 4*a*b := by
   - 分析失败节点（🔵未解 / 🔴否定）的根本原因
   - **全局重写蓝图**：可引入新引理、加细依赖关系、重组证明结构
 - **与递归分解的关键区别**：精炼器看到**全局失败模式**，而非仅看到单个失败子树
-- **最大迭代**：4轮（根据实验，大多数问题在2-3轮内收敛）
+- **最大迭代**：单次Pipeline默认精炼8轮（MiniF2F每蓝图至多精炼8次，PutnamBench至多16次）
 
 > **类比理解**：递归分解像"在迷宫里沿着一条路走到黑，撞墙了就回头换一条分支"；蓝图精炼像"从直升机上俯瞰迷宫，看到所有死胡同后重新画一张地图"。
 
@@ -220,7 +219,7 @@ theorem main_theorem (a b : ℕ) : (a+b)^2 ≥ 4*a*b := by
 
 对于困难问题（如IMO/USAMO级别的竞赛题），Goedel-Architect允许输入**自然语言证明**作为蓝图生成的"结构脚手架"。工作方式如下：
 
-1. **NL证明来源**：竞赛官方解答、强模型（如GPT-5、Claude 4）生成的非形式化证明
+1. **NL证明来源**：更强模型或成熟的非形式化证明Pipeline生成，也可能是竞赛/题集中的官方解答（本论文中IMO 2025与Putnam 2025使用Gemini 3.1 Pro；PutnamBench使用DeepSeek-V4-Flash/V4-Pro流水线）
 2. **作用方式**：蓝图生成器将NL证明的**逻辑结构**（"首先证明A，然后利用A推导B，最后结合B和C得到结论"）映射为蓝图的**依赖图拓扑**
 3. **关键约束**：NL证明不需要理解Lean语法——它只提供"证明应该长什么样"的高层指导
 
@@ -235,7 +234,7 @@ theorem main_theorem (a b : ℕ) : (a+b)^2 ≥ 4*a*b := by
 | 节点数 | 蓝图中定义的引理数量 | 适度（过少=过于粗糙，过多=过度分解） |
 | 依赖深度 | 从源点到汇点的最长路径 | 适度（深度应与问题难度成正比） |
 | 并行度 | 可同时求解的最大引理数 | 高（最大化并行效率） |
-| 精炼收敛速度 | 达到全解所需的迭代轮数 | <3轮 |
+| 精炼收敛速度 | 达到全解所需的迭代轮数 | 依据精炼预算（论文按8/16轮扩展） |
 
 ---
 
@@ -276,18 +275,13 @@ theorem main_theorem (a b : ℕ) : (a+b)^2 ≥ 4*a*b := by
 
 ### 5.3 结构化诊断与失败模式
 
-当证明器无法在预算内闭合目标时，它返回结构化诊断而非简单的"失败"。诊断包含：
+当证明器无法在预算内闭合目标时，它返回结构化诊断而非简单的"失败"。若预算耗尽，证明器需写一份三段式"forfeit"事后分析：
 
-1. **失败类型**：
-   - `TYPE_ERROR`：类型不匹配
-   - `GOAL_UNREACHABLE`：在当前假设下目标不可达
-   - `STRATEGY_EXHAUSTED`：尝试了所有策略但无一成功
-   - `BUDGET_EXHAUSTED`：预算耗尽但仍在探索
-   - `COUNTEREXAMPLE`：发现了反例
+1. **诊断**：二选一——`STATEMENT_WRONG`（怀疑陈述在假设下为假，但未能实际否证）或 `PROOF_TOO_HARD`（认为命题可证，但无法一次串起现有父节点）
+2. **取证分析**：试过什么、哪些通过编译、卡在哪里
+3. **建议修复**：`STATEMENT_WRONG` 说明为何为假、如何修正陈述；`PROOF_TOO_HARD` 给出helper-lemma分解
 
-2. **尝试过的策略路径**：LLM记录其尝试过的top-k证明策略
-
-3. **疑似瓶颈**：如"缺少关于XX的引理"或"需要归纳假设YY"
+若证明器找到编译器验证的反例，则可证明否定命题，并记录诊断、反例与修复建议。
 
 > **类比理解**：传统的"证明失败"像是工人报告"我搞不定"，而Goedel-Architect的结构化诊断像是工人详细汇报"我试了方法A（卡在步骤3的类型不匹配）、方法B（发现反例证明命题本身是错的）、方法C（需要引入一个关于XX的新引理但不知道怎么写）"。这种丰富的失败信息是蓝图精炼器能做出全局最优决策的基础。
 
@@ -303,11 +297,10 @@ Output: 精炼蓝图 G_{k+1}
 1. 标记已证明节点为 PRESERVED
 2. 对每个失败/否定节点 n_i:
    a. 分析 diagnosis_i 的根本原因
-   b. 分类为：MISSING_LEMMA | WRONG_DECOMPOSITION | COUNTEREXAMPLE_FOUND | STRATEGY_FAILURE
-3. 根据全局失败模式，决定全局策略：
-   a. 若多个节点同为 MISSING_LEMMA → 引入共享新引理
-   b. 若多个节点同为 WRONG_DECOMPOSITION → 重组该子图的结构
-   c. 若 COUNTEREXAMPLE_FOUND → 将原命题替换为否定命题，调整依赖关系
+   b. 按诊断标签分类：STATEMENT_WRONG（含已否证与疑似为假）| PROOF_TOO_HARD
+3. 按诊断采取修订：
+   a. PROOF_TOO_HARD → 拆分为helper引理
+   b. STATEMENT_WRONG → 修正或删除该陈述，并重路由依赖节点
 4. 生成 G_{k+1}，保留所有 PRESERVED 节点
 5. 通过Lean编译器验证 G_{k+1} 的类型正确性和无环性
 6. Return G_{k+1}
@@ -322,14 +315,14 @@ Output: 精炼蓝图 G_{k+1}
 
 ### 5.5 收敛性分析
 
-论文报告了以下收敛行为：
-- 大多数问题在 **2-3轮** 内收敛
-- 最大迭代次数设为 **4**
-- 4轮后仍未收敛的问题约占 **<5%**（主要由模型基础能力限制，而非流程设计问题）
+论文报告了以下精炼扩展行为（Figure 2）：
+- 精炼轮数越多解题数越高：初始蓝图（第0轮）解出200/672（29.8%）
+- 第16轮达到508/672（75.6%，pass@1）；+NL的pass@4在第16轮达到597/672（88.8%）
+- 解题数随精炼计算量大致呈对数线性增长
 
 **收敛加速因素**：
 - 已证明节点被保留，每轮只需处理未解决节点
-- NL证明引导大幅减少所需迭代轮数（困难问题上从3-4轮降至1-2轮）
+- NL证明引导可让困难问题收敛（Section 4.2：9个无NL无法解出的题目，加NL后全部解出）
 - 并行证明使每轮的Wall-clock时间与最长单个引理的证明时间相关
 
 ---
@@ -341,12 +334,11 @@ Output: 精炼蓝图 G_{k+1}
 | 配置项 | 值 |
 |--------|-----|
 | 基础模型 | DeepSeek-V4-Flash (284B-A13B MoE) |
-| API | OpenRouter |
-| 蓝图生成温度 | 0.7 |
-| 定理证明温度 | 1.0 |
-| 每引理采样预算 | 64次 |
-| 最大精炼迭代 | 4轮 |
-| 评估协议 | pass@k (k=1, 4, 16, 64) |
+| 蓝图生成重试 | 最多8次（单次最大262,144 tokens） |
+| 定理证明重试 | 每节点最多4次（单次最大65,536 tokens） |
+| 蓝图精炼重试 | 每步最多8次 |
+| 单次Pipeline精炼迭代 | 默认8轮（PutnamBench至多16轮） |
+| 评估协议 | Goedel-Architect用pass@1与pass@4 (+NL)；对比系统按其各自报告的@N |
 
 ### 6.2 基准数据集
 
@@ -362,24 +354,24 @@ Output: 精炼蓝图 G_{k+1}
 
 #### MiniF2F-test
 
-| 系统 | pass@1 | 骨干模型 | 开源 |
+| 系统 | 成绩（pass@k） | 骨干模型 | 开源 |
 |------|--------|---------|------|
-| Goedel-Architect | **99.2%** | DeepSeek-V4-Flash | ✅ |
-| Goedel-Architect + NL | **100%** | DeepSeek-V4-Flash | ✅ |
-| Goedel-Prover-V2-32B | 88.1% (pass@32) | 自训练32B | ✅ |
-| Kimina-Prover-7B | 84.6% (pass@32) | 自训练7B | ✅ |
+| Goedel-Architect | **99.2%** (@1) | DeepSeek-V4-Flash | ✅ |
+| Goedel-Architect + NL | **100%**（其中2题额外NL引导采样，非pass@1） | DeepSeek-V4-Flash | ✅ |
+| Goedel-Prover-V2 | 92.6% (@1024) | 自训练模型 | ✅ |
+| LongCat-Flash-Prover | 97.1% (@72) | 开放骨干（Pipeline闭源） | ✅ |
 
-> MiniF2F已接近饱和（100%），Goedel-Architect在pass@1下以极低采样预算达成近完美成绩。
+> MiniF2F已接近饱和（100%），但Goedel-Architect的100%需对剩余2题（IMO 1984 P6、IMO Shortlist 2007 Algebra P6）使用NL引导与额外采样；纯pass@1为99.2%。
 
 #### PutnamBench（核心benchmark）
 
-| 系统 | pass@1 | 成本 | 骨干模型 |
+| 系统 | 成绩（pass@k） | 成本 | 骨干模型 |
 |------|--------|------|---------|
-| **Goedel-Architect + NL** | **88.8%** | ~$300 | DeepSeek-V4-Flash (开源) |
-| **Goedel-Architect** | **75.6%** | ~$294 | DeepSeek-V4-Flash (开源) |
-| Hilbert | 70.0% | ~$170,000 | Gemini 2.5 Pro (闭源) |
-| Numina-Lean-Agent | ~65% | >$10,000 | Claude/GPT-4 (闭源) |
-| Goedel-Prover-V2-32B | <20% | 低 | 自训练32B (开源) |
+| **Goedel-Architect + NL** | **88.8%** (@4) | ~$986（pass@4全程；约$1.65/解出题） | DeepSeek-V4-Flash (开源) |
+| **Goedel-Architect** | **75.6%** (@1) | ~$294 | DeepSeek-V4-Flash (开源) |
+| Hilbert | 70.0% (@1840) | ~$170,000 | Gemini 2.5 Pro (闭源) |
+| Numina-Lean-Agent | 论文未报告PutnamBench（Putnam 2025为12/12） | — | Claude Opus 4.5 (闭源) |
+| Goedel-Prover-V2 | 13.0% (@184) | 低 | 自训练模型 (开源) |
 
 **关键洞察**：Goedel-Architect不仅在pass@1上超越了所有对比系统（包括使用闭源模型的），而且**成本低两个数量级以上**。PutnamBench总计672题，Goedel-Architect花费不到$300，而Hilbert估计花费$170,000。
 
@@ -391,44 +383,47 @@ Output: 精炼蓝图 G_{k+1}
 | Putnam 2025 | **11/12** | 接近满分 |
 | USAMO 2026 | **3/6** | USAMO题目通常比IMO更偏组合/数论 |
 
-> 这些结果使Goedel-Architect成为**首个在IMO级别竞赛中以开源模型达成多题正确**的形式化证明系统。
+> 在论文的对比中，Goedel-Architect是**唯一在IMO 2025上达到这一水平（4/6）的开放权重系统**。
 
-### 6.4 消融实验
+### 6.4 基座模型与工具使用分析
 
-| 消融条件 | MiniF2F-test | PutnamBench | 变化 |
-|---------|-------------|-------------|------|
-| 完整系统 + NL | 100% | 88.8% | baseline |
-| 完整系统 | 99.2% | 75.6% | -13.2% (去除NL引导) |
-| 无蓝图精炼（单次蓝图） | ~95% | ~55% | -20.6% (精炼最关键) |
-| 串行证明（非并行） | ~97% | ~70% | -5.6% (并行化贡献) |
-| 无Mathlib检索 | ~90% | ~50% | -25.6% (检索最关键) |
+论文未做逐组件消融，而是用同一 DeepSeek-V4-Flash 骨干对比三种设置（Table 3）：
 
-**消融结论**：
-1. **Mathlib检索**是最关键的单组件——去除后PutnamBench下降25.6个百分点
-2. **蓝图精炼**是第二大贡献因素——从单次蓝图到4轮精炼提升~20个百分点
-3. **并行化**贡献约5-6个百分点（加性，不是瓶颈）
-4. **NL证明引导**在困难问题上贡献显著（+13.2%），在MiniF2F上接近饱和时贡献有限
+| 方法 | MiniF2F-test | PutnamBench |
+|------|-------------|-------------|
+| 直接推理 | 67.6% @32 | 6.5% @32（200题子集） |
+| 工具集成推理（TIR） | 97.1% @32 | 54.5% @32（200题子集） |
+| Hilbert（同骨干） | 83.6% @1 | – |
+| Hilbert（同骨干 + TIR证明器） | 84.4% @1 | – |
+
+**分析结论**：
+1. **Pipeline设计带来主要增益**：在同一骨干下，Hilbert（递归分解）仅83.6%/84.4%，而Goedel-Architect在MiniF2F达99.2%；论文强调控制骨干后其Pipeline相对Hilbert仍有大幅提升
+2. **TIR在简单题上效果显著**（MiniF2F 97.1%），但在更难的PutnamBench上仅54.5%，单靠工具集成不足以达到完整Pipeline的水平
+3. 论文未报告单独去除Mathlib检索、串行化、单次蓝图等组件的消融数据；Figure 2显示初始蓝图（无精炼）在PutnamBench解出200/672（29.8%）
 
 ### 6.5 成本分析
 
 ```
-PutnamBench 672题：
-Goedel-Architect:
-  - DeepSeek-V4-Flash: ~$0.15/M input tokens, ~$0.60/M output tokens
-  - 每轮平均token消耗: ~50K input + ~10K output
-  - 平均2.5轮
-  - 总成本: 672 × 2.5 × (50K×0.15 + 10K×0.60) / 1M ≈ $294
-  - 每题成本: $294/672 ≈ $0.44
+PutnamBench 672题（Table 2）：
+Goedel-Architect (DeepSeek-V4-Flash):
+  - 总花费: $294
+  - 平均每题: $0.44
+  - 平均每解出题: $0.21
+  - 平均每未解出题: $1.14
 
-Hilbert (估计):
-  - Gemini 2.5 Pro: ~$10/M input tokens, ~$40/M output tokens
-  - 递归分解导致更多轮次和更长上下文
-  - 估计总成本: ~$170,000
-  - 每题成本: ~$244
+Hilbert (Gemini 2.5 Pro，Table 2):
+  - 总花费: ~$163k（正文称接近 $170,000；仅统计pass@1成功证明，为其实际花费的下界）
+  - 平均每题: ~$244
+
+AxProverBase (Claude Opus 4.5，Table 2):
+  - 总花费: $8,467
+  - 平均每题: $12.60
 ```
 
+（论文未给出token单价或每轮token消耗，以上为Table 2直接报告值。）
+
 **成本优势的核心来源**：
-1. DeepSeek-V4-Flash的API价格远低于Gemini 2.5 Pro（~70倍）
+1. DeepSeek-V4-Flash的推理成本远低于Gemini 2.5 Pro等前沿API（论文称总体成本降低接近两个数量级）
 2. 蓝图驱动的并行化减少了总token消耗
 3. 蓝图精炼比递归分解的探索效率更高
 
@@ -441,7 +436,8 @@ Hilbert (估计):
 ```python
 # ⚠️ 非官方概念实现 — 基于论文 Section 2-3 描述编写
 # 目的：帮助理解算法流程，不可直接用于训练或推理
-# 论文未发布官方代码（2026-06-05刚提交），以下为基于论文描述的概念实现
+# 论文未发布官方代码（2026-06-05刚提交），以下为基于论文描述的概念实现；
+# 其中的温度等超参数为示意值，论文未报告
 
 import asyncio
 from dataclasses import dataclass, field
@@ -478,8 +474,8 @@ class GoedelArchitect:
     """
     
     def __init__(self, model_name: str = "deepseek-v4-flash", 
-                 max_iterations: int = 4,
-                 samples_per_lemma: int = 64,
+                 max_iterations: int = 8,
+                 samples_per_lemma: int = 4,
                  temp_blueprint: float = 0.7,
                  temp_prover: float = 1.0):
         self.model = model_name
@@ -506,7 +502,7 @@ class GoedelArchitect:
         )
         
         # LLM生成蓝图（带Lean编译器验证循环）
-        for attempt in range(3):  # 最多3次尝试生成可编译的蓝图
+        for attempt in range(8):  # 最多8次尝试生成可编译的蓝图
             raw_output = await self._call_llm(
                 prompt, temperature=self.temp_blueprint
             )
@@ -517,7 +513,7 @@ class GoedelArchitect:
                 if self._validate_dag(blueprint):
                     return blueprint
         
-        raise RuntimeError("无法生成有效的蓝图（3次尝试均失败）")
+        raise RuntimeError("无法生成有效的蓝图（8次尝试均失败）")
     
     async def prove_lemma(
         self, 
@@ -640,7 +636,7 @@ class GoedelArchitect:
             blueprint, failures, global_pattern
         )
         
-        for attempt in range(3):
+        for attempt in range(8):
             raw_output = await self._call_llm(
                 prompt, temperature=self.temp_blueprint
             )
@@ -751,29 +747,29 @@ class GoedelArchitect:
         识别跨节点的共同失败原因，为全局精炼提供决策依据。
         这是蓝图精炼（vs递归分解）的核心优势。
         """
-        missing_lemma_nodes = []
-        wrong_decomp_nodes = []
+        too_hard_nodes = []
+        statement_wrong_nodes = []
         counterexample_nodes = []
         
         for f in failures:
             diag = f.get("diagnosis", "")
-            if "MISSING_LEMMA" in diag or "missing lemma" in diag.lower():
-                missing_lemma_nodes.append(f["node"])
-            elif "DECOMPOSITION" in diag or "decomposition" in diag.lower():
-                wrong_decomp_nodes.append(f["node"])
+            if "PROOF_TOO_HARD" in diag or "too hard" in diag.lower():
+                too_hard_nodes.append(f["node"])
+            elif "STATEMENT_WRONG" in diag or "wrong" in diag.lower():
+                statement_wrong_nodes.append(f["node"])
             elif f["status"] == "negated":
                 counterexample_nodes.append(f["node"])
         
         patterns = []
-        if len(missing_lemma_nodes) >= 2:
+        if len(too_hard_nodes) >= 2:
             patterns.append(
-                f"多个节点({missing_lemma_nodes})缺少共享引理，"
-                f"建议引入公共辅助引理"
+                f"多个节点({too_hard_nodes})证明太难，"
+                f"建议引入helper引理分解"
             )
-        if len(wrong_decomp_nodes) >= 2:
+        if len(statement_wrong_nodes) >= 2:
             patterns.append(
-                f"多个节点({wrong_decomp_nodes})分解不当，"
-                f"建议重组该子图结构"
+                f"多个节点({statement_wrong_nodes})陈述有误，"
+                f"建议修正或删除并重路由依赖"
             )
         if counterexample_nodes:
             patterns.append(
@@ -836,13 +832,13 @@ theorem quadratic_has_real_root (a b c : ℝ) (ha : a ≠ 0) (h : b^2 - 4*a*c �
 Goedel-Architect的核心能力挂钩于DeepSeek-V4-Flash。如果该模型API不可用、价格变动或性能退化，系统效果可能大幅下降。论文未充分讨论模型替换的鲁棒性——例如换用Qwen3或Llama 4是否仍能维持类似性能。
 
 #### 2. 自然语言证明的质量瓶颈
-NL证明引导模式在困难问题上贡献显著（+13.2% PutnamBench），但NL证明本身来自更强的模型或人类专家。这引发了一个循环依赖：要解决最难的数学问题，需要先有一个（人类或更强AI生成）的证明。对IMO 2025的4/6题，NL证明来自官方解答——如果官方解答不存在（如开放问题），NL引导无法生效。
+NL证明引导模式在困难问题上贡献显著（+13.2% PutnamBench），但NL证明本身来自更强的模型或人类专家。这引发了一个循环依赖：要解决最难的数学问题，需要先有一个（人类或更强AI生成）的证明。对IMO 2025的4/6题，P5无需任何NL引导即解出，P1、P3、P4的NL证明由Gemini 3.1 Pro提供——如果这类高质量NL证明不存在（如开放问题），NL引导无法生效。
 
 #### 3. 蓝图生成的可解释性
 虽然蓝图以DAG形式呈现，但LLM生成蓝图的过程是黑盒的。为什么选择某个特定的分解？为什么引入某个引理而非另一个？这些决策缺乏可解释性，使得调试和人为干预困难。
 
 #### 4. 并行化的理论极限
-根据Amdahl定律，并行加速受限于问题的串行部分。在定理证明中，如果一个引理极其困难（需要64次采样的全部预算），它将决定整轮的wall-clock时间——其他引理的并行化无法加速这个瓶颈。
+根据Amdahl定律，并行加速受限于问题的串行部分。在定理证明中，如果一个引理极其困难（耗尽该引理的重试预算），它将决定整轮的wall-clock时间——其他引理的并行化无法加速这个瓶颈。
 
 #### 5. 成本的结构性限制
 虽然$0.44/题比$244/题便宜了500倍，但对于PutnamBench的672题仍需$294。如果要扩展到更大规模的问题集（如整个IMO历史），成本仍不可忽略。更重要的是，成本与每轮采样的token消耗线性相关——提高pass@1可能意味着每引理更多采样，导致成本反弹。
@@ -875,7 +871,7 @@ AlphaProof（DeepMind的系统，IMO 2024银牌水平）是该领域最重要的
 | [Goedel-Prover-V2](https://arxiv.org/abs/2508.03613) | 前作 | 同一团队的非Agent证明器，Goedel-Architect的直接前身 |
 | [Hilbert](https://github.com/Logical-Intelligence/Hilbert) | 竞品 | 递归分解Pipeline，使用Gemini骨干 |
 | [Draft-Sketch-Prove](https://arxiv.org/abs/2210.12283) | 灵感来源 | NL证明→形式化证明的经典工作 |
-| [DeepSeek-Prover-V2](https://arxiv.org/abs/2502.08753) | 竞品 | DeepSeek的ATP系统 |
+| [DeepSeek-Prover-V2](https://arxiv.org/abs/2504.21801) | 竞品 | DeepSeek的ATP系统 |
 | [LeanBlueprint](https://github.com/PatrickMassot/leanblueprint) | 工具 | Lean 4蓝图的基础设施 |
 | [Terence Tao's PFR Blueprint](https://terrytao.wordpress.com/2023/11/18/formalizing-the-proof-of-pfr-in-lean4-a-blueprint/) | 方法论 | 蓝图方法论的数学实践源头 |
 | [AlphaProof (DeepMind)](https://deepmind.google/discover/blog/ai-solves-imo-problems-at-silver-medal-level/) | 最强者 | IMO 2024银牌，但细节未公开 |

@@ -55,15 +55,15 @@ $$
 
 作者把 Progress Advantage 同时应用于第 1.1 节提到的三类下游任务,并强调它的一致性表现:
 
-- **Test-time scaling**:以 Progress Advantage 作为 best-of-$N$ 的筛选打分,在 5 个 benchmark、4 个模型族上一致优于基于 confidence 的基线,且**超过专门训练的任务相关 reward model**。
-- **Uncertainty quantification**:以 Progress Advantage(或其聚合)作为不确定性代理指标,在 AUROC 上取得最佳表现(尤其在 $\tau^2$-Airline 的 Gemma4-4B 列上 AUROC 达 $0.865$,四模型平均 $0.781$)。
-- **Failure attribution**:在 Who & When 任务上,Progress Advantage 的归因能力**可与任务专门设计的 AgenTracer 相媲美**,且无需训练。
+- **Test-time scaling**:以 Progress Advantage 作为 best-of-$N$ 的筛选打分,在 4 个 benchmark、2 个模型族(Gemma4-4B、Qwen3.5-9B)的 best-of-8 设置上,平均优于基于 confidence 的基线与训练型 reward model,并在 WebShop 上**超过任务专门训练的 AgentPRM-7B**。
+- **Uncertainty quantification**:以 Progress Advantage(或其聚合)作为不确定性代理指标,在 $\tau^2$-Airline 上 AUROC 超过所有基线(Gemma4-4B 列达 $0.865$,四模型平均 $0.781$),在 $\tau^2$-Retail 上与基线竞争力相当(部分列低于 Sonnet-4.6)。
+- **Failure attribution**:在 Who & When 的 Hand-Crafted split 上,Progress Advantage 的归因能力**可与任务专门设计的 AgenTracer 相媲美**(另一 split 上表现有前景,论文未宣称持平),且无需训练。
 
 ### 1.4 核心贡献清单
 
 1. **理论奠基(Theoretical foundation)**:在一般随机 MDP 下推导出 Progress Advantage(Proposition 1),证明对数概率比精确还原最优优势函数——把既有"隐式奖励"结论从确定/单步设置推进到**随机多步智能体**设置。
 2. **向 clipping-based 算法扩展(Proposition 2)**:证明以 DAPO 为代表的、**不带显式 KL 项**的 clipped surrogate objective,也会隐式施加 KL 约束,从而把 Progress Advantage 的适用范围从"显式 KL 正则的 RL"扩展到"clip-based 主流 RL"。
-3. **广泛实证(Empirical validation)**:横跨 3 类应用、5 个 benchmark、4 个模型族,一致击败训练得到的 reward model。
+3. **广泛实证(Empirical validation)**:横跨 3 类应用、5 个 benchmark、4 个模型族,一致优于 confidence 基线,并与训练型 reward model 及专有 LLM judge 持平或更优。
 4. **实用指南(Practical guidance)**:给出聚合策略选择、参考策略选择、token 级概率平滑等工程要点。
 
 ### 1.5 关键结果速览表
@@ -74,10 +74,10 @@ $$
 |--------|--------------------|------|------|
 | Gemma4-4B 平均成功率(TTS) | 38.8% | greedy 33.4% | TTS 结果表 |
 | Qwen3.5-9B 平均成功率(TTS) | 62.1% | greedy 54.6% | TTS 结果表 |
-| TTS 相对提升 | — | 较 Gemma4 基线 +15.5%;较 Qwen3.5 基线 +11.3% | §4.1 |
+| TTS 相对 greedy 提升 | — | Gemma4-4B +16.2%;Qwen3.5-9B +13.7%(论文另报告相对最佳对照方法平均 +15.5% / +11.3%) | §4.1 |
 | $\tau^2$-Airline AUROC（UQ, Gemma4-4B 列） | 0.865 | 同列 Sonnet-4.6 基线 0.615；四模型平均 0.781 vs 0.644 | UQ 结果表 / Appendix C Table 10 |
 | 跨策略 AUROC(UQ) | 0.754 | — | §4.2 |
-| vs 任务相关 PRM(TTS) | 35%（progress advantage，WebShop 附录实验） | AgentPRM-7B 33% | Appendix C / Table 12 |
+| vs 任务相关 PRM(TTS) | 35%（progress advantage，WebShop 附录实验） | AgentPRM-7B 33% | Appendix C / Table 13 |
 
 涉及的全部 benchmark:BFCLv4-MT、WebShop、AgentDojo、$\tau^2$-bench、Who & When。涉及的全部模型族:Gemma4-4B、Qwen3.5-9B、Qwen3-14B、Olmo3-7B。
 
@@ -199,7 +199,7 @@ $$
 
 ## 第 3 章 Progress Advantage 的理论推导
 
-本章是全文的理论核心。论文把方法学(§3)拆为四个小节:随机转移下的隐式奖励(§3.1)、Progress Advantage 主体结论 Proposition 1(§3.2)、向 clipping-based 算法的扩展 Proposition 2(§3.3)、以及 token 级信号的聚合策略(§3.4)。
+本章是全文的理论核心。论文 §3 分为三个小节:随机转移下的隐式奖励(§3.1)、Progress Advantage 主体结论 Proposition 1 与向 clipping-based 算法的扩展 Proposition 2(§3.2)、以及从理论到实践的实现问题(§3.3,含聚合策略与 token 概率表示);进一步的分析在 §4.5,论文 §5 是 Related Work。
 
 ### 3.1 随机转移下的隐式奖励
 
@@ -329,22 +329,22 @@ $$
 
 设重要性采样比率 $R(s,a):=\pi_\theta(a|s)/\pi_{\mathrm{ref}}(a|s)$。Clipping-based 方法约束 $R(s,a)\in[1-\varepsilon,1+\varepsilon]$（典型值 $\varepsilon=0.2$）。考虑 $R(s,a)$ 在 $R=1$ 附近的 Taylor 展开:
 
-对于 KL 散度:
+对于 KL 散度(记 $\delta=R-1$):
 
 $$
-D_{\mathrm{KL}}(\pi_\theta\|\pi_{\mathrm{ref}}) \;=\; \mathbb{E}_{a\sim\pi_\theta}\!\left[\log R(s,a)\right]
+D_{\mathrm{KL}}(\pi_\theta\|\pi_{\mathrm{ref}}) \;=\; \mathbb{E}_{a\sim\pi_\theta}\!\left[\log R(s,a)\right] \;=\; \mathbb{E}_{a\sim\pi_{\mathrm{ref}}}\!\left[R\log R\right]
 $$
 
-在 $R\approx 1$ 处对每个 $a$ 展开 $\log R$:
+论文 Appendix E.2 在 $R\approx 1$ 处展开 $R\log R=(1+\delta)\log(1+\delta)$:
 
 $$
-\log R \;=\; (R-1) \;-\; \frac{(R-1)^2}{2} \;+\; O((R-1)^3)
+R\log R \;=\; \delta \;+\; \frac{\delta^2}{2} \;+\; O(\delta^3)
 $$
 
-取期望后,由于 $\mathbb{E}_{a\sim\pi_\theta}[R-1]=\sum_a\pi_\theta(a|s)\cdot(\pi_\theta/\pi_{\mathrm{ref}}-1)=\chi^2(\pi_\theta,\pi_{\mathrm{ref}})/2+...$ 在约束下为二阶小量,主导项为二阶项:
+取 $\pi_{\mathrm{ref}}$ 期望后,由 $\mathbb{E}_{a\sim\pi_{\mathrm{ref}}}[R]=1$ 得 $\mathbb{E}_{\pi_{\mathrm{ref}}}[\delta]=0$,线性项**精确**消失,主导项为二阶项:
 
 $$
-D_{\mathrm{KL}}(\pi_\theta\|\pi_{\mathrm{ref}}) \;\approx\; \frac{1}{2}\,\mathbb{E}_{a\sim\pi_\theta}\!\left[(R(s,a)-1)^2\right]
+D_{\mathrm{KL}}(\pi_\theta\|\pi_{\mathrm{ref}}) \;\approx\; \frac{1}{2}\,\mathbb{E}_{a\sim\pi_{\mathrm{ref}}}\!\left[(R(s,a)-1)^2\right]
 $$
 
 在 clipping 约束 $|R-1|\le\varepsilon$ 下:
@@ -355,15 +355,15 @@ $$
 
 同理可证 reverse KL 也有 $D_{\mathrm{KL}}(\pi_{\mathrm{ref}}\|\pi_\theta)\lesssim\varepsilon^2/2$。
 
-**这意味着**:clipping $\varepsilon=0.2$ 等价于隐式地施加了约 $D_{\mathrm{KL}}\lesssim 0.02$ 的 KL 约束。因此,clip-based 训练的最优策略 $\pi^*$ 仍然满足 KL-regularized RL 的泛函形式,只是 $\beta$ 此时由 $\varepsilon$ 隐式决定（等效 $\beta$ 可从训练配置反推）。由此,clip-based 训练得到的策略与参考策略之间的关系,可以套用 Proposition 1 的结论。
+**这意味着**:clipping $\varepsilon=0.2$ 等价于隐式地施加了约 $D_{\mathrm{KL}}\lesssim 0.02$ 的 KL 约束。因此,clip-based 训练的最优策略 $\pi^*$ 仍然满足 KL-regularized RL 的泛函形式,只是 $\beta$ 此时由 $\varepsilon$ 隐式决定(注意:论文只给出这一隐式 KL 上界,并未给出由 $\varepsilon$ 反推等效 $\beta$ 的具体方法)。由此,clip-based 训练得到的策略与参考策略之间的关系,可以套用 Proposition 1 的结论。
 
-> **实践注释——clip-based 方法中等效 $\beta$ 的确定**。在实际使用中,如果无法从训练配置精确推导等效 $\beta$,论文建议两种实用策略:(1)将 $\beta$ 视为可调超参,在验证集上以 AUROC 或 best-of-$N$ 成功率为指标进行网格搜索（典型搜索范围 $\beta\in[0.1,5.0]$）;(2)直接以 $\beta=1$ 使用对数概率比作为相对排序信号——由于 best-of-$N$ 和 AUROC 仅依赖分数的相对大小而非绝对值,在多数场景下 $\beta$ 的绝对取值不影响排序结果,仅影响与其他方法的数值可比性。
+> **实践注释——clip-based 方法中等效 $\beta$ 的确定**。Proposition 2 只证明 clipping 会隐式施加 KL 约束,论文并未给出 clip-based 情形下等效 $\beta$ 的确定方法;相反,论文在 Limitations 中明确把"找到 progress advantage 最佳规格与实现"的工程问题留作未来工作。因此,网格搜索 $\beta$、直接取 $\beta=1$ 等做法只能视为工程经验,而非论文建议。
 
 **实践意义**:这一扩展极大拓宽了 Progress Advantage 的适用面。当前最强的开源推理模型往往是用 DAPO 之类 clip-based 方法训练的,而非显式 KL 正则方法。Proposition 2 意味着**这些模型都可以直接使用 Progress Advantage**,无需重新以 KL 正则方式训练。这是论文能"横扫 4 个模型族"的理论后盾。
 
 ### 3.4 聚合策略:从 token 到 step/trajectory
 
-Proposition 1 给出的是**单 token(或单动作)级**的优势 $A^*(s,a)$。但下游应用需要的是**步骤级**或**整条轨迹级**的标量分数。论文在 §3.4 系统讨论如何把一串 token 级对数概率比**聚合(aggregate)**成更高层级的分数。
+Proposition 1 给出的是**单 token(或单动作)级**的优势 $A^*(s,a)$。但下游应用需要的是**步骤级**或**整条轨迹级**的标量分数。论文在 §3.3(From Theory to Practical Implementation)与 Table 1 系统讨论如何把一串 token 级对数概率比**聚合(aggregate)**成更高层级的分数。
 
 设一条步骤/轨迹由 token 序列 $a_1,a_2,\dots,a_T$ 构成,每个 token 都有
 
@@ -378,7 +378,7 @@ $$
 - **极值(extreme token advantage)**:$\min_{t}\log\tilde{\pi}^*(a_t|\cdot) - \min_{t}\log\pi_{\mathrm{ref}}(a_t|\cdot)$（或 $\max$ 变体），分别对两个策略的对数概率取极值再相减，捕获最差/最优 token 的进展信号。适合失败归因等局部异常检测。
 - **位置加权(position-weighted)**:对不同位置的 token(例如靠近步骤边界的 token)赋予不同权重,呼应"动作边界"语义。
 
-不同聚合对不同下游任务效果不同——这一点会在第 4、5 章的实验与分析中具体展开。论文在 §5 给出聚合策略的对比与选择建议(见 Ch5)。
+不同聚合对不同下游任务效果不同——这一点会在第 4、5 章的实验与分析中具体展开。论文在 §4.5 给出聚合策略的对比与选择建议(见 Ch5)。
 
 ---
 
@@ -395,10 +395,12 @@ $$
 
 **关键定量结果**:
 
-| 模型 | Progress Advantage 平均成功率 | greedy 基线 | 相对提升 |
-|------|------------------------------|-------------|----------|
-| Gemma4-4B | 38.8% | 33.4% | 较基线 +15.5% |
-| Qwen3.5-9B | 62.1% | 54.6% | 较基线 +11.3% |
+| 模型 | Progress Advantage 平均成功率 | greedy 基线 | 相对 greedy 提升 |
+|------|------------------------------|-------------|------------------|
+| Gemma4-4B | 38.8% | 33.4% | +16.2% |
+| Qwen3.5-9B | 62.1% | 54.6% | +13.7% |
+
+(论文另报告相对最佳对照方法的平均优势:15.5% for Gemma4 对应 ThinkPRM-14B 的 33.6%,11.3% for Qwen3.5 对应 DeepConf B10 的 55.8%,并非相对 greedy。)
 
 **与任务相关 PRM 的对比**:在 Appendix C 的 WebShop 特定实验中,Progress Advantage 击败了任务专门训练的 AgentPRM-7B——详见下方补充说明。
 
@@ -407,7 +409,7 @@ $$
 - 在两个差异较大的模型族上(Gemma4-4B 与 Qwen3.5-9B),Progress Advantage 都带来两位数百分比量级的相对提升,说明增益**不是某一族模型的偶然现象**;
 - AgentPRM-7B 的对比（见下方补充说明）表明,优势信号天然携带的"相对好坏"语义,在 best-of-$N$ 排序这一任务上比"任务相关但需训练"的 reward model 更对路。
 
-**补充：WebShop 上的 AgentPRM 直接对比**。在 Appendix C 的 WebShop 特定实验（Table 12, 使用 Qwen2.5-7B-Instruct 作为行为策略）中,Progress Advantage（免标注、无任务相关训练）取得 $35\%$ 的成功率,**超过**任务专门训练的 AgentPRM-7B（$33\%$）——进一步验证"免费信号击败昂贵专门模型"的结论。
+**补充：WebShop 上的 AgentPRM 直接对比**。在 Appendix C 的 WebShop 特定实验（Table 13, 使用 Qwen2.5-7B-Instruct 作为行为策略）中,Progress Advantage（免标注、无任务相关训练）取得 $35\%$ 的成功率,**超过**任务专门训练的 AgentPRM-7B（$33\%$）——进一步验证"免费信号击败昂贵专门模型"的结论。
 
 ### 4.2 应用二:Uncertainty Quantification
 
@@ -423,7 +425,7 @@ $$
 **要点解读**:
 
 - 在 $\tau^2$-Airline 子集上,Progress Advantage 在 Gemma4-4B 列上 AUROC 达 $0.865$,显著高于同列 Sonnet-4.6 基线的 $0.615$;四模型平均 AUROC 为 $0.781$,同样远超 Sonnet-4.6 平均 $0.644$（Appendix C Table 10）,差距相当可观;
-- "跨策略 AUROC $0.754$"表明:即便参考策略与被评分策略并非来自同一次训练(一种更接近真实部署的设定),Progress Advantage 仍保持较强的不确定性区分能力,说明它对"参考策略选择"具有一定鲁棒性(详见 Ch5)。
+- "跨策略 AUROC $0.754$"(Table 4)表明:以 Gemma4-4B 的 Progress Advantage 作为外部打分器,可评估 Qwen3.5-9B / Qwen3-14B 生成的轨迹,说明它具备作为现成 reward model 监测其他 backbone 轨迹的潜力;参考策略选择本身的鲁棒性另见 Fig. 5(策略合并)与 Fig. 6(参考不匹配)。
 
 ### 4.3 应用三:Failure Attribution
 
@@ -431,12 +433,12 @@ $$
 
 **对照方法**:**AgenTracer**——一个任务专门设计的失败归因方法。
 
-**关键定性结论**:Progress Advantage 在失败归因上的表现**可与任务专门设计的 AgenTracer 相媲美**。研究材料未给出逐项精确对比数字,因此这里严格按定性表述呈现:它"达到与专门方法相当的水平",而非宣称具体百分点差距。
+**关键定性结论**:Progress Advantage 在 Who & When 的 Hand-Crafted split 上**可与任务专门设计的 AgenTracer 相媲美**,另一 split 上则只报告了有前景的结果。论文正文未给出逐项精确对比数字,因此这里严格按定性表述呈现:它"达到与专门方法相当的水平",而非宣称具体百分点差距。
 
 **要点解读**:
 
 - 失败归因天然需要 step-level 信号来定位"哪一步出了问题",而 Progress Advantage 恰好提供这种信号且免训练;
-- 能与专门设计的 AgenTracer 比肩,进一步说明"优势 = 步骤是否取得进展"这一语义,与"步骤是否是失败根源"高度对齐。
+- 能在 Who & When 的 Hand-Crafted split 上与专门设计的 AgenTracer 比肩,进一步说明"优势 = 步骤是否取得进展"这一语义,与"步骤是否是失败根源"高度对齐。
 
 ### 4.4 实验结果小结
 
@@ -444,7 +446,7 @@ $$
 
 - 在 TTS 上,它带来两位数相对提升,并击败任务相关 PRM;
 - 在 UQ 上,它在 $\tau^2$-Airline 取得 $0.865$ 的 AUROC,远超 confidence 基线;
-- 在 Failure Attribution 上,它与专门设计的归因方法相当。
+- 在 Failure Attribution 上,它在 Who & When 的 Hand-Crafted split 上与专门设计的归因方法相当(另一 split 表现有前景但未持平)。
 
 这些结果共同支撑论文主张:**Progress Advantage 是一个跨应用、跨模型族一致有效的免费 step-level 信号**。
 
@@ -452,7 +454,7 @@ $$
 
 ## 第 5 章 特性分析
 
-本章(对应论文 Analysis / §5)回答"它为什么有效"以及"如何用好它"两个层面的问题,围绕四条线索展开:为什么有效、聚合策略对比、参考策略选择、token 概率平滑。
+本章(对应论文 §4.5 Additional Empirical Study 与 §3.3 的实现讨论)回答"它为什么有效"以及"如何用好它"两个层面的问题,围绕四条线索展开:为什么有效、聚合策略对比、参考策略选择、token 概率平滑。
 
 ### 5.1 为什么 Progress Advantage 有效
 
@@ -466,10 +468,10 @@ $$
 
 ### 5.2 聚合策略对比
 
-§3.4 列出了多种聚合方式(sum、mean、min/max、position-weighted)。论文在 §5 给出对比与经验结论。基于研究材料,可总结的方向性结论如下:
+§3.4 列出了多种聚合方式(sum、mean、min/max、position-weighted)。论文在 §4.5(Fig. 4、Fig. 8-9、Table 12)给出对比与经验结论。基于研究材料,可总结的方向性结论如下:
 
-- 不同下游任务偏好不同聚合:**best-of-$N$ 排序**往往关心整条轨迹的"总进展",与 sum 类聚合语义更贴近;**不确定性估计**关心轨迹整体质量的一致性,mean 与极值类各有适用面;**失败归因**关心局部异常,极值/位置加权更敏感;
-- 论文据此给出**按任务选择聚合策略**的实用建议(具体每条建议的精确表述以论文 §5 为准,此处不杜撰未列出的细节)。
+- 聚合选择随任务/模型而异,没有通用最优:论文 Fig. 4 报告 **(MEAN, MIN)** 组合在 best-of-N 上较强,**(MAX, MEAN)** 组合在 UQ 上最优(Fig. 8-9 进一步显示各数据集/模型的获胜组合不同);失败归因使用 per-step reward 的 argmin,论文未报告位置加权在 FA 上的系统对比;
+- 论文据此给出**按任务选择聚合策略**的实用建议,并展示固定聚合(不做逐设置调优)仍可在 8 个方法中排名靠前(具体表述以论文 §4.5 与 Table 12 为准,此处不杜撰未列出的细节)。
 
 (注:研究材料未逐条列出每种聚合在每个 benchmark 上的精确数字,故本节按方向性结论呈现,不构造未经验证的对比表。)
 
@@ -478,19 +480,19 @@ $$
 Proposition 1 中的 $\pi_{\mathrm{ref}}$ 在实践中并不唯一。论文讨论了**参考策略选择**与**策略合并(policy merging)** 的影响:
 
 - 最自然的选择是 RL 训练的**起始策略**(通常是 SFT/基础模型),它正是训练时 KL 约束所相对的参考;
-- §4.2 的"跨策略 AUROC $0.754$"提供了一个间接证据:即便参考策略与被评分策略并非严格来自同一训练对,Progress Advantage 仍保持较强区分力,说明对参考策略的精确匹配并非必要条件;
+- 论文用 Fig. 5(策略合并)与 Fig. 6(受控的参考不匹配实验)直接研究参考策略选择:精确参考最优,base 代理与线性合并的代理仍优于随机选择,但会损失部分信号;
 - 论文进一步讨论**策略合并**——即如何在不破坏优势语义的前提下,组合或替换参考策略——并给出经验性的选择指导。
 
 这一节的实际意义在于:在真实部署中,团队手头未必总是恰好保存了"训练时的那个参考策略",而论文的分析表明 Progress Advantage 对此具有一定宽容度。
 
 ### 5.4 token 级概率平滑
 
-Progress Advantage 的原始量是逐 token 的对数概率比,而单个 token 的概率可能因为数值精度、罕见 token、BPE 切分等因素出现毛刺。论文在 §5 讨论**token 概率平滑(token probability smoothing)**:
+Progress Advantage 的原始量是逐 token 的对数概率比,而纯 token 概率可能带来噪声、在 RL 中成为不稳定来源。论文在 §3.3 与 Appendix A.2 讨论 **progress k-advantage(token 概率平滑)**:
 
-- 通过对相邻 token 的对数概率比做平滑(在聚合之前),可降低噪声、提升下游信号的稳定性;
-- 这一步与 §5.2 的聚合策略配合使用:先平滑、再聚合,是推荐的工程流程。
+- 具体做法是:在每个位置对 top-$k$ token 的对数概率求平均后再相减,即 $\frac{1}{k}\big(\sum_{i\in\mathrm{Top}\text{-}k}\log\tilde\pi^*(A[i]|s)-\sum_{i\in\mathrm{Top}\text{-}k}\log\pi_{\mathrm{ref}}(A[i]|s)\big)$(Appendix A.2 Eq. 7),而不是对相邻 token 的优势做平滑;
+- 它不是优于默认做法的通用改进:Appendix C 显示默认 progress advantage 在 TTS/UQ 上更好,而 k-smoothing 在部分 FA 设置(如 Gemma4-4B)上更好,应按下游任务选择 token 概率表示。
 
-(注:研究材料未给出具体的平滑窗口/核函数参数,故本节只描述其作用与定位,不杜撰数值。)
+(注:论文未在正文给出具体的 $k$ 取值,故本节不杜撰数值。)
 
 ### 5.5 特性分析小结
 
@@ -532,8 +534,8 @@ $$
 实现要点:
 
 - **两次前向推理**:这是该方法的全部额外开销,无需训练、无需标注数据;两次前向都可走标准的 teacher-forcing / logprob 接口;
-- **数值稳定性**:log-prob 相减天然回避了"先取概率再相除"可能带来的下溢/上溢,这正是论文采用 $\log\pi^* - \log\pi_{\mathrm{ref}}$ 而非 $\log(\pi^*/\pi_{\mathrm{ref}})$ 直接实现的工程理由之一;
-- **$\beta$ 的来源**:在显式 KL 正则训练中 $\beta$ 是已知超参;在 clip-based 训练(Proposition 2 适用)中,需按其"隐式 KL 约束"的等效方式确定 $\beta$,具体取值以论文方法学与仓库实现为准。
+- **数值稳定性**:log-prob 相减天然回避了"先取概率再相除"可能带来的下溢/上溢,这是实现层面的一个自然好处;但论文并未以此解释该实现,它讨论的是纯 token 概率在 RL 中噪声较大,并由此提出 top-$k$ 平均变体;
+- **$\beta$ 的来源**:在显式 KL 正则训练中 $\beta$ 是已知超参;在 clip-based 训练(Proposition 2 适用)中,论文只证明存在隐式 KL 约束,并未给出等效 $\beta$ 的确定方法。
 
 ### 6.3 聚合的工程实现
 
@@ -550,10 +552,10 @@ $$
 
 综合论文方法学与仓库实现,使用 Progress Advantage 的推荐流程为:
 
-1. **准备两个策略**:RL 训练后的 $\pi^*$ 与参考 $\pi_{\mathrm{ref}}$(通常即训练起始策略);若使用 clip-based 模型,按 Proposition 2 的等效 $\beta$ 处理;
+1. **准备两个策略**:RL 训练后的 $\pi^*$ 与参考 $\pi_{\mathrm{ref}}$(通常即训练起始策略);若使用 clip-based 模型,Proposition 2 只保证存在隐式 KL 约束,等效 $\beta$ 如何确定论文未给出具体方法;
 2. **取 log-prob**:对候选 token/动作,分别用两个策略取 log-probability;
 3. **相减乘 $\beta$**:得到 token 级优势 $\hat A_t$;
-4. **(可选)平滑**:按 §5.4 对相邻 token 优势做平滑去噪;
+4. **(可选)平滑**:按 §5.4 改用 progress k-advantage(对每个位置 top-$k$ token 的对数概率求平均),而非对相邻 token 优势做平滑;
 5. **聚合**:按 §5.2 的任务适配建议,选择 sum/mean/极值/位置加权,得到 step/trajectory 分数;
 6. **下游使用**:把分数喂给 best-of-$N$ 筛选、UQ 阈值判断、失败归因定位等。
 
@@ -571,12 +573,12 @@ $$
 - **$\beta$ 的确定在 clip-based 场景下不够直接**:Proposition 2 论证了隐式 KL 的存在,但把等效 $\beta$ 落到具体数值仍需方法学指引,这部分对实践者存在一定门槛;
 - **聚合策略需按任务选择**:没有一个"通用最优"的聚合方式,使用者需要根据下游任务(sum/mean/极值/位置加权)做选择与调参;
 - **评测覆盖范围**:实验横跨 5 个 benchmark、4 个模型族,已具一定规模,但智能体任务空间远大于此;在其他类型任务(尤其奖励极其稀疏或环境高度随机)上的表现仍待验证;
-- **失败归因的精确量化**:研究材料中对"与 AgenTracer 媲美"以定性方式呈现,未给出逐项精确对比,严格量化对比仍需参照论文原文的完整表格。
+- **失败归因的精确量化**:研究材料中对"在 Hand-Crafted split 上与 AgenTracer 媲美"以定性方式呈现,未给出逐项精确对比,严格量化对比仍需参照论文原文的 Figure 2。
 
 ### 7.2 方法论上的边界
 
 - Proposition 1 的严格性建立在 KL-regularized RL 的最优策略闭式解之上;对那些**既非显式 KL、也非 clip-based** 的训练范式(例如某些纯约束投影方法),结论是否成立需要单独考察;
-- 跨策略 AUROC $0.754$ 表明对参考策略选择有一定鲁棒性,但当 $\pi^*$ 与 $\pi_{\mathrm{ref}}$ 差异过大或过小时,对数概率比分别趋于发散或趋于零,极端配置下信号可用性会下降。
+- 参考策略的选择会影响信号质量:Fig. 5(策略合并)与 Fig. 6(受控参考不匹配)表明精确参考最优、base/merged 代理仍能提供可用信号;如 §3.3 所述,若 $\pi^*$ 与 $\pi_{\mathrm{ref}}$ 差异过大,对数比会被一般性分布差异主导,差异过小则难以区分好坏动作,极端配置下信号可用性会下降。
 
 ### 7.3 延伸阅读方向
 
@@ -590,4 +592,4 @@ Progress Advantage 处在一个由若干研究脉络交汇的位置,可作为延
 
 ### 7.4 一句话总结
 
-本文的价值在于:它指出 RL post-training 训练完成后就已存在的对数概率比 $\beta\log(\pi^*/\pi_{\mathrm{ref}})$,在一般随机 MDP 下严格等于最优优势函数,从而为 LLM 智能体提供了一个**免标注、领域无关、几乎零额外成本**的 step-level 打分信号;并在 5 个 benchmark、4 个模型族、3 类下游应用上一致地击败了基于 confidence 的基线与专门训练的 reward model。这正是标题所概括的——**来自 post-training 的、被忽视的免费午餐**。
+本文的价值在于:它指出 RL post-training 训练完成后就已存在的对数概率比 $\beta\log(\pi^*/\pi_{\mathrm{ref}})$,在一般随机 MDP 下严格等于最优优势函数,从而为 LLM 智能体提供了一个**免标注、领域无关、几乎零额外成本**的 step-level 打分信号;并在 5 个 benchmark、4 个模型族、3 类下游应用上一致优于基于 confidence 的基线,与训练型 reward model 及专有 LLM judge 持平或更优(并非在所有 benchmark/列上都击败)。这正是标题所概括的——**来自 post-training 的、被忽视的免费午餐**。

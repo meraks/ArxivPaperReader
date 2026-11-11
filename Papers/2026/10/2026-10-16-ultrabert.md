@@ -1,11 +1,11 @@
 # UltraBERT: Beyond the Limit of BERT Pre-Training 深度精读报告
 
 > **论文**：UltraBERT: Beyond the Limit of BERT Pre-Training
-> **作者**：Jungwoo Park、Taewoo Lee、Jaewoo Kang（Korea University, DMIS Lab）
+> **作者**：Jungwoo Park、Taewhoo Lee、Jaewoo Kang（Korea University；AIGEN Sciences；Amazon）
 > **arXiv ID**：2610.15028
 > **发表时间**：2026-10-10（v1）
-> **许可协议**：Apache 2.0
-> **代码仓库**：https://huggingface.co/dmis-lab/UltraBERT-150M（官方权重、评测代码与数据混合均已发布）
+> **许可协议**：论文未声明（以 HuggingFace 模型页为准）
+> **模型页**：https://huggingface.co/dmis-lab/UltraBERT-150M、https://huggingface.co/dmis-lab/UltraBERT-380M（论文称将发布评测代码、模型权重与预训练数据混合）
 
 ## 第 1 章 概述
 
@@ -62,7 +62,7 @@ UltraBERT 通过对「饱和现象、masking ratio 对分类与检索的双向�
 - **code/math 检索提升最大**：base 组 RAR-b Code +7.3（39.1 vs 31.8）、RAR-b Math +8.3（55.4 vs 47.1）；medium 组 +8.4（47.0 vs 38.6）/+7.7（61.7 vs 54.0）over second best。
 - **长文本检索双规模第一**：LongEmbed base 72.0、medium 74.9；base 版甚至超过所有 medium 竞品（LFM2.5-355M 为 71.7）。
 - **HF Daily Papers 2026-10-16 榜首**，社区关注度极高。
-- **开源**：150M/380M/Embed-150M 三个权重以 Apache 2.0 发布于 HuggingFace，评测代码与数据混合一并公开。
+- **开源**：论文称已发布评测代码、模型权重（150M/380M 两个模型页）与预训练数据混合；未提及 Embed-150M，也未注明许可证。
 
 **本报告阅读路线**：只关心结论的读者可读 1.2/1.3 与第 5 章；关心「为什么」的读者应精读第 3 章——五个实验模块构成一条完整的因果链（饱和 → ratio 分裂 → 正则失效 → 几何诊断 → 解耦与蒸馏），最终配方（第 4 章）的每个组件都能在这条链上找到出处；工程实践者可直接跳至 6.3 的复现路径。
 
@@ -73,10 +73,10 @@ UltraBERT 通过对「饱和现象、masking ratio 对分类与检索的双向�
 BERT（2018）确立了 MLM 预训练 + 下游微调的 encoder 范式，但其 512 上下文、原始 tokenizer 与绝对位置编码已明显过时。后续工作沿三条轴线演进：
 
 - **训练目标改造**：RoBERTa 以动态 masking 与更大 batch 挖掘 MLM 潜力；ELECTRA 系（含 DeBERTaV3 采用的 RTD）以 replaced token detection 降低预训练-微调差异；本研究在匹配 corruption 水平的受控条件下重新检验了 RTD vs MLM。
-- **架构现代化**：ModernBERT 引入 RoPE、交替 local/global attention 与 FlashAttention 级工程优化；NeoBERT、Ettin Encoder、NomicBERT（8K 上下文）、MosaicBERT、GTE-en-MLM、LFM2.5-Enc 等在 base/medium 区间持续刷新单点成绩。UltraBERT 直接继承了这一现代化架构谱系（RoPE + SwiGLU + 交替 local/global attention，仿 ModernBERT）。
-- **任务专精化**：GTE-en-MLM、NomicBERT 等嵌入导向模型在 BEIR/长文本检索上显著领先，但分类成绩平平；反之 ModernBERT/Ettin 等强于 GLUE/SQuAD 而检索一般。**没有任何一个 encoder 在两类任务上同时领先**——这正是 Figure 1 散点图所呈现的「分类-检索权衡带」，也是本文要打破的极限。
+- **架构现代化**：ModernBERT 引入 RoPE、交替 local/global attention 与 FlashAttention 级工程优化；NeoBERT、Ettin Encoder、NomicBERT（2K 上下文；论文 Table 11 评测长度为 2048）、MosaicBERT、GTE-en-MLM、LFM2.5-Enc 等在 base/medium 区间持续刷新单点成绩。UltraBERT 直接继承了这一现代化架构谱系（RoPE + SwiGLU + 交替 local/global attention，仿 ModernBERT）。
+- **任务专精化**：GTE-en-MLM、NomicBERT 等嵌入导向模型在长文本检索上领先，但分类成绩平平；Ettin 强于 GLUE/SQuAD 但检索仅与 GTE 持平；ModernBERT 则是 base 组 BEIR/LongEmbed 最强的基线（42.6/63.2）。**没有任何一个 encoder 在两类任务上同时领先**——这正是 Figure 1 散点图所呈现的「分类-检索权衡带」，也是本文要打破的极限。
 
-从 Table 3 的数据可以直接读出这条权衡带：GTE-en-MLM（137M）LongEmbed 58.5 但 GLUE 仅 85.6；Ettin（149M）GLUE 88.9 但 LongEmbed 60.1；两个专精模型各自在对方的主场落后 3 分以上。唯一的例外候选 LFM2.5-Enc 双线接近但均未登顶（230M：88.2/46.7；355M：89.2/47.3）。
+从 Table 3 的数据可以直接读出这条权衡带：GTE-en-MLM（137M）LongEmbed 58.5 但 GLUE 仅 85.6；Ettin（149M）GLUE 88.9、LongEmbed 60.1，在检索上并不落后于 GTE；ModernBERT 则是 base 组 BEIR/LongEmbed 最强的基线（42.6/63.2）。没有任何一个基线同时在 GLUE 与 BEIR 上登顶。唯一的例外候选 LFM2.5-Enc 双线接近但均未登顶（230M：88.2/46.7；355M：89.2/47.3）。
 
 三个最直接的竞争者值得单独说明，因为它们分别代表了通往 UltraBERT 之前的三条「最接近」路线：
 
@@ -174,7 +174,7 @@ Figure 3 引入 SmolLM2-1.7B 作为 decoder 参照系：在 6 个 MCQA 任务上
 | DeBERTaV3-large | 78.1 | 25.8 |
 | UltraBERT-380M | 78.5 | 48.7 |
 
-同为 RTD 系模型，DeBERTaV3 在检索上严重偏科（20.7/25.8 对 45.3/48.7），进一步佐证 RTD 路线难以兼顾双任务。
+DeBERTaV3 作为 RTD 系模型，在检索上严重偏科（20.7/25.8 对 UltraBERT 的 45.3/48.7），进一步佐证 RTD 路线难以兼顾双任务。
 
 ### 3.3 masking ratio × 检索：50% 一致最高，KoLeo 补不上
 
@@ -278,7 +278,7 @@ $$\mathcal{L}_{\mathrm{KoLeo}}=-\frac{1}{n}\sum_{i=1}^{n}\log\lVert z_i-\bar{z}_
 从 Table 2 还能读出两条次级信息：
 
 - **蒸馏饱和更快**：15% 配置下蒸馏在 250B 即饱和，短于 from-scratch 的对应预算——软标签提供了更平滑的优化地形，收敛步数减半；
-- **teacher 的双配置差距在 student 侧缩小**：teacher 15% vs 50% 的 GLUE 差 1.1（91.8 vs 90.7），distilled 380M 侧差 1.2（90.8 vs 89.6），几乎原样传递；但 BEIR 侧 teacher 差 0.9（47.4 vs 48.3），distilled 侧反而差 −0.5（46.0 vs 46.5）——蒸馏对检索配置间差异的传递是有损且非线性的。
+- **teacher 的双配置差距在 student 侧基本原样传递**：teacher 15% vs 50% 的 GLUE 差 1.1（91.8 vs 90.7），distilled 380M 侧差 1.2（90.8 vs 89.6），并未缩小；BEIR 侧 teacher 差 0.9（47.4 vs 48.3，50% 更高），distilled 侧差 0.5（46.0 vs 46.5，方向不变但幅度收窄）——蒸馏对检索配置间差异的传递是有损且非线性的。
 
 **对最终配方的影响**：UltraBERT 的 Cascade Distillation 选择 1.3B 作为 teacher（§3.2 最佳），且每个 student 都从**原始 1.3B teacher** 蒸馏而非中间子模型——避免误差级联。更深一层，§4.5 中「KL 蒸馏只作用于 5% 序列、50% 序列用标准 MLM」的不对称设计，正是本节「50% 蒸馏倒退」发现的直接工程化：既然高 ratio 通路经不起 teacher 软标签的稀释，就干脆不让它接受蒸馏。
 
@@ -347,7 +347,7 @@ Web 占三分之二（DCLM + FineWeb-Edu 合计 66.9%），Code/Academic/Math �
 配置层面的两点观察：
 
 - **LR 的两档制**（实验 3e-4 / 最终 1e-4）本身是一个结论：蒸馏与混合目标训练需要更保守的步长。对照第 5 章微调阶段的 LR 分布（UltraBERT 3e-5 vs 竞品 3e-4/5e-4），可以看出「预训练越充分、最优步长越小」的一致趋势贯穿预训练与微调两端；
-- **单 pod 256 chips 的规模克制**：全流程（1.3B teacher + 两个 student + 全部消融）都在一个 pod 内完成，说明论文的结论对中等算力的实验室是可追随的，这也是其配方结论能被社区快速检验的前提。
+- **单 pod 256 chips 的规模克制**：每个模型（含 1.3B teacher 与两个 student）都在单个 256-chip pod slice（v4-512/v5e-256/v6e-256）上训练，说明论文的结论对中等算力的实验室是可追随的，这也是其配方结论能被社区快速检验的前提。
 
 ### 4.4 Cascade Distillation 与剪枝
 
@@ -435,7 +435,7 @@ base 组除 MultiCoNER v2 外全部第一；MultiCoNER v2 上 NomicBERT 60.1 第
 - **SQuAD2.0 89.2**：比次优 Ettin（87.4）高 1.8，是全表中数一数二的分差；
 - **RewardBench 73.0**：比次优 Ettin（70.3）高 2.7，说明增益不止于传统 NLU；
 - **BEIR 45.2**：比次优 ModernBERT（42.6）高 2.6；
-- **RAR-b Code 39.1 / Math 55.4**：分别比次优 Ettin（31.8/47.1）高 7.3/8.3，是全表最大分差——数据混合中 14% Code + 5.8% Math 的直接回报；
+- **RAR-b Code 39.1 / Math 55.4**：分别比次优 Ettin（31.8/47.1）高 7.3/8.3，是全表最大分差——与数据混合中 14% Code + 5.8% Math 的方向一致（论文未做归因消融）；
 - **MLDR 43.5**：base 组第一（GTE 37.1、ModernBERT 37.7 之后）；
 - **LongEmbed 72.0**：不仅 base 第一（次优 ModernBERT 63.2，+8.8），还超过全部 medium 竞品（最高 LFM2.5-355M 71.7）。
 
@@ -482,7 +482,7 @@ medium 组逐列补充观察：
 
 逐列分析（medium 组，对照全部 9 个基线模型）：
 
-- **UltraBERT 的优势集中**在：FiQA-2018（38.1 vs 次优 LFM2.5 的 34.9，+3.2，金融领域查询-文档匹配）、FEVER（73.2 vs 69.8）、NQ（51.6 vs 50.4）、DBPedia（33.9 vs 32.8）、SciDocs（18.0 vs 16.8）、Quora（87.7 vs 87.6），HotpotQA 与 LFM2.5-355M 并列最高（56.5）；Climate-FEVER（25.7）与 LFM2.5-355M 持平、落后 LFM2.5-230M 的 26.1；ArguAna（53.9）与 LFM2.5-355M 并列最高；
+- **UltraBERT 的优势集中**在：FiQA-2018（38.1 vs 次优 LFM2.5 的 34.9，+3.2，金融领域查询-文档匹配）、FEVER（73.2 vs 次优 RoBERTa-355M 的 70.0；LFM2.5-355M 为 69.8）、NQ（51.6 vs 50.4）、DBPedia（33.9 vs 32.8）、SciDocs（18.0 vs 16.8）、Quora（87.7 vs 87.6），HotpotQA 与 LFM2.5-355M 并列最高（56.5）；Climate-FEVER（25.7）与 LFM2.5-355M 持平、落后 LFM2.5-230M 的 26.1；ArguAna（53.9）与 LFM2.5-355M 并列最高；
 - **不占优处**：LFM2.5-Encoder-355M 在 NFCorpus（32.1 vs 31.7）、SciFact（68.5 vs 66.4）、TREC-COVID（80.3 vs 77.0）、CQADupstack（38.4 vs 38.0）四项保持领先——短查询-事实型/科学文献检索上 LFM2.5 保留局部优势；MS MARCO（41.6）与 Touche-2020 由 Ettin/LFM2.5-230M 领先（Touche 最高为 LFM2.5-230M 的 25.9，Ettin 25.1，UltraBERT 23.3）；
 - **微调 LR 差异**：UltraBERT 用 3e-5（base 规模 5e-5），三个竞品用 3e-4/5e-4——检索微调对 LR 极其敏感（相差一个数量级），论文对每个模型扫描 10 个 LR 值，这一细节是公平比较的关键；也提示预训练充分的模型需要更小的微调步长。
 
@@ -546,8 +546,8 @@ UltraBERT 的 6 个子任务成绩：
 
 把第 5 章四个证据面（base 主榜、medium 主榜、BEIR 细分、LongEmbed 细分）叠加，UltraBERT 的增益画像可以概括为三句话：
 
-- **均衡增益**：GLUE/SQuAD/RewardBench 等分类面稳定 +0.5～+2.7，无一处倒退（除两处第二）；
-- **结构增益**：code/math 检索 +7.3～+8.4 的爆发来自数据混合（14% Code + 5.8% Math）与检索通路的乘积效应；
+- **均衡增益**：GLUE/SQuAD/RewardBench 等分类面多数提升 +0.2～+2.7；仅 base 组 MultiCoNER v2 排名第三、medium 组 MLDR 第二，未能在所有列登顶；
+- **结构增益**：code/math 检索 +7.3～+8.4 的爆发与数据混合（14% Code + 5.8% Math）方向一致，但论文未做归因消融，不能直接视为因果；
 - **长度增益**：LongEmbed base 组对次优 +8.8（72.0 vs 63.2）、medium 组对次优 +3.2（74.9 vs 71.7），Passkey 近满分（99.2/99.8）来自架构（RoPE 分层）与末段 32K 扩展的针对性投入。
 
 三类增益各有明确的归因出口，使得 UltraBERT 的领先不是单一 trick 的堆叠，而是配方各组件在各评测面上的独立兑现。
@@ -562,7 +562,7 @@ UltraBERT 的 6 个子任务成绩：
 2. **打破分类-检索权衡**：此前 encoder 生态事实上分裂为「分类模型」与「嵌入模型」两个物种；UltraBERT 证明一个模型可以同时逼近两个物种的上限，且机制解释（输入嵌入相同、LM head 几何冲突）清晰、可检验。
 3. **LM head 几何分析**：把奇异值谱/effective rank 分析从输入嵌入推广到输出投影矩阵，指出预训练目标的「形状」不仅塑造表征也塑造读出层。这是一个可迁移的分析工具——任何混合目标训练（如多任务 LoRA、混合模态）都可以先做同样的「冲突定位」诊断。
 4. **负结果同样有价值**：多阶段 mixture 调度无收益、KoLeo 不能替代高 ratio、RTD 增益集中于 CoLA、50% 下蒸馏倒退——这些受控负结果为社区省下了大量重复试错，且每条都附有机理层面的解释而非仅止于现象。
-5. **实用性**：base 版 152M 在长文本检索上超过 medium 竞品，意味着实际部署可以以更小参数获得更强的检索栈；Apache 2.0 + 全套数据混合公开使复现门槛极低，对应用团队是即取即用的升级路径。
+5. **实用性**：base 版 152M 在长文本检索上超过 medium 竞品，意味着实际部署可以以更小参数获得更强的检索栈；评测代码、权重与全套数据混合公开使复现门槛极低，对应用团队是即取即用的升级路径。
 
 如果把五点意义压缩成一句：论文证明了在「后架构现代化」的 encoder 研究中，**配方是最后一个未被系统开采的收益来源**。架构红利已被 ModernBERT 一代吃尽（表内竞品架构高度同质化），此后 base/medium 区间的排名变化全部来自数据与目标函数层面——UltraBERT 只是把这一层面的探索做成了受控科学。
 
@@ -586,14 +586,13 @@ UltraBERT 的 6 个子任务成绩：
 
 ### 6.3 复现资源
 
-- **权重**：HuggingFace `dmis-lab/UltraBERT-150M`、`dmis-lab/UltraBERT-380M`、`dmis-lab/UltraBERT-Embed-150M`（Apache 2.0）；
-- **官方博客**：huggingface.co/blog/dmis-lab/ultrabert；
-- **评测代码 + 权重 + 数据混合**：均已发布（论文 Reproducibility statement）；
+- **权重**：HuggingFace `dmis-lab/UltraBERT-150M`、`dmis-lab/UltraBERT-380M`（论文未注明许可证，也未提及 Embed-150M）；
+- **评测代码 + 权重 + 数据混合**：论文称均已发布（Reproducibility statement）；
 - **训练配置要点**（供复现）：AdamW（β1=0.9/β2=0.95/ε=1e-8，wd 0.1，clip 1.0）、WSD 调度（10B warmup + 末 10% decay）、batch 4M tokens（2048×2048）、LR 1e-4、{5%,50%} 4:1 双 LM head、末 100B 扩 32K；硬件单 pod 256 TPU chips（16 DP × 16 FSDP，32K 扩展阶段 8 FSDP × 2 TP）。
 
 对希望复用而非复现的实践者，按投入递增的三条路径：
 
-- **零训练**：直接拉取三个 HF 权重，检索场景选 Embed-150M/380M，分类场景选基座版；注意复现论文检索数字需按 §5.1 协议做 MS MARCO 微调并扫 LR；
+- **零训练**：直接拉取两个 HF 权重，检索场景选 380M，分类场景选基座版；注意复现论文检索数字需按 §5.1 协议做 MS MARCO 微调并扫 LR；
 - **只做微调侧实验**：以 UltraBERT-150M 为底座替换自家管线中的 BERT/RoBERTa——论文已证明其分类与检索双底座属性，且 152M 的推理成本与 BERT-base 同档；
 - **完整复现预训练**：需要 2T tokens 的数据处理（Table 4 混合已公开）与单 pod 256 chips 级别的算力；更现实的变体是只复现 {5%,50%}+解耦配方到自有数据域，验证配方结论的域外稳健性。
 

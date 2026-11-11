@@ -5,7 +5,7 @@
 > - **标题**：LLMSurgeon: Diagnosing Data Mixture of Large Language Models
 > - **作者**：Yaxin Luo, Jiacheng Cui, Xiaohan Zhao, Xinyi Shang, Jiacheng Liu, Xinyue Bi et al.
 > - **arXiv**：[2605.30348](https://arxiv.org/abs/2605.30348)
-> - **官方代码**：无官方实现
+> - **官方代码**：论文首页注明「Code & Data: LLMSurgeon」；许可证与仓库内容未在正文说明
 
 ---
 
@@ -81,7 +81,7 @@
 - **开源模型**：如 LLaMA、Pythia、StarCoder，其训练配比公开透明
 - **可验证性**（recipe-verifiable）：可以对照"真实答案"（ground-truth α）来评估算法估计 π̂ 的准确性
 
-LLMScan 包含 8 个模型 × 3 种粒度 = 24 个测试场景，覆盖从 6 领域（粗粒度）到 86 领域（细粒度）的难度谱系。
+LLMScan 包含 8 个开源模型，分属 3 种粒度（每个模型在其所属粒度上评测，并非 8×3 的交叉组合），覆盖从 6 领域（粗粒度）到 87 领域（细粒度）的难度谱系。
 
 ---
 
@@ -103,23 +103,23 @@ LLMScan 包含 8 个模型 × 3 种粒度 = 24 个测试场景，覆盖从 6 领
 
 **创新点 1：Data Mixture Surgery (DMS) 形式化**
 - 将"审计训练数据"转化为可求解的逆问题
-- 数学基础：Label-Shift 理论（迁移学习经典框架）
-- 理论保证：在假设成立时，可渐近收敛到真实分布
+- 数学基础：Label-Shift 假设（迁移学习经典框架）
+- 求解形式：在 Label-Shift 假设下把 DMS 表述为约束逆问题；论文未给出渐近收敛的理论证明
 
 **创新点 2：LLMSurgeon 框架**
 - 三阶段流程：标定 → 观测 → 逆求解
 - 软混淆矩阵 + 约束最小二乘
-- Bootstrap 置信区间 + Unknown thresholding
+- 论文只描述了「三阶段」流程；Bootstrap 置信区间与 Unknown thresholding 并非论文方法（见下文说明）
 
 **创新点 3：LLMScan 基准**
 - 首个可验证的 DMS 评测体系
 - 覆盖多种架构（Transformer、Transformer+、混合架构）
-- 覆盖多种粒度（6、22、86 领域）
+- 覆盖多种粒度（6、17、87 领域）
 
 **创新点 4：超越基线的性能**
-- 在粗粒度任务上：从 44.1% → 94.46%（+114%）
-- 在中粒度任务上：从 48.9% → 65.98%（+35%）
-- 在细粒度任务上：从 22.7% → 30.37%（+34%）
+- 在粗粒度任务上：78.87%–95.14%（较该列最佳基线 +37.3 ~ +55.0）
+- 在中粒度任务上：61.86%–65.98%（较最佳基线 +3.1 ~ +13.1）
+- 在细粒度任务上：30.37%（较最佳基线 +2.8）
 
 ---
 
@@ -129,18 +129,16 @@ LLMScan 包含 8 个模型 × 3 种粒度 = 24 个测试场景，覆盖从 6 领
 |------|------|------|
 | **LLMScan 模型数量** | 8 个 | 论文 Table 1 |
 | **粒度层次** | 3 种（Coarse/Mid/Fine） | 论文 Section 3 |
-| **最大领域数** | 86（StarCoder 编程语言） | 论文 Table 1 |
+| **最大领域数** | 87（StarCoder 编程语言） | 论文 Table 1 |
 | **基线方法数量** | 11 个 | 论文 Table 2 |
 | **最佳粗粒度准确率** | 95.14%（LLaMA-1 7B） | 论文 Table 2 |
-| **粗粒度平均提升** | +50.3%（OLMo-1B：44.1%→94.46%） | 论文 Table 2 |
-| **中粒度平均提升** | +15.7%（Pythia 12B：50.3%→65.98%） | 论文 Table 2 |
-| **细粒度最佳准确率** | 30.37%（StarCoder） | 论文 Table 2 |
-| **最优采样量** | 5,000 tokens/domain | 论文 Appendix C |
-| **混淆矩阵相关系数** | r > 0.9 | 论文 Appendix D |
-| **GPT-2 泛化准确率** | 75.62% | 论文 Table 4 |
-| **OLMo-3 时泛化准确率** | 86.41% | 论文 Table 4 |
-| **Overfitting 风险阈值** | τ = 0.9 | 论文 Algorithm 1 |
-| **Bootstrap 迭代次数** | 200-300 次 | 论文 Algorithm 2 |
+| **粗粒度提升（OLMo-1B）** | 94.46%（较最佳基线 +46.4） | 论文 Table 2 |
+| **中粒度提升范围** | +3.1 ~ +13.1（GPT-Neo 61.86 / Pythia-2.8B 63.20 / Pythia-12B 65.98） | 论文 Table 2 |
+| **细粒度最佳准确率** | 30.37%（StarCoder，较最佳基线 +2.8） | 论文 Table 2 |
+| **最优参考文档量** | 5,000 documents/domain | 论文 Section 5.4 / Table 4 |
+| **分类器-估计准确率相关** | avg r > 0.9（正文 r > 0.85） | 论文 Figure 5 |
+| **GPT-2 balanced 准确率** | 75.62% | 论文 Table 8 |
+| **OLMo-3 时泛化准确率** | 86.41% | 论文 Table 7 |
 
 ---
 
@@ -148,10 +146,10 @@ LLMScan 包含 8 个模型 × 3 种粒度 = 24 个测试场景，覆盖从 6 领
 
 ### 为什么需要重新思考 MIA？（传统 MIA 的三个失败原因）
 
-**失败原因 1：Token 限制导致的样本偏差**
-- **问题**：生成文本长度有限（如 1000 tokens），不同领域平均文本长度不同
-- **后果**：短领域（如代码）被过度采样，长领域（如论文）被欠采样
-- **数学表现**：观测分布 p̄ ≠ 真实分布 π
+**失败原因 1：Token/序列长度限制**
+- **问题**：MIA 多针对短序列设计，扩展到大规模文档级语料时计算不可行
+- **后果**：难以对整批语料做逐样本的 membership 聚合
+- **数学表现**：观测分布 p̄ ≠ 真实分布 π（后续需用逆问题校正）
 
 ---
 
@@ -256,28 +254,30 @@ $$π̂_{naive, k} = \frac{1}{N} \sum_{n=1}^{N} 𝟙[f_φ(x_n) = k]$$
 **设计哲学：**
 - **可验证性**（Recipe-Verifiable）：使用开源模型，其训练数据配比公开透明
 - **多样性**（Diversity）：覆盖不同架构、规模、领域粒度
-- **挑战性**（Challenging）：从简单的 6 领域到困难的 86 领域
+- **挑战性**（Challenging）：从简单的 6 领域到困难的 87 领域
 
-**基准构成（8 个模型 × 3 种粒度）：**
+**基准构成（8 个模型，分属 3 种粒度）：**
 
-| 粒度 | 模型 | 领域数 K | 数据来源 | Ground Truth 来源 |
-|------|------|---------|----------|-------------------|
-| **Coarse** | OLMo-1B | 7 | SlimPajama-DC | 技术报告 |
-| **Coarse** | LLaMA-1 7B | 7 | SlimPajama-DC | 技术报告 |
-| **Coarse** | LLaMA-1 65B | 7 | SlimPajama-DC | 技术报告 |
-| **Coarse** | Amber-13B | 7 | SlimPajama-DC | 技术报告 |
-| **Mid** | Pythia-2.8B | 22 | The Pile | EleutherAI 论文 |
-| **Mid** | Pythia-12B | 22 | The Pile | EleutherAI 论文 |
-| **Mid** | GPT-Neo-2.7B | 22 | The Pile | EleutherAI 论文 |
-| **Fine** | StarCoder-15.5B | 86 | The Stack | BigCode 论文 |
+| 粒度 | 模型 | 领域数 K | 目标预训练语料 | Ground Truth 来源 |
+|------|------|---------|----------------|-------------------|
+| **Coarse** | OLMo-1B | 6 | Dolma | 技术报告 |
+| **Coarse** | LLaMA-1 7B | 6 | Public Mix (CC, Wiki, etc.) | 技术报告 |
+| **Coarse** | LLaMA-1 65B | 6 | Public Mix (CC, Wiki, etc.) | 技术报告 |
+| **Coarse** | Amber-13B | 6 | LLM360 Mix | 技术报告 |
+| **Mid** | Pythia-2.8B | 17 | The Pile | EleutherAI 论文 |
+| **Mid** | Pythia-12B | 17 | The Pile | EleutherAI 论文 |
+| **Mid** | GPT-Neo-2.7B | 17 | The Pile | EleutherAI 论文 |
+| **Fine** | StarCoder-15.5B | 87 | The Stack | BigCode 论文 |
 
-**Coarse 粒度（7 领域）：**
-- CommonCrawl, GitHub, Wikipedia, Books, ArXiv, StackExchange, C4
+（Coarse 粒度的参考分类器池为 SlimPajama-627B-DC，采样 5,000 documents/domain 训练分类器。）
 
-**Mid 粒度（22 领域）：**
-- The Pile 的子领域（如 Enron Email, DM Mathematics, PubMed Abstracts 等）
+**Coarse 粒度（6 领域，C4 与 CommonCrawl 合并为 Web）：**
+- Web, GitHub, Wikipedia, Books, ArXiv, StackExchange
 
-**Fine 粒度（86 领域）：**
+**Mid 粒度（17 领域，去掉 5 个版权相关领域）：**
+- The Pile 的子领域（如 Enron Emails, DM Mathematics, PubMed Abstracts 等）
+
+**Fine 粒度（87 领域）：**
 - The Stack 的编程语言（如 Python, C++, JavaScript, Rust 等）
 
 ---
@@ -311,13 +311,7 @@ $$C_{ij} = \mathbb{E}_{x \sim p_i(x)}[f_φ(x)_j]$$
 | **DistilBERT** | 准确率高（>90%） | 需要预训练，计算成本高 |
 | **TF-IDF + LogReg** | 速度快，可解释性强 | 准确率较低（~80%） |
 
-**温度标定（Temperature Scaling）：**
-
-$$f_φ(x)_j^{scaled} = \frac{\exp(f_φ(x)_j / T)}{\sum_{k=1}^{K} \exp(f_φ(x)_k / T)}$$
-
-**作用：** 调整分类器的预测置信度，使其与真实后验概率对齐。
-
-**选择方法：** 网格搜索（grid search）在验证集上选择最优 T ∈ {0.1, 0.5, 1.0, 2.0, 5.0}。
+**说明：** 论文中的「标定」指用 soft confusion matrix C 刻画分类器的系统偏差（式 4），正文没有描述温度标定（Temperature Scaling）、温度网格搜索或 ECE。下面的温度标定与 ECE 内容属于本报告提出的扩展，不应视为论文方法。
 
 ---
 
@@ -338,9 +332,8 @@ $$\bar{p} = \frac{1}{N} \sum_{n=1}^{N} f_φ(x_n)$$
 - "Write something."
 
 **生成参数：**
-- Temperature = 0.8（平衡创造性和可控性）
-- Top_p = 0.9（nucleus sampling）
-- 长度：每个领域目标 5,000 tokens（总计 35,000 tokens for Coarse）
+- 论文正文未报告生成温度或 top_p；这些设置属于仓库/报告层面，不是论文声明
+- 5,000 是从 6 个粗粒度领域各采样的参考文档数（用于训练分类器），不是生成长度；Coarse 合计约 30,000 documents
 
 **为什么需要 neutral prompts？**
 
@@ -379,7 +372,7 @@ $$\text{s.t. } \sum_{k=1}^{K} π_k = 1, π_k ≥ 0$$
 - $π_k ≥ 0$：概率非负性
 
 **求解算法：**
-1. **无约束最小二乘**：`π̃ = np.linalg.lstsq(C, p̄)`
+1. **无约束最小二乘**：`π̃ = np.linalg.lstsq(C.T, p̄)`
 2. **单纯形投影**（Simplex Projection）：`π̂ = project_to_simplex(π̃)`
 
 **单纯形投影算法（Duchi et al. 2008）：**
@@ -392,88 +385,29 @@ $$\text{s.t. } \sum_{k=1}^{K} π_k = 1, π_k ≥ 0$$
 
 ---
 
-### 温度标定（Temperature Scaling）的作用
+### 温度标定（Temperature Scaling）的作用（报告扩展，非论文内容）
 
-**数学原理：**
-
-Temperature Scaling 是一种"事后校准"（post-hoc calibration）技术：
-- **不重新训练**分类器
-- 只调整 softmax 的温度参数 T
-
-**为什么有效？**
-
-神经网络分类器的 softmax 输出通常**不是**真实的后验概率：
-- **过度自信**（overconfidence）：预测概率 0.99，真实准确率 0.80
-- **欠自信**（underconfidence）：预测概率 0.60，真实准确率 0.75
-
-Temperature Scaling 通过调整温度 T，使预测概率与真实准确率对齐。
-
-**实验结果（论文 Appendix A）：**
-
-| 分类器 | 校准前（ECE） | 校准后（ECE） | 最优 T |
-|--------|--------------|--------------|--------|
-| DistilBERT | 0.12 | 0.03 | 0.5 |
-| TF-IDF+LogReg | 0.18 | 0.07 | 2.0 |
-
-ECE（Expected Calibration Error）越小，校准越好。
+论文未使用温度标定，也未报告 ECE；Appendix A 只有受控 GPT-2 混合物表。本节仅作为报告作者的校准思路补充：对分类器 softmax 输出做温度缩放，可缓解过度自信/欠自信，再用验证集网格搜索 T 并计算 ECE。读者不应把这些数值当作论文的实验结果。
 
 ---
 
-### Unknown thresholding 机制（τ=0.9）
+### Unknown thresholding 机制（报告提出的扩展；论文未使用）
 
-**问题：** 分类器可能遇到"未知领域"（out-of-domain, OOD）文本：
-- StarCoder 的 86 个编程语言不覆盖所有可能语言
-- LLaMA 的 7 个领域不覆盖所有可能文本类型
+**问题：** 论文的 closed-world 假设意味着分类器只会输出 K 个已知领域，遇到未知领域文本时会被"强制分类"；这一点在 Limitations 中有定性讨论。
 
-**风险：** 分类器会"强制分类"（forced classification），把 OOD 文本错误地分到 K 个领域之一。
-
-**解决方案（Algorithm 1）：**
-
-```python
-def unknown_thresholding(f_φ_outputs, τ=0.9):
-    """
-    过滤掉低置信度预测（可能是 OOD 样本）
-    """
-    max_probs = np.max(f_φ_outputs, axis=1)
-    kept_indices = max_probs ≥ τ
-    return f_φ_outputs[kept_indices]
-```
-
-**为什么 τ=0.9？**
-
-论文通过实验发现：
-- **τ = 0.7**：保留太多噪声，准确率下降
-- **τ = 0.9**：最佳平衡点，过滤掉 95% 的 OOD 样本
-- **τ = 0.99**：过度过滤，样本量不足
+**说明：** 论文正文只把生成文本全部通过分类器并取平均得到 p̄（式 5），没有定义 unknown thresholding、阈值 τ 或 Algorithm 1，也没有 OOD 过滤步骤。本节及后文代码中的 τ=0.9 / 过滤 95% OOD 描述属于报告提出的 OOD 过滤启发式，不是论文方法。
 
 ---
 
-### Bootstrap 置信区间
+### Bootstrap 置信区间（报告扩展，非论文内容）
 
-**问题：** 估计 π̂ 本身有不确定性——不同采样会得到不同结果。
-
-**解决方案：**
-
-Bootstrap 是一种"重采样"（resampling）技术：
-1. 从原样本中有放回地抽取 B 个"伪样本"（B = 200-300）
-2. 对每个伪样本估计 π̂_b
-3. 计算置信区间：CI_π = [π̂_{2.5%}, π̂_{97.5%}]
-
-**数学表示：**
-$$CI_{0.95}(π_k) = [π̂_k^{(2.5\%)}, π̂_k^{(97.5\%)}]$$
-
-即：95% 置信区间覆盖了 Bootstrap 分布的中间 95%。
-
-**论文实验结果（近似读取自论文 Figure 5）：**
-- **粗粒度**：置信区间宽度约 ±3%
-- **中粒度**：置信区间宽度约 ±8%
-- **细粒度**：置信区间宽度约 ±15%
+论文没有 Bootstrap、置信区间或 Algorithm 2。Figure 5 报告的是「分类器准确率 vs 最终估计准确率」，呈现强正相关（图注 avg r > 0.9；正文 r > 0.85），并不是置信区间宽度。下文 B=200–300 与 ±3%/±8%/±15% 均为报告/仓库层面的扩展，不应视为论文结果。
 
 ---
 
 ## Ch4: 实验结果与分析
 
-### 主实验表格（全部 8 个模型 × 3 种粒度的 Overlap Accuracy）
+### 主实验表格（全部 8 个模型，分属 3 种粒度的 Overlap Accuracy）
 
 **评估指标：Overlap Accuracy**
 $$\text{Overlap Accuracy} = 1 - \frac{1}{2} \sum_{k=1}^{K} |α_k - π̂_k|$$
@@ -482,31 +416,31 @@ $$\text{Overlap Accuracy} = 1 - \frac{1}{2} \sum_{k=1}^{K} |α_k - π̂_k|$$
 
 **完整实验结果：**
 
-| 模型 | 粒度（K） | LLMSurgeon | Best Baseline | 提升幅度 | 相对提升 |
-|------|----------|-----------|---------------|---------|---------|
-| **OLMo-1B** | Coarse (7) | 94.46% | 44.1% | +50.3% | +114% |
-| **LLaMA-1 7B** | Coarse (7) | 95.14% | 47.8% | +47.3% | +99% |
-| **LLaMA-1 65B** | Coarse (7) | 94.26% | 47.9% | +46.4% | +97% |
-| **Amber-13B** | Coarse (7) | 78.87% | 42.4% | +36.5% | +86% |
-| **Pythia 2.8B** | Mid (22) | 63.20% | 49.0% | +14.2% | +29% |
-| **Pythia 12B** | Mid (22) | 65.98% | 50.3% | +15.7% | +31% |
-| **GPT-Neo 2.7B** | Mid (22) | 61.86% | 48.9% | +13.0% | +27% |
-| **StarCoder** | Fine (86) | 30.37% | 22.7% | +7.7% | +34% |
+| 模型 | 粒度（K） | LLMSurgeon | Best Baseline | 提升幅度 | 相对提升（本报告计算） |
+|------|----------|-----------|---------------|---------|----------------------|
+| **OLMo-1B** | Coarse (6) | 94.46% | 48.05%（Recall） | +46.4 | +97% |
+| **LLaMA-1 7B** | Coarse (6) | 95.14% | 40.13%（Neighbor） | +55.0 | +137% |
+| **LLaMA-1 65B** | Coarse (6) | 94.26% | 46.52%（GradNorm） | +47.7 | +103% |
+| **Amber-13B** | Coarse (6) | 78.87% | 41.55%（Recall） | +37.3 | +90% |
+| **Pythia 2.8B** | Mid (17) | 63.20% | 55.66%（GradNorm） | +7.5 | +14% |
+| **Pythia 12B** | Mid (17) | 65.98% | 52.90%（Neighbor） | +13.1 | +25% |
+| **GPT-Neo 2.7B** | Mid (17) | 61.86% | 58.78%（GradNorm） | +3.1 | +5% |
+| **StarCoder** | Fine (87) | 30.37% | 27.54%（GradNorm） | +2.8 | +10% |
 
 **关键观察：**
 
 1. **粗粒度任务显著提升**：
-   - 从 ~44% → ~94%（提升一倍以上）
-   - 相对提升 +86% ~ +114%
+   - 该列最佳基线约 40.1%–48.1% → LLMSurgeon 78.87%–95.14%
+   - 绝对提升 +37.3 ~ +55.0
    - 说明在"容易任务"上，LLMSurgeon 几乎达到"近乎完美"的估计
 
 2. **中粒度任务稳健提升**：
-   - 从 ~49% → ~63%（提升约 30%）
-   - 说明在"中等任务"上，仍有显著改进空间
+   - 该列最佳基线约 52.9%–58.8% → LLMSurgeon 61.86%–65.98%
+   - 绝对提升 +3.1 ~ +13.1，说明在"中等任务"上仍有改进
 
 3. **细粒度任务边际提升**：
-   - 从 22.7% → 30.37%（提升约 34%）
-   - 虽然绝对准确率不高（30%），但考虑到随机基线是 1/86 ≈ 1.2%，30% 已经是"25 倍于随机"
+   - 从最佳基线 27.54% → 30.37%（+2.8）
+   - 虽然绝对准确率不高（30.37%），但考虑到随机基线是 1/87 ≈ 1.15%，30.37% 已经是"约 26 倍于随机"
 
 4. **规模稳健性**：
    - LLaMA-1 7B → 65B（从 7B 到 65B，9 倍规模）：准确率几乎不变（95.14% vs 94.26%）
@@ -518,41 +452,41 @@ $$\text{Overlap Accuracy} = 1 - \frac{1}{2} \sum_{k=1}^{K} |α_k - π̂_k|$$
 
 **Baseline 方法分类：**
 
-| 类别 | 方法 | 核心思想 | 最佳准确率 |
-|------|------|---------|-----------|
-| **基于损失** | Min-K% | 最小损失样本可能来自训练数据 | 47.8% |
-| **基于损失** | Min-K%++ | 改进 Min-K%，使用对数损失 | 49.0% |
-| **基于上下文** | ReCaLL | 上下文推理 + 分类器聚合 | 50.3% |
-| **压缩比** | zlib | 训练数据压缩比更高 | 42.4% |
-| **邻域方法** | Neighborhood | k-NN 距离分析 | 44.1% |
-| **分布差异** | DC-PDD | 概率密度差异 | 45.2% |
-| **分布差异** | DUCI | 无监督聚类指标 | 46.8% |
-| **Logit 分析** | Joint-Logit | 联合 logits 分析 | 48.9% |
-| **损失分析** | Loss | 训练损失分布 | 47.9% |
-| **参考法** | Ref | 参考分布比较 | 48.0% |
-| **梯度法** | GradNorm | 梯度范数分析 | 49.2% |
+| 类别 | 方法 | 核心思想 | 全模型最高准确率（所在模型） |
+|------|------|---------|------------------------------|
+| **基于损失** | Min-K% | 最小损失样本可能来自训练数据 | 53.47%（GPT-Neo-2.7B） |
+| **基于损失** | Min-K%++ | 改进 Min-K%，使用对数损失 | 53.97%（Pythia-2.8B） |
+| **基于上下文** | ReCaLL | 上下文推理 + 分类器聚合 | 55.23%（Pythia-2.8B） |
+| **压缩比** | zlib | 训练数据压缩比更高 | 55.16%（GPT-Neo-2.7B） |
+| **邻域方法** | Neighborhood | k-NN 距离分析 | 52.90%（Pythia-12B） |
+| **分布差异** | DC-PDD | 概率密度差异 | 56.07%（GPT-Neo-2.7B） |
+| **分布差异** | DUCI | 无监督聚类指标 | 52.86%（GPT-Neo-2.7B） |
+| **Logit 分析** | Joint-Logit | 联合 logits 分析 | 52.26%（Pythia-12B） |
+| **损失分析** | Loss | 训练损失分布 | 53.54%（GPT-Neo-2.7B） |
+| **参考法** | Ref | 参考分布比较 | 52.33%（GPT-Neo/Pythia 多模型并列） |
+| **梯度法** | GradNorm | 梯度范数分析 | 58.78%（GPT-Neo-2.7B） |
 
 **为什么 LLMSurgeon 显著超越所有 baseline？**
 
 **原因 1：显式建模混淆矩阵**
 - **Baseline**：假设分类器完美（C = I），直接聚合预测
 - **LLMSurgeon**：显式建模 C，通过逆校正消除偏差
-- **收益**：在粗粒度上，逆校正贡献 ~2-4% 准确率（消融实验）
+- **收益**：Table 6(a) 中逆校正带来 +0.9~+1.7（粗粒度）与 +3.9（StarCoder）个百分点
 
 **原因 2：软概率 vs 硬分类**
 - **Baseline**：使用硬分类（argmax），丢失信息
 - **LLMSurgeon**：使用软概率（softmax），保留不确定性
-- **收益**：在细粒度上，软概率贡献 ~5-7% 准确率
+- **说明**：论文未单独消融软概率与硬分类，未报告「~5-7%」这类数字
 
 **原因 3：约束优化 vs 无约束聚合**
 - **Baseline**：无约束聚合，结果可能不满足概率公理
 - **LLMSurgeon**：单纯形约束，确保结果合法
 - **收益**：避免极端估计（如负概率或概率和>1）
 
-**原因 4：温度标定**
-- **Baseline**：未校准分类器，概率与真实后验不对齐
-- **LLMSurgeon**：温度标定，校准预测概率
-- **收益**：降低期望校准误差（ECE）从 0.12 → 0.03
+**原因 4：软混淆矩阵标定**
+- **Baseline**：把分类器输出直接当作真实比例
+- **LLMSurgeon**：用 soft confusion matrix C 显式刻画系统混淆，再做逆校正
+- **说明**：论文未使用温度标定，也未报告 ECE；0.12→0.03 不是论文结果
 
 ---
 
@@ -560,47 +494,49 @@ $$\text{Overlap Accuracy} = 1 - \frac{1}{2} \sum_{k=1}^{K} |α_k - π̂_k|$$
 
 #### 消融 1：分类器选择（DistilBERT vs TF-IDF）
 
-| 分类器 | 粗粒度准确率 | 中粒度准确率 | 训练时间 |
-|--------|--------------|--------------|---------|
-| **DistilBERT** | 95.14% | 65.98% | ~30 分钟 |
-| **TF-IDF+LogReg** | 92.3% | 61.2% | ~5 分钟 |
-| **BERT-Large** | 95.8% | 66.5% | ~2 小时 |
+| 分类器 | OLMo-1B | LLaMA1-7B | Amber-13B | StarCoder-15.5B | LLaMA1-65B |
+|--------|---------|-----------|-----------|-----------------|------------|
+| **TF-IDF** | 85.07% | 86.83% | 59.61% | 28.56% | 92.64% |
+| **MLP** | 74.52% | 82.97% | 64.77% | 21.57% | 85.36% |
+| **Transformer** | 89.18% | 90.22% | 75.88% | 23.11% | 94.25% |
+| **DistilBERT** | 94.46% | 95.14% | 78.87% | 30.37% | 94.26% |
+
+（论文 Table 3 没有中粒度列，也没有训练时间列。）
 
 **结论：**
-- **DistilBERT 是最佳性价比选择**（准确率接近 BERT-Large，速度快 4 倍）
-- **TF-IDF 在细粒度任务上显著劣化**（语义理解能力不足）
+- **DistilBERT 在多数设置上最优**：在 LLaMA1-7B 上比次优的 Transformer 高 4.92%，在 StarCoder 上比次优的 TF-IDF 高 1.81%
+- **TF-IDF 在细粒度（StarCoder）上明显劣化**（28.56%）
 
 ---
 
 #### 消融 2：采样量（5000/domain 最优）
 
-| 采样量/domain | 粗粒度准确率 | 中粒度准确率 | 总时间 |
-|--------------|--------------|--------------|--------|
-| **1,000** | 89.2% | 58.3% | ~1 小时 |
-| **5,000** | 95.14% | 65.98% | ~3 小时 |
-| **10,000** | 95.3% | 66.2% | ~6 小时 |
-| **50,000** | 95.4% | 66.3% | ~30 小时 |
+| 参考文档量/domain | OLMo-1B | LLaMA1-7B | Amber-13B | StarCoder-15.5B | LLaMA1-65B |
+|-------------------|---------|-----------|-----------|-----------------|------------|
+| **100** | 73.28% | 85.78% | 71.77% | 20.15% | 83.77% |
+| **1,000** | 95.91% | 93.68% | 74.72% | 25.62% | 93.88% |
+| **5,000** | 94.46% | 95.14% | 78.87% | 30.37% | 94.26% |
+| **10,000** | 93.98% | 92.44% | 82.83% | 29.51% | 93.78% |
+
+（论文 Table 4 没有 50,000 设置，也没有时间列。）
 
 **结论：**
-- **5,000 samples/domain 是"拐点"**（边际收益递减）
-- 从 5,000 → 10,000，准确率仅提升 ~0.2%，但时间翻倍
-- **推荐**：粗粒度用 5,000，细粒度用 10,000（因为 K 更大，需要更多样本）
+- **N = 5,000 是论文采用的拐点**（边际收益递减）
+- 继续增到 10,000 时多数模型无显著提升，部分模型（如 LLaMA1-7B）甚至略降
+- **论文统一采用 5,000 documents/domain**
 
 ---
 
 #### 消融 3：逆校正的贡献
 
-| 配置 | 粗粒度准确率 | 中粒度准确率 | 细粒度准确率 |
-|------|--------------|--------------|--------------|
-| **完整 LLMSurgeon** | 95.14% | 65.98% | 30.37% |
-| **去掉逆校正** | 92.8% | 62.1% | 26.47% |
-| **去掉温度标定** | 93.5% | 63.4% | 28.1% |
-| **两者都去掉** | 91.2% | 60.8% | 24.5% |
+| 配置 | OLMo-1B | LLaMA1-7B | Amber-13B | StarCoder-15.5B | LLaMA1-65B |
+|------|---------|-----------|-----------|-----------------|------------|
+| **w/o Inverse Correction** | 92.77% | 93.42% | 77.38% | 26.47% | 93.38% |
+| **完整 LLMSurgeon** | 94.46% | 95.14% | 78.87% | 30.37% | 94.26% |
 
 **结论：**
-- **逆校正贡献 ~2-4% 准确率**（粗粒度降 ~2%，细粒度降 ~4%）
-- **温度标定贡献 ~1-2% 准确率**
-- **两者互补**：去掉任何一个都会显著劣化
+- **逆校正带来约 0.9–3.9 个百分点提升**：粗粒度 +0.9~+1.7，细粒度（StarCoder）+3.9
+- 论文没有「去掉温度标定」这一消融，也没有报告两者的组合消融
 
 ---
 
@@ -612,16 +548,14 @@ $$\text{Overlap Accuracy} = 1 - \frac{1}{2} \sum_{k=1}^{K} |α_k - π̂_k|$$
 
 **实验：**
 
-| 配置 | 粗粒度准确率 | C 的条件数 |
-|------|--------------|-----------|
-| **合并 C4+CC** | 95.14% | 15.2 |
-| **不合并** | 89.3% | 185.7 |
-| **合并所有重叠领域** | 93.8% | 8.5 |
+| 配置 | OLMo-1B | LLaMA1-7B | Amber-13B | LLaMA1-65B |
+|------|---------|-----------|-----------|------------|
+| **Separate C4 & CC** | 19.52% | 42.42% | 53.49% | 42.52% |
+| **Merge C4 & CC** | 94.46% | 95.14% | 78.87% | 94.26% |
 
 **结论：**
-- **合并高度重叠领域是必要的**（条件数从 185.7 → 15.2）
-- **过度合并也会损失信息**（从 95.14% → 93.8%）
-- **最佳策略**：仅合并相关性 >0.95 的领域
+- **合并语义重叠领域是必要的**：把 C4 与 CommonCrawl 拆开会使 LLaMA1-7B 从 95.14% 跌到 42.42%
+- 论文没有报告条件数、也没有「合并所有重叠领域」或「相关性 >0.95」的阈值实验
 
 ---
 
@@ -629,26 +563,26 @@ $$\text{Overlap Accuracy} = 1 - \frac{1}{2} \sum_{k=1}^{K} |α_k - π̂_k|$$
 
 **R²（决定系数）**：估计分布 π̂ 与真实分布 α 的相关系数平方
 
-**论文实验结果（近似读取自论文 Figure 4）：**
+**论文实验结果（Figure 3）：**
 
 | 粒度 | R² | MAE（平均绝对误差） | 解释 |
 |------|-----|-------------------|------|
-| **Coarse (7)** | 0.99 | 0.008 | 几乎完美相关，误差极小 |
-| **Mid (22)** | 0.54 | 0.012 | 中等相关，误差可控 |
-| **Fine (86)** | 0.01 | 0.018 | 几乎不相关，但 MAE 仍小 |
+| **Coarse (6)** | 0.99 | 0.016 | 几乎完美相关 |
+| **Mid (17)** | 0.54 | 0.053 | 中等相关 |
+| **Fine (87)** | 0.01 | 0.018 | 几乎不相关，但 MAE 仍小 |
 
 **矛盾吗？** R²=0.01（几乎不相关）但 MAE=0.018（误差很小）？
 
 **解释：**
 
 1. **Fine 粒度的特殊性**：
-   - 86 个编程语言中，大部分语言的真实配比 α_k ≈ 0（如 Rust、Go、Swift 等小众语言）
-   - LLMSurgeon 正确估计了 π̂_k ≈ 0（MAE 小）
-   - 但因为 α_k 和 π̂_k 都接近 0，相关性被"稀释"（R² 小）
+   - 87 个编程语言中，许多低频语言（如 Agda、Alloy、ANTLR、Emacs Lisp）的真实配比 α_k 与预测都接近 0，绝对误差小
+   - 但高频语言（如 Java、JavaScript、Python、Go）被明显低估；Rust、C、C++ 也被低估
+   - 大多数领域接近 0 而少数高频领域误差大，使相关系数被"稀释"（R² 小）
 
 2. **MAE 是更合适的指标**：
    - 对于 Fine 粒度，MAE=0.018 意味着"平均误差 1.8%"
-   - 考虑到随机基线是 1/86 ≈ 1.16%，LLMSurgeon 的误差仅比随机高 0.64%
+   - 考虑到随机基线是 1/87 ≈ 1.15%，LLMSurgeon 的误差仅比随机高约 0.65%
 
 3. **R² 的陷阱**：
    - R² 对"稀疏分布"（sparse distribution）不敏感
@@ -661,54 +595,47 @@ $$\text{Overlap Accuracy} = 1 - \frac{1}{2} \sum_{k=1}^{K} |α_k - π̂_k|$$
 #### 泛化实验 1：GPT-2 Sandbox（受控未知混合物）
 
 **设计：**
-- **目标模型**：GPT-2（未在 LLMScan 基准中）
-- **控制变量**：手动构造 5 种不同的训练数据配比（如 80% CC + 20% GitHub）
-- **评估方式**：LLMSurgeon 能否准确恢复这 5 种配比？
+- **目标模型**：GPT-2（不在 LLMScan 主基准中）
+- **控制变量**：固定的 7 领域 taxonomy，构造 Balanced / Book-heavy / Web-heavy 三种训练配比（Table 10）
+- **评估方式**：LLMSurgeon 能否准确恢复这三种配比？
 
-**结果（近似读取自论文 Table 4）：**
+**结果（论文 Table 8 / Table 10）：**
 
-| 配比 | 真实 CC 占比 | LLMSurgeon 估计 | 误差 |
-|------|-------------|----------------|------|
-| **配比 1** | 80% | 77.2% | -2.8% |
-| **配比 2** | 60% | 58.5% | -1.5% |
-| **配比 3** | 40% | 39.8% | -0.2% |
-| **配比 4** | 20% | 21.3% | +1.3% |
-| **配比 5** | 50% | 49.1% | -0.9% |
+| 设置 | 主要配比 | Overlap Accuracy |
+|------|---------|------------------|
+| **Balanced** | CC 20 + C4 20 + Book 20 + Wiki 10 + ArXiv 10 + GitHub 10 + StackExchange 10 | 75.62% |
+| **Book-heavy** | Book 70 | 50.15% |
+| **Web-heavy** | CC 45 + C4 30 | 87.53% |
 
-**平均准确率**：75.62%
+（Table 10 给出三种设置的完整 7 领域配比。）
 
 **结论：**
 - LLMSurgeon 能够泛化到**未见过的模型**（GPT-2）
-- LLMSurgeon 能够泛化到**人工构造的配比**（非真实训练配比）
-- 误差分布均匀（无系统性偏差）
+- Balanced 与 Web-heavy 设置表现较好；Book-heavy 因语义重叠更强、逆问题条件更差而降到 50.15%
 
 ---
 
 #### 泛化实验 2：OLMo-3（时泛化）
 
 **设计：**
-- **目标模型**：OLMo-3（2025 年发布，LLMSurgeon 论文 2026 年）
-- **训练数据**：OLMo-3 的训练数据配比未知（未公开）
-- **评估方式**：与 OLMo-1 的已知配比对比，验证"时泛化性"
+- **目标模型**：OLMo-3（论文未注明其发布年份）
+- **训练数据**：OLMo 系列使用 Dolma 系语料，Table 7 给出 OLMo-1B/2/3 的六领域 Ground Truth
+- **评估方式**：在早期 OLMo 版本上固定所有评测选择，不再调参，直接迁移到 OLMo-3
 
-**结果（近似读取自论文 Table 4）：**
+**结果（论文 Table 7，Ground Truth→Prediction，%）：**
 
-| 领域 | OLMo-1 真实配比 | LLMSurgeon 对 OLMo-1 估计 | LLMSurgeon 对 OLMo-3 估计 |
-|------|----------------|---------------------------|---------------------------|
-| **CommonCrawl** | 35% | 33.2% | 38.5% |
-| **GitHub** | 25% | 26.1% | 22.3% |
-| **Wikipedia** | 15% | 14.8% | 16.2% |
-| **Books** | 10% | 9.5% | 9.8% |
-| **ArXiv** | 8% | 8.2% | 7.1% |
-| **StackExchange** | 5% | 5.4% | 4.8% |
-| **C4** | 2% | 2.1% | 1.3% |
+| 模型 | Web | GitHub | Wikipedia | Books | ArXiv | StackExchange | Overlap |
+|------|-----|--------|-----------|-------|-------|---------------|---------|
+| **OLMo-1B** | 81.10→83.99 | 13.40→12.89 | 0.10→2.04 | 0.20→0.91 | 2.30→0.09 | 2.90→0.08 | 94.46% |
+| **OLMo-2** | 95.50→84.99 | 2.10→7.05 | 0.10→2.81 | 1.50→2.02 | 0.50→0.19 | 0.30→2.94 | 89.18% |
+| **OLMo-3（held-out）** | 76.88→75.37 | 7.06→12.38 | 0.04→8.31 | 12.60→3.44 | 0.82→0.09 | 2.60→0.40 | 86.41% |
 
 **准确率**：86.41%（时泛化）
 
 **结论：**
-- LLMSurgeon 能够泛化到**新发布的模型**（时泛化）
-- OLMo-3 的配比与 OLMo-1 相似（同一家族的"数据配方"传承性）
-- 准确率 86.41% 略低于 LLaMA-1 的 95.14%，但仍然显著超越基线
+- LLMSurgeon 能够泛化到**新的模型版本**（时泛化）
+- OLMo-3 的 Web 主成分被准确恢复（76.88→75.37）
+- 准确率 86.41% 略低于 LLaMA-1 的 95.14%，但论文没有给出 OLMo-3 与 OLMo-1 配比相似的证据
 
 ---
 
@@ -716,19 +643,18 @@ $$\text{Overlap Accuracy} = 1 - \frac{1}{2} \sum_{k=1}^{K} |α_k - π̂_k|$$
 
 **实验设计：**
 - **目标**：检测模型是否训练了有毒内容（toxic content）
-- **方法**：在预训练数据中注入不同比例的有毒文本（1%, 5%, 10%, 20%）
+- **方法**：在预训练数据中注入不同比例的有毒文本（5%, 10%, 20%）
 - **假设**：LLMSurgeon 应该估计到"有毒领域"的配比单调递增
 
-**结果（近似读取自论文 Figure 8）：**
+**结果（论文 Table 9）：**
 
-| 注入比例 | LLMSurgeon 估计 | 估计误差 |
-|---------|----------------|---------|
-| **1%** | 1.2% | +0.2% |
-| **5%** | 5.3% | +0.3% |
-| **10%** | 10.1% | +0.1% |
-| **20%** | 19.8% | -0.2% |
+| 注入比例 | 真实有毒占比 | LLMSurgeon 估计 | 估计准确率 |
+|---------|-------------|----------------|-----------|
+| **5%** | 5.00% | 7.90% | 97.10% |
+| **10%** | 10.00% | 12.00% | 98.00% |
+| **20%** | 20.00% | 22.73% | 97.27% |
 
-**R²（单调性）**：0.998（几乎完美单调）
+估计整体偏高约 2–3 个百分点，但随注入比例单调递增。论文没有 1% 设置、R²=0.998 或 Figure 8。
 
 **应用场景：**
 1. **版权审计**：检测模型是否训练了 GPL 代码（可能触发传染性开源协议）
@@ -748,13 +674,7 @@ $$\text{Overlap Accuracy} = 1 - \frac{1}{2} \sum_{k=1}^{K} |α_k - π̂_k|$$
 - **RLHF 模型**：对齐后的生成分布可能**故意避开**某些领域（如有毒内容、仇恨言论）
 - **后果**：$q(x|y=k) ≠ p(x|y=k)$，Label-Shift 不成立
 
-**实验证据（近似读取自论文 Figure 9）：**
-
-| 模型类型 | 粗粒度准确率 | 估计偏差 |
-|---------|--------------|---------|
-| **Base 模型**（无对齐） | 95.14% | 无系统性偏差 |
-| **SFT 模型**（指令微调） | 87.3% | 略微低估代码领域 |
-| **RLHF 模型**（人类反馈） | 72.5% | 显著低估有毒领域 |
+**实验证据：** 论文并未给出 SFT/RLHF 的定量准确率，也没有 Figure 9。Limitations 只定性指出：经过大量 post-training alignment（如 RLHF 或指令微调）的模型，其输出分布可能偏离原始数据混合物。
 
 **缓解方案：**
 - 仅对 Base 模型使用 LLMSurgeon
@@ -770,7 +690,7 @@ $$\text{Overlap Accuracy} = 1 - \frac{1}{2} \sum_{k=1}^{K} |α_k - π̂_k|$$
 - **后果**：未知领域文本会被"强制分类"到 K 个领域之一，导致估计偏差
 
 **缓解方案：**
-- **Unknown thresholding**（τ=0.9）：过滤掉低置信度预测（可能是 OOD 样本）
+- **Unknown thresholding**（τ=0.9）：报告提出的 OOD 过滤启发式；论文未使用，只做 closed-world 的定性讨论
 - **开放集识别**（Open-Set Recognition）：增加第 K+1 类"未知领域"
 
 ---
@@ -782,16 +702,10 @@ $$\text{Overlap Accuracy} = 1 - \frac{1}{2} \sum_{k=1}^{K} |α_k - π̂_k|$$
 - 导致混淆矩阵 C 的某些特征值接近 0（病态矩阵）
 - 逆问题 $C^T π = p̄$ 对噪声极度敏感
 
-**实验证据（近似读取自论文 Appendix D）：**
-
-| 领域对 | 相关系数 | C 的条件数 | 估计误差 |
-|--------|---------|-----------|---------|
-| **C4 vs CC** | 0.98 | 185.7 | ±8% |
-| **Python vs C++** | 0.45 | 12.3 | ±2% |
-| **Books vs ArXiv** | 0.32 | 8.5 | ±1.5% |
+**实验证据：** 论文没有 Appendix D，也没有报告领域对相关系数或条件数。最直接的证据是 Table 6(b)：把 C4 与 CommonCrawl 当作两个独立领域时，LLaMA1-7B 的准确率从 95.14% 跌到 42.42%；合并后恢复到 95.14%。
 
 **缓解方案：**
-- **领域合并**（Domain Merging）：合并相关性 >0.95 的领域
+- **领域合并**（Domain Merging）：合并语义不可区分的领域（如 C4 与 CommonCrawl）
 - **正则化**（Regularization）：在逆问题求解中加入 L2 正则项
 
 ---
@@ -805,17 +719,17 @@ $$\text{Overlap Accuracy} = 1 - \frac{1}{2} \sum_{k=1}^{K} |α_k - π̂_k|$$
 
 **贡献 2：LLMSurgeon 框架**
 - 三阶段流程：标定混淆矩阵 → 观测目标分布 → 逆问题求解
-- 核心创新：软混淆矩阵 + 约束最小二乘 + Bootstrap 置信区间
-- 实验表现：在粗粒度任务上达到 95.14% 准确率，超越基线 +114%
+- 核心创新：软混淆矩阵 + 约束最小二乘（论文未涉及 Bootstrap 置信区间）
+- 实验表现：在粗粒度任务上达到 95.14% 准确率（较该列最佳基线 +55.0）
 
 **贡献 3：LLMScan 基准**
-- 首个可验证的 DMS 评测体系（8 个模型 × 3 种粒度）
-- 覆盖从 6 领域到 86 领域的难度谱系
+- 首个可验证的 DMS 评测体系（8 个模型分属 3 种粒度）
+- 覆盖从 6 领域到 87 领域的难度谱系
 - 为未来研究提供标准化评测协议
 
 **贡献 4：泛化验证**
 - **跨架构泛化**：从 Transformer 到 Transformer+（GPT-2）
-- **时泛化**：从 2024 年模型（LLaMA-1）到 2025 年模型（OLMo-3）
+- **时泛化**：从 LLaMA-1（Touvron et al. 2023）到 OLMo-3（论文未注明发布年份）
 - **安全审计应用**：Toxic-injection 实验验证实际应用价值
 
 ---
@@ -829,7 +743,7 @@ $$\text{Overlap Accuracy} = 1 - \frac{1}{2} \sum_{k=1}^{K} |α_k - π̂_k|$$
 
 **方向 2：层次化推断（Hierarchical Inference）**
 - **问题**：细粒度任务准确率低（30%），因为 K 太大
-- **目标**：先粗粒度估计（7 领域），再在相关领域内细化（如 7 → 22 → 86）
+- **目标**：先粗粒度估计（6 领域），再在相关领域内细化（如 6 → 17 → 87）
 - **方法**：层次化贝叶斯推断（Hierarchical Bayesian Inference）
 
 **方向 3：多语言扩展（Multilingual Extension）**
@@ -849,7 +763,7 @@ $$\text{Overlap Accuracy} = 1 - \frac{1}{2} \sum_{k=1}^{K} |α_k - π̂_k|$$
 **第 2 遍（技术细节）：**
 1. Section 2（问题形式化，DMS 数学定义）
 2. Section 3（LLMScan 基准设计和 LLMSurgeon 框架）
-3. Algorithm 1 & 2（Unknown thresholding 和 Bootstrap 算法）
+3. Appendix B（Coarse/Mid/Fine 分粒度检测误差）
 
 **第 3 遍（深入分析）：**
 1. Section 4（实验结果和消融研究）
@@ -862,15 +776,15 @@ $$\text{Overlap Accuracy} = 1 - \frac{1}{2} \sum_{k=1}^{K} |α_k - π̂_k|$$
 
 **论文原文：**
 - arXiv: https://arxiv.org/abs/2605.30348
-- ACL 2026 Proceedings:（待发布）
+- 发表信息：以 arXiv 页面为准（arXiv:2605.30348v2，2026-10-15；正文未注明 ACL 2026）
 
 **代码仓库：**
-- GitHub: https://github.com/Yaxin9Luo/LLMSurgeon（MIT License）
+- GitHub: https://github.com/Yaxin9Luo/LLMSurgeon（论文注明 Code & Data；许可证正文未说明）
 - 包含：11 个基线实现、LLMScan 基准数据、LLMSurgeon 框架
 
 **相关论文：**
-- Label-Shift 理论：Saerens et al. 2002 "Determining the Initial Values in the EM Algorithm for Unsupervised Data"
-- LLMScan 数据来源：SlimPajama (Sobolev et al. 2023), The Pile (Gao et al. 2020), The Stack (Kocmi et al. 2022)
+- Label-Shift 理论：报告补充的经典参考（论文正文只引用 Label Shift 概念，未引用 Saerens et al. 2002）
+- LLMScan 数据来源：SlimPajama (Shen et al. 2023), The Pile (Gao et al. 2020), The Stack (Kocetkov et al. 2022)
 
 ---
 
@@ -908,7 +822,7 @@ LLMSurgeon/
 │   │   ├── prior.py                # 逆问题求解器（最小二乘 + 单纯形投影）
 │   │   ├── data_utils.py           # 数据预处理工具
 │   │   ├── generate.py             # 文本生成接口
-│   │   ├── run_labelshift.py       # 完整 Pipeline（11 阶段）
+│   │   ├── run_labelshift.py       # 完整 Pipeline（论文为三阶段；代码示例拆分更细）
 │   │   └── [11 baseline methods]/ # 基线方法实现
 │   │       ├── min_k_percent.py    # Min-K% 基线
 │   │       ├── neighborhood.py     # Neighborhood 基线
@@ -928,7 +842,7 @@ LLMSurgeon/
 
 - `classifier.py`：实现两种分类器（TfidfLogReg 和 HFSequenceClassifier），混淆矩阵计算
 - `prior.py`：核心逆问题求解算法（estimate_priors_least_squares、bootstrap_priors）
-- `run_labelshift.py`：完整实验流程（11 个阶段）
+- `run_labelshift.py`：完整实验流程（论文为三阶段）
 - `benchmark_evaluation.py`：LLMScan 基准评测
 
 **依赖项和环境要求：**
@@ -1076,7 +990,7 @@ class HFSequenceClassifier:
     def train(self, train_texts, train_labels, val_texts, val_labels,
               epochs=3, batch_size=16, lr=2e-5, weight_decay=0.01):
         """
-        训练配置（论文 Appendix A 推荐参数）：
+        训练配置（仓库默认参数；论文正文未给出该超参表）：
         - epochs=3：防止过拟合
         - batch_size=16：平衡显存占用和梯度稳定性
         - lr=2e-5：标准 BERT fine-tuning 学习率
@@ -1276,7 +1190,7 @@ def bootstrap_priors(C, pbar, n_iterations=300, ci_percentile=(2.5, 97.5)):
     Args:
         C: np.ndarray of shape (K, K) — 混淆矩阵
         pbar: np.ndarray of shape (N, K) — N 个样本的软预测（N 为生成的文本总数）
-        n_iterations: Bootstrap 迭代次数（论文推荐 200-300）
+        n_iterations: Bootstrap 迭代次数（报告/仓库设置；论文未使用 Bootstrap）
         ci_percentile: 置信区间分位数（默认 95% CI）
 
     Returns:
@@ -1313,7 +1227,7 @@ def bootstrap_priors(C, pbar, n_iterations=300, ci_percentile=(2.5, 97.5)):
 
 ### 6.4 完整 Pipeline（run_labelshift.py）
 
-**11 个阶段的完整流程：**
+**完整流程（代码示例拆成 11 步；论文为三阶段）：**
 
 ```python
 # Source: official repo, https://github.com/Yaxin9Luo/LLMSurgeon
@@ -1429,7 +1343,7 @@ def run_labelshift_pipeline(config):
 
 ---
 
-**未知类别阈值处理（τ=0.9）：**
+**未知类别阈值处理（报告扩展；论文未使用）：**
 
 ```python
 # Source: official repo, https://github.com/Yaxin9Luo/LLMSurgeon
@@ -1439,7 +1353,7 @@ def unknown_thresholding(probs, tau=0.9):
 
     Args:
         probs: np.ndarray of shape (N, K) — 分类器预测概率
-        tau: float — 阈值（论文推荐 0.9）
+        tau: float — 阈值（报告建议；论文未使用）
 
     Returns:
         filtered_probs: np.ndarray of shape (M, K) — 过滤后的预测（M ≤ N）
@@ -1451,11 +1365,11 @@ def unknown_thresholding(probs, tau=0.9):
     return filtered_probs, kept_indices
 ```
 
-**为什么 τ=0.9？**
+**为什么 τ=0.9？（报告/仓库层面的经验设置，论文未使用）**
 
-- **τ = 0.7**：保留太多噪声，准确率下降（OOD 样本太多）
-- **τ = 0.9**：最佳平衡点，过滤掉 95% 的 OOD 样本
-- **τ = 0.99**：过度过滤，样本量不足（置信区间变宽）
+- **τ = 0.7**：保留更多低置信度样本
+- **τ = 0.9**：报告采用的折中值（论文没有 95% OOD 的统计）
+- **τ = 0.99**：过滤过强，样本量不足（置信区间变宽）
 
 ---
 
@@ -1610,45 +1524,42 @@ model_name: "llama-1-7b"
 model_family: "LLaMA"
 num_parameters: 7000000000  # 7B
 
-# 领域配比（Ground Truth）
+# 领域配比（Ground Truth，论文 Table 11；C4 已合并进 Web）
 category_weights:
-  CommonCrawl: 0.35        # 35%
-  GitHub: 0.25             # 25%
-  Wikipedia: 0.15          # 15%
-  Books: 0.10              # 10%
-  ArXiv: 0.08              # 8%
-  StackExchange: 0.05      # 5%
-  C4: 0.02                 # 2%
+  Web: 0.8159
+  GitHub: 0.0448
+  Wikipedia: 0.0448
+  Books: 0.0448
+  ArXiv: 0.0249
+  StackExchange: 0.0249
 
 # 领域详细信息
 categories:
-  CommonCrawl:
-    description: "Web crawl data"
-    source: "SlimPajama-DC"
+  Web:
+    description: "Web crawl data（C4 与 CommonCrawl 合并）"
+    source: "SlimPajama-DC（参考分类器池）"
   GitHub:
     description: "Source code repositories"
-    source: "SlimPajama-DC"
+    source: "SlimPajama-DC（参考分类器池）"
   Wikipedia:
     description: "Online encyclopedia"
-    source: "SlimPajama-DC"
+    source: "SlimPajama-DC（参考分类器池）"
   Books:
     description: "Books corpus"
-    source: "SlimPajama-DC"
+    source: "SlimPajama-DC（参考分类器池）"
   ArXiv:
     description: "Scientific papers"
-    source: "SlimPajama-DC"
+    source: "SlimPajama-DC（参考分类器池）"
   StackExchange:
     description: "Q&A forums"
-    source: "SlimPajama-DC"
-  C4:
-    description: "Colossal Clean Crawled Corpus"
-    source: "SlimPajama-DC"
+    source: "SlimPajama-DC（参考分类器池）"
 
 # 元数据
 metadata:
-  training_data: "SlimPajama-DC"
+  training_data: "LLaMA-1 Public Mix"
   release_date: "2023-02-14"
   paper: "Touvron et al. 2023"
+  ground_truth_source: "LLaMA-1 technical report（Table 11）"
 ```
 
 **YAML 解析代码：**
@@ -2181,12 +2092,12 @@ classifier.train(
 **数据准备阶段：**
 - [x] 使用中性提示词（neutral prompts）生成文本
 - [x] 每个领域采样 ≥5000 个文本
-- [x] 生成参数：temperature=0.8, top_p=0.9
+- [x] 生成参数：仓库/示例使用 temperature=0.8, top_p=0.9（论文正文未给出）
 
 **分类器训练阶段：**
 - [x] 优先使用 DistilBERT（准确率 >90%）
 - [x] 训练参数：lr=2e-5, epochs=3, batch_size=16
-- [x] 必须进行温度标定（grid search）
+- [x] 温度标定属于报告扩展，论文未使用
 
 **混淆矩阵计算阶段：**
 - [x] 行归一化（确保每行和为 1）
@@ -2242,7 +2153,7 @@ print(f"Inverse Correction Gain: {gain*100:.1f}%")  # 应 >2%
 ## 推荐阅读顺序（代码版）
 
 **第 1 遍（快速上手）：**
-1. `run_labelshift.py`（完整 Pipeline，11 阶段）
+1. `run_labelshift.py`（完整 Pipeline）
 2. `prior.py`（核心算法：estimate_priors_least_squares）
 3. `benchmark_evaluation.py`（如何评估结果）
 
@@ -2260,6 +2171,6 @@ print(f"Inverse Correction Gain: {gain*100:.1f}%")  # 应 >2%
 
 ## 参考链接
 
-- 论文：[arXiv:2605.30348](https://arxiv.org/abs/2605.30348) (ACL 2026 Main)
-- 官方代码：[GitHub: Yaxin9Luo/LLMSurgeon](https://github.com/Yaxin9Luo/LLMSurgeon) (MIT License)
+- 论文：[arXiv:2605.30348](https://arxiv.org/abs/2605.30348)（正文未注明 ACL 2026）
+- 官方代码：[GitHub: Yaxin9Luo/LLMSurgeon](https://github.com/Yaxin9Luo/LLMSurgeon)（论文注明 Code & Data；许可证正文未说明）
 - 报告文件：[Papers/2026/05/2026-05-31-llmsurgeon.md](https://github.com/meraks/ArxivPaperReader/blob/main/Papers/2026/05/2026-05-31-llmsurgeon.md)

@@ -17,7 +17,7 @@ Llama 3 是 Meta AI 发布的一组 **dense Transformer** 大语言模型家族�
 
 | 编号 | 内容 |
 |------|------|
-| **Figure 1** | Llama 3 整体架构与训练流程（预训练 → 后训练 → 多模态扩展） |
+| **Figure 1** | Llama 3 的 Transformer 语言模型架构（token embeddings → self-attention/FFN → 输出 token，自回归解码） |
 | **Figure 2** | Scaling Law IsoFLOPs 曲线（6×10¹⁸ 至 10²² FLOPs） |
 | **Figure 3** | 计算最优模型 token 数与 FLOPs 的关系拟合曲线 |
 | **Figure 4** | Scaling Law 对 ARC Challenge 的预测（两阶段方法验证） |
@@ -26,20 +26,20 @@ Llama 3 是 Meta AI 发布的一组 **dense Transformer** 大语言模型家族�
 | **Table 3** | 模型超参数配置（8B/70B/405B） |
 | **Table 4** | 405B 预训练 Scaling 配置与 MFU |
 
-Llama 3 采用标准的 Dense Transformer 架构，整体训练流程分为预训练、后训练和多模态扩展三阶段（图1）。
+Llama 3 的语言模型采用标准的 Dense Transformer 架构，开发流程分为预训练、后训练两阶段；多模态扩展是另外的附加阶段（见 Figure 28 与第 7 章）。
 
-![Figure 1: Llama 3 整体架构与训练流程（预训练 → 后训练 → 多模态扩展）](Figures/2024-07-23-llama-3-herd-of-models-fig1.png)
+![Figure 1: Llama 3 的 Transformer 语言模型架构（token embeddings → self-attention/FFN → 输出 token，自回归解码）](Figures/2024-07-23-llama-3-herd-of-models-fig1.png)
 
-*图1：Llama 3 的三阶段训练流水线。预训练阶段在 15.6T tokens 上训练 405B 参数模型，后训练阶段通过 SFT+RS+DPO 多轮迭代对齐人类偏好，多模态阶段通过 freeze-LLM + train-adapter 范式扩展图像/视频/语音理解能力。*
+*图1：Llama 3 的 Transformer 语言模型架构（token embeddings → self-attention/FFN → 输出 token，自回归解码）。语言模型开发分为预训练（405B 模型在 15.6T tokens 上训练）与后训练（SFT+RS+DPO 多轮迭代）两阶段；图像/视频/语音的附加阶段见 Figure 28。*
 
 ### 1.2 模型家族（Table 1）
 
 | Model | Finetuned | Multilingual | Long context | Tool use | Release |
 |-------|:---------:|:-----------:|:-----------:|:-------:|:-------:|
-| Llama 3 8B | ✗ | ✗ | ✗ | ✗ | Apr 2024 |
-| Llama 3 8B Instruct | ✓ | ✗ | ✗ | ✗ | Apr 2024 |
+| Llama 3 8B | ✗ | ✗¹ | ✗ | ✗ | Apr 2024 |
+| Llama 3 8B Instruct | ✓ | ✗¹ | ✗ | ✗ | Apr 2024 |
 | Llama 3 70B | ✗ | ✗¹ | ✗ | ✗ | Apr 2024 |
-| Llama 3 70B Instruct | ✓ | ✗ | ✗ | ✗ | Apr 2024 |
+| Llama 3 70B Instruct | ✓ | ✗¹ | ✗ | ✗ | Apr 2024 |
 | Llama 3.1 8B | ✗ | ✓ | ✓ | ✗ | Jul 2024 |
 | Llama 3.1 8B Instruct | ✓ | ✓ | ✓ | ✓ | Jul 2024 |
 | Llama 3.1 70B | ✗ | ✓ | ✓ | ✗ | Jul 2024 |
@@ -53,7 +53,7 @@ Llama 3 采用标准的 Dense Transformer 架构，整体训练流程分为预�
 
 2. **能力与版本的关系**：
    - **基础模型（base）** 从不支持 tool use —— tool use 是 instruction tuning 之后才解锁的能力，**仅 Instruct 版本具备**。
-   - **multilingual 与 long context**：在 3.0 阶段仅 70B 有部分多语言能力（表中 ✗¹ 标注），到 3.1 阶段全系列标配。这说明 8B / 70B 的 3.1 升级并非简单微调，而是通过 **continued pre-training** 注入了新能力。
+   - **multilingual 与 long context**：在 3.0 阶段 8B 与 70B 都已在多语言数据上预训练（表中 ✗¹ 标注），但当时仅面向英语使用；到 3.1 阶段全系列标配。这说明 8B / 70B 的 3.1 升级并非简单微调，而是通过 **continued pre-training** 注入了新能力。
 
 3. **参数规模的部署定位**：8B 面向端侧 / 单卡部署，70B 面向中等规模服务，405B 作为旗舰冲击 SOTA。
 
@@ -203,7 +203,7 @@ Llama 3 采用标准的 Dense Transformer 架构，整体训练流程分为预�
 **2. Document Mask（文档级掩码）**
 
 - 在同一序列内打包多个文档时，**阻止不同文档之间的 self-attention**。
-- 意义：防止跨文档信息泄漏 / 污染，保证每个文档的注意力计算是"干净"的。这对训练效率（序列打包提升利用率）与训练质量（无跨文档干扰）是双赢设计。
+- 意义：防止跨文档信息泄漏 / 污染，保证每个文档的注意力计算是"干净"的。论文指出该掩码在标准预训练中影响有限，但在长序列 continued pre-training 中很重要；其主要价值在长上下文训练，不宜泛化为普遍的双赢质量提升。
 
 **3. 128K Token 词表**
 
@@ -247,7 +247,7 @@ Llama 3 采用**两阶段方法论**将"损失"与"下游能力"挂钩：
 
 $$N^{\star}(C) = 0.29 \times C^{0.53}$$
 
-其中 $N^{\star}$ 为最优参数量，$C$ 为算力预算（FLOPs）。指数 **0.53 略大于 0.5**，意味着最优参数量随算力**略超线性**于 $\sqrt{C}$ 增长。
+其中 $N^{\star}$ 为最优训练 token 数（不是参数量），$C$ 为算力预算（FLOPs）。指数 **0.53 略大于 0.5**，意味着最优训练 token 数随算力**略快于** $\sqrt{C}$ 增长。
 
 ![Figure 3: 最优 token 数与计算预算的关系](Figures/2024-07-23-llama-3-herd-of-models-fig3.png)
 
@@ -313,34 +313,33 @@ $$\text{TP} \rightarrow \text{CP} \rightarrow \text{PP} \rightarrow \text{DP (FS
 
 ### 4.1 Pre-training Recipe
 
-Llama 3 系列中规模最大的 **405B** 模型在 **15.6T tokens** 数据上完成预训练，使用 **16,384 块 H100-80GB GPU**，总计算开销约为 **30.84M GPU-hours**。训练上下文初始为 **8K**，随后通过 continued pre-training 扩展至 **128K**。
+Llama 3 系列中规模最大的 **405B** 模型在 **15.6T tokens** 数据上完成预训练，使用 **16,384 块 H100-80GB GPU**。论文报告的训练算力为 **3.8×10²⁵ FLOPs**；**30.84M GPU-hours** 是按该算力与硬件效率推算的近似值，论文未直接给出。训练上下文初始为 **8K**，随后通过 continued pre-training 扩展至 **128K**。
 
 核心 optimizer 与 schedule 配置如下：
 
 | 配置项 | 设置 |
 |---|---|
 | Optimizer | AdamW |
-| β₁ / β₂ / ε | 0.9 / 0.95 / 10⁻⁵ |
-| LR schedule | Cosine decay，2,000 steps warmup |
+| LR schedule | Cosine decay，8,000 steps warmup（衰减至 8×10⁻⁷，共 1,200,000 步） |
 | 初始 batch size | 4M tokens |
 | 扩展后 batch size | 8M tokens（训练 252M tokens 后） |
-| Weight decay | 0.1 × LR（每步） |
-| Gradient clipping | 1.0 |
+| 最终 batch size | 16M tokens（训练 2.87T tokens 后） |
+| Weight decay | 0.1 × LR（每步；论文在 scaling-law 实验中给出，405B recipe 未单列） |
 
 Cosine LR schedule 的形式为：
 
 $$\eta_t = \eta_{\min} + \frac{1}{2}\left(\eta_{\max} - \eta_{\min}\right)\left(1 + \cos\left(\frac{\pi t}{T}\right)\right)$$
 
-其中 warmup 阶段（前 2,000 步）将 LR 从 0 线性增长至 $\eta_{\max}$，随后按 cosine 曲线衰减至 $\eta_{\min}$。
+其中 warmup 阶段（前 8,000 步）将 LR 从 0 线性增长至 $\eta_{\max}$，随后按 cosine 曲线衰减至 $\eta_{\min}$。
 
-**Batch size 动态调整策略**：训练初期使用 4M tokens 的 batch size 以保证收敛稳定性，在累积训练 **252M tokens** 后将 batch size 提升至 8M tokens。这种 warmup-style batch size scaling 能在早期保持梯度高保真度，在后期充分利用硬件算力，提升整体吞吐量与收敛效率。
+**Batch size 动态调整策略**：训练初期使用 4M tokens 的 batch size 以保证收敛稳定性，在累积训练 **252M tokens** 后将 batch size 提升至 8M tokens，并在 **2.87T tokens** 后再翻倍至 **16M tokens**（最终 batch size）。这种 warmup-style batch size scaling 能在早期保持梯度高保真度，在后期充分利用硬件算力，提升整体吞吐量与收敛效率。
 
 ### 4.2 Annealing
 
 Annealing 阶段在训练末期执行，专注于 **high-quality code 与 math data**。关键设计：
 
-- 在最后约 **40B tokens** 上 linearly 将 LR 衰减至 0
-- 数据配比：**30% 来自新的高质量数据集 + 70% 来自默认 mix**
+- 在最后约 **40M tokens** 上 linearly 将 LR 衰减至 0（保持 128K 上下文）
+- 数据配比上采样高质量数据；而 **30% 新高质量数据集 + 70% 默认 mix** 是另一项用 50% trained 8B 模型在 40B tokens 上评估新数据集的实验设置，不是 405B 的最终退火配方
 
 效果因模型规模而异：
 
@@ -349,17 +348,17 @@ Annealing 阶段在训练末期执行，专注于 **high-quality code 与 math d
 | 8B | +24% | +6.4% | 显著 |
 | 405B | — | — | 几乎可忽略（negligible） |
 
-这一现象体现了 **scaling law 下的 diminishing returns**：较小模型能从 domain-specific annealing 中获益显著，而 405B 这类大模型已在前序训练中充分习得 code/math 知识，退火带来的增量收益有限。
+这一现象体现了 **scaling law 下的 diminishing returns**：较小模型能从 domain-specific annealing 中获益显著；论文的解释是 405B 已具备强 in-context learning 与推理能力，不需要特定领域训练样本，而非“已充分习得 code/math 知识”。
 
 ### 4.3 Infrastructure
 
 | 基础设施组件 | 规格 |
 |---|---|
 | GPU | 16,384 × H100-80GB |
-| 总 GPU-hours | 30.84M（405B pre-training） |
+| 总 GPU-hours | 30.84M（按 3.8×10²⁵ FLOPs 推算，论文未直接给出） |
 | Scheduler | MAST |
 | 存储 | Tectonic（240PB，2TB/s 持续吞吐） |
-| 并行策略 | 4D Parallelism：TP(8) × CP(1→16) × PP(16) × DP(64→128) |
+| 并行策略 | 4D Parallelism：TP(8) × PP(16)，CP/DP 按阶段取 CP(1)/DP(64)、CP(1)/DP(128)、CP(16)/DP(8) |
 | BF16 MFU | 38%–43% |
 | 通信库 | NCCLX（fork 自 Nvidia NCCL） |
 | 初始序列长度 | 8K |
@@ -373,7 +372,7 @@ Llama 3 将四种并行策略组合使用，整体并行度为各维度乘积：
 
 $$\text{Total Parallelism} = N_{\text{TP}} \times N_{\text{CP}} \times N_{\text{PP}} \times N_{\text{DP}}$$
 
-对于 405B 训练：$8 \times (1\text{-}16) \times 16 \times (64\text{-}128)$，正好匹配 16,384 块 GPU 的集群规模。
+对于 405B 训练，Table 4 的三组配置分别为 $8 \times 1 \times 16 \times 64$（8,192 GPU）、$8 \times 1 \times 16 \times 128$（16,384 GPU）与 $8 \times 16 \times 16 \times 8$（长上下文，16,384 GPU）；CP=16 与 DP=128 不会同时出现。
 
 各策略职责与核心机制：
 
@@ -381,12 +380,12 @@ $$\text{Total Parallelism} = N_{\text{TP}} \times N_{\text{CP}} \times N_{\text{
 |---|---|---|
 | Tensor Parallelism (TP) | 权重张量 | 将权重矩阵沿某一维度切分，每层计算后 all-reduce 同步 |
 | Pipeline Parallelism (PP) | 模型层（stages） | 将层划分为 stage，支持灵活数量 $N$ 的 micro-batch 流水 |
-| Context Parallelism (CP) | 序列维度 | Ring-attention 风格，all-gather K/V 张量，partition sequence dim |
+| Context Parallelism (CP) | 序列维度 | All-gather 风格（明确不同于 ring-attention）：先 all-gather K/V，再对本地 Q chunk 计算 attention；沿序列维度切分 |
 | FSDP / Data Parallelism (DP) | Optimizer states 与梯度 | 分片 optimizer states 和 gradients，all-gather 权重 |
 
 **进程组排序与通信优化**：组顺序设为 `[TP, CP, PP, DP]`，以最小化 network communication 开销：
 
-- **TP 与 CP 位于节点内（intra-node）**：充分利用高带宽 NVLink，降低 all-reduce / all-gather 延迟
+- **TP 位于节点内（intra-node）**：充分利用高带宽 NVLink，降低 all-reduce 延迟；长上下文阶段 CP=16 会跨节点（每台服务器 8 GPU），论文只将最内层的 TP 描述为通常限制在单机内
 - **PP 与 DP 跨节点（inter-node）**：二者通信量相对较小或可被流水掩盖，容忍较高网络延迟
 
 这一布局将高带宽需求限制在节点内，将高延迟容忍的通信放到节点间，是 BF16 MFU 达到 38%–43% 的关键因素之一。
@@ -399,7 +398,7 @@ $$\text{Total Parallelism} = N_{\text{TP}} \times N_{\text{CP}} \times N_{\text{
 
 Llama 3 的 post-training 采用 **多轮迭代式** 方案，融合多种技术协同提升模型质量：
 
-$$\text{Round: } \text{SFT} \rightarrow \text{Reward Modeling} \rightarrow \text{Rejection Sampling (RS)} \rightarrow \text{DPO} \rightarrow (\text{回到 SFT})$$
+$$\text{Round: } \text{Reward Modeling} \rightarrow \text{Rejection Sampling (RS)} \rightarrow \text{SFT} \rightarrow \text{DPO} \rightarrow (\text{下一轮})$$
 
 核心组件：
 - **SFT (Supervised Fine-Tuning)**：基于高质量 demonstrations 进行监督微调
@@ -407,7 +406,7 @@ $$\text{Round: } \text{SFT} \rightarrow \text{Reward Modeling} \rightarrow \text
 - **Rejection Sampling (RS)**：从当前模型采样多组输出，用 reward model 筛选最优样本，作为新一轮 SFT 数据
 - **DPO (Direct Preference Optimization)**：直接基于 preference pairs 优化 policy
 
-整个流程累计使用了 **超过 10M 条 human-annotated examples**，通过"训练 → 生成 → 收集偏好 → 再训练"的循环不断迭代改进。
+论文称后训练使用了 **数百万条 human instructions / preference judgments**（未给出精确总数，也没有“10M”这一数字），通过"训练 → 生成 → 收集偏好 → 再训练"的循环不断迭代改进。
 
 ### 5.2 SFT Data
 
@@ -503,7 +502,7 @@ Safety 机制贯穿 post-training 全流程，形成多层防护：
 - **科学推理（GPQA）**：405B 达到 51.1，远超 GPT-4（41.4），但仍落后于 Claude 3.5 Sonnet（59.4），这是研究生级别问答能力的主要差距点。
 - **综合知识（ARC Challenge）**：405B 以 96.9 领先，所有模型在该 benchmark 上均已接近饱和。
 
-总体而言，405B 在大多数 benchmark 上与 GPT-4o 和 Claude 3.5 Sonnet 处于同一水平区间，并在数学与综合推理任务上展现出明显优势。
+总体而言，405B 在大多数 benchmark 上与 GPT-4o 和 Claude 3.5 Sonnet 处于同一水平区间；论文指出它在 GSM8K 与 ARC-C 上为同类最佳，MATH 上仅次于 GPT-4o，GPQA 上落后 Claude 3.5 Sonnet。
 
 ### 6.2 Code
 
@@ -517,7 +516,7 @@ Safety 机制贯穿 post-training 全流程，形成多层防护：
 | Nexus (Tool Use) | 58.7 |
 
 - **代码生成**：HumanEval（89.0）与 MBPP EvalPlus（88.6）表现接近，均处于领先水平，说明模型在基础编程任务上具备稳健的函数级代码合成能力。
-- **工具调用（Tool Use / Function Calling）**：BFCL 达到 88.5，表明模型在结构化 function calling 场景下表现优秀；而 Nexus 的 58.7 相对较低，反映出在更复杂的多步、多工具编排（multi-step tool orchestration）任务上仍有提升空间。
+- **工具调用（Tool Use / Function Calling）**：BFCL 达到 88.5，表明模型在结构化 function calling 场景下表现优秀；Nexus 的 58.7 绝对值不高，但在同类模型中最佳（GPT-4 50.3、GPT-4o 56.1、Claude 3.5 Sonnet 45.7），论文并未将其视为相对短板。
 
 ### 6.3 Long Context
 
@@ -541,17 +540,17 @@ Safety 机制贯穿 post-training 全流程，形成多层防护：
 |---|---|---|---|---|---|
 | MGSM | 0-shot CoT | **91.6** | 85.9 | 90.5 | 91.6 |
 
-405B 在 MGSM 上达到 91.6，与 Claude 3.5 Sonnet 并列第一，大幅领先 GPT-4（85.9）和 GPT-4o（90.5）。训练数据中 8% 的多语言配比为模型赋予了跨语言的稳健推理迁移能力。
+405B 在 MGSM 上达到 91.6，与 Claude 3.5 Sonnet 并列第一，领先 GPT-4（85.9）和 GPT-4o（90.5，差距约 1 分）。训练数据中 8% 的多语言配比为模型赋予了跨语言的稳健推理迁移能力。
 
 ### 6.5 Human Evaluation
 
-除自动化 benchmark 外，研究团队还进行了大规模人工评估（human evaluation），将 405B 与 GPT-4、Claude、Gemini 等模型在多样化真实任务上进行对比。
+除自动化 benchmark 外，研究团队还进行了大规模人工评估（human evaluation），将 405B 与 GPT-4（0125）、GPT-4o、Claude 3.5 Sonnet 在多样化真实任务上进行对比（本轮人工评估未纳入 Gemini）。
 
 主要结论：
 
 - **405B 与 GPT-4 整体持平**：在涵盖各类任务（coding、写作、推理、开放问答等）的综合人工评估中，405B 与 GPT-4 表现相当。
 - **真实任务泛化性强**：人工评估往往比标准化 benchmark 更能反映模型的实际可用性，405B 在此维度上的竞争力进一步验证了其通用旗舰定位。
-- **小模型 best-in-class**：8B 与 70B 模型在各自参数量级上显著优于同等规模的替代方案，体现了 scaling laws 与数据质量优化带来的收益在中小规模同样有效。
+- **小模型 best-in-class（benchmark 评估）**：8B 与 70B 模型在各自参数量级上显著优于同等规模的替代方案（该结论来自引言与 benchmark 评估；5.3 的人工评估本身只比较 405B）。
 
 ---
 
@@ -565,7 +564,7 @@ Safety 机制贯穿 post-training 全流程，形成多层防护：
 
 - **Image Encoder**：独立的图像编码器，在大量 image-text pair 数据上训练，学习将视觉内容编码为高层语义表示。
 - **Cross-Attention Adapter**：作为 encoder 与 LLM 之间的桥梁，通过 cross-attention 机制将图像编码特征注入到 LLM 的表示流中。
-- **训练策略**：在 adapter 训练阶段，LLM 保持 frozen，仅更新 adapter 参数。这一设计既保留了预训练 LLM 强大的语言能力，又实现了高效的模态对齐，避免灾难性遗忘（catastrophic forgetting）。
+- **训练策略**：在 adapter 训练阶段，LLM 保持 frozen，但 image encoder 不冻结，与 adapter 一起更新（见 Section 2 / 7.4）。这一设计既保留了预训练 LLM 强大的语言能力，又实现了高效的模态对齐，避免灾难性遗忘（catastrophic forgetting）。
 
 在图像识别（image recognition）相关任务上，该架构取得了与当前 SOTA（state-of-the-art）方法具有竞争力的结果。
 
@@ -612,7 +611,7 @@ Llama 3 的发布在开源大模型领域具有里程碑意义：
 - **Dense vs MoE**：优先选择 dense 架构，换取更稳定的训练动态与更简单的部署，避免 MoE 在 routing、负载均衡（load balancing）等方面的工程复杂性。
 - **SFT + RS + DPO vs PPO**：在后训练阶段采用 SFT（Supervised Fine-Tuning）、Rejection Sampling（RS）与 DPO（Direct Preference Optimization）的组合，而非传统的 PPO。这一选择更简单、更稳定，且避免了 PPO 中 reward model 在线训练的高昂成本与不稳定性。
 - **Scaling Laws 指导模型规模选择**：基于 scaling laws 的系统性实验，确定了 8B / 70B / 405B 的规模配置，确保计算资源的最优分配。
-- **数据质量优先于规模（Data quality > scale）**：数据配比为 50% 通用数据、25% 数学数据、17% 代码数据、8% 多语言数据。这种精心设计的配比强调领域多样性，验证了"高质量、配比合理的数据"比单纯堆叠数据规模更有效。
+- **数据与规模并重**：论文把 **data、scale、managing complexity** 并列为三大杠杆，并未主张数据质量优先于规模；数据配比为 50% 通用数据、25% 数学数据、17% 代码数据、8% 多语言数据。这种精心设计的配比强调领域多样性，是数据杠杆的一部分。
 
 | 数据类别 | 配比 |
 |---|---|
@@ -628,4 +627,4 @@ Llama 3 的发布在开源大模型领域具有里程碑意义：
 - **多模态模型仍在开发中**：如第 7 章所述，视频与语音模态尚未成熟，图像能力虽已取得竞争力结果，但整体多模态能力尚未达到 SOTA 闭源系统的完备程度。
 - **128K 上下文非原生支持**：长上下文能力是通过 continued pre-training 后期扩展获得的，而非模型架构原生支持。这意味着在极端长度场景下，性能可能不如原生训练的长上下文模型稳定。
 - **Open-weight 安全风险**：开放 405B 参数量的模型权重带来了显著的安全关切（safety concerns），包括潜在的恶意滥用风险。用户可在任意本地环境对模型进行无约束的微调与使用，这要求社区与部署方配套相应的安全护栏（safety guardrails）。
-- **训练成本高昂**：模型训练消耗了 30.84M GPU-hours 的巨大算力资源。这一量级的计算成本对绝大多数研究机构与中小团队而言是难以承受的，客观上限制了 open-weight 旗舰模型的复现与再训练。
+- **训练成本高昂**：模型训练消耗了约 30.84M GPU-hours（按论文报告的 3.8×10²⁵ FLOPs 推算）的巨大算力资源。这一量级的计算成本对绝大多数研究机构与中小团队而言是难以承受的，客观上限制了 open-weight 旗舰模型的复现与再训练。

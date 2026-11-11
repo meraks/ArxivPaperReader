@@ -15,7 +15,7 @@
 
 ### 1.1 一句话总结
 
-**StreamMA 将多 Agent 推理的通信范式从「生成完再传递」（Serial）改为「每步推理实时流式传递」（Stream），同时提升准确率（平均 +7.3 pp）和推理速度（最高 26.9× 加速），并首次给出三种协议（Stream/Serial/Single）的闭式联合理论分析。**
+**StreamMA 将多 Agent 推理的通信范式从「生成完再传递」（Serial）改为「每步推理实时流式传递」（Stream），同时提升准确率（Claude Opus 4.6 上平均 +7.3 pp，GPT +1.5 pp，GLM +7.2 pp）和推理速度（最高 26.9× 加速），并首次给出三种协议（Stream/Serial/Single）的闭式联合理论分析。**
 
 ### 1.2 动机：多 Agent 推理的通信瓶颈
 
@@ -33,7 +33,7 @@
 |---|------|------|
 | 1 | **Stream 协议** | 通信单元从「完整响应」改为「单步推理」，支持 Chain/Tree/Graph 拓扑，实现流水线并行 |
 | 2 | **闭式理论** | 首个 Stream/Serial/Single 联合分析，3 条定理覆盖有效性排序、加速比上界、成本比 |
-| 3 | **反直觉的有效性增益** | 流式传递不仅加速，还提升准确率（+7.3 pp avg），根源是早/晚期步骤的非对称可靠性 |
+| 3 | **反直觉的有效性增益** | 流式传递不仅加速，还提升准确率（Claude Opus 4.6 上平均 +7.3 pp，GPT +1.5 pp，GLM +7.2 pp），根源是早/晚期步骤的非对称可靠性 |
 | 4 | **Step-Level Scaling Law** | 增加每 agent 推理步数 S 可同时提升准确率和加速比，与 agent 数量扩展正交 |
 | 5 | **成本-准确率 Pareto 改进** | Stream×4 ($2.75) 在准确率（90.9%）和成本上均优于 Serial×16 ($5.46, 89.4%) |
 
@@ -74,12 +74,12 @@ Graph 拓扑的关键挑战是多输入同步。Stream 协议的方案是**无�
 
 - **Root Agent (A)**：问题求解器，将响应分为 S 个大致均等的部分，每步以 `END_STEP` 结束
 - **Downstream Agents (B, C, D)**：审阅-修正者，验证每一步，修正错误，传递最准确的版本
-- Stream 模式在 prompt 末尾追加 `END_STEP` 边界标记，其他与 Serial 完全相同
+- Stream 在 B–D 的 prompt 末尾追加一行 `END_STEP` 边界标记，并为 root agent 追加简短的 problem-solver preamble；其余与 Serial 完全相同
 - 多输入 Agent 追加输入标签和综合指令
 
 ### 2.4 KV-Cache 复用
 
-Stream 协议天然兼容 KV-cache 复用——所有 Agent 共享相同的前缀 token（System prompt + 问题 + 步骤格式模板），只需在每步追加新 token 时增量计算。这在理论成本分析中体现为 cost ratio ≈ 0.925ρ。
+Stream 协议天然兼容 KV-cache 复用——所有 Agent 共享相同的前缀 token（System prompt + 问题 + 步骤格式模板），只需在每步追加新 token 时增量计算。论文在 A=S=4、Claude Opus 4.6 定价、完整 KV-cache 命中的数值例中给出 cost ratio ≈ 0.925ρ（一般公式见 Theorem 3）。
 
 ---
 
@@ -122,7 +122,7 @@ $\text{Speedup} \leq \frac{A[(S + r_{po}) r_{v_{dp}} + S]}{(S + A - 1)(1 + \alph
 
 其中 A=agent 数，S=步数，r_{po}=prefill/output 比，r_{v_{dp}}=decode/prefill 速度比。
 
-当 decode ≫ prefill（$r_{v_{dp}} \to 0$）时简化为：
+当 prefill 远快于 decode（$r_{v_{dp}} = v_d/v_p \to 0$）时简化为：
 
 $$\text{Speedup} \leq \frac{AS}{S + A - 1}$$
 
@@ -132,7 +132,7 @@ $$\text{Speedup} \leq \frac{AS}{S + A - 1}$$
 
 $$\frac{C^{stream}}{C^{serial}} = \rho \cdot \frac{r_{c_{pd}} (\alpha + r_{c_{cp}} \beta) + 1}{r_{c_{pd}} (1 + r_{po}/S) + 1}$$
 
-完整 KV-cache 复用下，cost ratio ≈ **0.925ρ**——即使 ρ=1（无效率损失），Stream 相比 Serial 仍节省约 7.5% 成本。这是因为 Stream 避免了重复编码共享 prefix。
+在 A=S=4、Claude Opus 4.6 定价、完整 KV-cache 命中的数值例中，cost ratio ≈ **0.925ρ**（Theorem 3 为一般公式）——即使 ρ=1（无效率损失），Stream 相比 Serial 仍节省约 7.5% 成本。这是因为 Stream 避免了重复编码共享 prefix。
 
 ---
 
@@ -142,8 +142,8 @@ $$\frac{C^{stream}}{C^{serial}} = \rho \cdot \frac{r_{c_{pd}} (\alpha + r_{c_{cp
 
 | 维度 | 配置 |
 |------|------|
-| **基准** | AIME 2025/2026, HMMT 2026, GPQA-Diamond, Humanity's Last Exam (HLE), LiveCodeBench Generation/Easy/Tough |
-| **模型** | Claude Opus 4.6-high, GPT-5.4-medium |
+| **基准** | AIME 2025/2026, HMMT 2026, GPQA-Diamond, Humanity's Last Exam (HLE), LiveCodeBench（Generation/Execution/Test-output） |
+| **模型** | Claude Opus 4.6-High（thinking 开启）、GPT-5.4-None、GLM-5.2-None（thinking 关闭） |
 | **拓扑** | Chain (A=4), Tree (A=4), Graph (A=4) |
 | **推理步数 S** | auto（模型自适应）或手动设定 4/16/64 |
 | **基座** | Single（单Agent直接推理）|
@@ -155,33 +155,33 @@ $$\frac{C^{stream}}{C^{serial}} = \rho \cdot \frac{r_{c_{pd}} (\alpha + r_{c_{cp
 | **Claude Opus 4.6** | Chain | 66.30 | 73.48 | **81.70** | **+8.22** |
 | | Tree | 66.30 | 79.43 | **82.81** | +3.38 |
 | | Graph | 66.30 | 72.92 | **83.34** | **+10.42** |
-| **GPT-5.4 medium** | Chain | 67.24 | 70.16 | **72.25** | +2.09 |
+| **GPT-5.4-None** | Chain | 67.24 | 70.16 | **72.25** | +2.09 |
 | | Tree | 67.24 | 70.51 | **71.70** | +1.19 |
-| | Graph | 67.24 | 71.13 | **72.32** | +1.19 |
+| | Graph | 67.24 | 71.23 | **72.79** | +1.56 |
 
 **关键发现**：
 - Claude 在 Stream 协议下增益更大（max +10.42 pp），GPT 增益较小但一致为正
-- Graph 拓扑下 Stream 优势最明显（多输入时异步合并的效果最好）
-- 所有设置下 Stream 均优于 Serial，不存在退化情况
+- 增益随 Serial 基线变弱而增大（Claude 上 Graph 增益 +10.42 最高，源于其 Serial 基线最弱 72.92）；论文将三种拓扑视为 Serial 强度的内置扫描而非拓扑比较，GPT 上 Chain 增益（+2.09）反而高于 Graph（+1.56）
+- 所有 {backbone, topology} 的 Avg. 单元格中 Stream 均优于 Serial；个别单项基准有微小下降（如 GLM Chain LCB-E 76.34→75.71、GPT Tree LCB-T 99.25→99.17）
 
 ### 4.3 各基准细分
 
-AIME 2025/2026 和 HMMT 2026 是数学竞赛类基准，StreamMA 的增益最显著（max +22.4 pp on HMMT 2026 with Claude）。GPQA-Diamond 和 HLE 是知识密集型基准，增益较小但稳定。LiveCodeBench 的 Generation 和 Tough 子集上增益中等，Easy 子集已接近天花板。
+AIME 2025/2026 和 HMMT 2026 是数学竞赛类基准，StreamMA 的增益最显著（max +22.4 pp on HMMT 2026 with Claude）。GPQA-Diamond 和 HLE 是知识密集型基准，增益较小但稳定。LiveCodeBench 的 Generation 和 Execution 子集上增益中等，Test-output 子集已接近天花板（GPT-5.4 LCB-T ~99）。
 
 ### 4.4 加速与成本
 
 | 配置 | 准确率 | 成本 | 场景 |
 |------|:---:|------|------|
-| Stream ×4, S=auto | 90.9% | **$2.75** | 最优性价比 |
-| Serial ×16, S=auto | 89.4% | $5.46 | 更贵且更差 |
-| Stream ×4 + KV-cache | 90.9% | **$1.61** | 极致节约 |
-| Stream ×4, S=64 | 73.5% | — | 26.9× 加速 |
+| Stream×N (N=4), S=3, 3-agent chain, Claude Opus 4.6 | 90.9% | **$2.75** | 最优性价比 |
+| Serial×N (N=16), S=3, 3-agent chain, Claude Opus 4.6 | 89.4% | $5.46 | 更贵且更差 |
+| Stream×4 + KV-cache | 90.9% | **$1.61** | 极致节约 |
+| Stream, A=64, S=64 (GPT-5.4, HMMT 2026) | 73.5% | — | 26.9× 加速 |
 
 ### 4.5 控制扰动实验（因果验证）
 
 为了验证「头部可靠、尾部衰减」是 Stream 增益的根本原因，论文设计了控制扰动实验：
 
-- **尾部扰动**（后 50% 步骤注入错误）→ Stream 不受影响（+24.0 pp vs Serial）
+- **尾部扰动**（仅最后 1/4 步注入错误 → +24.0 pp vs Serial；后 50% 步骤扰动时增益降至 +19.0 pp）→ Stream 仍领先 Serial
 - **头部扰动**（前 50% 步骤注入错误）→ Stream 严重受损（-36.0 pp vs Serial）
 
 这完美验证了 Theorem 1：Stream 的优势来自「早期步骤优先到达并形成不可逆推理轨迹」。
@@ -194,20 +194,20 @@ AIME 2025/2026 和 HMMT 2026 是数学竞赛类基准，StreamMA 的增益最显
 
 传统 multi-agent 扩展关注增加 Agent 数量（A↑）。StreamMA 发现了一个正交的扩展维度：**增加每 Agent 推理步数 S**。
 
-在 GPT-5.4-medium, HMMT 2026, A=64 的设置下：
+在 GPT-5.4-None, HMMT 2026, A=64 的设置下：
 
 | S | 准确率 | 加速比 |
 |:---:|:---:|:---:|
 | auto | 68.2% | baseline |
-| 4 | 70.1% | ~4× |
-| 16 | 71.8% | ~12× |
+| 4 | 66.7% | ~3× |
+| 16 | 68.2% | ~8–9× |
 | **64** | **73.5%** | **26.9×** |
 
 **关键性质**：S 的增加**同时提升准确率和加速比**。这是因为更多步数 = 更多并行机会 = 更高的流水线利用率 = 更大的加速比。
 
 ### 5.2 与 Agent-Count Scaling 的组合
 
-两个维度可组合叠加——StreamMA 在 high-A + high-S 设置下达到最优效果，且成本仍低于低 A 的 Serial。
+两个维度可组合叠加——在 A=64 时 S 从 auto 增至 64 可将准确率从 68.2% 提升到 73.5%，并保持 26.9× 加速；论文未报告 high-A 与 low-A Serial 的成本对比。
 
 ---
 
@@ -410,7 +410,7 @@ class SerialProtocol:
 | 延迟 | O(A × S) | O(S + A) |
 | 下游启动时机 | 上游 100% 完成后 | 上游 Step 1 完成后 |
 | 尾部错误影响 | 完整暴露给下游 | 到达时下游已有轨迹 |
-| Prompt 差异 | 无 `END_STEP` | 追加 `END_STEP` 标记 |
+| Prompt 差异 | 无 `END_STEP` | 追加 `END_STEP` 标记（root 另加 solver preamble） |
 
 ---
 
@@ -418,18 +418,18 @@ class SerialProtocol:
 
 ### 7.1 论文自述的局限性
 
-1. **拓扑探索有限**：仅测试了 Chain/Tree/Graph 三种预设拓扑，未探索动态拓扑自适应
-2. **步骤分割策略**：S 步的均匀分割假设在复杂推理中可能不成立（前几步实际上更长/更复杂）
-3. **任务需可分解为步骤**：论文明确指出 Stream 协议要求任务可被分解为有意义的推理步骤
-4. **理论假设的理想化**：p_j 独立同分布的假设在实际推理链中不完全成立（步骤间有语义依赖）
+1. **任务需可分解为步骤**：Stream 以推理步为粒度，仅适用于解可分解的任务；原子输出任务（如单 token 分类）没有可流式的中间步骤，不属此列（这反映任务结构，且同样限制任何基于步骤的推理范式）。
+2. **Stream 并非在所有 p_j 形态下最优**：Theorem 1 给出六种 regime，只有当智能体呈现头部强、尾部弱（相对损益平衡点 p*）时 Stream 才严格占优；其余 regime 下 Serial 或 Single 可能匹配或超过。Theorem 1 因此可作为按任务步骤正确性剖面选择协议的工具。
 
 ### 7.2 报告补充分析
 
-1. **端点 LLM 依赖**：实验仅在 Claude Opus 4.6 和 GPT-5.4 上进行，轻量级模型（~7B）的适用性未知（论文未将此列为局限性，反而强调 GPT-5.4 呈现相同趋势，证明模式与 backbone 和拓扑无关）
+1. **端点 LLM 依赖**：实验覆盖 Claude Opus 4.6、GPT-5.4 与 GLM-5.2，轻量级模型（~7B）的适用性未知（论文未将此列为局限性，反而强调 GPT-5.4 与 GLM-5.2 呈现相同趋势，证明模式与 backbone 和拓扑无关）
 2. **下游 Agent 角色固化**：当前设计下游 Agent 均为 reviewer-corrector，未探索异构角色（如一个做验证、一个做扩展）
 3. **步骤边界与语义完整性的张力**：强制 S 步分割可能切断完整推理思路，`END_STEP` 作为人工边界可能引入 artifact
 4. **现实部署的队列管理**：高并发下下游队列可能积压，论文未分析反压（backpressure）机制
 5. **与 RiM/CoT 的对比缺失**：未与最近流行的 latent reasoning（如 RiM, Coconut）对比
+6. **拓扑探索有限**：仅测试了 Chain/Tree/Graph 三种预设拓扑，未探索动态拓扑自适应
+7. **步骤分割与 p_j 建模的理想化**：S 步的均匀分割假设在复杂推理中可能不成立（前几步实际上更长/更复杂）；理论按 p_j 概率逐步建模并假设 δ、ε 位置无关，实际推理链中步骤间存在语义依赖
 
 ### 7.3 潜在改进方向
 

@@ -27,7 +27,7 @@
 - **巨额成本**：百万美元级别的计算成本
 - **复杂工程**：跨节点通信、容错、调度等分布式系统挑战
 
-本论文提出的核心问题是：**能否在单个8-GPU节点（如A100-80GB × 8）上训练120B MoE？如果可行，需要哪些系统设计与工程创新？**
+本论文提出的核心问题是：**能否在单个8-GPU节点（如8×B200/B300）上训练120B MoE？如果可行，需要哪些系统设计与工程创新？**
 
 答案并非显而易见，因为挑战来自三个维度：
 
@@ -44,7 +44,7 @@
 #### 支柱一：Reversibility（可逆性）
 使用可逆递归栈（reversible recurrence backbone, Gal et al. 2025）替代传统的activation checkpointing，使激活内存增长从O(L)变为O(1)。这意味着：
 - **激活内存平坦化**：无论模型多深、上下文多长，激活内存保持恒定
-- **单节点长上下文**：使5B/9B/120B模型在8K上下文下仍能装入单节点
+- **单节点长上下文**：使9B/120B模型在8K上下文下仍能装入单节点（5B为4K）
 - **分片感知反向传播**：在ZeRO-3分片下正确实现重计算
 
 #### 支柱二：State-Preserving Growth（状态保持增长）
@@ -52,14 +52,14 @@
 - **四阶段生长**：2B dense → 5B MoE → 9B MoE → 120B MoE
 - **接口保持原则**：每次增长必须保持已学习的功能接口不变
 - **单调增长**：active参数从1.78B → 5.93B，而total参数从2B → 118.67B
-- **生长操作谱**：Dense→MoE（函数复制→特化）、层插入（identity init）、专家扩展（带噪声复制）
+- **生长操作谱**：Dense→MoE（函数复制→特化）、深度重入（按 1-8,1-4,1-8 重复已训练层）、专家扩展（drop-upcycling）
 
 #### 支柱三：Single-Node Economics（单节点经济性）
 通过TurboQuant Training (TQP)实现120B规模的单节点可训练性：
 - **8-bit量化基底**：专家基础权重量化至8-bit
 - **低秩适配器训练**：在量化基底上训练LoRA-style适配器
 - **优化器状态压缩**：专家路径优化器状态削减约45倍
-- **质量-成本权衡**：轻微质量损失换取单节点可训练性
+- **代价定位**：论文将 TQP 定位为内存策略，未量化质量损失
 
 > **类比理解**：三大支柱像"三脚架原理"——缺任何一根都会整体倒塌。可逆性是"地基"（解决内存瓶颈），增长策略是"施工方法"（从种子生长而非重新搭建），量化训练是"预制件技术"（降低材料与运输成本）。三者结合使单节点120B MoE从"不可能"变为"可行但需精心设计"。有趣的是，每一项技术本身并非全新（可逆网络、模型增长、量化训练都有先例），但**系统集成与工程细节**才是本论文的真正贡献。
 
@@ -67,18 +67,18 @@
 
 论文报告了LightningLM 0.1V模型的四阶段生长过程，每个阶段都在单节点上完成训练：
 
-| 阶段 | 架构类型 | 总参数 | Active参数 | 层数 | 专家数 | 上下文长度 | 训练节点 |
+| 阶段 | 架构类型 | 总参数 | Active参数 | 层数 | 专家数 | 上下文长度 | 训练硬件 |
 |------|---------|--------|-----------|------|--------|-----------|---------|
-| Stage 1 | Dense Transformer | 2B | 1.78B | 8 | - | 4K | 4×A100-40GB |
-| Stage 2 | MoE | 5B | ~2.5B | 8 | 20 | 4K | 4×A100-40GB |
-| Stage 3 | MoE | 9B | ~3.5B | 12 | 20 | 8K | 8×A100-80GB |
-| Stage 4 | MoE | 120B | 5.93B | 20 | 460 | 8K | 8×A100-80GB (TQP) |
+| Stage 1 | Dense Transformer | 1.78B (2B) | 1.78B | 8 | - | 4K | 8×A100-80GB（生产） |
+| Stage 2 | MoE | 4.96B (5B) | 2.24B | 8 | 20 routed + 1 shared | 4K | 8×A100-80GB（生产） |
+| Stage 3 | MoE | 9.36B (9B) | 3.92B | 20 | 20 routed + 1 shared | 4K→8K | 8×H200 |
+| Stage 4 | MoE | 118.67B | 5.93B | 20 | 460 routed + 1 shared | 8K | 8×B200/B300 (TQP) |
 
 **关键观察**：
-- **Active参数占比**：从89%（2B dense）降至~5%（120B MoE），但绝对值从1.78B增长至5.93B
+- **Active参数占比**：从100%（2B dense，1.78B/1.78B）降至~5%（120B MoE），但绝对值从1.78B增长至5.93B
 - **参数效率**：120B模型在推理时仅激活5.93B参数（top-12 of 460专家）
-- **训练loss单调性**：从2B的~2.3降至120B的1.78
-- **硬件渐进性**：从4×40GB→8×80GB，始终保持单节点范围
+- **训练loss单调性**：harvest 阶段 loss 从 2B 的 ~3.29 降至 120B 的 1.78（120B 预训练段结束约 2.40，监督段降至 1.78）
+- **硬件**：早期吞吐测试用 8×A100-40GB；生产阶段 2B/5B 用 8×A100-80GB、9B 用 8×H200、120B 用 8×B200/B300，始终保持单节点范围
 
 > **类比理解**：这像"从小房子生长为摩天大楼"的过程——不是每次都重新打地基，而是在原有建筑上**加盖楼层、扩展房间、加固结构**。2B dense是"一层小楼"，5B MoE是"加装电梯的三层楼"，9B MoE是"扩展为六层写字楼"，120B MoE是"最终20层摩天大楼但大部分是储藏室（inactive参数），只有少量办公室（active参数）实际使用"。每个阶段的"居民"（功能）都不用搬家，建筑服务（接口）保持连续性。这种渐进式建造使普通人（单节点）也能完成巨型建筑（120B模型）。
 
@@ -89,7 +89,7 @@
 #### 贡献1：Reversibility as the scaling backbone
 **可逆性作为规模化支柱**
 - 使用可逆递归栈（Gal et al. 2025）实现激活内存O(1)增长
-- 在单节点上训练5B/9B/120B长上下文模型（8K）
+- 在单节点上训练5B（4K）、9B（4K→8K）与120B（8K）长上下文模型
 - 验证了分片感知反向传播在ZeRO-3下的正确性
 - 关键参数：step_size=0.25, a=0.5, bootstrap=euler
 - 工程细节：dropout=0保证重计算的确定性、reentrant mode避免kernel dtype断言失败
@@ -98,7 +98,7 @@
 **状态保持增长的操作手册**
 - 提供四阶段生长的完整操作流程（configs/脚本/工具）
 - 所有变换遵循"保持已学习接口"原则
-- 三种增长操作：Dense→MoE（函数复制→特化）、深度增长（层插入）、专家扩展（噪声复制）
+- 三种增长操作：Dense→MoE（函数复制→特化）、深度重入（重复已训练层）、专家扩展（drop-upcycling）
 - **关键不变量**：增长后模型在相同输入下应产生与增长前相似的输出分布
 - 失败示例：Spectral/SVD初始化专家导致loss ~12（正确做法：重叠随机神经元子集，loss ~5.0）
 
@@ -106,14 +106,14 @@
 **增长失败模式目录**
 - 记录所有失败模式，特别是**静默失败**（checkpoint看似正常但内部不变量被破坏）
 - 每个失败包含：违反的不变量、观察到的断裂、根因、修正、证据等级
-- 示例失败：路由崩溃（router collapse）、专家饥饿（expert starvation）、激活范数漂移（activation norm drift）
+- 示例失败：spectral upcycling、静默检查点错载（silent checkpoint misload）、clone-family collapse、role-blind expansion、mixture-shift instability、AON 记账错误、flush divergence
 - 价值：避免研究者重复踩坑，提供troubleshooting指南
 
 #### 贡献4：Single-node economics at 120B via TQP
 **通过TQP实现120B单节点经济性**
 - TurboQuant Training：8-bit量化基底 + LoRA适配器训练
 - 优化器状态削减~45倍（关键数字，使120B装入单节点）
-- 权衡：轻微质量损失 vs. 完整精度训练的可扩展性
+- 权衡：论文把 TQP 定位为内存策略，未量化质量损失
 - **创新点**：将推理时压缩用的TurboQuant重新用作可训练量化基底
 
 #### 贡献5：Repurposing a data-oblivious vector quantizer as trainable base
@@ -126,21 +126,26 @@
 #### 贡献6：Guaranteed-composition data methodology
 **保证构成的数据方法论**
 - 三级数据体系：D1-D4 bulk pools + AON guaranteed pools
-- 保证每个batch中Indic语言和代码的固定份额
+- 保证每个batch中 AON 的固定份额（benchmark/推理含 code-engineering 2% + Indic 6%），合计 8%
 - 绕过"scorer's blind spot"：数据质量评分器难以捕捉多语言性
 - BrahmicTokenizer-131K（companion paper）支持印度语系
 
 ### 1.6 论文结构概览
 
-论文共10个section：
+论文共14个section：
 - **Section 1-2**：引言与相关工作
-- **Section 3**：LightningLM 0.1V架构详解
-- **Section 4**：可逆性作为使能器
-- **Section 5**：增长原则（三种子操作）
-- **Section 6**：TurboQuant Training
-- **Section 7**：数据方法论
-- **Section 8**：失败目录
-- **Section 9-10**：结果与结论
+- **Section 3**：LightningLM 系统架构
+- **Section 4**：可逆性作为骨干
+- **Section 5**：增长原则
+- **Section 6**：单节点吞吐
+- **Section 7**：失败模式目录
+- **Section 8**：数据方法论
+- **Section 9**：TurboQuant Training
+- **Section 10**：120B 规模训练
+- **Section 11**：结果
+- **Section 12**：证据边界与局限
+- **Section 13**：可复现性
+- **Section 14**：结论
 
 ---
 
@@ -157,9 +162,9 @@
 - **批大小B**：与激活内存成正比
 
 对于120B MoE在8K上下文：
-- 传统方法需要：激活内存 > 单节点A100-80GB总容量
+- 传统方法需要：激活内存 > 单节点总显存
 - 即使使用activation checkpointing，内存仍随序列长度超线性增长
-- **核心矛盾**：长上下文需求（8K） vs. 单节点内存限制（80GB × 8 = 640GB）
+- **核心矛盾**：长上下文需求（8K） vs. 单节点内存上限（具体容量随生产硬件阶段而异）
 
 #### 挑战二：通信瓶颈
 在多节点训练中：
@@ -556,12 +561,12 @@ active_params ≈ 12 × Ld²
 #### Stage 1：2B Dense Seed
 **配置**：
 - **总参数**：2B
-- **Active参数**：1.78B（89%）
+- **Active参数**：1.78B（100%）
 - **层数**：8层
 - **上下文长度**：4K
 - **架构**：Dense Transformer（无MoE）
-- **训练节点**：4×A100-40GB
-- **可逆性**：使用reversible stack
+- **训练节点**：8×A100-80GB
+- **可逆性**：生产 2B 为 non-reversible（下方为可逆 2B 变体配置，仅用于内存对照）
 
 **关键参数**：
 ```
@@ -578,12 +583,12 @@ reversible_stack:
 #### Stage 2：5B MoE
 **配置**：
 - **总参数**：5B
-- **Active参数**：~2.5B（50%）
+- **Active参数**：2.24B（~45%）
 - **层数**：8层（保持）
-- **专家数**：20个
-- **路由策略**：Top-?（论文未明确，假设top-4）
+- **专家数**：20 routed + 1 shared
+- **路由策略**：Top-2（每 token 选 2 个专家）
 - **上下文长度**：4K
-- **训练节点**：4×A100-40GB
+- **训练节点**：8×A100-80GB
 
 **增长操作**：Dense→MoE
 ```python
@@ -616,45 +621,40 @@ def dense_to_moe(dense_ffn, num_experts):
 #### Stage 3：9B MoE
 **配置**：
 - **总参数**：9B
-- **Active参数**：~3.5B（39%）
-- **层数**：12层（从8层增加到12层）
-- **专家数**：20个（保持）
-- **上下文长度**：8K（从4K增加到8K）
-- **训练节点**：8×A100-80GB
+- **Active参数**：3.92B（~42%）
+- **层数**：20层（从8层经深度重入映射到20层）
+- **专家数**：20 routed + 1 shared（保持）
+- **上下文长度**：4K→8K
+- **训练节点**：8×H200
 
-**增长操作**：Depth Growth（层插入）
+**增长操作**：Depth Re-entry（按 1-8, 1-4, 1-8 重复已训练层）
 ```python
 # ⚠️ 非官方概念实现，未经验证
-def depth_growth(model_old, new_layers):
+def depth_reentry(model_old, mapping):
     """
-    深度增长：层插入（概念性）
+    深度重入：把已训练的 8 层按映射重复为 20 层
     """
-    # 在每两层之间插入新层
-    model_new = insert_layers(model_old, new_layers, strategy='alternating')
-    
-    # 新层初始化为identity（或接近identity）
-    for layer in new_layers:
-        init_identity(layer)
-    
+    # 生产映射 1-8, 1-4, 1-8（zero-indexed [0..7, 0..3, 0..7]）
+    model_new = stack_layers(model_old, mapping)
     return model_new
 ```
 
 **关键参数**：
-- **插入策略**：alternating（在现有层间交替插入）
-- **初始化**：identity初始化（新层最初只做恒等映射）
+- **重入映射**：`1-8, 1-4, 1-8`（zero-indexed `[0..7, 0..3, 0..7]`）
+- **终止层**：结束在原始终止层 L7
 
 #### Stage 4：120B MoE
 **配置**：
 - **总参数**：118.67B
 - **Active参数**：5.93B（5%）
-- **层数**：20层（从12层增加到20层）
-- **专家数**：460个（从20个扩展）
+- **层数**：20层（与9B相同，深度不变）
+- **专家数**：460 routed + 1 shared（从20 routed + 1 shared扩展）
 - **路由策略**：Top-12（每个token激活12个专家）
 - **上下文长度**：8K
-- **训练节点**：8×A100-80GB
+- **训练节点**：8×B200/B300
 - **量化训练**：TQP（TurboQuant Training）
 
-**增长操作**：Expert Expansion + Depth Growth
+**增长操作**：Expert Expansion（drop-upcycling；深度保持 20 层不变）
 ```python
 # ⚠️ 非官方概念实现，未经验证
 def expert_expansion(moe_old, num_new_experts, router_sigma=0.05):
@@ -804,18 +804,19 @@ Gal et al. 2025 的 midpoint stack 相比传统可逆网络：
 
 ### 4.4 激活内存保持平坦的证据
 
-论文报告了可逆性如何在不同规模下保持激活内存平坦：
+论文报告了 2B 规模下 reversible 与 non-reversible 的内存可行性（Table 9）：
 
-| 模型规模 | GPU 配置 | 批次大小范围 | 激活内存行为 |
-|---------|---------|-------------|-------------|
-| 2B dense | A100-40GB | 8–32 | 激活内存平坦，主要增长来自参数 |
-| 2B dense | A100-80GB | 可用更高 | non-reversible 配置可行（模型足够小） |
-| 5B+ MoE | A100-80GB | 必须使用可逆 | **不可逆则 OOM**（out of memory） |
+| 模型规模 | GPU 配置 | 配置 | 结果 |
+|---------|---------|------|------|
+| 2B dense | 8×A100-40GB | non-reversible，batch > 8 | 不装（does not fit） |
+| 2B dense | 8×A100-40GB | reversible，batch 32 | 装下，每 GPU 剩余 25–29GB |
+| 2B dense | 8×A100-80GB | non-reversible，batch 32 | 装下，约 73GB reserved |
 
 #### 具体数据点
 
-- **A100-40GB @ 2B**：批次大小从 8 增至 32 时，激活内存增长温和，因为可逆栈只存储边界激活而非全部中间值
-- **A100-80GB @ 5B+**：论文明确指出 "5B+ reversible required"——不可逆配置导致 OOM
+- **8×A100-40GB @ 2B**：在相同 40GB 硬件上，可逆性把可行 batch 从 8 提高到 32（full sequence length）。
+- **8×A100-80GB @ 2B**：non-reversible 在 batch 32 下装下，约 73GB reserved，且比 reversible 更快；因此发布的 2B 使用 non-reversible。
+- **5B 及以后**：论文说明从 5B 起专家、深度与 8K 上下文同时压迫内存，可逆性在每个阶段都成为必要条件；论文没有给出 5B 的独立 OOM 表，也没有 "5B+ reversible required" 引语。
 
 这表明：**可逆性是单节点训练的必要条件，而非优化选项**。
 
@@ -837,9 +838,7 @@ ZeRO-3 将模型参数分片到多个 GPU：
 
 #### 论文报告的实现细节
 
-论文指出：
-
-> "Backward recomputation must be sharding-aware (ZeRO-3 parameter gathering replicated)"
+论文指出：重计算路径不能把分片参数当作普通常驻张量，必须按前向传播相同的方式聚集参数，否则会基于不完整的权重重建。实现上，模型在标准可逆路径之外同时带有 sharding-aware 反向路径，使分片参数下的重计算针对正确聚集的权重，而不是本地分片。原则是：重计算路径必须被当作"第二次前向"来管理参数。
 
 这意味着：
 - 重计算时收集参数的方式必须与前向传播一致
@@ -895,34 +894,23 @@ ZeRO-3 将模型参数分片到多个 GPU：
 
 ### 4.8 内存可行性的量化分析
 
-论文提供了具体的内存可行性数据：
+论文只给出了 2B 的 reversible vs non-reversible 内存可行性（Table 9），没有给出 5B+ 的独立内存表。
 
-#### 场景 1：A100-40GB, 2B Dense Model
+#### 场景 1：2B Dense，A100-40GB 与 A100-80GB
 
-| 批次大小 | 是否可逆 | 内存使用 | 训练可行性 |
-|---------|---------|---------|-----------|
-| 8 | 是 | ~20GB | ✅ 可行 |
-| 16 | 是 | ~28GB | ✅ 可行 |
-| 32 | 是 | ~35GB | ✅ 可行 |
-| 8 | 否 | ~25GB | ✅ 可行（但参数小，不需要） |
-| 32 | 否 | ~55GB | ❌ OOM |
+| 配置 | 硬件 | 批次大小 | 结果 |
+|------|------|---------|------|
+| 2B non-reversible | 8×A100-40GB | above 8 | 不装 |
+| 2B reversible | 8×A100-40GB | 32 | 装下，每 GPU 剩余 25–29GB |
+| 2B non-reversible | 8×A100-80GB | 32 | 装下，约 73GB reserved |
 
 **观察**：
-- 可逆配置支持更大批次（8→32）
-- 不可逆配置在批次 32 时 OOM
+- 在相同 40GB 硬件上，可逆性将可行 batch 从 8 提高到 32。
+- 在 80GB 硬件上，non-reversible 2B 可装下且更快，因此发布的 2B 不带可逆。
 
-#### 场景 2：A100-80GB, 5B+ MoE Model
+#### 场景 2：5B+ MoE
 
-| 批次大小 | 是否可逆 | 内存使用 | 训练可行性 |
-|---------|---------|---------|-----------|
-| 8 | 否 | ~95GB | ❌ OOM |
-| 8 | 是 | ~65GB | ✅ 可行 |
-| 16 | 是 | ~75GB | ✅ 可行 |
-
-**观察**：
-- **论文明确指出 "5B+ reversible required"**
-- 不可逆配置在最小批次（8）下即 OOM
-- 可逆配置是唯一可行路径
+论文没有给出 5B+ 的独立内存表，也没有 "5B+ reversible required" 引语。正文只说明：从 5B 起，专家、深度与 8K 上下文同时压迫内存，可逆性在每个阶段都成为必要条件，5B 及以上所有阶段均为 reversible。
 
 ### 4.9 可逆性与激活检查点的区别
 
@@ -944,7 +932,7 @@ LightningLM 0.1V 使用真正的可逆网络（Gal et al. 2025），而非简单
 1. **核心问题**：激活内存，而非参数内存，是单节点训练的瓶颈
 2. **解决方案**：Reversible Midpoint Stack（Gal et al. 2025）
 3. **关键配置**：`step_size=0.25, a=0.5, bootstrap=euler, dropout=0`
-4. **证据**：A100-40GB 2B batch 8→32；A100-80GB 5B+ 必须用可逆
+4. **证据**：2B 在 40GB 上可逆使 batch 8→32；5B 起可逆性成为必要条件（无独立 5B 内存表）
 5. **实现细节**：Sharding-aware backward recomputation（ZeRO-3 参数收集复现）
 6. **Runtime陷阱**：15GB/step 内存泄漏（框架版本）、reentrant mode 要求
 7. **设计哲学**："Reversibility functions as a scaling path rather than a default"
@@ -989,15 +977,15 @@ LightningLM 0.1V 的增长路径：
 
 | 阶段 | 模型 | 总参数 | 活跃参数 | 增长类型 |
 |------|------|--------|---------|---------|
-| Seed | 2B dense | ~2B | 1.78B | 基线（从零训练） |
-| Stage 1 | 5B MoE | ~5B | ~1.8B | Dense → MoE（20 experts） |
-| Stage 2 | 9B MoE | ~9B | ~3.5B | 深度增长 |
-| Stage 3 | 120B MoE | 118.67B | 5.93B | 专家扩张（20 → 460 experts） |
+| Seed | 2B dense | 1.78B | 1.78B | 基线（从零训练） |
+| Stage 1 | 5B MoE | 4.96B | 2.24B | Dense → MoE（20 routed experts） |
+| Stage 2 | 9B MoE | 9.36B | 3.92B | 深度重入（8 → 20 层） |
+| Stage 3 | 120B MoE | 118.67B | 5.93B | 专家扩张（20 → 460 routed experts） |
 
 **关键观察**：
 - 活跃参数增长：1.78B → 5.93B（~3.3x）
 - 总参数增长：2B → 118.67B（~59x）
-- **活跃参数占比下降**：~89% → ~5%
+- **活跃参数占比下降**：100% → ~5%
 
 这说明增长通过**稀疏化**（MoE）实现，而非简单放大所有组件。
 
@@ -1014,7 +1002,7 @@ LightningLM 0.1V 的增长路径：
 
 5B MoE 目标架构：
 - 8 层递归骨干（层数不变）
-- 每层：20 个专家（1 shared + 19 routed）
+- 每层：20 routed + 1 shared 专家
 - Top-2 路由（每 token 选 2 个专家）
 - 总参数：~5B
 
@@ -1069,10 +1057,10 @@ LightningLM 0.1V 的增长路径：
 | **关键不变式** | FFN 的总表达能力保持；专家并集能近似原始 FFN |
 | **具体方法** | Shared expert = 复制原始 FFN；Routed = 重叠随机神经元子集 |
 | **失败替代方案** | Spectral/SVD 初始化（loss ~12 vs ~5.0） |
-| **超参数** | 20 experts (1 shared + 19 routed), top-2 routing |
+| **超参数** | 20 routed + 1 shared, top-2 routing |
 | **验证指标** | 训练 loss 下降曲线；验证集 perplexity |
 
-### 5.4 深度增长（5B → 9B）：Identity Insertion
+### 5.4 深度增长（5B → 9B）：深度重入映射
 
 第二次增长：增加模型深度（层数）。
 
@@ -1080,106 +1068,93 @@ LightningLM 0.1V 的增长路径：
 
 5B MoE 模型：
 - 8 层递归骨干
-- 每层：20 专家 MoE
-- 总参数：~5B
+- 每层：20 routed + 1 shared 专家
+- 总参数：4.96B
 
 9B MoE 目标：
-- 16 层递归骨干（8 → 16）
-- 每层：20 专家 MoE
-- 总参数：~9B
+- 20 层递归骨干（8 → 20）
+- 每层：20 routed + 1 shared 专家
+- 总参数：9.36B
 
-**增长来源**：5B → 9B 近似 2x，主要来自层数翻倍。
+**增长来源**：5B → 9B 主要来自深度增长（8 → 20 层）。
 
-#### 5.4.2 成功方法：Identity Initialization
+#### 5.4.2 成功方法：深度重入（Re-enter trained layers）
 
-新插入的层使用 **Identity Initialization**：
+论文没有插入 identity 新层，而是把已训练的 8 层按选定顺序重复，构造 20 层：
 
-$$
-W_{\text{new}} = \text{Identity-like initialization} \\
-\text{即 } W_{\text{new}} \approx I \text{ 或小随机噪声}
-$$
-
-**Why Identity?**
-- Identity 变换不改变输入：$f(x) = x$
-- 新层初始时是"透明"的，不破坏已有特征
-- 后续训练逐步学习非线性变换
-
-**具体实现**：
-- 权重初始化为接近单位矩阵
-- 偏置初始化为零
-- 对于 MoE 层：所有专家初始化为 identity-like
+- **生产映射**：`1-8, 1-4, 1-8`——完整 8 层、再取前 4 层、最后再取完整 8 层。
+- **终止层**：映射结束时落在原始终止层 L7，使语言模型头继续收到它训练时读取的隐状态分布。
+- **备选方案**：`1-8, 1-8, 1-4` 结束在中间层 L3，语言模型头未训练读取该层输出，因此未被采用。
 
 #### 5.4.3 Depth Mapping
 
-由于层数增加，需要重新映射深度：
+9B 的 20 层由以下重入序列构成：
 
-| 原始层数（5B） | 映射到（9B） | 说明 |
-|--------------|-------------|------|
-| Layer 0 | Layer 0 | 保留 |
-| Layer 1 | Layer 2 | 跳过一层（中间插入 identity） |
-| ... | ... | ... |
-| Layer 7 | Layer 14 | 保留 |
-| - | Layer 1, 3, ..., 15 | 新插入的 identity 层 |
+| 9B 层索引 | 重入的 5B 层 |
+|-----------|-------------|
+| 0-7 | 0,1,2,3,4,5,6,7 |
+| 8-11 | 0,1,2,3 |
+| 12-19 | 0,1,2,3,4,5,6,7 |
 
 **关键原则**：
 - 原始层的权重直接复制（不修改）
-- 新层插入在原始层之间
-- 保证从输入到输出的"路径长度"可比
+- 20 层结束在原始终止层 L7，保持终端层到语言模型头的契约
+- 不插入 identity 新层
 
 #### 5.4.4 深度增长的 Principles 表格
 
 | 维度 | 值 |
 |------|-----|
-| **操作类型** | 深度增长（层数增加） |
-| **关键不变式** | 输入-输出映射保持；新增层初始时透明 |
-| **具体方法** | Identity initialization（权重 ~I，偏置=0） |
-| **失败替代方案** | 随机初始化（破坏已有特征流动） |
-| **超参数** | 8层 → 16层；插入位置间隔1层 |
-| **验证指标** | 训练 loss 连续性（无突变）；验证集性能保持 |
+| **操作类型** | 深度重入（层数增加） |
+| **关键不变式** | 终止层到语言模型头的隐状态契约保持 |
+| **具体方法** | 按 `1-8, 1-4, 1-8` 重入已训练层 |
+| **失败替代方案** | 结束在中间层（`1-8, 1-8, 1-4` 结束于 L3） |
+| **超参数** | 8层 → 20层 |
+| **验证指标** | 短程 loss；终止层连续性 |
 
-### 5.5 专家扩张（9B → 120B）：Copy + Noise
+### 5.5 专家扩张（9B → 120B）：Drop-upcycling
 
 第三次增长：大幅扩展专家数量。
 
 #### 5.5.1 初始设置
 
 9B MoE 模型：
-- 16 层递归骨干
-- 每层：20 专家（1 shared + 19 routed）
-- 总参数：~9B
+- 20 层递归骨干
+- 每层：20 routed + 1 shared 专家
+- 总参数：9.36B
 
 120B MoE 目标：
-- 20 层递归骨干（16 → 20）
-- 每层：460 专家（1 shared + 459 routed）
+- 20 层递归骨干（深度不变）
+- 每层：460 routed + 1 shared 专家
 - Top-12 路由（每 token 选 12 个专家）
 - 总参数：118.67B
 
 **增长来源**：
-- 专家数：20 → 460（23x）
-- 层数：16 → 20（1.25x）
-- 组合效果：~13.3x 增长
+- 专家数：20 → 460 routed（23x）
+- 层数：20 → 20（不变）
+- 组合效果：~23x 专家增长
 
-#### 5.5.2 成功方法：Copy + Noise
+#### 5.5.2 成功方法：Drop-upcycling
 
 论文报告的策略：
 
 **Existing Experts**：
-- 从 9B 模型的 19 个 routed experts 复制
-- 每个原始专家复制多份（~24 份，达到 459）
-- 复制时添加**小噪声**（small noise）
+- 从 9B 模型的 20 个 routed experts 扩展
+- 每个原始专家克隆为 23 个变体，达到 460 个 routed experts
+- 使用 **drop-upcycling**：每个克隆保留源专家的大部分权重，随机重初始化一半的中间位置
 
-**Noise 超参数**：
-- `ratio = 0.5`：50% 的复制专家添加噪声
-- `sigma = 0.05`：噪声标准差为权重的 5%
-- 分布：$W_{\text{new}} = W_{\text{old}} + \mathcal{N}(0, 0.05 \cdot |W_{\text{old}}|)$
+**超参数**：
+- `ratio = 0.5`：每个克隆随机重初始化的中间位置比例
+- `router_sigma = 0.05`：router 从 20 扩展到 460 时添加的噪声
+- 同一 mask 应用于该专家的 gate、up、down 投影
 
-**Why Noise?**
+**Why Drop-upcycling?**
 - 完全复制：专家完全相同，路由无法区分
-- 噪声破坏对称性（symmetry breaking）
-- 小噪声保证初始功能相似，允许后续特化
+- 随机重初始化一半中间位置破坏对称性（symmetry breaking）
+- 保留其余权重保证初始功能相似，允许后续特化
 
 **论文中的描述**：
-> "20→460 experts, copy existing experts with small noise (ratio=0.5, router_sigma=0.05)"
+> "Each of the twenty source experts is cloned into twenty-three variants, reaching 460... drop-upcycling... The router is tiled from twenty to 460 entries and perturbed with a small noise term."
 
 #### 5.5.3 路由适应
 
@@ -1189,7 +1164,7 @@ Top-12 路由（从 top-2 升级）：
 - 原因：专家数增加 23x，需要更多专家协作
 
 **路由初始化**：
-- 复制专家的路由权重也相应复制
+- router 从 20 扩展到 460 条
 - 添加 `router_sigma=0.05` 的噪声
 - 保证路由能区分复制专家
 
@@ -1199,10 +1174,10 @@ Top-12 路由（从 top-2 升级）：
 |------|-----|
 | **操作类型** | 专家扩张（MoE 稀疏度增加） |
 | **关键不变式** | 专家并集的表达能力保持；路由能区分专家 |
-| **具体方法** | 复制现有专家 + 高斯噪声（ratio=0.5, sigma=0.05） |
-| **失败替代方案** | 随机初始化（破坏已有知识） |
-| **超参数** | 20 → 460 experts；top-2 → top-12 routing |
-| **验证指标** | 训练 loss 连续性；专家利用率（无专家饥饿） |
+| **具体方法** | drop-upcycling：20 个源专家各克隆 23 份，ratio=0.5 重初始化 |
+| **失败替代方案** | 纯克隆（同族专家无法区分，导致 clone-family collapse） |
+| **超参数** | 20 routed → 460 routed；top-2 → top-12 routing；router_sigma=0.05 |
+| **验证指标** | 训练 loss 连续性；专家利用率（避免 clone-family collapse） |
 
 ### 5.6 增长操作的通用原则
 
@@ -1218,8 +1193,8 @@ Top-12 路由（从 top-2 升级）：
 
 2. **接口兼容性**：新组件必须与旧组件兼容
    - Dense→MoE：专家并集能近似原始 FFN
-   - 深度增长：新层初始时透明
-   - 专家扩张：复制专家保留原始功能
+   - 深度重入：20 层结束在原始终止层 L7
+   - 专家扩张：drop-upcycling 克隆保留原始功能
 
 3. **可训练性**：增长后模型必须能继续训练
    - 梯度流动：不出现梯度消失/爆炸
@@ -1227,17 +1202,18 @@ Top-12 路由（从 top-2 升级）：
 
 #### 5.6.2 失败模式检测
 
-论文记录了多种失败模式（详见论文 Section 8 的 Failure Catalogue）：
+论文记录了多种失败模式（详见论文 Section 7 的 Failure Modes）：
 
 **静默失败（Silent Failures）**：
 - Checkpoint 看似正常
 - 但内部不变式被破坏
-- 示例：路由崩溃（router collapse）、专家饥饿（expert starvation）
+- 示例：静默检查点错载（silent checkpoint misload）、clone-family collapse
 
 **检测方法**：
-- 监控训练指标：loss 突增、perplexity 异常
-- 监控专家统计：利用率分布、负载均衡
-- 激活分析：norm drift、分布偏移
+- 监控训练指标：loss 轨迹（课程难度提升会出现短期上冲）
+- 监控专家统计：死专家数、top-10 routing share、per-expert load
+- 检查参数迁移：目标 keyspace 覆盖率与 strict load
+- 检查数据组成：从实际发出的 batch 测量 per-batch composition
 
 #### 5.6.3 增长 vs 从零训练
 
@@ -1262,8 +1238,8 @@ LightningLM 0.1V 选择增长训练，因为：
 1. **核心理念**："Preservation of learned interfaces"——保持已学习的功能组织
 2. **四阶段路径**：2B dense → 5B MoE → 9B MoE → 120B MoE
 3. **Dense→MoE**：Copy dense FFN → shared expert；routed from overlapping subsets；Spectral/SVD 失败（loss ~12）
-4. **深度增长**：Layer insertion with identity init；深度映射保留原始层
-5. **专家扩张**：20→460 experts；copy+noise（ratio=0.5, sigma=0.05）
+4. **深度增长**：按 `1-8, 1-4, 1-8` 重入已训练层，结束在原始终止层 L7
+5. **专家扩张**：drop-upcycling；20→460 routed experts（ratio=0.5, router_sigma=0.05）
 6. **通用原则**：表达能力不变式、接口兼容性、可训练性
 7. **失败检测**：静默失败（checkpoint 正常但不变式破坏）；监控 loss、专家统计、激活
 
@@ -1296,14 +1272,14 @@ LightningLM 0.1V 选择增长训练，因为：
 | 模型参数 | $P$ | 权重本身 |
 | 梯度 | $P$ | 反向传播计算 |
 | 优化器状态 | $2P$ | Adam: 一阶动量 + 二阶动量 |
-| **总计** | **4P** | 对于 120B = ~480GB |
+| **总计** | **4P** | 对于 120B 的专家参数，Adam 状态约 800GB |
 
 对于 LightningLM 0.1V：
 - 总参数：118.67B
 - 活跃参数：5.93B（top-12 路由）
-- 优化器状态（全精度）：$2 \times 118.67B \times 2$ bytes ≈ **474GB**
+- 专家路径优化器状态（fp32，覆盖 >100B 专家参数）：约 **800GB**
 
-**单节点 8×A100-80GB = 640GB**，看似足够，但还需要：
+**120B 的单节点为 8×B200/B300**；即使总显存看似足够，还需要：
 - 激活内存（即使可逆）
 - 临时缓冲区
 - 框架开销
@@ -1317,7 +1293,7 @@ LightningLM 0.1V 选择增长训练，因为：
 | 激活内存 | $O(L)$ | $O(1)$ | ✅ 是（Ch4 解决） |
 | 优化器状态 | $2P$ | $2P$ | ❌ 否（本章问题） |
 
-可逆性解决前向传播的激活内存，但**不解决**优化器状态。120B 参数的优化器状态仍然需要 ~474GB。
+可逆性解决前向传播的激活内存，但**不解决**优化器状态。专家路径的优化器状态仍然需要约 800GB。
 
 ### 6.2 TurboQuant Training (TQP) 方案
 
@@ -1362,7 +1338,7 @@ $$
 
 **适配器结构**：
 - LoRA-style：$A \times B$ 分解
-- 秩 $r$：论文未明确，通常 $r \in [8, 64]$
+- 秩 $r$：固定为 16，覆盖每一层和两个 120B 阶段
 - 可训练参数：$2 \times r \times d_{model}$ 每层
 
 **优化器状态削减**：
@@ -1395,35 +1371,33 @@ $$
 
 | 模型配置 | 优化器状态内存 | 削减比例 |
 |---------|---------------|---------|
-| 120B 全精度 | ~474GB | 基线 |
-| 120B TQP | ~10.5GB | **~45x** |
+| 120B 全精度（专家路径） | ~800GB | 基线 |
+| 120B TQP（专家路径） | ~18GB | **~45x** |
 
 **计算验证**：
-- 全精度：$118.67B \times 2$ (Adam state) $\times 2$ bytes ≈ 474GB
-- TQP：假设适配器参数为 5.93B（活跃参数）的 10% = 0.6B
-  - 优化器状态：$0.6B \times 2 \times 2$ bytes ≈ 2.4GB
-  - 加上量化基底：118.67B × 1 byte ≈ 118GB
-  - **总计**：~120GB（模型 + 优化器）
+- 全精度：>100B routed-expert 参数的 Adam fp32 状态约 800GB
+- TQP：优化器状态只落在约 2.26B rank-16 adapter 参数上
+  - 专家路径优化器状态从 ~800GB 降至 ~18GB，约 45x
+  - 量化基底：118.67B × 1 byte ≈ 118GB（8-bit 权重）
 
-**注**：论文说 "~45x optimizer state reduction"，可能指优化器状态本身的削减，而非总内存。
+**注**：论文的 ~45x 指专家路径优化器状态的削减，不是总内存。
 
 #### 6.4.2 单节点可行性
 
-120B MoE 单节点内存需求（TQP）：
+120B MoE 单节点内存需求（TQP，专家路径）：
 
 | 组件 | 内存占用 | 说明 |
 |------|---------|------|
 | 量化基底（8-bit） | ~118GB | 118.67B × 1 byte |
-| 适配器参数 | ~2.4GB | 假设 0.6B × 4 bytes |
-| 适配器优化器状态 | ~4.8GB | 0.6B × 2 × 4 bytes |
-| 激活内存（可逆） | ~20-30GB | 批次大小 8-16 |
-| **总计** | **~145-155GB** | **8×A100-80GB = 640GB ✅** |
+| 适配器参数 | ~9GB | 2.26B × 4 bytes |
+| 适配器优化器状态 | ~18GB | 2.26B × 2 × 4 bytes |
+| **小计（权重 + 优化器状态）** | **~145GB** | 激活与框架开销另计 |
 
-**结论**：TQP 使 120B MoE 在单节点上可行。
+**结论**：TQP 通过压缩专家路径的优化器状态，使 120B MoE 在单节点上可行；论文未给出完整的激活/开销拆分。
 
-### 6.5 Trade-off 分析：精度 vs 规模
+### 6.5 Trade-off 分析：内存 vs 规模
 
-TQP 不是免费的午餐——它带来精度损失。
+TQP 的首要目标是内存；论文未量化其质量代价。
 
 #### 6.5.1 量化误差
 
@@ -1436,39 +1410,37 @@ TQP 不是免费的午餐——它带来精度损失。
 - 适配器学习量化误差：$A_{\text{adapter}} \approx W - Q_{\text{base}}$
 - 训练时适配器更新，逐步修正误差
 
-#### 6.5.2 规模 vs 精度
+#### 6.5.2 规模 vs 内存
 
-论文的权衡：
+论文没有给出 TQP 的精度百分比，也没有质量-精度权衡表。可引用的只是内存算术：
 
-| 配置 | 模型规模 | 精度 | 内存需求 | 训练可行性 |
-|------|---------|------|---------|-----------|
-| 全精度 9B MoE | 9B | 100% | ~144GB | ✅ 单节点（可逆） |
-| 全精度 120B MoE | 120B | 100% | ~474GB | ❌ 单节点 OOM |
-| TQP 120B MoE | 120B | ~99%+ | ~150GB | ✅ 单节点 |
+| 配置 | 模型规模 | 专家路径优化器状态 | 训练可行性 |
+|------|---------|-------------------|-----------|
+| 全精度 120B MoE | 120B | ~800GB | ❌ 单节点 OOM |
+| TQP 120B MoE | 120B | ~18GB | ✅ 单节点 |
 
 **论文的立场**：
-> "Trade-off: slight quality degradation vs full-precision training, but enables the scale"
+论文没有 "slight quality degradation" 引语，也没有量化 TQP 相对全精度的质量损失；它把 TQP 定位为内存策略（"It is a memory strategy before it is anything else"）。
 
 **含义**：
-- TQP 有轻微质量损失
-- 但使 120B 规模成为可能
-- **规模收益 > 精度损失**
+- TQP 使 120B 规模在单节点上成为可能
+- 质量代价未被量化
 
-#### 6.5.3 验证：训练 loss 作为代理指标
+#### 6.5.3 验证：held-out loss 轨迹
 
-论文通过训练 loss 间接验证 TQP 的有效性：
+论文通过 held-out per-domain loss 与训练 loss 轨迹观察 TQP 阶段；核心能力证据是 held-out loss，训练 loss 曲线只是其中一部分。
 
-| 模型 | 最终训练 loss | 规模 |
-|------|--------------|------|
-| 2B dense | ~2.5 | 2B |
-| 5B MoE | ~2.2 | 5B |
-| 9B MoE | ~1.95 | 9B |
+| 模型 | harvest 阶段训练 loss | 规模 |
+|------|----------------------|------|
+| 2B dense | ~3.29 | 2B |
+| 5B MoE | ~2.24 | 5B |
+| 9B MoE | ~2.05 | 9B |
 | 120B MoE (TQP) | **1.78** | 120B |
 
 **观察**：
-- Loss 随规模单调下降（包括 TQP 阶段）
-- 120B TQP 的 loss (1.78) 低于 9B 全精度 (1.95)
-- **规模效应掩盖量化损失**
+- harvest loss 随规模下降（包括 TQP 阶段）
+- 120B TQP 的 loss (1.78) 低于 9B (2.05)
+- 120B 预训练段结束约 2.40，监督段降至 1.78
 
 ### 6.6 TurboQuant 的工具复用哲学
 
@@ -1539,13 +1511,13 @@ TQP 训练的反向传播：
 
 TurboQuant Training (TQP) 是 LightningLM 0.1V 的**第三根支柱**：
 
-1. **核心问题**：120B 全精度的优化器状态远超单节点内存（~474GB）
+1. **核心问题**：120B 专家路径的全精度优化器状态远超单节点内存（~800GB）
 2. **TQP 方案**：8-bit 量化基底 + LoRA-style 低秩适配器
-3. **内存削减**：优化器状态 ~45x（从 ~474GB 降至 ~10GB）
+3. **内存削减**：专家路径优化器状态 ~45x（从 ~800GB 降至 ~18GB，适配器 2.26B 参数）
 4. **工具复用**：TurboQuant 原是推理压缩工具，重新用作训练基底
 5. **vs QLoRA**：QLoRA 用于微调，TQP 用于从头训练
-6. **Trade-off**：轻微精度损失，但使 120B 规模可行
-7. **验证**：训练 loss 1.78（120B TQP）< 1.95（9B 全精度），规模收益 > 精度损失
+6. **Trade-off**：论文把 TQP 定位为内存策略，未量化质量代价
+7. **验证**：harvest loss 1.78（120B TQP）< 2.05（9B）
 
 > **类比总结：给专家穿压缩衣**
 >
@@ -1632,39 +1604,38 @@ LightningLM 0.1V 采用 **三级数据体系（Three-tier Data System）** 来�
 
 Bulk pools 是主要的训练数据来源，按质量分层：
 
-| Pool | 描述 | 数据类型 |
-|------|------|----------|
-| D1 | 最高质量精选数据 | 高质量网页、书籍、代码 |
-| D2 | 高质量通用数据 | 经过清洗的通用网页 |
-| D3 | 中等质量数据 | 基础清洗后的网页 |
-| D4 | 补充数据 | 其他来源 |
+| Pool | 名称与角色 | 主要来源 |
+|------|-----------|----------|
+| D1 | Web Foundation：最干净的英文，早期阶段骨干 | CommonCrawl head、Reddit |
+| D2 | Web Diverse：最大池，承载几乎全部 Indic 数据 | CC tail/middle、RefinedWeb、AI4Bharat、IndicCorpV2 |
+| D3 | Code：按熵计最难的模态 | StarCoder/The Stack，加上 tab/CRLF 代码带 |
+| D4 | STEM：能力瓶颈，最紧的池 | peS2o、arXiv、proof-pile-2、FLAN |
 
-这些 pools 通过传统的数据质量评分器进行筛选和分层，但**不直接用于训练采样**。
+这些 pools 是训练采样的主体（除固定 8% AON 外，其余约 92% 来自 bulk pools），其内部权重按课程阶段动态调整。
 
 #### 7.2.2 AON（Always-On）Guaranteed Pools：保证池
 
-AON pools 是论文的核心创新——它们是 **"保证组成（guaranteed composition）"** 机制的实现：
+AON pools 是论文的核心创新——它们是 **"保证组成（guaranteed composition）"** 机制的实现，每个 batch 固定 8%：
 
-- **Indic语言保证池**：确保每个训练批次包含固定比例的印度诸语言数据（印地语、孟加拉语、泰米尔语、泰卢固语、马拉地语、卡纳达语等）
-- **代码保证池**：确保每个批次包含固定比例的代码数据（多语言、多领域）
+- **bench_train 保证池（2%）**：确保每个训练批次包含固定比例的 benchmark reasoning、code-engineering 和 instruction 数据
+- **indic_guaranteed 保证池（6%）**：确保每个批次包含固定比例的印度诸语言文本（印地语、孟加拉语、泰米尔语、泰卢固语、马拉地语、卡纳达语等）
 
 #### 7.2.3 混合采样策略
 
 训练时的采样公式：
 
 ```
-batch = α · sample(bulk_pools) + β · sample(indic_aon) + γ · sample(code_aon)
+batch = sample(bulk_pools) + 0.02 · sample(aon_bench) + 0.06 · sample(aon_indic)
 ```
 
 其中：
-- `α + β + γ = 1`
-- `β, γ` 是固定比例（不随训练动态变化）
-- `sample(bulk_pools)` 会在 D1-D4 中按课程策略动态调整权重
+- bulk pools（D1-D4）合计约占每个 batch 的 92%，按课程策略动态调整权重
+- AON 的两个池合计固定 8%（bench 2% + Indic 6%），不随训练动态变化
 
 这种设计的优势：
 1. **保证多语言能力**：Indic 语言不会因为"质量评分"偏低而被过滤
-2. **保证代码能力**：代码数据不会被自然语言数据淹没
-3. **灵活性**：bulk pools 可以根据需要调整（如增加 D1 权重），不影响 AON 保证
+2. **保证基准/推理能力**：bench_train 覆盖 benchmark reasoning、code-engineering 与 instruction 格式
+3. **灵活性**：bulk pools 可以根据需要调整（如课程中降低 D1 权重），不影响 AON 保证
 
 ### 7.3 BrahmicTokenizer-131K：分词器基础
 
@@ -1682,30 +1653,38 @@ batch = α · sample(bulk_pools) + β · sample(indic_aon) + γ · sample(code_a
 
 ```
 Stage 1 (2B dense):
-  - D1 权重：0.2 → 0.4
+  - D1 Web Foundation：0.42
+  - D3 Code：0.13；D4 STEM：0.07
+  - AON：0.08
   - Context: 4K
   - Focus: 基础语言建模
 
 Stage 2 (5B MoE):
-  - D1 权重：0.4 → 0.6
-  - AON 比例稳定
+  - D1 Web Foundation：0.22
+  - D3 Code：0.25；D4 STEM：0.17
+  - AON：0.08
   - Focus: 多样性与质量平衡
 
 Stage 3 (9B MoE):
-  - D1 权重：0.6 → 0.8
-  - Context: 8K
+  - D1 Web Foundation：0.09
+  - D3 Code：0.33；D4 STEM：0.32
+  - AON：0.08
+  - Context: 4K → 8K
   - Focus: 高质量数据为主
 
 Stage 4 (120B MoE):
-  - D1 权重：0.8+
-  - AON 比例保持
+  - D1 Web Foundation：0.06
+  - D3 Code：0.35；D4 STEM：0.39
+  - AON：0.08
   - Focus: 精细调优
 ```
 
+（表中为各 pool 占每个 batch 的比例；D2 分别为 0.30/0.28/0.18/0.12。）
+
 #### 7.4.2 渐进式多样性提升
 
-- **早期阶段**：允许更多 D3/D4 数据，增加数据多样性，帮助模型学习广泛模式
-- **后期阶段**：逐渐提升 D1/D2 比例，聚焦高质量数据，优化性能
+- **早期阶段**：以 D1/D2 网页数据为主（2B 阶段 D1 占 0.42），帮助模型建立基础语言能力
+- **后期阶段**：逐渐把 bulk 权重转向 D3/D4（120B 阶段 Code 0.35、STEM 0.39），让模型吸收更难的代码与 STEM 分布；每阶段训练 loss 会因难度提升而短期上冲，判断进展应看 held-out loss
 
 ### 7.5 数据管线实现
 
@@ -1722,18 +1701,18 @@ Stage 4 (120B MoE):
 
 ### 7.6 数据规模
 
-论文未公开具体的数据量（tokens 数），但从训练配置和 loss 曲线可以推断：
+Table 22 给出的设计总规模约为 **1.12T tokens**：
 
-- **总数据量**：估计在数万亿 tokens 级别（基于 120B 参数模型的训练标准）
-- **AON 比例**：Indic + Code 合计约占每批次的 15-20%
-- **D1 比例**：在 120B 阶段，D1 占 bulk pools 的 80%+
+- **总数据量**：D1 164.1B + D2 627.4B + D3 199.0B + D4 49.1B + AON 78.1B（bench 11.2B + Indic 66.9B）≈ 1.12T
+- **AON 比例**：每个批次固定 8%（bench_train 2% + indic_guaranteed 6%）
+- **D1 比例**：按 Table 24，120B 阶段 D1 占每个 batch 的 6%（2B 阶段为 42%），随课程推进而下降
 
 ### 7.7 数据方法学的启示
 
 LightningLM 0.1V 的数据方法学提供了三个重要启示：
 
 1. **质量不是唯一维度**：多语言和代码能力需要"保证机制"，而非仅依赖质量评分
-2. **课程策略至关重要**：从多样性到质量的渐进过渡，帮助模型稳定学习
+2. **课程策略至关重要**：从网页数据为主逐步转向代码/STEM，难度提升帮助模型吸收更难分布
 3. **分词器要匹配目标**：专为印度诸语言优化的 tokenizer，显著提升训练效率
 
 > **核心要点**：数据配餐就像营养配餐——不能只看"热量"（质量评分），要保证"营养均衡"（多语言+代码），并且要"循序渐进"（课程策略）。
@@ -1769,131 +1748,152 @@ LightningLM 0.1V 的核心贡献之一，就是**系统记录了所有在增长�
 
 ### 8.3 失败目录的结构
 
-论文中的每个失败记录包含**四要素**：
+论文中的每个失败记录包含**五个部分**：
 
-1. **Violated Invariant**（违反的不变量）：什么原则被打破了？
-2. **Observed Breakage**（观察到的断裂）：看到了什么症状？
-3. **Root Cause**（根因分析）：为什么会发生？
-4. **Correction**（修正方案）：如何解决？
-5. **Evidence Grade**（证据等级）：A（确凿）到 C（推测）
+1. **Tried**（尝试了什么）
+2. **Observed Breakage**（观察到的断裂）
+3. **Root Cause**（根因分析）
+4. **Correction**（修正方案）
+5. **Evidence Grade**（证据等级：artifact / checkpoint / log / transcript / recollection）
 
 ### 8.4 典型失败模式
 
-#### 8.4.1 Router Collapse（路由器崩溃）
+#### 8.4.1 Spectral upcycling（谱初始化：有差异但无功能）
 
-**Violated Invariant**: 路由器应该均匀分配 tokens 到专家（通过 load balancing loss），避免某些专家"饿死"。
-
-**Observed Breakage**:
-- 训练中后期，少数专家接收 90%+ 的 tokens
-- 大部分专家几乎不激活（<1% tokens）
-- Loss 停止下降，但未崩溃
-- Checkpoint 加载正常
-
-**Root Cause**:
-- Load balancing loss 权重过低，无法对抗 routing 偏好
-- 专家初始化差异大，路由器过早"收敛"到少数专家
-- 学习率过高，路由器快速"锁定"
-
-**Correction**:
-- 提高 load balancing loss 权重（从 0.01 → 0.1）
-- 降低路由器学习率（为其他层的 0.5x）
-- 增加专家初始化的随机性（避免某些专家初始优势过大）
-
-**Evidence Grade**: B（观察到多次，修正后缓解）
-
-#### 8.4.2 Expert Starvation（专家饥饿）- despite load balancing
-
-**Violated Invariant**: 在 load balancing loss 约束下，所有专家应该接收大致相等的 tokens。
+**Violated Invariant**: 先保函数，再要专家多样性。
 
 **Observed Breakage**:
-- Load balancing loss 正常（低值）
-- 但某些专家在数亿 tokens 后仍未被激活过
-- 这些专家的权重接近初始状态，未学习
+- SVD/谱变换初始化的 step-one next-token loss 接近 12
+- 同期 partition 初始化约 5.0–5.8，而作为起点的 dense baseline 约 2.9
+- 模型在初始化时几乎丢掉了全部 MoE 优势
 
 **Root Cause**:
-- Load balancing loss 只约束"全局平衡"，不保证"每个专家都收到 tokens"
-- 某些专家的特征空间与输入数据不匹配，路由器"自然"避开
-- 初始化时专家权重过于相似，路由器无法区分
+- 谱旋转让专家彼此不同，但破坏了从 dense 继承的函数
+- "专家之间有差异"不等于"专家有用"
 
 **Correction**:
-- 增加"最小激活频率"约束（每个专家必须至少接收 N% tokens）
-- 定期"重置"饥饿专家（小幅扰动权重，给路由器第二次机会）
-- 改进专家初始化（增加多样性）
+- 选择 partition：把 dense FFN 复制进 shared expert，并用重叠神经元子集初始化 routed experts
+- 让 router 从一个已经能工作的状态学习特化
 
-**Evidence Grade**: A（在 5B→9B 增长中观察到，修正后验证）
+**Evidence Grade**: transcript-grade（代码和 partition checkpoint 尚存，但三路对比输出未提交，谱/ drop checkpoint 未保留）
 
-#### 8.4.3 Activation Norm Drift（激活范数漂移）
+#### 8.4.2 Silent checkpoint misload（静默错载：源键空间不是目标模型）
 
-**Violated Invariant**: 在可逆层中，激活值的范数（norm）应该保持稳定（或在可控范围内），否则反向传播会不稳定。
+**Violated Invariant**: 严格、完整的参数迁移。
 
 **Observed Breakage**:
-- 训练中，某些层的激活范数逐渐增大（或减小）
-- 导致梯度爆炸（或消失）
-- Loss 震荡，但不立即崩溃
+- 早期 9B→120B 转换把张量写到源模型的键名；目标 120B 使用不同参数命名空间
+- non-strict loading 静默跳过不匹配的键，目标参数保持随机初始化，但加载仍报告成功
+- 错误加载的 step-one loss 约 2.95，修正后约 2.55；约三分之一 nat 的差距是唯一信号
 
 **Root Cause**:
-- 可逆层的 `step_size` 参数过大
-- 没有 layer-level 的 normalization（如 LayerNorm）
-- 学习率与激活范数不匹配
+- 转换方向是"遍历源、写源式键名"，而不是"实例化目标、遍历目标键名"
+- 存在性、文件大小、无报错、参数计数、loss 有限等廉价检查全部通过
 
 **Correction**:
-- 降低 `step_size`（从 0.5 → 0.25）
-- 在可逆层后加入轻量级 normalization（GroupNorm）
-- 使用 gradient clipping（max_norm=1.0）
+- 反转迁移方向：以目标模型的 state dict 为准，为每个目标键找到/构造源张量，并强制 strict load 成功
+- 使缺失或错名参数在构造期报错，而不是静默随机回退
 
-**Evidence Grade**: B（在 2B reversible 训练中观察到）
+**Evidence Grade**: log-grade 与 code-grade（错误/修正的 step-one loss 来自保存日志；修正后的 builder 与发布谱系有代码和训练日志）
 
-#### 8.4.4 Depth Growth Path Breaking（深度增长路径断裂）
+#### 8.4.3 Clone-family collapse（克隆家族坍缩）
 
-**Violated Invariant**: 在深度增长（插入新层）后，模型的计算路径应该保持一致，只是"变长"。
+**Violated Invariant**: 扩张后的专家容量应被真正使用。
 
 **Observed Breakage**:
-- 插入新层后，loss 飙升到 ~10+（即使新层是 identity 初始化）
-- 梯度在前几层和后几层之间出现"断层"
-- 模型无法恢复到增长前的 loss 水平
+- 120B 把 routed capacity 从 20 个源专家扩到 460 个槽位，每个源专家克隆为带扰动的变体
+- top-k router 早期难以区分近重复的兄弟克隆，每个源家族选出一个早期赢家，其余兄弟在获得足够梯度前被饿死
+- 死专家数在前几百步从 27 → 38 → 122 → 154 → 168（共 460 个），top-10 routing share 约 10%
+- 这不是经典的"少数全局专家支配"式 MoE collapse，而是沿克隆家族的坍缩
 
 **Root Cause**:
-- 新层的 identity 初始化不完美（如 residual connection 权重不是严格单位矩阵）
-- 插入层后，原有的 layer-scale 参数（warmup/cooling）不适用
-- 学习率调度未重置（新层需要"热身"）
+- 兄弟克隆初始高度相关，硬 top-k 路由缺乏早期区分信号
 
 **Correction**:
-- 改进 identity 初始化（确保 residual connection 权重严格为 1）
-- 插入层后，重置学习率调度（给新层 warmup 期）
-- 使用"渐进式插入"（先插入"影子层"，慢慢增加权重）
+- 在早期分化窗口用概率式选择替代硬 top-k，让近重复专家在 router 硬化前获得随机梯度机会
+- 同一初始化下，最大专家负载被压到百分之几以下，死专家为 0，top-10 share 降到几个百分点
 
-**Evidence Grade**: A（在 5B→9B 深度增长中反复测试）
+**Evidence Grade**: 混合且分开标注：27→168 轨迹为 transcript-grade（来自克隆初始化变体，不是发布路径）；发布路径使用 drop-upcycling、recovered segments 仍用 top-k，出现同样的早期集中，top-10 share 从约 5% 上升，这部分为 log-grade
 
-#### 8.4.5 Expert Copy Quality Loss（专家复制质量损失）
+#### 8.4.4 Role-blind expansion（角色盲扩张：辅助头被当专家扩张）
 
-**Violated Invariant**: 在专家扩展（复制现有专家）时，新专家应该保留原专家的能力，同时引入多样性。
+**Violated Invariant**: 按角色而非按形状扩张。
 
 **Observed Breakage**:
-- 复制专家后，loss 暂时上升（~5.0 → 5.5）
-- 长时间训练后，loss 才恢复到原水平
-- 某些复制专家的"多样性"过大，导致能力退化
+- 在 checkpoint 转换中，扩张逻辑把每个"专家形状"的张量按同一因子扩张
+- multi-token-prediction head 也带有专家形状的张量，于是被当作主 routed experts 扩张
+- 辅助训练路径的参数被无谓放大
 
 **Root Cause**:
-- 复制时加入的噪声过大（ratio=0.5 可能太高）
-- 路由器未重新训练，无法区分新旧专家
-- 新旧专家之间的"竞争"过强（而非互补）
+- 转换器按 shape 匹配，而没有按 role 匹配；"专家形状"不等于"专家"
 
 **Correction**:
-- 降低复制噪声（ratio=0.5 → 0.2）
-- 复制后，短期提高学习率（帮助路由器快速区分）
-- 使用"soft copy"（新专家先作为旧专家的"影子"，慢慢独立）
+- 转换时单独审计辅助头，按角色复制而不是按主栈专家扩张
 
-**Evidence Grade**: B（在 9B→120B 专家扩展中观察到）
+**Evidence Grade**: code-grade（来自转换逻辑及其修复）
+
+#### 8.4.5 Mixture-shift instability（混合分布切换不稳定）
+
+**Violated Invariant**: 冻结参数下的课程切换应保持梯度有界。
+
+**Observed Breakage**:
+- 课程让数据从易到难，有些切换很陡，且发生在部分参数（包括 embeddings）被冻结时
+- 分布突变时，未冻结参数吸收全部调整，转换点出现大梯度风险
+
+**Root Cause**:
+- 一部分模型不能随分布移动时，可动部分承担全部位移
+
+**Correction**:
+- 转换采用混合/ramp，而不是一步切换；与增长转换的 warmup-at-the-seam 相同
+
+**Evidence Grade**: recollection-grade（本节证据最薄：只有定性记录与已采用的缓解，没有干净的保存 trace 能隔离该不稳定）
+
+#### 8.4.6 Curriculum accounting（课程配比记账失败）
+
+**Violated Invariant**: 保证机制声称执行的 per-batch composition 必须被真正测量。
+
+**Observed Breakage**:
+- Always-ON 的注入比例由硬编码的 per-step count 设置
+- 该常数与实际 batch 配置交互后，有效 AON 比例接近 57%，而非设计中的 8%
+- 9B 训练中约 23,000 步受影响；约 17.5B tokens 中约 10B 是 Always-ON
+- 发现后加入 rampdown 修复
+
+**Root Cause**:
+- 保证由常数"执行"，但常数在真实 batch 配置下并不等于目标值，也无人监控
+
+**Correction**:
+- 从 loader 实际发出的 batch 测量并记录 per-batch composition，而不是信任配置常数
+
+**Evidence Grade**: transcript-grade（per-batch source tag 仅存在于 console，且并非所有 console 日志都保留）
+
+#### 8.4.7 Flush divergence at scale（规模上的 flush 发散）
+
+**Violated Invariant**: 在小规模验证过的训练技巧，必须在部署规模重新验证。
+
+**Observed Breakage**:
+- TQP 的周期性 flush（把低秩 adapter delta 折入 base 并重置）在 <1B 实验中有效，于是被带入 120B
+- 120B bring-up 阶段 flush 配置直接发散，且在尝试的多种缓解下仍发散，pretraining 无法继续
+- 该失败是"响亮"的，不是静默的；代价是时间和算力
+
+**Root Cause**:
+- 120B 每个窗口的更新对 rank-16 增量而言可能过于高秩，频繁合并反而注入更多扰动；机制未被完全隔离
+
+**Correction**:
+- 完全移除 flush；120B 的 pretraining 与 supervised run 从一开始就是 flushless
+
+**Evidence Grade**: flushless 配置及 loss 轨迹为 log-grade；bring-up 发散有 bring-up 日志记录，机制仅作为候选解释
 
 ### 8.5 证据等级系统
 
-论文使用**证据等级**来标注每个失败的确定程度：
+论文使用**五级证据等级**来标注每个主张/失败的确定程度：
 
 | 等级 | 定义 | 示例 |
 |------|------|------|
-| A | 确凿：在多次实验中重复观察到，修正后验证解决 | Expert Starvation |
-| B | 强证据：观察到多次，修正缓解但未完全消除 | Router Collapse |
-| C | 推测：观察到一次，根因分析基于理论推理 | [未在论文中明确列出] |
+| artifact-grade | 可由发布代码与公开模型复现 | 架构、配置、integrator 设置 |
+| checkpoint-grade | 可从发布的模型 checkpoint 读取 | 2B checkpoint 中的 Memory Stream 训练值 |
+| log-grade | 来自保存的训练日志或 metrics 文件 | 各阶段与 120B 的 loss 轨迹、吞吐 |
+| transcript-grade | 仅记录在训练会话 transcript 中，无持久 artifact | 谱初始化近随机冷启动、clone-family 27→168 轨迹 |
+| recollection-grade | 仅有定性记忆，无可隔离 trace | 混合切换不稳定的具体梯度尖峰 |
 
 ### 8.6 失败目录的使用方法
 
@@ -1921,12 +1921,14 @@ LightningLM 0.1V 的核心贡献之一，就是**系统记录了所有在增长�
 
 #### 9.1.2 各阶段 Loss 下降
 
-| 阶段 | 模型规模 | 起始 Loss | 结束 Loss | 下降幅度 |
-|------|----------|-----------|-----------|----------|
-| Stage 1 | 2B dense | ~10.0 (init) | ~2.5 | 7.5 |
-| Stage 2 | 5B MoE | ~2.5 (继承) | ~2.1 | 0.4 |
-| Stage 3 | 9B MoE | ~2.1 (继承) | ~1.95 | 0.15 |
-| Stage 4 | 120B MoE | ~1.95 (继承) | 1.78 | 0.17 |
+| 阶段 | 模型规模 | harvest checkpoint | harvest loss |
+|------|----------|--------------------|--------------|
+| Stage 1 | 2B dense | step 129,002 | ~3.29 |
+| Stage 2 | 5B MoE | step 101,000 | ~2.24 |
+| Stage 3 | 9B MoE | step 66,048 | ~2.05 |
+| Stage 4 | 120B MoE | step 5,161（supervised run） | 1.78 |
+
+注意 120B 的 1.78 是 supervised run 发布 checkpoint（step 5161）的 trailing-100 均值；其前的 pretraining run 结束时 next-token loss 约为 2.40。图 8 的这些数值是各阶段 harvest checkpoint 的 trailing-window loss，阶段间不是同一连续 run 的起始/结束对比。
 
 ### 9.2 Active Parameter Scaling（活跃参数扩展）
 
@@ -1935,40 +1937,33 @@ LightningLM 0.1V 的核心贡献之一，就是**系统记录了所有在增长�
 | 模型 | 总参数 | 活跃参数（每前向） | 活跃占比 |
 |------|--------|-------------------|----------|
 | 2B dense | 1.78B | 1.78B | 100% |
-| 5B MoE | ~5B | ~2.2B | ~44% |
-| 9B MoE | ~9B | ~3.5B | ~39% |
+| 5B MoE | 4.96B | 2.24B | ~45% |
+| 9B MoE | 9.36B | 3.92B | ~42% |
 | 120B MoE | 118.67B | 5.93B | ~5% |
 
 **关键观察**：
-- 活跃参数从 2B 阶段的 1.78B 线性扩展到 120B 阶段的 5.93B
+- 活跃参数从 2B 阶段的 1.78B 扩展到 120B 阶段的 5.93B（约 3.3x）
 - 但活跃占比从 100% 下降到 5%（稀疏性提升）
 - 训练成本主要取决于活跃参数（而非总参数）
 
 #### 9.2.2 线性扩展假设
 
-论文提出一个假设：**在当前架构和数据下，模型性能主要由活跃参数数量决定，而非总参数**。
-
-验证：
-- 120B 的 5.93B 活跃参数 vs 2B 的 1.78B 活跃参数
-- Active params ↑3.3x，loss ↓~30%（2.5 → 1.78）
-- 粗略符合 "性能 ~ log(active_params)" 的扩展律
+论文的规模叙事是：模型从 2B dense seed 逐级增长到 120B MoE，活跃参数增加约 3.3x，而各 harvest checkpoint 的 loss 从约 3.29 降到 1.78。论文并未给出"性能只由活跃参数决定"的受控验证或扩展律拟合。
 
 > **启示**：对于资源受限场景（如单节点训练），MoE 的优势在于"用总参数换活跃参数"——通过增加总参数（专家数）来提升容量，但保持活跃参数在可控范围内。
 
 ### 9.3 与 Baseline 对比
 
-论文未在主文中提供大规模 baseline 对比（如与同规模 Transformer MoE 的直接对比），但提供了小规模验证：
+论文未在主文中提供大规模 baseline 对比（如与同规模 Transformer MoE 的直接对比），也没有 matched reversible vs non-reversible 的最终 loss 对比；2B 上可提供的是内存可行性证据：
 
 #### 9.3.1 小规模验证（2B dense）
 
-在 2B dense 阶段，论文对比了：
-- **Reversible backbone**（LightningLM 0.1V）
-- **Non-reversible Transformer decoder**
+论文没有给出可比的 reversible vs non-reversible 最终 loss 对比。原文明确说明：在较大规模上未运行 matched reversible-versus-non-reversible final-loss comparison，因为 non-reversible 配置放不进单节点；可逆性的主张是"可达性"（让该训练体制可行），而不是相对某个实际跑过的替代方案测得 perplexity 增益。
 
-结果：
-- 在相似参数量下，loss 接近（~2.5 vs ~2.55）
-- 但 reversible backbone 的激活内存需求显著降低（~40%）
-- 支持更长上下文（4K vs 2K，在相同硬件）
+2B 上的证据是内存可行性（Table 9）：
+- non-reversible 在 8×A100-40GB 上 batch 超过 8 即放不下
+- reversible 在 8×A100-40GB 上 batch 32 可运行，仍余 25–29GB
+- 这支持"可逆性让更大 batch / 更长上下文在单节点可行"，但不构成 loss 质量对比
 
 #### 9.3.2 架构选择的权衡
 
@@ -1987,7 +1982,7 @@ LightningLM 0.1V 的核心贡献之一，就是**系统记录了所有在增长�
 
 #### 9.4.1 参数压缩
 
-论文使用 **Kroncker embedding**（详见 companion paper arXiv:2605.29459）来压缩嵌入层：
+论文使用 **Kronecker embedding**（详见 companion paper arXiv:2605.29459）来压缩嵌入层：
 
 | 嵌入类型 | 参数量 | 压缩比 |
 |----------|--------|--------|
@@ -1996,8 +1991,8 @@ LightningLM 0.1V 的核心贡献之一，就是**系统记录了所有在增长�
 
 #### 9.4.2 性能影响
 
-- **训练 loss**：在相同训练步数下，Kronecker embedding 的 loss 略高（~0.02 差距）
-- **下游任务**：论文未提供详细对比，但声称"差距可接受"
+- 论文未报告 Kronecker embedding 与标准 embedding 的 loss 或下游质量对比；其论证是参数与显存节省（537M → 33.55M trainable，且重建表无需常驻 GPU）
+- 因此不能把"loss 略高约 0.02"或"差距可接受"当作论文结论
 
 ### 9.5 TQP Quality Trade-off
 
@@ -2005,35 +2000,35 @@ LightningLM 0.1V 的核心贡献之一，就是**系统记录了所有在增长�
 
 **TurboQuant Training (TQP)** 在 120B 阶段引入，代价是：
 
-- **量化基底**：专家权重从 16-bit FP 降到 8-bit
-- **低秩适配器**：只在 LoRA adapters 上训练（rank=8 或 16）
-- **质量损失**：论文未明确量化，但承认"轻微下降"
+- **量化基底**：专家权重以 8-bit 精度保存（量化基底）
+- **低秩适配器**：只训练 rank-16 的 LoRA adapters（每一层、两个 120B 阶段均固定为 16）
+- **质量代价**：论文未做 matched 的 TQP vs 非 TQP 质量对比；其定位首先是"内存策略"，而不是已量化的质量折衷
 
 #### 9.5.2 TQP 的收益
 
 | 指标 | 非 TQP | TQP | 改善 |
 |------|--------|-----|------|
-| 优化器状态（专家路径） | ~100GB | ~2.2GB | ~45x |
+| 优化器状态（专家路径） | ~800GB | ~18GB | ~45x |
 | 单节点可行性 | 不可行（OOM） | 可行 | - |
 
-> **核心权衡**：TQP 是"质量换可行性"——没有 TQP，120B MoE 在单节点上根本无法训练；有了 TQP，可以训练，但质量略有损失。这是一个"无可奈何但必要"的选择。
+> **核心权衡**：TQP 的出发点是让 120B MoE 的专家路径优化器状态在单节点上放得下（~800GB → ~18GB）。论文把它描述为内存策略优先；并没有用受控实验声称质量仅有"轻微下降"。
 
 ### 9.6 下游评估
 
-论文在主文中未提供详细的下游 benchmark 结果（如 MMLU、GSM8K、HumanEval），主要原因：
+论文没有报告标准化下游 benchmark 分数（如 MMLU、GSM8K、HumanEval），原因是这篇论文的评估协议本身就是 **held-out loss**，而不是 benchmark 排行榜：
 
-1. **评估不是论文重点**：论文是"系统与经验报告"，而非"benchmark 论文"
-2. **训练仍在进行**：论文发表时，120B 阶段可能尚未完成完整训练
-3. **单作者限制**：下游评估需要大量工程工作，单作者难以完成
+1. **研究类型**：这是系统与经验报告，不是 benchmark 论文
+2. **评估协议**：主要证据是 held-out per-domain loss；论文明确说明没有运行标准化下游任务套件
+3. **可复核边界**：论文把"没有 benchmark 分数"作为证据边界的一部分，而不是因为 120B 训练尚未完成
 
 ### 9.7 训练效率指标
 
-论文未提供详细的训练效率指标（如 tokens/sec、GPU 利用率），但从配置可以推断：
+论文提供了分阶段的实测吞吐（Table 16，ordinary tok/s）：
 
-- **硬件**：8×A100-80GB
-- **Batch size**：8–32（取决于阶段和上下文长度）
-- **上下文长度**：4K（早期）→ 8K（后期）
-- **估计训练速度**：~50K-100K tokens/sec（基于单节点训练的典型值）
+- **硬件**：2B/5B 为 8×A100-80GB；9B 为 8×H200；120B 为 8×B200/B300
+- **Batch/序列**：2B/5B 为 GBS 32、4K；9B 为 GBS 56、8K（stable）；120B 为 GBS 64、8K
+- **实测吞吐**：2B ~59k，5B ~37k，9B ~28k，120B ~17k–18k ordinary tokens/sec
+- **早期未优化版本**：2B 为 high-teens k，5B 约 12k，9B 仅数千
 
 > **核心要点**：对于单节点训练 120B MoE，"能训练"比"训练得快"更重要——TQP 的主要价值是让训练成为可能，而非加速训练。
 
@@ -2106,7 +2101,7 @@ class LightningLM(nn.Module):
 | 工具 | 功能 | 使用阶段 |
 |------|------|----------|
 | `dense_to_moe.py` | 将 dense FFN 转换为 MoE | 2B→5B |
-| `depth_map.py` | 深度增长（插入新层） | 5B→9B |
+| `depth_map.py` | 深度重入（层映射） | 5B→9B |
 | `build_120b_init.py` | 专家扩展（20→460） | 9B→120B |
 
 **`dense_to_moe.py` 核心逻辑**：
@@ -2385,19 +2380,19 @@ class MoERouter(nn.Module):
     def __init__(self, num_experts, top_k):
         self.gate = nn.Linear(hidden_dim, num_experts)
         self.top_k = top_k  # top-12 for 120B
+        self.routing_bias = torch.zeros(num_experts)  # 由均衡控制器更新，不进入梯度损失
 
     def forward(self, hidden_states):
-        # 1. 计算每个 token 到每个 expert 的 logits
-        logits = self.gate(hidden_states)  # [batch, seq_len, num_experts]
-        # 2. Top-k 选择
-        top_k_logits, top_k_indices = torch.topk(logits, k=self.top_k, dim=-1)
-        # 3. 归一化（softmax）
-        top_k_weights = F.softmax(top_k_logits, dim=-1)
-        # 4. 返回路由决策
-        return top_k_indices, top_k_weights
+        # 1. 计算每个 token 到每个 expert 的 routing score（sigmoid）
+        scores = torch.sigmoid(self.gate(hidden_states))  # [batch, seq_len, num_experts]
+        # 2. 加上 per-expert routing logit bias 后做 top-k 选择
+        biased_scores = scores + self.routing_bias
+        top_k_weights, top_k_indices = torch.topk(biased_scores, k=self.top_k, dim=-1)
+        # 3. 返回路由决策（top-k 分数用于加权；bias 只影响选择/均衡，不进入梯度损失）
+        return top_k_indices, scores.gather(-1, top_k_indices)
 ```
 
-> **Load Balancing 策略**：论文使用"bias-based"负载均衡（非辅助损失），即在路由器的 logits 上加入"专家负载"的偏置，鼓励均匀分配。具体实现未在论文中详细描述。
+> **Load Balancing 策略**：论文使用 loss-free 的 per-expert routing logit bias（Wang et al. 2024）：routing score 由 sigmoid 产生，专家选择受一个为均衡负载而调节的 per-expert logit bias 影响；均衡通过移动该 bias 实现，而不是向梯度加入辅助 loss。5B/9B 用 sign-based bias 更新，120B 用 three-tier controller。
 
 ### 10.7 训练循环
 
@@ -2464,10 +2459,10 @@ LightningLM 代码库提供了三个重要启示：
 
 论文在评估方面存在明显不足：
 
-- **主要关注训练 loss**：论文的核心指标是训练 loss（1.78），但训练 loss ≠ 下游性能
-- **下游 benchmark 不全面**：未提供 MMLU、GSM8K、HumanEval 等标准 benchmark 的详细结果
-- **缺乏对比实验**：未提供与同规模 Transformer MoE（如 DeepSeek-V2/V3）的直接对比
-- **多语言评估缺失**：虽然强调印度诸语言，但未提供这些语言的专门评估
+- **核心指标是 held-out loss**：论文的评估协议是 per-domain held-out loss（发布 checkpoint 的训练 loss 为 1.78），不是下游 benchmark 分数
+- **下游 benchmark 缺失**：论文明确说明未运行 MMLU、GSM8K、HumanEval 等标准化下游任务套件
+- **缺乏受控对比**：未提供与同规模 Transformer MoE（如 DeepSeek-V2/V3）的直接对比，也未做 matched reversible vs non-reversible 的 loss 对比
+- **多语言仅有 loss 证据**：论文提供了 Indic 各 script 的 held-out loss（Figure 3），但没有这些语言的下游生成/benchmark 评估
 
 > **合理性辩护**：论文定位是"系统与经验报告"，而非"benchmark 论文"。主要贡献是"如何训练"，而非"训练得如何好"。但这也限制了论文的影响力。
 

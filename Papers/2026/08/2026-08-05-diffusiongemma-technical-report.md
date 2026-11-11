@@ -25,7 +25,7 @@ DiffusionGemma 是首个同时具备**高智能、极速生成、开放权重**�
 | **Figure 12** | 吞吐 vs 并发（~32 并发内 DG 占优） | 第 6 章 |
 | **Table 1** | 模型参数（25.2B 总 / 3.85B 激活） | 第 4 章 |
 | **Table 2** | 采样超参（canvas 256、最大 48 步、平均 ~12 步） | 第 4 章 |
-| **Table 3** | 主结果（DG TD/AR/AR(MTP) vs LLaDA/Nemotron/Mercury 2） | 第 7 章 |
+| **Table 3** | 主结果（DG TD/AR 与 Gemma 4 AR(MTP) 基线，对比 LLaDA/Nemotron/Mercury 2） | 第 7 章 |
 | **Table 4** | 效率指标（TPF/TPS/有效去噪步/总 Forwards/E2E 时间） | 第 7 章 |
 | **Table 5–6** | 下游微调（Sudoku 0%→84.4%、PubMedQA BLEU 10.76→20.67） | 第 8 章 |
 
@@ -75,7 +75,7 @@ Table 3 代表性基准分数（DiffusionGemma TD 模式）：HumanEval **94.5%*
 文本扩散领域此前面临"三难"困境：
 
 - **闭源高速但不可复现**：Gemini Diffusion、Mercury 2 等闭源系统展示了高速度，但模型权重、训练方法、推理细节均未公开。
-- **开源但能力不足**：开源扩散模型与前沿 AR 模型仍有明显差距——Nemotron Diffusion 的 AIME 2026 仅 40.0 分（DG TD 69.1、Gemma 4 AR 84.2），LLaDA 2.1 Flash 的 Codeforces ELO 仅 718（vs DG 1429）；不过 LLaDA 的 AIME 2026 达 80.0，反超 DG TD（69.1）。
+- **开源但能力不足**：开源扩散模型与前沿 AR 模型仍有明显差距——Nemotron Diffusion 的 AIME 2026 仅 40.0 分（DG TD 69.1、DG AR 84.2、Gemma 4 AR(MTP) 88.3），LLaDA 2.1 Flash 的 Codeforces ELO 仅 718（vs DG 1429）；不过 LLaDA 的 AIME 2026 达 80.0，反超 DG TD（69.1）。
 - **延迟收益不足**：Nemotron Diff 等模型仅 49 TPS / 1.79 TPF，扩散带来的并行收益被低效率的去噪过程抵消。
 
 DiffusionGemma 从前沿 AR 模型（Gemma 4 26B A4B）出发进行扩散微调，首次同时达成**高智能**（继承 Gemma 4 能力）、**极速**（~1,500 TPS）、**开放**（Apache 2.0 权重 + 参考实现 + 微调工具包），填补了这一空白。
@@ -120,7 +120,7 @@ $$
 | 错误纠正能力 | 强（迭代精炼全部位置） | 弱（一次性去掩码） |
 | 代表工作 | Campbell 2022; DiffusionGemma | Mask-Predict; SEDD |
 
-DiffusionGemma 选择**多项式扩散**：前向过程中 token 被替换为随机词表 token，反向过程中**任何位置（包括之前已"接受"的）都可在后续步骤中被重新评估和修正**。这一特性使模型能够在去噪过程中发现并修复早期的错误预测，实现真正的"迭代精炼"——类似于人类先写草稿再反复修改的写作过程。这也是 Section 9 中展示的双向自纠错能力（如数学题 -25 修正、青蛙谜题推理）的理论基础。
+DiffusionGemma 选择**多项式扩散**：前向过程中 token 被替换为随机词表 token，反向过程中**当前 canvas 内任何位置（包括之前已"接受"的）都可在后续步骤中被重新评估和修正；但之前已生成 canvas 的 token 永久冻结**。这一特性使模型能够在去噪过程中发现并修复早期的错误预测，实现真正的"迭代精炼"——类似于人类先写草稿再反复修改的写作过程。这也是 Section 9 中展示的双向自纠错能力（如数学题 -25 修正、青蛙谜题推理）的理论基础。
 
 ### 3.3 与 BERT / ELECTRA 的谱系关系
 
@@ -139,7 +139,7 @@ DiffusionGemma 将这些经典思想统一到生成框架中：采用 ELECTRA �
 **自条件化**（self-conditioning）通过将模型上一步的预测分布反馈为当前步的额外输入来解决这一问题：
 
 $$
-\mathbf{z}_t = \mathrm{FFW}(\hat{\mathbf{p}}_0 \, \mathbf{E})
+\mathbf{z}_{t-\Delta t} = \mathrm{FFW}(\hat{\mathbf{p}}_0 \, \mathbf{E})
 $$
 
 其中 $\hat{\mathbf{p}}_0$ 是模型对干净 token 的预测分布（softmax 输出），$\mathbf{E}$ 是嵌入矩阵，FFW 是一个轻量前馈层（仅 7.8M 参数，见 Table 1）。$\hat{\mathbf{p}}_0 \, \mathbf{E}$ 将概率分布投影回嵌入空间，生成"软嵌入"——它编码了模型对每个位置当前最佳猜测的连续表示。这使得后续去噪步可以参考前序判断，维持全局一致性，尤其对长 canvas（256 token）的连贯生成至关重要。
@@ -201,7 +201,7 @@ $$
 **Eq.6 — 预测与自条件化更新：** logits 经温度缩放后 softmax 得到干净 token 分布，同时更新自条件化特征：
 
 $$
-\hat{\mathbf{p}}_0 = \mathrm{softmax}(\boldsymbol{\ell}_t / \tau), \qquad \mathbf{z}_t = \mathrm{FFW}(\hat{\mathbf{p}}_0 \, \mathbf{E})
+\hat{\mathbf{p}}_0 = \mathrm{softmax}(\boldsymbol{\ell}_t / \tau), \qquad \mathbf{z}_{t-\Delta t} = \mathrm{FFW}(\hat{\mathbf{p}}_0 \, \mathbf{E})
 $$
 
 其中 $\tau$ 为采样温度。$\hat{\mathbf{p}}_0$ 随后被传入采样器（Algorithm 1）生成 $\mathbf{x}_{t-1}$。
@@ -233,7 +233,7 @@ DiffusionGemma 的采样器是其效率的关键创新之一。核心思想：**
 采样温度随去噪步线性退火：
 
 $$
-\tau: \; 0.8 \;\longrightarrow\; 0.4 \quad (\text{线性}, \; t: 0 \to 1)
+\tau: \; 0.8 \;\longrightarrow\; 0.4 \quad (\text{线性}, \; t: 1 \to 0)
 $$
 
 早期步骤高温（0.8）鼓励探索——模型尝试多种可能的 token 组合；后期步骤低温（0.4）促进利用——模型收敛到确定性预测。这与熵约束采样器协同：早期多数位置高熵被重新采样，后期低熵位置逐渐锁定。
@@ -285,7 +285,7 @@ $$
 
 扩散微调并未破坏模型的 AR 能力——将权重直接回载即可执行标准自回归解码。Table 3 显示 AR 模式性能介于 TD（扩散）模式和原始 Gemma 4 基线之间：
 
-| Benchmark | DG TD | DG AR | DG AR(MTP) |
+| Benchmark | DG TD | DG AR | Gemma 4 AR(MTP) |
 |-----------|-------|-------|------------|
 | AIME 2026 | 69.1 | 84.2 | 88.3 |
 | HumanEval | 94.5 | 98.2 | 98.8 |
@@ -337,7 +337,7 @@ SFT 后的模型在高去噪步数下质量良好，但在超低延迟所需的�
 
 ## 第 6 章 推理优化与性能分析
 
-文本扩散相对 AR 解码的吞吐优势由两个竞争量决定：每个去噪步解码 TPF 个 token（forward passes 减少 TPF 倍），但每步处理 256-token 画布使其单步慢 $C$ 倍，相对 AR 的整体吞吐比约为 TPF/$C$。本节通过 GPU 级优化压低单步开销。
+文本扩散相对 AR 解码的吞吐优势由两个竞争量决定：每个去噪步解码 TPF 个 token（forward passes 减少 TPF 倍），但每步处理 256-token 画布使其单步慢 $r$ 倍（实测约 3.2 倍），相对 AR 的整体吞吐比约为 TPF/$r$。本节通过 GPU 级优化压低单步开销。
 
 ### 6.1 低批量服务与计算/带宽权衡
 
@@ -381,7 +381,7 @@ DiffusionGemma 在四种运行模式下评估：文本扩散（TD）与自回归
 
 ### 7.1 主结果（论文 Table 3）
 
-| Benchmark | DG TD | DG AR | DG AR(MTP) | LLaDA 2.1 Flash | Nemotron Diff 14B | Mercury 2 High | Mercury 2 Med |
+| Benchmark | DG TD | DG AR | Gemma 4 AR(MTP) | LLaDA 2.1 Flash | Nemotron Diff 14B | Mercury 2 High | Mercury 2 Med |
 |:---|---:|---:|---:|---:|---:|---:|---:|
 | AIME 2026 | 69.1% | 84.2% | 88.3% | 80.0% | 40.0% | 91.7% | 82.5% |
 | GPQA Diamond | 73.2% | 79.8% | 82.3% | 68.7% | 47.0% | 75.2% | 66.7% |

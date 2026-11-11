@@ -1,10 +1,10 @@
-> **论文**：Boogu-Image-0.1: Boosting Open-Source Unified Multimodal Understanding and Generation · **作者**：Boogu Team · **arXiv**：2607.13125 · **日期**：2026-07-14 · **许可**：Apache 2.0
+> **论文**：Boogu-Image-0.1: Boosting Open Agentic Multimodal Generation via Understanding under a Minimal Budget · **作者**：Boogu Team · **arXiv**：2607.13125 · **日期**：2026-07-14 · **许可**：Apache 2.0（v1/Figure 2 标题：Boosting Open-Source Unified Multimodal Understanding and Generation）
 >
 > **代码仓库**：https://github.com/Boogu-Project/Boogu-Image
 >
-> **模型权重**：https://huggingface.co/Boogu（Base, Turbo, Edit, Edit-Turbo 变体）
+> **模型权重**：https://huggingface.co/Boogu（Base, Turbo, Edit, Edit-Turbo 变体；论文仅给出 GitHub 仓库，未提供 HuggingFace 链接，此地址可能来自发布材料）
 
-# Boogu-Image-0.1：面向开源统一多模态理解与生成的理解驱动型图像生成系统
+# Boogu-Image-0.1：在极低预算下通过理解提升开放式 Agentic 多模态生成
 
 ## 第 1 章 概述
 
@@ -111,7 +111,7 @@ Boogu 在推理时通过 Agent 封装生成过程，实现"理解驱动生成"�
 
 3. **Reflection**：应用推理时反思机制，对生成结果进行多轮修正，进一步提升与用户意图的匹配度
 
-4. **推理时缩放**：如图 1（右）所示，增加推理计算量持续提升 T2I 生成质量，遵循可预测的 scaling 曲线
+4. **推理时缩放**：如图 1（右，示意图）所示，增加推理时间可提升 T2I 生成质量；该图仅为示意，并非实验结果
 
 ### 3.4 Prompt Rewriter 的设计原则
 
@@ -120,9 +120,9 @@ Boogu 将 Prompt Rewriter 定位为"翻译器，而非增强器"：
 - **不改变意图**：保留用户原始需求的核心语义
 - **不添加信息**：对模糊部分做合理推理（填充常识上下文），但不过度创作
 - **结构化输出**：将自然的用户语言转换为生成器友好的结构化格式
-- **中文适配**：对中文输入做专门优化，保留中文特有的表达方式和文化意象
+- **身份下界（Identity Lower Bound）**：当用户提示词已经清晰、完整且无冲突时，改写器应基本保持原样，而非强行扩写，保证改写“只能有益、不会有害”
 
-这一原则通过更强 VLM 骨干（同 Qwen3-VL-8B）和更优的改写规则实现。因为 Prompt Rewriter 在生成器上游运行，其改进会传播到所有下游模块。
+这一原则通过更强的 VLM 骨干（Instruction Reasoner，例如 32B；区别于作为 Instruction Encoder 的 Qwen3-VL-8B）和更优的改写规则实现；agentic 推理管线由 Deepseek-V4-Flash 驱动。因为 Prompt Rewriter 在生成器上游运行，其改进会传播到所有下游模块。
 
 ### 3.5 Model Router
 
@@ -132,15 +132,15 @@ Boogu 将 Prompt Rewriter 定位为"翻译器，而非增强器"：
 - **Turbo 变体**：快速推理，适合简单请求
 - **Thinking 变体**：通过提示词缩放（Prompt Scaling）增强文本渲染精度
 
-实验显示（Figure 1 右），增加推理时间一致性地提升质量，且不同变体在推理时质量曲线上占据不同位置。
+如图 1（右，示意图）所示，增加推理时间可提升质量，且不同变体在推理时质量曲线上占据不同位置；该图为示意，并非实验结果。
 
 ### 3.6 Caption 策略
 
-Boogu 认为 caption 策略从根本上决定了模型能学到什么：生成器只能从 caption 中实际描述的概念、属性和组合模式中学习。遵循三条原则：
+Boogu 认为 caption 策略从根本上决定了模型能学到什么：生成器只能从 caption 中实际描述的概念、属性和组合模式中学习。采用以下策略：
 
 1. **全面覆盖**：不仅描述显著物体，还要覆盖风格、空间布局、数量、细粒度属性
 2. **图像-文本对齐**：确保 caption 准确反映图像内容
-3. **多样性**：不同训练样本的 caption 风格和粒度保持多样，避免模型过拟合到单一描述模式
+3. **按维度选择与校准**：针对每个方面（计数、空间关系、属性绑定、风格、文本渲染）选择表现最佳的 VLM 与提示词配置并聚合为统一 caption；对 VLM 难以准确描述的维度使用专家模型或人工标注，避免强 VLM 的提示词敏感性导致监督信号冲突
 
 ## 第 4 章 训练与推理优化
 
@@ -149,9 +149,9 @@ Boogu 认为 caption 策略从根本上决定了模型能学到什么：生成�
 Boogu-Image-0.1 采用分阶段训练策略，从零开始训练（scratch）：
 
 **基础训练阶段**：
-- 数据：187M 开源图像 + 47M Boogu Syllabus 数据
+- 数据：187M 开源图像（512×512 阶段）+ 21.62M 唯一 Boogu Syllabus 样本（训练时上采样至 47.19M；1024×1024 阶段为 60M 开源图像 + 47M Syllabus，2048×2048 阶段仅用 Syllabus）
 - 分辨率：512×512 → 1024×1024 → 2048×2048 渐进式
-- 训练 Epoch：1（Base 512×512），2（Turbo 1024×1024）
+- 训练 Epoch：1（512×512 阶段），2（1024×1024 及之后阶段）；论文未将训练阶段等同于 Base/Turbo 变体
 - Global Batch Size：1280（512×512），2048（1024×1024），1024（2048×2048）
 
 **关键训练超参数**：
@@ -178,7 +178,7 @@ Boogu-Image-0.1 采用分阶段训练策略，从零开始训练（scratch）：
 
 Boogu 的数据管线遵循"质量优先于数量"原则：
 - 总数据量仅 208.62M 唯一图像——显著少于许多大规模训练方案
-- 通过 Boogu Syllabus（47M 策划数据）注入高质量训练样本
+- 通过 Boogu Syllabus（21.62M 唯一策划样本，训练时上采样至 47.19M）注入高质量训练样本
 - 数据过滤和 Caption 设计经过系统优化
 
 ### 4.3 Boosted Orthogonal Guidance (BOG)
@@ -229,7 +229,7 @@ Boogu 自建了与 LMArena 协议一致的盲评基准：
 | Qwen-Image-2.0-2026-03-03 | 946 | 951 | 902 | 869 |
 | HiDream-O1-Image | 868 | 850 | 889 | 850 |
 
-Boogu 模型在所有类别中领先开源层级，仅落后于 GPT-Image-2 和 Nano-Banana-Pro。Thinking 变体在文本渲染类别中的增益最为显著（+21 Elo vs 非 Thinking）。
+Boogu 模型在所有类别中领先开源层级；总体、摄影与文本渲染上仅次于 GPT-Image-2 和 Nano-Banana-Pro，但风格化类别中 Seedream-5.0-Lite（1086）高于 Boogu-Image-0.1-Turbo-Thinking（1060）。Thinking 变体在文本渲染类别中提升 +21 Elo（vs 非 Thinking）；按 Figure 6，摄影 +28、风格化 +30、总体 +27，文本渲染的增益实际最小。
 
 **Boogu Arena vs LMArena 一致性**（Figure 7）：Pearson r=0.986，Spearman ρ=1.0，表明 Boogu Arena 忠实复现了 LMArena 的模型排序。
 
@@ -237,7 +237,7 @@ Boogu 模型在所有类别中领先开源层级，仅落后于 GPT-Image-2 和 
 
 Qwen-Image-Bench 是 Boogu 模型开发冻结后发布的新基准，不易受数据泄漏影响，被视为更可靠的测试平台。
 
-**中文提示词结果**（Table 1）：
+**中文提示词结果**（Table 1，部分结果，完整表见论文）：
 
 | 模型 | 许可 | Quality | Aesthetics | Alignment | Realism | Creativity | Overall |
 |------|------|:-------:|:----------:|:---------:|:-------:|:----------:|:-------:|
@@ -251,7 +251,7 @@ Qwen-Image-Bench 是 Boogu 模型开发冻结后发布的新基准，不易受�
 | **Boogu-Image-0.1-Base** | Apache-2.0 | 50.41 | 53.14 | 52.91 | 45.42 | 48.62 | 50.96 |
 | HunyuanImage-3.0 | Other | 50.35 | 53.57 | 52.00 | 44.31 | 49.12 | 50.81 |
 
-**英文提示词结果**（Table 2）：
+**英文提示词结果**（Table 2，部分结果，完整表见论文）：
 
 | 模型 | 许可 | Quality | Aesthetics | Alignment | Realism | Creativity | Overall |
 |------|------|:-------:|:----------:|:---------:|:-------:|:----------:|:-------:|
@@ -263,12 +263,18 @@ Boogu 开源模型在中文和英文提示下均为开源最优。Thinking 变�
 
 ### 5.4 LongText-Bench
 
-LongText-Bench 评估长文本渲染能力（海报、幻灯片、文档等）。
+LongText-Bench 评估长文本渲染能力（海报、幻灯片、文档等）。下表为部分结果，按 AVG 降序（完整表见论文 Table 3）。
 
 | 模型 | 许可 | AVG | EN | ZH |
 |------|------|:---:|:--:|:--:|
 | Seedream-4.5 | Closed | **0.988** | 0.989 | 0.987 |
-| **Boogu-Image-0.1-Turbo-Thinking** | **Apache-2.0** | **0.971** | 0.957 | **0.985** |
+| HiDream-O1-Image | MIT | 0.979 | 0.979 | 0.978 |
+| ERNIE-Image-PE | Apache-2.0 | 0.973 | 0.980 | 0.966 |
+| **Boogu-Image-0.1-Turbo-Thinking** | **Apache-2.0** | 0.971 | 0.957 | **0.985** |
+| GLM-Image | Apache-2.0 | 0.966 | 0.952 | 0.979 |
+| Nano-Banana-2.0 | Closed | 0.965 | 0.981 | 0.949 |
+| JoyAI-Image | Apache-2.0 | 0.963 | 0.963 | 0.963 |
+| Seedream-5.0-Lite | Closed | 0.962 | 0.961 | 0.963 |
 | **Boogu-Image-0.1-Turbo** | Apache-2.0 | 0.961 | 0.944 | 0.977 |
 | **Boogu-Image-0.1-Base** | Apache-2.0 | 0.961 | 0.952 | 0.969 |
 | GPT-Image-2 | Closed | 0.961 | 0.960 | 0.961 |
@@ -280,14 +286,14 @@ Boogu 中文文本渲染表现突出（Turbo-Thinking ZH 0.985，仅次于 Seedr
 
 | 模型 | 许可 | Add | Adjust | Extract | Replace | Remove | BG | Style | Hybrid | Action | Overall |
 |------|------|:---:|:------:|:-------:|:-------:|:-----:|:--:|:-----:|:------:|:------:|:-------:|
-| **Boogu-Image-0.1-Edit-Thinking** | **Apache-2.0** | 4.59 | 4.64 | **4.32** | 4.69 | **4.85** | 4.60 | 4.94 | **4.26** | **4.83** | **4.64** |
+| **Boogu-Image-0.1-Edit-Thinking** | **Apache-2.0** | 4.59 | 4.64 | 4.32 | 4.69 | **4.85** | 4.60 | 4.94 | **4.26** | **4.83** | **4.64** |
 | JoyAI-Image-Edit | Apache-2.0 | 4.63 | 4.52 | **4.32** | 4.71 | 4.76 | 4.53 | 4.88 | 4.09 | 4.69 | 4.57 |
-| FireRed-Image-Edit | Apache-2.0 | 4.55 | 4.66 | 4.34 | **4.75** | 4.58 | 4.45 | **4.97** | 4.07 | 4.71 | 4.56 |
-| **Boogu-Image-0.1-Edit** | Apache-2.0 | **4.71** | 4.50 | 3.69 | 4.65 | 4.75 | 4.44 | 4.94 | 4.04 | 4.90 | 4.51 |
-| Seedream-5.0-Lite | Closed | 4.93 | **4.69** | 3.01 | 4.41 | 4.45 | **4.65** | 4.93 | 3.91 | 4.82 | 4.42 |
+| FireRed-Image-Edit | Apache-2.0 | 4.55 | 4.66 | **4.34** | **4.75** | 4.58 | 4.45 | **4.97** | 4.07 | 4.71 | 4.56 |
+| **Boogu-Image-0.1-Edit** | Apache-2.0 | 4.71 | 4.50 | 3.69 | 4.65 | 4.75 | 4.44 | 4.94 | 4.04 | 4.90 | 4.51 |
+| Seedream-5.0-Lite | Closed | **4.93** | **4.69** | 3.01 | 4.41 | 4.45 | **4.65** | 4.93 | 3.91 | 4.82 | 4.42 |
 | Nano-Banana-Pro | Closed | 4.44 | 4.62 | 3.42 | 4.60 | 4.63 | 4.32 | 4.97 | 3.64 | 4.69 | 4.37 |
 
-Boogu-Image-0.1-Edit-Thinking 在 ImgEdit-Bench 上以 4.64 的总分排名第一，在 Remove（4.85）、Hybrid（4.26）、Action（4.83）子任务上领先。Thinking 变体 vs Base 的增益集中体现在 Extract 任务（4.32 vs 3.69），表明显式推理有助于解析和定位复杂编辑指令。
+Boogu-Image-0.1-Edit-Thinking 在 ImgEdit-Bench 上以 4.64 的总分排名第一，在 Remove（4.85）、Hybrid（4.26）、Action（4.83）子任务上领先。Thinking 变体 vs 非 Thinking（Edit）的增益集中体现在 Extract 任务（4.32 vs 3.69），表明显式推理有助于解析和定位复杂编辑指令。
 
 ### 5.6 传统基准结果
 
@@ -301,11 +307,13 @@ Boogu-Image-0.1-Edit-Thinking 在 ImgEdit-Bench 上以 4.64 的总分排名第�
 | **Boogu-Image-0.1-Base** | 0.99 | 0.95 | 0.80 | 0.84 | 0.85 | 0.68 | **0.85** |
 | **Boogu-Image-0.1-Turbo-Thinking** | 1.00 | 0.94 | 0.88 | 0.83 | 0.70 | 0.68 | 0.84 |
 
-**DPG-Bench**（Table 5，补充参考）：
+**DPG-Bench**（Table 5，部分结果，补充参考；完整表见论文）：
 
 | 模型 | Global | Entity | Attribute | Relation | Other | Overall |
 |------|:------:|:------:|:---------:|:--------:|:-----:|:-------:|
 | HiDream-O1-Image | 95.15 | 92.32 | 93.74 | 92.88 | 90.25 | **89.83** |
+| Seedream-4.5 | 89.24 | 94.30 | 92.14 | 92.23 | 93.83 | 88.63 |
+| Seedream-4.0 | 93.86 | 92.24 | 90.74 | 93.87 | 94.16 | 88.54 |
 | **Boogu-Image-0.1-Turbo** | 88.54 | 91.67 | 92.19 | 93.20 | 93.83 | **88.35** |
 | Qwen-Image | 91.32 | 91.56 | 92.02 | 94.31 | 92.73 | 88.32 |
 | FLUX.2-Dev | 92.20 | 91.36 | 93.28 | 93.52 | 89.72 | 87.57 |
@@ -330,10 +338,10 @@ Boogu 在 Boogu Arena 的三个类别中提供了系统的定性比较（Figures
 
 - **模型权重发布**：Base, Turbo, Edit, Edit-Turbo 变体
 - **推理代码**：支持 T2I 生成和 I2I 编辑
-- **ComfyUI 集成**：原生支持 ComfyUI（无需额外安装）
+- **ComfyUI 集成**：原生支持 ComfyUI（无需额外安装；论文未提及，可能来自仓库说明）
 - **许可证**：Apache 2.0
 
-模型权重托管在 HuggingFace（https://huggingface.co/Boogu），包括：
+模型权重托管在 HuggingFace（https://huggingface.co/Boogu；论文未提及，可能来自发布材料），包括：
 - Boogu/Boogu-Image-0.1-Base
 - Boogu/Boogu-Image-0.1-Turbo
 - Boogu/Boogu-Image-0.1-Edit
@@ -344,9 +352,9 @@ Boogu 在 Boogu Arena 的三个类别中提供了系统的定性比较（Figures
 | 变体 | 用途 | 特点 |
 |------|------|------|
 | **Base** | 高质量 T2I 基础模型 | 最高质量，密集文本渲染最优（2K 分辨率） |
-| **Turbo** | 快速 T2I 推理 | 4 步蒸馏推理，速度-质量平衡 |
+| **Turbo** | 快速 T2I 推理 | 快速推理变体（论文未披露具体步数或蒸馏细节），速度-质量平衡 |
 | **Edit** | 图像编辑 | 基于 Base 的 I2I 模型 |
-| **Edit-Turbo** | 快速图像编辑 | 4 步蒸馏编辑推理 |
+| **Edit-Turbo** | 快速图像编辑 | 快速编辑推理（论文未披露具体步数或蒸馏细节） |
 | **Thinking 变体** | 增强版（各变体可选） | 推理时提示词缩放，增强指令遵循 |
 
 ### 6.3 轻量模块
@@ -368,7 +376,7 @@ Boogu 使用基于单流 Transformer 的轻量模块作为 Refiner 和 Prompt Tu
 ### 7.2 未来方向
 
 1. **更高分辨率**：支持更大分辨率以满足专业设计需求
-2. **更快推理**：进一步蒸馏和优化 Turbo 变体
+2. **更快推理**：进一步优化 Turbo 变体
 3. **更好的评估标准**：建立与人类偏好更一致的自动评估方法
 4. **场景文本理解深化**：在密集排版场景中提升文本渲染的一致性
 5. **推理时缩放**：探索更高效的推理时计算分配策略
@@ -378,7 +386,7 @@ Boogu 使用基于单流 Transformer 的轻量模块作为 Refiner 和 Prompt Tu
 
 Boogu-Image-0.1 的核心经验教训：
 
-1. **理解是成本效益最高的改进方向**：在有限计算预算下，系统性提升理解能力带来的增益远超单纯增加参数或数据
+1. **协同改进带来显著增益**：理解、数据质量、训练管线和 agentic 推理时策略的协同改进带来显著增益；论文未单独证明理解方向的收益超过增加参数或数据
 2. **评估方法论至关重要**：使用与人类偏好对齐的评估标准，避免被饱和基准给出虚假信心
 3. **工程细节即胜负手**：数据过滤策略、caption 设计、提示词改写规则等看似细节的决策在大规模部署中至关重要
 4. **Agentic 推理时策略的低成本高回报**：不修改模型权重即可通过推理时管线获得显著质量提升

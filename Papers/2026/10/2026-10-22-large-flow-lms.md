@@ -1,9 +1,9 @@
 # Large Flow Language Models(Lafa)深度精读
 
 > **论文**:Large Flow Language Models(Lafa)
-> **作者**:Arnav Chavan, Chanhyuk Lee, Udbhav Bamba, Jaehoon Yoo, Seunghoon Hong, Aditi Raghunathan, Jinwoo Kim(KAIST / Stanford 等)
+> **作者**:Arnav Chavan, Chanhyuk Lee, Udbhav Bamba, Jaehoon Yoo, Seunghoon Hong, Aditi Raghunathan, Jinwoo Kim(UC Berkeley / Amazon / KAIST / Carnegie Mellon 等)
 > **arXiv ID**:2610.28559
-> **发表时间**:2026-10-21
+> **发表时间**:2026-10-20
 > **许可协议**:Apache 2.0
 > **代码仓库**:github.com/lafa-gh/large-flow-lms
 
@@ -26,7 +26,7 @@ Lafa 是一套最大 8B 规模的连续流语言模型:将生成分解为「块�
 | 论文 Figure 7 | self-speculative decoding 的 Acc vs TPF | 第 6 章 |
 | 论文 Figure 8 | Acc vs TPS 端到端吞吐对比(单卡 H100) | 第 6 章 |
 | 论文 Table 1 | 单 token AR 解码六基准平均(0.5B/7B/8B) | 第 6 章 |
-| 论文 Table 2 | self-speculative decoding 的 Acc/TPF 全量对比 | 第 6 章 |
+| 论文 Table 2 | self-speculative decoding 的 Acc/TPF(受控 AR SFT 与 Lafa 对比) | 第 6 章 |
 | 论文 Table 3 | 消融:注意力类型/时间条件/训练目标/自条件/guidance | 第 6 章 |
 | 论文 Table 4 | 超参数:初始化、数据、block size、adaLN、噪声、tokenwise time | 第 7 章 |
 | 论文 Table 5 | flow / flow map 解码步数-精度(GSM8K/HumanEval/IFEval 平均) | 第 6 章 |
@@ -49,7 +49,7 @@ Lafa 是一套最大 8B 规模的连续流语言模型:将生成分解为「块�
 ### 1.3 关键结果速览
 
 - **端到端吞吐(7B,单卡 H100,bs=1,bfloat16)**:Lafa self-speculative decoding B=16 达 100.2 TPS,vs AR SFT 39.5 TPS,即 2.54×,且 Acc 74.5% 不低于 AR SFT 73.9%;B=4 为 79.9 TPS(2.02×,Acc 76.5%),B=8 为 93.8 TPS(约 2.38×,Acc 76.3%)。
-- **单 token AR 解码(六基准平均)**:Lafa 0.5B/7B/8B = 31.6%/60.9%/63.1%,同预算 AR SFT = 28.7%/58.4%/56.8%,分别提升 +2.9/+2.5/+6.3 个百分点(8B 组 AR SFT 基于 Qwen3 8B Base,其 IFEval 存在模板口径异常,详见第 6 章);8B 的 63.1% 与训练预算至 500B token 的 Efficient-DLM(63.5%)相当。
+- **单 token AR 解码(六基准平均)**:Lafa 0.5B/7B/8B = 31.6%/60.9%/63.1%,同预算 AR SFT = 28.7%/58.4%/56.8%,分别提升 +2.9/+2.5/+6.3 个百分点(8B 组 AR SFT 基于 Qwen3 8B Base,其 IFEval 仅 38.1%,报告推断可能存在评测模板/提示格式口径差异,详见第 6 章);8B 的 63.1% 与训练预算至 500B token 的 Efficient-DLM(63.5%)相当。
 - **训练效率**:适配训练 <30B token(正文 5–15 epochs,即 9–27B token),比 Dream/LLaDA/Efficient-DLM 等离散扩散基线少 ≥18×。
 - **flow 解码(GSM8K/HumanEval/IFEval 平均)**:7B B=4 Euler 128 步 75.7%,超过 AR SFT 73.9%;64 步 75.9% 为峰值;flow map 蒸馏后 8 步 71.0%、1 步 49.0%。
 - **self-speculative decoding(TPF)**:7B B=4 60.9%/TPF 2.6×,B=8 59.3%/TPF 4.3×,B=16 58.0%/TPF 4.9×;输出与 greedy AR 完全一致。
@@ -208,7 +208,7 @@ AR 与去噪预测共享全部 transformer 参数。两个去噪项结合优于�
 
 *论文 Figure 4:并行训练——clean 序列与其 noisy 块副本拼接为单次前向:clean 部分走因果注意力产出 AR 预测,各 noisy 块走「前缀因果 + 块内双向」掩码产出去噪预测,重叠前缀只计算一次。*
 
-训练配置(Table 4):AdamW,β=(0.9,0.999),权重衰减 0,梯度裁剪 1.0,batch 384 序列,bfloat16;学习率 1×10⁻⁴(0.5B)/1×10⁻⁵(7B、8B),常数调度 + 前 1% 步 warmup;分布式 DDP(0.5B)/ZeRO-3(7B、8B);参数 EMA 0.999(自 step 500 起);块大小 0.5B/7B 为 {4,8,16},8B 为 4。
+训练配置(Table 4):AdamW,β=(0.9,0.999),权重衰减 0,梯度裁剪 1.0,batch 384 序列(块大小 4;更大块用 memory-matched microbatches),bfloat16;学习率 1×10⁻⁴(0.5B)/1×10⁻⁵(7B、8B),常数调度 + 前 1% 步 warmup;分布式 DDP(0.5B)/ZeRO-3(7B、8B);参数 EMA 0.999(自 step 500 起);块大小 0.5B/7B 为 {4,8,16},8B 为 4。
 
 ### 4.6 self-conditioning
 
@@ -311,7 +311,7 @@ $$\text{TPF}=\frac{\sum_j T_j}{\sum_j F_j}$$
 
 ![Figure 7: self-speculative decoding](Figures/2026-10-22-large-flow-lms-fig7.png)
 
-*论文 Figure 7:self-speculative decoding 的精度–TPF 前沿。7B 上 B 从 4 增至 16,TPF 从 2.6 升至 4.9,精度保持接近或高于 AR SFT;对照 MTP、DeepSeek-MTP、MARS、Fast-dLLM v2、Dream、LLaDA、Efficient-DLM 的逐基准数值见第 6 章 Table 2。*
+*论文 Figure 7:self-speculative decoding 的精度–TPF 前沿。7B 上 B 从 4 增至 16,TPF 从 2.6 升至 4.9,精度保持接近或高于 AR SFT;对照 MTP、DeepSeek-MTP、MARS、Fast-dLLM v2、Dream、LLaDA、Efficient-DLM 的逐基准数值见第 6 章 Table 7(汇总见 Table 2)。*
 
 
 ## 第 6 章 实验结果与分析
@@ -357,7 +357,7 @@ Lafa 在 0.5B 与 7B 上同时超过受控复现的全部并行解码基线与 A
 | 7B | 4 | 43.7 | 71.2 | 75.2 | 75.7 | 73.9 |
 | 7B | 16 | 14.2 | 57.3 | 66.5 | 67.2 | 73.9 |
 
-规律：积分步数增加精度单调改善；7B B=4 在 64 步达峰 75.9%、128 步 75.7%，**超过 AR SFT 的 73.9%**；固定步数下更大的块以精度换并行度。Flow map 蒸馏（B=4）显著改善少步区间：7B 上 1 步 49.0%、2 步 63.3%、4 步 69.4%、8 步 71.0%（2 步学生已接近 4 步 teacher，4 步学生反超同步数 teacher，8 步与 teacher 精度相当），但相对多步流解码仍有质量差距——论文明确将 self-conditioning 与 prefix guidance 的蒸馏纳入列为 future work。
+规律：积分步数增加精度总体改善（个别尺度/步数区间有波动）；7B B=4 在 64 步达峰 75.9%、128 步 75.7%，**超过 AR SFT 的 73.9%**；固定步数下更大的块以精度换并行度。Flow map 蒸馏（B=4）显著改善少步区间：7B 上 1 步 49.0%、2 步 63.3%、4 步 69.4%、8 步 71.0%（2 步学生已接近 4 步 teacher，4 步学生反超同步数 teacher，8 步与 teacher 精度相当），但相对多步流解码仍有质量差距——论文明确将 self-conditioning 与 prefix guidance 的蒸馏纳入列为 future work。
 
 ### 6.4 Self-speculative 解码：并行度（论文 Table 2/7）
 
@@ -462,7 +462,7 @@ large-flow-lms/
 | adaLN | Per-layer | 跨层共享 | 跨层共享 |
 | 学习率 | 1×10⁻⁴ | 1×10⁻⁵ | 1×10⁻⁵ |
 | 优化器 | AdamW（β₁,β₂)=(0.9,0.999)，常数学习率 + 前 1% warmup | 同左 | 同左 |
-| batch size / 精度 | 384 序列 / bfloat16 | 同左 | 同左 |
+| batch size / 精度 | 384 序列（块大小 4）/ bfloat16；更大块用 memory-matched microbatches | 同左 | 同左 |
 | 分布式 | DDP | ZeRO-3 | ZeRO-3 |
 | 训练噪声 σ | 4.0 | 4.0 | 4.0 |
 | self-cond 概率 p_sc | 0.5 | 0.5 | 0.5 |

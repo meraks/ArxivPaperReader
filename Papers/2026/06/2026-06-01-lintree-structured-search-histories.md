@@ -35,7 +35,7 @@
 
 ### 核心贡献
 
-1. **首次系统对比**了"全搜索轨迹条件化推理"与"局部状态LLM启发式搜索"两种范式，揭示了"信息越多不一定越好"的反直觉结论
+1. **系统对比**了"全搜索轨迹条件化推理"与"局部状态LLM启发式搜索"两种范式，揭示了"信息越多不一定越好"的反直觉结论
 2. **提出LinTree表示**：通过简单的parent pointer标注（`sid=`），在不改变搜索数据和训练流程的前提下，将隐式搜索树变为显式结构
 3. **三领域验证**：在Blocks World、Grid Navigation、Sokoban三个经典推理环境中一致证明显式结构的有效性
 4. **统一训练框架**：提供SFT+GRPO两阶段训练流程，奖励函数融合正确性和效率两个维度
@@ -241,7 +241,7 @@ EXPAND sid=1 ACT D:A->C -> sid=3 S{ 0:D<C ; 1:A<B }
 现在一目了然：sid=2和sid=3都从sid=1展开，构成分支！sid=0展开了第一个子节点sid=1。
 
 **改动的精妙之处**：
-1. **零开销**：不改变搜索数据生成流程，不增加训练成本
+1. **改动极小**：搜索数据生成流程不变，训练流程与超参数保持一致（论文未声称训练开销为零）
 2. **完全兼容**：隐式轨迹可以直接"升级"为显式轨迹（只需标注sid）
 3. **信息等量**：两个格式包含完全相同的搜索行为，**唯一变量是树拓扑是否被显式标注**
 
@@ -262,9 +262,9 @@ EXPAND sid=1 ACT D:A->C -> sid=3 S{ 0:D<C ; 1:A<B }
 
 **关键发现**：
 
-1. **SFT阶段无差异**（89.6% vs 90.0%）：因为SFT只是模仿专家轨迹，模型尚未"学会利用"树结构
+1. **Blocks World的SFT阶段几乎无差异**（89.6% vs 90.0%）：但论文报告显式标注使SFT跨领域平均解率提升5.0个百分点，主要来自Navigation（95.2% vs 90.6%）和Sokoban（85.6% vs 74.8%），说明显式轨迹在模仿阶段已能改善有效搜索行为的恢复
 2. **GRPO后显式结构爆发**：LinTree达到**100.0%完美成功率**（标准差0.00！），同时搜索效率提升（7.31 vs 8.25，**-11.4%**展开数）
-3. **超越所有基线**：LinTree不仅超越隐式GRPO（+2.7pp），也超越BFS(RL)（+0.2pp），且每个领域都达到或接近完美
+3. **在Blocks World和Navigation超越所有基线**：LinTree在Blocks World超越隐式GRPO（+2.7pp）与BFS(RL)（+0.2pp）并达到100.0%，Navigation也达到100.0%；但Sokoban为89.6%（加生成约束后98.9%），仍略低于BFS(RL)的99.1%，只是基本持平且展开更少（54.70 vs 64.08）
 
 ### 4.3 深度分析：LinTree为何有效？
 
@@ -305,7 +305,7 @@ EXPAND sid=1 ACT D:A->C -> sid=3 S{ 0:D<C ; 1:A<B }
 | GRPO | 1 epoch, N=8 rollouts, lr=1e-5 |
 | 搜索预算 | 训练500展开，评估200展开 |
 | 数据规模 | 每领域 20k SFT + 20k RL + 1k 验证 |
-| 轨迹截断 | ≤16k tokens |
+| 轨迹过滤 | SFT轨迹超过16k tokens的实例被过滤 |
 
 ### 5.2 性能对比全景
 
@@ -320,6 +320,7 @@ Blocks World 成功率排名：
   SFT-implicit             ██████████████████    90.0%
 
 Navigation 成功率排名：
+  GRPO-explicit (LinTree)  ████████████████████ 100.0%
   BFS (RL)                 ████████████████████ 100.0%
   BFS (pretrained)         ████████████████████ 100.0%
   GRPO-implicit            ███████████████████   94.9%
@@ -328,6 +329,7 @@ Navigation 成功率排名：
 Sokoban 成功率排名：
   BFS (RL)                 ████████████████████  99.1%
   BFS (pretrained)         ███████████████████   94.9%
+  GRPO-explicit (LinTree)  ██████████████████    89.6%
   GRPO-implicit            █████████████████     85.9%
   SFT-implicit             ███████████████       74.8%
 ```
@@ -340,8 +342,8 @@ Sokoban 成功率排名：
 **模式2：GRPO的两面性**
 GRPO对隐式策略的提升十分显著（BW +7.3pp, Nav +4.3pp, Sok +11.1pp），但GRPO在显式结构上的效果更加惊人——直接将Block World推到100%完美率。这说明**RL训练让模型更善于利用结构化的信息**，但当信息本身缺乏结构时，RL的作用是有限的。
 
-**模式3：SFT阶段结构无影响**
-在SFT阶段，有无parent pointers对性能几乎无影响（BW: 89.6% vs 90.0%）。这意味着"理解树结构"**不是靠预训练获得的**，而是**通过RL的探索-奖励信号学到的**。这是一个重要的训练洞察。
+**模式3：SFT阶段结构影响因领域而异**
+在SFT阶段，Blocks World有无parent pointers几乎无影响（89.6% vs 90.0%），但Navigation（95.2% vs 90.6%）和Sokoban（85.6% vs 74.8%）有明显提升，跨领域平均提升5.0个百分点。因此不能概括为"SFT阶段结构无影响"：显式标注在模仿阶段已能帮助恢复有效搜索行为，RL则在此基础上进一步提升。
 
 ### 5.4 策略行为分析
 
@@ -349,7 +351,7 @@ GRPO对隐式策略的提升十分显著（BW +7.3pp, Nav +4.3pp, Sok +11.1pp）
 
 | 行为维度 | 隐式策略 | LinTree策略 |
 |---------|---------|------------|
-| 计划提取 | 需要推断哪些展开属于成功路径 | 沿parent链回溯，精确无误 |
+| 计划提取 | 需要推断哪些展开属于成功路径 | 沿parent链回溯，提取失败率更低但仍存在（Sokoban GRPO-explicit失败案例中45.46%为提取失败，Table 4） |
 | 回溯决策 | 依赖自然语言线索推断 | 通过sid识别分支点和已探索区域 |
 | 状态空间探索 | 可能重复探索已访问区域 | 利用parent指针避免重复 |
 | 错误恢复 | 容易在旁支中迷失 | 清楚知道回溯的"锚点" |
@@ -637,7 +639,7 @@ def compute_reward(trace_is_valid: bool, trace_is_correct: bool,
 |------|------|------|
 | **领域限制** | 仅在三个fully observable规划领域验证 | 未证明在自然语言推理任务上的有效性 |
 | **模型规模** | 仅测试Qwen3-0.6B | 结论可能不适用于7B+甚至数百B参数模型 |
-| **搜索深度** | 轨迹截断≤16k tokens | 更复杂的搜索场景未覆盖 |
+| **搜索深度** | SFT轨迹超过16k tokens的实例被过滤 | 更复杂的搜索场景未覆盖 |
 | **搜索策略单一** | 仅测试best-first search | 未与MCTS、beam search等策略比较 |
 | **无标准Benchmark** | 未在MATH、GSM8K、ARC等标准推理基准上评估 | 与主流推理研究不可直接比较 |
 | **结构标注简单** | 仅使用sid=一种标注 | 可能存在更优的结构化表示（如depth、heuristic value标注） |
@@ -667,11 +669,11 @@ LinTree的独特定位：**既保留了LLM内部推理的完整上下文优势�
 ### 7.4 延伸阅读
 
 1. **Tree of Thoughts** (Yao et al., NeurIPS 2023) — 外部搜索树的开创性工作，首次将LLM推理形式化为树搜索
-2. **LATS: Language Agent Tree Search** (Zhou et al., NeurIPS 2023) — MCTS与LLM结合的代表作
-3. **Reasoning via Planning (RAP)** (Hao et al., ICML 2024) — 将LLM推理建模为MDP中的规划问题
+2. **LATS: Language Agent Tree Search** (Zhou et al., arXiv:2310.04406, 2023) — MCTS与LLM结合的代表作
+3. **Reasoning with Language Model is Planning with World Model (RAP)** (Hao et al., EMNLP 2023) — 将LLM推理建模为MDP中的规划问题
 4. **Graph of Thoughts** (Besta et al., AAAI 2024) — 将推理结构从树推广到有向无环图
 5. **DeepSeekMath: GRPO** (Shao et al., 2024) — 本文使用的GRPO强化学习算法
 6. **Qwen3 Technical Report** (2025) — 本文基座模型的技术细节
-7. **Self-Evaluation Guided Beam Search** (Xie et al., EMNLP 2023) — 束搜索解码与LLM自我评估的结合
+7. **Self-Evaluation Guided Beam Search** (Xie et al., NeurIPS 2023) — 束搜索解码与LLM自我评估的结合
 8. **Chain-of-Thought Prompting** (Wei et al., NeurIPS 2022) — LLM推理的奠基性工作
 

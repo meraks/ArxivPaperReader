@@ -1,4 +1,4 @@
-> **论文**：Function-Aware Fill-in-the-Middle as Mid-Training for Coding Agent Foundation Models · **作者**：TIGER Lab, University of Waterloo · **arXiv**：2607.12463 · **日期**：2026-07-13
+> **论文**：Function-Aware Fill-in-the-Middle as Mid-Training for Coding Agent Foundation Models · **作者**：Yubo Wang, Jiarong Liang, Yuxuan Zhang, Xuye Liu, Cong Wei, Yuyu Zhang, Ping Nie, Wenhu Chen（University of Waterloo / University of British Columbia / NVIDIA / Verdent AI / Vector Institute） · **arXiv**：2607.12463 · **日期**：2026-07-13
 >
 > **代码仓库**：https://github.com/TIGER-AI-Lab/FIM-Midtraining（Apache 2.0）
 >
@@ -201,7 +201,7 @@ $$
 | 损失函数 | 标准 FIM loss（仅 middle span） |
 | 上下文长度 | 模型原生长度 |
 | Sentinel tokens | 各模型原生 FIM sentinel |
-| 后训练管线 | R2E-Gym / SWE-Smith（7B/14B）, SWE-Lego（Qwen3-8B，2 epoch） |
+| 后训练管线 | R2E-Gym（7B/14B） / SWE-Smith（7B）, SWE-Lego（Qwen3-8B，2 epoch） |
 | 评估协议 | 3 独立 seed 取均值，报告 ± std |
 
 所有评估在完整管线（mid-training + post-training）的最终检查点上进行。作者不评估 mid-training-only 检查点，因为 FIM-only 模型指令跟随能力退化。
@@ -237,7 +237,7 @@ $$
 
 1. **Qwen2.5-Coder 系列一致性提升**：固定后训练管线为 R2E-Gym，FA-FIM 在 7B 和 14B 上均提升 SWE-Bench-Verified 约 +3 pp，说明结构性先验在该家族内未被更大检查点吸收
 2. **跨管线迁移**：R2E-Gym +2.80 vs SWE-Smith +5.30（Verified），表明 mid-training 不限于单一后训练分布
-3. **非 Qwen2.5 基座迁移**：Qwen3-8B + SWE-Lego 提升 +3.20/+5.40，验证方法与具体基座无关
+3. **非 Qwen2.5 基座迁移**：Qwen3-8B + SWE-Lego 提升 +3.20/+5.40，说明方法不限于 Qwen2.5-Coder-Instruct + R2E-Gym/SWE-Smith 组合；该比较同时更换了后训练管线与基座，不能据此推断跨基座家族普遍成立
 
 ### 4.2 能力保持与跨域迁移
 
@@ -369,10 +369,11 @@ pair 组提升明显（+0.30），triple 饱和。最佳组合 80%/15%/5% 达到
 
 ### 7.2 未来方向
 
-- 扩展到更多编程语言
-- 跨文件 FIM：捕获文件的跨模块依赖
-- 在线 mid-training：在 Agent 使用过程中持续更新 mid-training 数据
-- 与非编码 Agent（如浏览器 Agent、通用工具使用 Agent）的结合
+- 扩展到更多编程语言（原文 §7）
+- 与 RL 后训练结合（原文 §7）
+- 跨文件 FIM：捕获文件的跨模块依赖（原文附录 D.6 提出的自然扩展）
+- 在线 mid-training：在 Agent 使用过程中持续更新 mid-training 数据（报告作者推测，原文未提出）
+- 与非编码 Agent（如浏览器 Agent、通用工具使用 Agent）的结合（报告作者推测，原文未提出）
 
 ### 7.3 总结
 

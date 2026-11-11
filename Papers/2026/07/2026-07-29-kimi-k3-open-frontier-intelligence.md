@@ -41,12 +41,12 @@ Kimi K3 是 Moonshot AI 发布的一个 2.8T 参数、104B 激活参数的混合
 | 基准 | Kimi K3 (max) | 对比 Frontier 模型 |
 |------|:----------:|:----------------:|
 | GPQA Diamond | **93.5%** | 领先 Opus 4.8 (+2.5pp) |
-| DeepSWE | **67.5%** | 与 GPT-5.5 持平，落后 Fable 5 (-2.5pp) |
+| DeepSWE | **67.5%** | 略高于 GPT-5.5 (+0.5pp)，落后 Fable 5 (-2.5pp) |
 | BrowseComp | **91.2%**¹ | **最优**（领先 GPT-5.6 Sol +0.8pp） |
 | FrontierSWE | **81.2%** | **领先 Opus 4.8 (+14.5pp)** |
 | GDPval-AA v2 (Elo) | 1686 | 第三，低于 Fable 5 (1747) 和 GPT-5.6 Sol (1736) |
 | SWE-Marathon | **42.0%** | **最优**（领先 Fable 5 +7pp） |
-| Art Analysis 智能指数 v4.1 | 57.1 (#4/580) | 第三（Fable 5: 59.9, GPT-5.6 Sol: 58.9） |
+| Artificial Analysis 智能指数 v4.1 | 57.1 (#4/580) | 第三（Fable 5: 59.9, GPT-5.6 Sol: 58.9） |
 | Vals AI Index | **74.7% (#2/39)** | 落后 Fable 5 (-0.4pp) |
 | WebDev Arena (Elo) | **1,678 (#1/99)** | **最优**（首个在该排行榜登顶的开源模型） |
 > **¹**：BrowseComp 91.2% 采用上下文压缩策略（300K token 触发）。在全 1M token 上下文且无上下文管理的情况下，Kimi K3 得分为 90.4%（与 GPT-5.6 Sol 持平）。
@@ -97,7 +97,7 @@ AttnRes 将 Transformer 的深度方向信息通路从累积残差升级为选�
 
 $$\alpha_{i \to l} = \frac{\phi(q_l, k_i)}{\sum_{j=0}^{l-1} \phi(q_l, k_j)}, \quad h_l = \sum_{i=0}^{l-1} \alpha_{i \to l} \cdot v_i$$
 
-为降低 $O(L^2 d)$ 的计算开销，Kimi K3 采用 **Block AttnRes**：将 $L$ 层划分为 $N$ 个 block，每个 block 内归约为单一表示，跨 block 执行完整注意力。Kimi K3 配置 $N=8$ 个 block，每 block 12 层，加上 embedding 层共 9 个 block 级别节点。
+为降低保留全部层输出带来的 $O(Ld)$ 显存与流水线通信开销，Kimi K3 采用 **Block AttnRes**：将 $L$ 层划分为 $N$ 个 block，每个 block 内归约为单一表示，跨 block 执行完整注意力。Kimi K3 配置 $N=8$ 个 block，每 block 12 层，加上 embedding 层共 9 个 block 级别节点。
 
 ### 3.3 Stable LatentMoE
 
@@ -208,13 +208,13 @@ Kimi K3 预训练结合了 Pipeline Parallelism、Expert Parallelism、ZeRO-1 Da
 
 ### 5.3 1M Agent RL 基础设施
 
-**外部 KV Cache 池**：写回设计——活跃解码 block 留在 GPU，可复用空闲前缀在 evict 时写回 CPU DRAM，预取回后继续使用。训练状态在 rollout 结束后卸载到 NVMe 以释放 DRAM。
+**外部 KV Cache 池**：写回设计——活跃解码 block 留在 GPU，可复用空闲前缀在 evict 时写回 CPU DRAM，预取回后继续使用。训练迭代结束后将训练状态（模型权重与优化器状态）卸载到 NVMe 以释放 DRAM；rollout 迭代结束后释放外部 KV 池，避免与训练争用。
 
 **Rollout 自动限流调度器**：基于运行时信号（活跃请求数、排队请求数、KV cache 利用率）动态控制并发请求数。
 
 **梯度 buffer 重用于非策略模型转发**：参考模型权重使用策略模型的 FP32 梯度 buffer 存储，无需额外 GPU 内存分配。
 
-**AgentENV 沙箱**：基于 Firecracker 的 microVM 沙箱，支持增量 checkpoint/恢复（133ms checkpoint / 49ms 恢复）、暂停/恢复、分支（fork）和快照。采用 OverlayBD 镜像格式 + 自定义 ublk 驱动，实现秒级大规模启动。内存超订比例达 6.5×。整个 Kimi K3 训练和评估中创建了 **51,219,741 个沙箱**。
+**AgentENV 沙箱**：基于 Firecracker 的 microVM 沙箱，支持增量 checkpoint/恢复（133ms checkpoint / 49ms 恢复）、暂停/恢复、分支（fork）和快照。采用 OverlayBD 镜像格式 + 自定义 ublk 驱动，实现亚秒级（sub-second）大规模启动。内存超订比例达 6.5×。整个 Kimi K3 训练和评估中创建了 **51,219,741 个沙箱**。
 
 ### 5.4 推理与在线服务
 
@@ -258,7 +258,7 @@ Kimi K3 在最大推理强度（max effort）下，温度 1.0，在包含推理�
 | PerceptionBench | 58.5 | 57.2 | 59.7 | 47.2 | 55.8 | — |
 | CharXiv (RQ) w/ tool | **91.3** | 93.5 | 89.1 | 89.9 | 89.0 | — |
 
-Kimi K3 在编码和 Agent 基准上表现尤为突出：BrowseComp（91.2%）、DeepSearchQA（95.0% F1）、SWE-Marathon（42.0%）、MCPMark-Verified（94.5%）、AutomationBench（30.8%）均取得最优结果。在推理与知识领域，GPQA Diamond（93.5%）与 Frontier 持平，但研究级推理（HLE-Full, CritPt）仍有差距。视觉方面，OmniDocBench（91.1%）领先所有对比模型，Python 工具增强让 Math-Vision 达到 97.8%。
+Kimi K3 在编码和 Agent 基准上表现尤为突出：BrowseComp（91.2%）、DeepSearchQA（95.0% F1）、SWE-Marathon（42.0%）、MCPMark-Verified（94.5%）、AutomationBench（30.8%）均取得最优结果。在推理与知识领域，GPQA Diamond（93.5%）与前沿模型相当（GPT-5.6 Sol 为 94.1%，GPT-5.5 为 93.5%），但研究级推理（HLE-Full, CritPt）仍有差距。视觉方面，OmniDocBench（91.1%）领先所有对比模型，Python 工具增强让 Math-Vision 达到 97.8%。
 
 ### 6.2 内部评测
 
@@ -272,11 +272,11 @@ Kimi K3 在编码和 Agent 基准上表现尤为突出：BrowseComp（91.2%）�
 
 | 评测 | Kimi K3 | Fable 5 | GPT-5.6 Sol | Opus 4.8 |
 |:----|:-------:|:--------:|:-----------:|:--------:|
-| Art Analysis 智能指数 v4.1 | **57.1 (#4/580)** | 59.9 | 58.9 | 55.7 |
+| Artificial Analysis 智能指数 v4.1 | **57.1 (#4/580)** | 59.9 | 58.9 | 55.7 |
 | Vals AI Index | **74.7% (#2/39)** | 75.1 | 73.1 | 70.4 |
 | WebDev Arena (Elo) | **1,678 (#1/99)** | 1,634 | 1,630 | 1,565 |
 
-Kimi K3 在 WebDev Arena 登顶成为首个第一名开源模型；在 Art Analysis 智能指数中以 57.1 排名第四（第三如果将 GPT-5.6 Sol 的 effort 变体合并计算）。
+Kimi K3 在 WebDev Arena 登顶成为首个第一名开源模型；在 Artificial Analysis 智能指数中以 57.1 排名第四（第三如果将 GPT-5.6 Sol 的 effort 变体合并计算）。
 
 ### 6.4 成本效益
 
@@ -286,9 +286,9 @@ Kimi K3 在推理成本效率上表现出色：在 Kimi Code Bench 2.0 上，以
 
 Kimi K3 的网络安全能力在两级评估框架下测评：
 
-**Tier 1（漏洞发现）**：在数十个广泛部署系统中识别了数百个候选漏洞，其中约 70% 经人工确认真实，包括 Linux kernel 中的 16 个此前未知漏洞（含一个远程触发的堆越界写和一个 Dirty-COW 类 RDMA 权限升级漏洞）。
+**Tier 1（漏洞发现）**：在数十个广泛部署系统中识别了数百个候选漏洞，其中约 70% 经人工确认真实，包括跨六个项目的 16 个此前未知漏洞，其中两个 Linux kernel 发现尤为突出（一个远程触发的堆越界写和一个 Dirty-COW 类 RDMA 权限升级漏洞）。
 
-**Tier 2（利用开发）**：在 36 个任务套件中解决 14 个（38.9%），对比 GLM-5.2 的 22.2%。用户空间利用开发较强（10/14），但内核跟踪（4/20）仍与人类专家有显著差距。
+**Tier 2（利用开发）**：在 36 个任务套件中解决 14 个（38.9%），对比 GLM-5.2 的 22.2%。用户空间利用开发较强（16 个任务中解决 10 个），但内核利用（20 个任务中解决 4 个）仍与人类专家有显著差距。
 
 ## 第 7 章 局限性与延伸阅读
 
@@ -297,7 +297,7 @@ Kimi K3 的网络安全能力在两级评估框架下测评：
 1. **研究级推理差距**：在 HLE-Full（56.0%）、CritPt（23.4%）等需要深度研究级推理的任务上明显落后于 Fable 5 和 GPT-5.6 Sol，复杂推理仍是关键提升方向。
 2. **部分 Agent 场景不足**：在 Agent Behavior Bench、MIRA Bench 和 24/7 ClawBench 2.0 上落后于领先模型，长程、多角色、多系统协作场景仍有优化空间。
 3. **网络安全能力上限**：内核利用开发成功率仅 20%（4/20），与服务化目标（如利用链最终阶段的完成、缓解策略选择、调试循环管理等）相关的失败模式需进一步改进。
-4. **视觉基础感知有限**：在 WorldVQA（51.0%）和 ZeroBench（23.0%）等需要细粒度视觉理解的基准上，距离 Fable 5 仍有差距，视觉感知能力尚未达到编码和 Agent 能力的高度。
+4. **视觉基础感知有限**：在 WorldVQA（51.0%，Fable 5 为 56.7%）等需要细粒度视觉理解的基准上距离 Fable 5 仍有差距；ZeroBench-main 无工具时与 Fable 5 持平（23.0%），带 Python 工具时为 41.0%（Fable 5 为 46.0%），视觉感知能力尚未达到编码和 Agent 能力的高度。
 5. **许可限制**：采用 CC BY-NC-ND 4.0 许可，禁止商业使用和衍生作品。
 
 ### 7.2 延伸阅读
@@ -307,4 +307,4 @@ Kimi K3 的网络安全能力在两级评估框架下测评：
 - MoonEP 分布式专家并行：https://github.com/MoonshotAI/MoonEP
 - AgentENV 沙箱系统：https://github.com/kvcache-ai/AgentENV
 - 模型权重：https://huggingface.co/moonshotai/Kimi-K3
-- 内部安全评估（UK AISI / NIST CAISI）结果见第 6.5 节
+- 独立安全评估（UK AISI / NIST CAISI）结果见论文 §6.2.2

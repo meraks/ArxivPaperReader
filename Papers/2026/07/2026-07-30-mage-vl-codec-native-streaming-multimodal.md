@@ -16,16 +16,17 @@ Mage-VL 提出了一种 codec-native（编解码原生的）流式多模态基�
 
 | 编号 | 内容 | 章节 |
 |------|------|------|
-| **Figure 1** | 引言：VLM 的 Moravec 悖论示意 | 第 1 章 |
+| **Figure 1** | Mage-VL 总览：基准性能对比 + codec-native 视频处理流程 | 第 1 章 |
 | **Figure 2** | Mage-ViT 架构：codec 驱动的稀疏 patch 选择 | 第 3 章 |
 | **Figure 3** | 主动流式推理架构：System 1 门控 + System 2 LLM | 第 4 章 |
 | **Figure 4** | AI4AI 描述提示优化流水线 | 第 6 章 |
 | **Figure 5** | 流式事件数据构建格式 | 第 4 章 |
 | **Figure 6** | 变分辨率缩放：Mage-ViT 单调提升 vs 固定分辨率基线退化 | 第 5 章 |
-| **Figure 7** | 传统 HEVC vs 神经 DCVC-RT 的 codec 鲁棒性对比 | 第 5 章 |
+| **Figure 7** | 2026 世界杯直播的 codec-native 主动流式定性示例 | 第 5 章 |
 | **Table 1** | Mage-ViT 图像+视频表示质量对比 | 第 5 章 |
-| **Table 2** | 图像理解基准对比（文档/OCR/通用VQA/空间智能） | 第 5 章 |
-| **Table 3** | 视频理解+时序定位+空间推理基准对比 | 第 5 章 |
+| **Table 2** | 传统 HEVC vs 神经 DCVC-RT 的 codec 鲁棒性对比 | 第 5 章 |
+| **Table 3** | 图像理解基准对比（文档/OCR/通用VQA/空间智能） | 第 5 章 |
+| **Table 4** | 视频理解+时序定位+空间推理基准对比 | 第 5 章 |
 
 ### 1.2 核心贡献
 
@@ -53,7 +54,7 @@ Mage-VL 提出了一种 codec-native（编解码原生的）流式多模态基�
 
 **均匀帧采样的结构性缺陷**：主流 VLM 的视觉编码器（SigLIP2、MoonViT 等）预训练于大规模静态图像-文本对。处理视频时采用固定分辨率的均匀帧采样策略，完全忽略时空冗余——静态背景区域在相邻帧间反复编码，即使只有小部分场景发生变化。计算量随视频时长快速增长。
 
-**现有 token 压缩方法的不足**：DynamicViT、ToMe、FastV 等自适应剪枝/合并方法在编码后压缩，仍有大量冗余；LLaMA-VID、SlowFast-LLaVA 等视频 VLM 选择整帧或压缩特征，无法解决帧间大量重复编码的问题。代码化表示（CoViAR、Video-LaVIT）已展示压缩域识别的潜力，但尚未扩展到端到端 VLM 训练。
+**现有 token 压缩方法的不足**：DynamicViT、ToMe、FastV 等自适应剪枝/合并方法在编码后压缩，仍有大量冗余；LLaMA-VID、SlowFast-LLaVA 等视频 VLM 选择整帧或压缩特征，无法解决帧间大量重复编码的问题。代码化表示（CoViAR、Video-LaVIT）已展示压缩域识别的潜力；OneVision Encoder 进一步发展了 codec 对齐的 patch 稀疏化，LLaVA-OneVision-2 已将视频原生表示引入 VLM 训练。
 
 ### 2.3 生物视觉的启示
 
@@ -139,7 +140,7 @@ Mage-VL 将 Mage-ViT 作为共享视觉编码器，通过轻量级 2 层 MLP pro
 
 | 阶段 | 目标 | 核心数据 | 关键设计 |
 |:---|:-----|:--------|:--------|
-| Stage 1 | 多模态对齐 | 350M 图像描述 + 4.2M 短视频描述 | 较 LLaVA-OneVision2 多 4 倍描述数据；视频描述从一开始就引入 |
+| Stage 1 | 多模态对齐 | 350M 图像描述 + 4.2M 短视频描述 | 约为 LLaVA-OneVision2 的 4 倍描述数据；视频描述从一开始就引入 |
 | Stage 2 | 指令微调 + 时序基础 | 54M 图像指令 + 3.4M 视频描述（30-180s） | 提高 OCR/文档/图表/空间等权重，短时视频保持 |
 | Stage 3 | 时域扩展 | 20M 图像指令 + 长视频数据 | 教会跨分钟的场景演进和长程依赖 |
 | Stage 4 | Codec 长上下文适应 | 350K 长视频 codec 流 + 40M 图像指令 | 将视频转换为 codec-native 表示，token 预算下降为 1/8 |
@@ -211,7 +212,7 @@ Mage-ViT 在 CIFAR-10 上取得最高（99.33%），ImageNet-1K 上紧追 SigLIP
 | CrossPoint | **80.00** | 26.90 | 12.20 | 47.73 |
 | MMSI-Bench | 28.20 | **31.00** | 28.80 | 25.70 |
 
-Mage-VL-4B 在文档理解（DocVQA 95.14% vs 94.69%）、图表推理（ChartQAPro 32.57% vs 26.79%）、通用 VQA（MMStar 67.32% vs 62.04%）、3D 空间推理（CV-Bench-3D 94.75% vs 92.30%、CrossPoint 80.00% vs 26.90%）上系统性领先同参数规模 Qwen3-VL-4B（MMSI-Bench 28.20% vs 31.00%、RealWorldQA 70.46% vs 70.85% 略低），且以 4B 参数在绝大多数基准上超越 15B Phi-4-reasoning-vision。
+Mage-VL-4B 在文档理解（DocVQA 95.14% vs 94.69%）、图表推理（ChartQAPro 32.57% vs 26.79%）、3D 空间推理（CV-Bench-3D 94.75% vs 92.30%、CrossPoint 80.00% vs 26.90%）等多数基准上领先同参数规模 Qwen3-VL-4B，通用 VQA 上两者互有胜负（MMStar 67.32% vs 62.04% 领先；MMSI-Bench 28.20% vs 31.00%、RealWorldQA 70.46% vs 70.85% 略低），且以 4B 参数在绝大多数基准上超越 15B Phi-4-reasoning-vision。
 
 ### 5.3 视频理解对比
 
@@ -233,7 +234,7 @@ Mage-VL-4B 在文档理解（DocVQA 95.14% vs 94.69%）、图表推理（ChartQA
 | **空间推理** | | | | |
 | VSI-Bench | **64.3** | 53.3 | 24.09 | 25.5 |
 
-在视频理解上，Mage-VL-4B 在绝大多数基准上显著超越所有对比模型。特别值得注意的是 JumpScore（视频时间跳跃检测）上 45.60% vs Qwen3-VL-4B 的 3.82%（11.9× 提升），以及 VideoEval-Pro 上 45.2% vs 20.7%（2.2× 提升）。时序定位方面，Timelens-ActivityNet 45.4% vs Qwen3-VL-4B 28.4%（+17.0pp）、Timelens-QVHighlight 57.4% vs 34.9%（+22.5pp）。
+在视频理解上，Mage-VL-4B 在多数视频 QA 与时序定位基准上领先，但 Qwen3-VL-4B 在 MV-Bench、TempCompass、MMVU 上更强，Phi-4-R-V 在 MMOU-Test-Mini 上更高。特别值得注意的是 JumpScore（视频时间跳跃检测）上 45.60% vs Qwen3-VL-4B 的 3.82%（11.9× 提升），以及 VideoEval-Pro 上 45.2% vs 20.7%（2.2× 提升）。时序定位方面，Timelens-ActivityNet 45.4% vs Qwen3-VL-4B 28.4%（+17.0pp）、Timelens-QVHighlight 57.4% vs 34.9%（+22.5pp）。
 
 ### 5.4 效率分析
 
@@ -254,7 +255,7 @@ Mage-ViT 默认使用 HEVC/H.265 codec，但对神经 codec（DCVC-RT）同样�
 
 Mage 模型家族以 MIT 许可证在 GitHub 开源（https://github.com/microsoft/Mage），包括：
 
-- **Mage-VL**：codec-native 流式多模态理解模型（4B），代码和 checkpoints 待发布
+- **Mage-VL**：codec-native 流式多模态理解模型（4B），代码和 checkpoints 已开源（GitHub/HuggingFace）
 - **Mage-Flow**：文本到图像生成与指令编辑模型（4B），已发布技术报告
 
 模型权重托管于 HuggingFace（https://huggingface.co/collections/microsoft/mage）。
@@ -269,7 +270,7 @@ Mage 模型家族以 MIT 许可证在 GitHub 开源（https://github.com/microso
 
 1. **大规模预训练不是视觉编码器的必要条件**：560M 无标注图像 + 100M 视频帧的 Mage-ViT 可匹配数十亿图像-文本对训练的 SigLIP2，说明数据效率和时间对齐比单纯规模更重要。
 
-2. **变分辨率预训练实现单调性能缩放**：Mage-ViT 的表示质量随视觉 token 预算增加单调提升（196→676 tokens，ImageNet 85.69%→86.3%+），而 SigLIP2 等固定分辨率编码器在超出预训练分辨率后性能退化。
+2. **变分辨率预训练实现单调性能缩放**：Mage-ViT 的表示质量随视觉 token 预算增加单调提升（196→676 tokens，ImageNet 约 85.2%→86.3%+），而 SigLIP2 等固定分辨率编码器在超出预训练分辨率后性能退化。
 
 3. **Codec-native tokenization 建立卓越的精度-效率前沿**：实现最高 3.5× 加速，token 消耗降至均匀帧采样的 1/8 以下。
 
@@ -283,7 +284,5 @@ Mage 模型家族以 MIT 许可证在 GitHub 开源（https://github.com/microso
 
 ### 7.2 局限性
 
-- 当前专注于 4B 参数预算，更大参数规模的 scaling 行为尚未探索
-- 生成任务（图像/视频生成）在本工作中未涉及（由同一家族的 Mage-Flow 处理）
-- 认知门控的延迟优化（如门控延迟阈值的自动学习）尚未充分研究
-- Codec 编码的时间开销在极端低延迟场景下仍需优化
+- 在复杂 agentic 工作流与数学推理上仍有明显不足，主要原因是当前训练混合中高质量文本数据不足，且未进行 RL 后训练。
+- 未来计划采用 Zero-Vision SFT + RL 弥补上述差距，并将 Mage-VL 扩展到原生音视频流融合与具身边缘应用。

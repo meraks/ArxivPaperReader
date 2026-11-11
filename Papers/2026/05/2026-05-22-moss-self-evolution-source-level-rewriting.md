@@ -3,12 +3,12 @@
 
 ---
 
-> **Authors**: Qianshu Cai, Yonggang Zhang, Xianzhang Jia, Wei Xue, Jun Song, Xinmei Tian, Yike Guo
-> **Institutions**: USTC (中国科学技术大学), HKUST (香港科技大学), HKBU (香港浸会大学)
+> **Authors**: Qianshu Cai, Yonggang Zhang, Xianzhang Jia, Huajiang Zheng, Wei Xue, Jun Song, Xinmei Tian, Yike Guo
+> **Institutions**: USTC (中国科学技术大学), HKGAI (香港生成式人工智能研发中心), HKUST (香港科技大学), HKBU (香港浸会大学)
 > **Published**: 2026-05-21
 > **arXiv**: [2605.22794](https://arxiv.org/abs/2605.22794)
 > **PDF**: [https://arxiv.org/pdf/2605.22794](https://arxiv.org/pdf/2605.22794)
-> **Code**: [https://github.com/dav-joy-thon/MOSS](https://github.com/dav-joy-thon/MOSS) (may be private at time of writing)
+> **Code**: [https://github.com/hkgai-official/Moss](https://github.com/hkgai-official/Moss)
 > **Keywords**: Self-Evolution, Autonomous Agents, Source-Level Rewriting, Agent Harness, Container Swap, Directed Evolution
 
 ---
@@ -57,13 +57,13 @@ MOSS 提出，源码级自适应（source-level adaptation）在四个关键维�
 
 本文的主要贡献可以总结为以下几点：
 
-1. **提出源码级自我进化范式**：首次将智能体的自我进化范围从文本可编辑层扩展到 agent harness（框架层）的源码重写，实现了图灵完备的进化空间。
+1. **提出源码级自我进化范式**：在应用层生产级智能体中首次将智能体的自我进化范围从文本可编辑层扩展到 agent harness（框架层）的源码重写，实现了图灵完备的进化空间。
 
 2. **设计了 MOSS 系统架构**：包含主容器、控制面 CLI、可插拔编码智能体、宿主机守护进程和临时试验工作器五个核心组件，形成完整的自动进化流水线。
 
 3. **提出有向进化（Directed Evolution）机制**：区别于探索性进化，MOSS 的进化以生产环境中的实际失败证据为锚点，通过自动扫描和用户标记两个渠道收集证据。
 
-4. **设计了七阶段确定性流水线**：从定位、规划、实现到验证，每一步都有质量门控（quality gate），确保进化的正确性和安全性。
+4. **设计了七阶段确定性流水线**：从定位、规划、实现到验证，在 Plan-Review（规划与实现之间）和 Code-Review（实现与评估之间）两处设置双重质量门控，确保进化的正确性和安全性。
 
 5. **实现了安全的容器热替换机制**：通过 90 秒健康探针窗口、连续 3 次通过检验、自动回滚等机制，确保容器升级不影响用户服务。
 
@@ -198,7 +198,7 @@ MOSS 的验证机制非常独特：
 
 1. **判定收敛** → 触发 webhook → 智能体通知用户
 2. **用户同意** → 用户执行 `moss evo apply`（**用户授权门控**）
-3. **容器替换** → 宿主机守护进程写入替换请求 → 用候选镜像重启容器
+3. **容器替换** → 网关原子写入替换请求文件 → 宿主机守护进程的 swap-supervisor 每 2 秒轮询该文件 → 用候选镜像重启容器
 4. **90 秒健康探针窗口**（每 5 秒采样一次）：
    - 心跳 ≤ 30 秒
    - 容器正在运行
@@ -247,7 +247,7 @@ MOSS 的验证机制非常独特：
 
 ### 5.1 文本层进化的天花板
 
-论文揭示了一个深刻的现实：当前所有"自我进化"智能体系统实际上都在一个受限的空间里操作。它们可以修改提示词、更新记忆、调整技能描述，但无法修复**框架层面的 bug**——而恰恰是这些框架层问题（路由错误、钩子顺序不当、状态不变量破坏）导致了大量生产环境故障。
+论文揭示了一个深刻的现实：当前应用层的"自我进化"智能体系统实际上都在一个受限的空间里操作。它们可以修改提示词、更新记忆、调整技能描述，但无法修复**框架层面的 bug**——而恰恰是这些框架层问题（路由错误、钩子顺序不当、状态不变量破坏）导致了大量生产环境故障。
 
 ### 5.2 代码即行为，文本即指令
 
@@ -304,7 +304,7 @@ MOSS 选择"有向进化"而非"探索性进化"是一个明智的工程决策�
 
 5. **缺少对比实验**：没有与文本层进化方法（如仅修改 prompt/skill）的直接对比，无法量化"源码级进化"相对于"文本层进化"的具体优势幅度。
 
-6. **可复现性**：代码仓库在论文发表时似乎不可访问，影响了结果的可复现性。
+6. **可复现性**：论文公开了代码仓库（https://github.com/hkgai-official/Moss），但案例研究为四个任务的单次进化循环对比，未报告重复运行的方差或统计显著性，提升幅度仍需谨慎解读。
 
 ### 总体评价
 

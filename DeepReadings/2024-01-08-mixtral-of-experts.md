@@ -90,7 +90,7 @@ Mixtral 沿用 Mistral 7B [18] 的架构（decoder-only, RoPE, GQA, SwiGLU, RMSN
 **需要特别澄清**：Mixtral **并未采用 Sliding Window Attention**，而是使用**全密集（full/dense）注意力**直接覆盖完整 32K 上下文。论文将其列为相对于 Mistral 7B 的两处 "notable exceptions" 之一（另一处为 MoE）。
 
 - **Mistral 7B** 使用 SWA，窗口 $w=4096$，复杂度 $O(L \cdot w)$，靠多层堆叠使理论注意力跨度延伸到 $\sim L \cdot w$，为在 8K 训练上下文内控制成本而设计。
-- **Mixtral** 直接以全注意力处理 32K token（复杂度 $O(L^2)$），因此长上下文检索（见 4.4）可保持 100% 精度。官方 config 中 `sliding_window=null` 也印证了这一点。
+- **Mixtral** 直接以全注意力处理 32K token（复杂度 $O(L^2)$）；4.4 的检索实验显示其在 32K 内保持 100% 精度（论文未将二者作因果归因，此为报告推断）。官方 config 中 `sliding_window=null` 也印证了这一点。
 
 （说明：HuggingFace 的 `MixtralForCausalLM` 类技术上保留了 `sliding_window` 参数以复用 Mistral 代码，但已发布的 v0.1 权重未启用它；网络上许多博客把 SWA 当作 Mixtral 特性，与论文和实际 config 不符。）
 
@@ -123,7 +123,7 @@ MoE 层替换 Transformer 中的 **FFN 子层**，而非 Attention 子层。每�
 | MATH (4-shot, maj@4) | 28.4% | 13.8% | 12.7% |
 | GSM8K (8-shot, maj@8) | 74.4% | 69.6% | 50.0% |
 
-> **shot 数修正**：原稿中 HellaSwag(10-shot)、WinoGrande(5-shot)、ARC-c(25-shot) 是 **Llama 2 论文**的设定，并非 Mixtral 论文的评测协议。按 Mixtral 论文 Section 3：HellaSwag/WinoGrande/PIQA/ARC-e/ARC-c 均属 **常识推理（Commonsense Reasoning, 0-shot）**，NQ/TriviaQA 属 **世界知识（World Knowledge, 5-shot）**。论文将任务分为：常识推理(0-shot)、世界知识(5-shot)、阅读理解(0-shot, BoolQ/QuAC)、数学(GSM8K 8-shot maj@8 / MATH 4-shot maj@4)、代码(HumanEval 0-shot / MBPP 3-shot)、聚合(MMLU 5-shot / BBH 3-shot / AGIEval)。
+> **shot 数修正**：原稿中 HellaSwag(10-shot)、WinoGrande(5-shot)、ARC-c(25-shot) 是 **Llama 2 论文**的设定，并非 Mixtral Table 2（自有评测管线）的设定（本报告 4.2 的 Llama 2/GPT-3.5 对比表即论文 Table 3，仍沿用这些 shot 数）。按 Mixtral 论文 Section 3：HellaSwag/WinoGrande/PIQA/ARC-e/ARC-c 均属 **常识推理（Commonsense Reasoning, 0-shot）**，NQ/TriviaQA 属 **世界知识（World Knowledge, 5-shot）**。论文将任务分为：常识推理(0-shot)、世界知识(5-shot)、阅读理解(0-shot, BoolQ/QuAC)、数学(GSM8K 8-shot maj@8 / MATH 4-shot maj@4)、代码(HumanEval 0-shot / MBPP 3-shot)、聚合(MMLU 5-shot / BBH 3-shot / AGIEval)。
 
 **关键观察**：Mixtral 以 **5× 更少的活跃参数**（13B vs 70B）在几乎所有 benchmark 上超越 Llama 2 70B。尤其在代码（MBPP +10.9pp）、数学（MATH +14.6pp, GSM8K +4.8pp）上优势显著。
 
@@ -160,7 +160,7 @@ Mixtral 在预训练时大幅上采样多语言数据比例，在法语、德语
 
 ### 4.5 效率分析
 
-论文特别指出：活跃参数量（13B）直接正比于推理计算成本，但**不考虑内存成本和硬件利用率**。Mixtral 的内存需求正比于稀疏参数量（47B），仍小于 Llama 2 70B。SMoE 层因路由机制引入额外开销，且当多个专家分布在不同 GPU 上时增加内存加载，因此更适合**批处理工作负载**以达到良好的算术强度。
+论文特别指出：活跃参数量（13B）直接正比于推理计算成本，但**不考虑内存成本和硬件利用率**。Mixtral 的内存需求正比于稀疏参数量（47B），仍小于 Llama 2 70B。SMoE 层因路由机制引入额外开销，且当同一设备上运行多个专家时会增加内存加载，因此更适合**批处理工作负载**以达到良好的算术强度。
 
 ---
 

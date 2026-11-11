@@ -24,7 +24,7 @@ Transformer 架构的成功建立在 softmax 自注意力机制之上，但其�
 
 Delta 规则模型（DeltaNet → Gated DeltaNet → KDA）借鉴了经典学习理论中的"先减后加"思想：在写入新值之前，先减去当前读出的旧内容，实现更精确的记忆编辑。
 
-**核心矛盾**：此前的所有 Delta 规则模型都用**单一标量门控 β_t** 同时控制擦除和写入——
+**核心矛盾**：此前的 DeltaNet、Gated DeltaNet 与 KDA 等主流 delta-rule 模型都用**单一标量门控 β_t** 同时控制擦除和写入（RWKV-7 与并发的 FG2-GDN+ 已开始放松该标量）——
 
 > "Erasing is a key-side operation that decides which coordinates of the old read should be removed, while writing is a value-side operation that decides which coordinates of the incoming value should be committed."
 
@@ -82,7 +82,7 @@ S_t = S̄_t + k_t(z_t - r_t)^T              （写入修正至门控目标）
 
 | 方法 | 衰减 (Decay) | 擦除 (Erase) | 写入 (Write) |
 |------|-------------|-------------|-------------|
-| Mamba-2 | 标量 | — | 标量 |
+| Mamba-2 | 标量 | — | 无门控（加性写入 k_t v_t^T） |
 | Gated DeltaNet | 标量 | 标量 β_t | 标量 β_t |
 | KDA | **通道级** | 标量 β_t | 标量 β_t |
 | **Gated DeltaNet-2** | **通道级** | **通道级 b_t** | **通道级 w_t** |
@@ -180,7 +180,7 @@ dT = −tril(A^T dA A^T, -1)               # 标准三角 VJP
 - **训练数据**：100B FineWeb-Edu tokens
 - **优化器**：AdamW，峰值学习率 4×10⁻⁴，权重衰减 0.1，余弦衰减，1B-token warmup
 - **序列长度**：4K（训练）；混合模式 SWA 窗口 2K
-- **循环状态大小**：匹配所有模型为 H·d_k·d_v = 262,144 floats/层（= 128 × d_model）
+- **循环状态大小**：GDN/KDA/GDN-2 为 H·d_k·d_v = 16×128×128 = 262,144 floats/层；Mamba-2/3 为 (2d_model)·d_state = 4096×64 = 262,144；各模型状态总量匹配（= 128 × d_model）
 
 ### 4.2 语言建模与常识推理
 
@@ -202,7 +202,9 @@ dT = −tril(A^T dA A^T, -1)               # 标准三角 VJP
 | Gated DeltaNet | 16.00 | 10.82 | 48.71 | 52.25 |
 | KDA | 16.01 | 10.66 | 49.21 | 52.68 |
 | Mamba-3 (MIMO) | 15.81 | 10.92 | 49.82 | 52.72 |
-| **Gated DeltaNet-2** | **15.62** | **10.43** | **50.90** | **53.97** |
+| **Gated DeltaNet-2** | 15.62 | **10.43** | **50.90** | **53.97** |
+
+注：混合模式下 Wiki ppl 最低为 Mamba-3 (SISO) 的 15.54；GDN-2 在 LMB ppl、LMB acc 与 Avg. acc 上最佳。
 
 **关键数字解读**：
 - Wiki 困惑度：从 KDA 的 16.81 降至 **15.90**（纯循环），降低 5.4%
@@ -232,7 +234,9 @@ dT = −tril(A^T dA A^T, -1)               # 标准三角 VJP
 | Gated DeltaNet | 57.3 | 91.2 | 44.8 |
 | KDA | 56.0 | 93.4 | 40.4 |
 | Mamba-3 (MIMO) | 53.0 | 98.4 | 46.6 |
-| **Gated DeltaNet-2** | **57.9** | **99.0** | **48.0** |
+| **Gated DeltaNet-2** | 57.9 | **99.0** | **48.0** |
+
+注：混合模式 S-NIAH-2 @4K 上 Mamba-3 (SISO) 为 58.2，略高于 GDN-2 的 57.9；GDN-2 在 S-NIAH-3 @2K 与 MK-NIAH-1 @4K 上最佳。
 
 > "Gated DeltaNet-2 在记忆编辑最关键的场景中最强——特别是干扰最严重的多键 needle-in-a-haystack 设置。"
 
@@ -245,7 +249,7 @@ dT = −tril(A^T dA A^T, -1)               # 标准三角 VJP
 
 （基准：SWDE, SQuAD, FDA, TriviaQA, NQ, DROP）
 
-混合模式下 GDN-2 比次优 KDA 高出 2.14 个百分点（+5.3%）。
+混合模式下 GDN-2 比次优的 Mamba-3 (SISO, 41.01) 高出 1.27 个百分点（+3.1%）；比 KDA (40.14) 高出 2.14 个百分点（+5.3%）。
 
 ### 4.5 吞吐量
 
@@ -301,18 +305,18 @@ Gated DeltaNet-2 不仅是一个更强的模型，还提供了一个统一的理
 
 ### 6.2 局限与开放问题
 
-1. **仅测试了 1.3B 规模**：是否在 7B、13B 甚至更大规模上保持优势？扩展性尚未验证
-2. **训练序列长度仅 4K**：线性注意力的核心优势在于长上下文，但训练和评估最长只到 4K，未展示 32K/128K 等真正长上下文的能力
+1. **规模覆盖有限**：主实验为 1.3B/100B；论文另在 31.6B 总参数（3.2B 激活）的 hybrid latent-MoE、300B tokens 上初步验证，但 dense 7B-70B 规模仍未测试
+2. **训练/评估长度有限**：训练长度为 4K，RULER 评估最长到 8K；未展示 32K/128K 等真正长上下文的能力
 3. **与 Transformer 的对比不够公平**：Transformer 基线在 Wiki ppl 上高达 19.22，远高于所有循环模型——这可能是因为训练设置（4K 序列）对 Transformer 不利
-4. **推理速度数据缺失**：论文只展示了训练吞吐量，解码速度（对实际部署至关重要）未见报告
-5. **门控开销的详细分析不足**：虽然声称"小的常数开销"，但缺少具体的 FLOPs/内存/延迟对比
+4. **推理开销分析有限**：论文附录 J/表 S.5 已给出相对 KDA 的建模解码延迟（4.3–6.5% 开销，保留 93.9–95.9% 吞吐），但缺少端到端实测延迟
+5. **门控开销的详细分析不足**：虽然声称"小的常数开销"，但缺少具体的 FLOPs 对比；解码内存因状态大小相同而一致
 
 ### 6.3 未来方向
 
-- **更大规模验证**：将 GDN-2 扩展到 7B-70B 参数，在更多 token 上训练
+- **更大规模验证**：将 GDN-2 扩展到 dense 7B-70B 参数，在更多 token 上训练
 - **超长上下文评估**：在 32K-1M 序列长度上测试，展示线性注意力的真正优势
-- **与 attention-free 架构结合**：如与 MoE、稀疏注意力等结合
-- **下游任务微调**：目前的评估主要是 perplexity 和 retrieval，在推理、编程等下游任务上的表现未知
+- **与更多稀疏组件结合**：MoE 结合已在 31.6B hybrid latent-MoE 中实现；未来可探索其他专家路由或稀疏注意力组合
+- **更广泛的下游任务评估**：1.3B 主实验以 perplexity 和 retrieval 为主；论文已在 31.6B hybrid 上评估 MMLU、HumanEval/MBPP、GSM8K/MATH-500 和常识，未来可在更广泛的下游微调/推理任务上验证
 - **擦除门的更深入分析**：消融发现擦除门贡献最大，值得更深入研究什么样的"选择性擦除"模式被学到了
 
 ---
@@ -321,7 +325,7 @@ Gated DeltaNet-2 不仅是一个更强的模型，还提供了一个统一的理
 
 1. Hatamizadeh, A., Choi, Y., Kautz, J. (2026). *Gated DeltaNet-2: Decoupling Erase and Write in Linear Attention*. arXiv:2605.22791
 2. Yang, S. et al. (2025). *Gated DeltaNet*. (Gated DeltaNet 原始论文)
-3. Sun, Y. et al. (2025). *Kimi Delta Attention (KDA)*. (通道级衰减 + 标量 delta)
-4. Gu, A. & Dao, T. (2024). *Mamba-2*. (标量衰减的状态空间模型)
-5. Dao, T. et al. (2026). *Mamba-3*. (指数梯形离散化 + 复数旋转 + MIMO)
-6. Schlag, I. et al. (2020). *Linear Transformers are Secretly Fast Weight Programmers*. (快速权重更新视角)
+3. Kimi Team, Zhang, Y. et al. (2025). *Kimi Linear: An Expressive, Efficient Attention Architecture* (KDA). arXiv:2510.26692.
+4. Dao, T. & Gu, A. (2024). *Transformers are SSMs: Generalized Models and Efficient Algorithms Through Structured State Space Duality* (Mamba-2).
+5. Lahoti, A. et al. (2026). *Mamba-3: Improved Sequence Modeling Using State Space Principles*.
+6. Schlag, I. et al. (2021). *Linear Transformers are Secretly Fast Weight Programmers*.

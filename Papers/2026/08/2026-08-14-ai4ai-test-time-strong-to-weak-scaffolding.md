@@ -1,5 +1,5 @@
 > **论文**：AI4AI at Test-Time: Strong-to-Weak Capability Transfer via Harnesses
-> **作者**：Cheng Qian, Wenting Zhao, Liangwei Yang, Heng Wang, Jielin Qiu, Heng Ji, Silvio Savarese, Huan Wang, Shelby Heinecke（UIUC / NVIDIA）
+> **作者**：Cheng Qian, Wenting Zhao, Liangwei Yang, Heng Wang, Jielin Qiu, Heng Ji, Silvio Savarese, Huan Wang, Shelby Heinecke（Salesforce AI Research / UIUC）
 > **arXiv ID**：2608.12307
 > **发表时间**：2026-08-12
 > **许可协议**：未标注
@@ -16,14 +16,14 @@
 | 编号 | 内容 | 章节 |
 |------|------|------|
 | **Figure 1** | 系统框架图：builder 构建 scaffold 并部署到 target 的流程 | 第 3 章 |
-| **Figure 2** | 实验设计概览热图 | 第 4 章 |
-| **Table 1** | 各 builder scaffold 的 macro-average 准确率 | 第 5 章 |
-| **Table 2** | 12 类 scaffold 技术普及率 | 第 5 章 |
+| **Figure 2** | GPT-5.4-mini target 主结果概览（builder×platform 准确率矩阵与 builder 排名） | 第 4 章 |
+| **Table 1 / Figure 3(a)** | Table 1 为 headline numbers；Figure 3(a) 为各 builder 的分 benchmark 准确率与 macro-average | 第 5 章 |
+| **Figure 6(a)** | 12 类 scaffold 技术普及率 | 第 5 章 |
 
 ### 1.2 核心贡献
 
 1. **范式形式化**：将 strong-to-weak scaffolding 定义为训练时蒸馏的互补范式——能力通过 harness 而非权重迁移，target 模型参数保持冻结。
-2. **系统实证分析**：72 次实验（11 builders × 3 platforms × repeats + target 对比），从 10 个方面（Aspect 0–9）考察效果量、稳定性、验证效率、技术分类、平台效应、target 依赖、builder 推理努力、归因机制、认知负荷降低、残余错误。
+2. **系统实证分析**：72 个实验 run（24 个 platform×builder×target 设置 × 3 次重复；11 个 builder 配置分布在 Cursor/Claude Code/GPT Codex 上，并含 15 个 Gemini-3.5-flash target run），从 10 个方面（Aspect 0–9）考察效果量、稳定性、验证效率、技术分类、平台效应、target 依赖、builder 推理努力、归因机制、认知负荷降低、残余错误。
 3. **设计原则提取**：成功 scaffold 由确定性卸载（deterministic offloading）、基准感知路由（benchmark-aware routing）、格式控制、定向分解驱动，而非暴力验证搜索。
 4. **数据级证据**：GPT-5.4-mini 从 0.488 → 0.912（最佳 run，+0.423，论文正文表述为 87% 相对提升），100% runs 超过 baseline，接近人类设计的 UserHarness (0.939)。
 
@@ -35,7 +35,7 @@
 | 全部 scaffolded runs 均值 | 0.763（+0.275） | 57 个 GPT-5.4-mini-target scaffolded runs 宏平均 |
 | 超基线比例 | 100%（57/57 runs） | GPT-5.4-mini target 下全部 run 超 vanilla baseline |
 | 人类设计上界参考 | 0.939 / 0.941 | UserHarness，GPT-5.4-mini target / Gemini-3.5-flash target |
-| 实验规模 | 72 runs | 3 platforms × 11 builders × repeats + target 对比 |
+| 实验规模 | 72 runs | 24 个 platform×builder×target 设置 × 3 次重复（builder 阵容因平台而异：11/5/3；含 15 个 Gemini target run） |
 | 隐藏测试集 | 3900 items | BigToM 1200 + Hi-ToM 1200 + MMToM-QA 600 + MuMA-ToM 900 |
 | Validation 比例 | 5%（195 items） | 固定随机种子采样 |
 
@@ -107,7 +107,7 @@ Builder 不受约束，可实施任意推理时程序。论文观察到的机制
 | Verification pass | 验证检查 | 12% |
 | Self-consistency | 自一致性采样 | 5% |
 
-普及率数据来源：论文 Table 2（§5.4），反映 72 runs 中各技术的出现频率。
+普及率数据来源：论文 Figure 6(a)（§5.4），反映 target 为 GPT-5.4-mini 的 57 个 run 中各技术的出现频率。
 
 ### 3.4 评估流程
 
@@ -152,9 +152,9 @@ Builder 不受约束，可实施任意推理时程序。论文观察到的机制
 
 Vanilla 基线衡量 scaffold 应提升的起点；UserHarness 提供人类设计的 harness 有效性参照点。
 
-![Figure 2: 实验设计概览热图](Figures/2026-08-14-ai4ai-test-time-strong-to-weak-scaffolding-fig2.png)
+![Figure 2: GPT-5.4-mini target 主结果概览](Figures/2026-08-14-ai4ai-test-time-strong-to-weak-scaffolding-fig2.png)
 
-*图 2：72 个实验 run 的配置热图——横轴为 builder×platform 组合，纵轴为四个 benchmark 准确率与 macro-average，直观呈现各配置的相对表现分布。*
+*图 2：GPT-5.4-mini target 的主结果概览——(a) 各 builder×platform 配置的平均全量准确率矩阵（空白格表示未运行），(b) 按 builder 聚合的平均准确率及每次 run 的分布。*
 
 ## 第 5 章 实验结果与分析
 
@@ -179,7 +179,7 @@ Vanilla 基线衡量 scaffold 应提升的起点；UserHarness 提供人类设�
 | Codex-5.3 | 6 | 0.983 | 0.625 | 0.563 | 0.528 | 0.675 ± 0.043 | +0.187 |
 | Grok-0.1 | 3 | 0.613 | 0.592 | 0.537 | 0.511 | 0.563 ± 0.036 | +0.075 |
 
-*表 1：GPT-5.4-mini target 下各 builder 的 scaffold 效果（论文 Table 1）。RR = 该 builder 的 run 数。*
+*表 1：GPT-5.4-mini target 下各 builder 的 scaffold 效果（论文 Figure 3(a)）。RR = 该 builder 的 run 数。*
 
 全部 57 个 scaffolded GPT-5.4-mini run 的均值 macro-average 为 **0.763（+0.275）**，100% 的 run 超过基线；11 个 builder 配置全部优于基线。最佳单 run 由 GPT-5.5 on GPT Codex 产生，达 **0.912（+0.423，87% 相对提升）**。
 
@@ -220,7 +220,7 @@ Builder 平均使用 4.9 次 validation 评估（中位数 5，范围 2–15）�
 | Verification / arbiter | 7/57 | 12% |
 | Self-consistency vote | 3/57 | 5% |
 
-*表 2：12 类 scaffold 技术普及率（论文 Table 2，§5.4）。*
+*表 2：12 类 scaffold 技术普及率（论文 Figure 6(a)，§5.4）。*
 
 两种技术近乎通用：robust format enforcement（可靠解析答案选项）与 greedy decoding（temperature 0）。复杂策略（deterministic solvers、self-consistency voting、verification/arbiter）仅出现在少数 scaffold。技术选择强烈依赖任务：BigToM 常被确定性/混合规则求解（问题暴露 observed/unobserved 区分），MuMA-ToM 几乎总是由模型自行处理。per-benchmark 方法图实际上构成 ToM 任务的 **compilability ranking**：BigToM 高度可规则编译，MuMA-ToM 基本保持模型中介。
 

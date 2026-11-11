@@ -1,7 +1,7 @@
 # Prime Agent: A Self-Improving RLM Harness — 中文精读报告
 
 > **论文**: Prime Agent: A Self-Improving RLM Harness
-> **作者**: Seth Karten, Alex L. Zhang, Kevin Thomas, Sebastian Müller, Elie Bakouch, Daniel Auras, Mika Senghaas, Fares Obeid, Konstantin Dunas, Johannes Hagemann, Sami Jaghouar（PrimeIntellect）
+> **作者**: Seth Karten（Princeton University / Prime Intellect）, Alex L. Zhang（MIT / Prime Intellect）, Kevin Thomas, Sebastian Müller, Elie Bakouch, Daniel Auras, Mika Senghaas, Fares Obeid, Konstantin Dunas, Johannes Hagemann, Sami Jaghouar（Prime Intellect）
 > **arXiv ID**: 2608.23552
 > **发表时间**: 2026-08-24（v1）
 > **许可协议**: 论文 CC BY 4.0；代码 MIT
@@ -72,7 +72,7 @@ Prime Agent 是 PrimeIntellect 开源的、面向长时程（long-horizon）评�
 
 **贡献四：长时程执行语义与统一资源核算。** autonomous mode（预算内持续推进 turn 并执行 end-condition test）、goals（跨 continuation 保留的目标）、heartbeats（cron 定时唤醒 turn）共同支撑了数天量级的连续运行；evaluation configs 将 task/tool/model/provider/compaction/refinement/retry/completion gates/资源限制绑定为可复现配置；资源核算（accounting）自动聚合根会话与全部后代会话的 tokens/时间/成本。
 
-**贡献五：用评估证明"低摩擦高表达力"假说。** 论文用三个研究问题（RQ1 test-time scaling、RQ2 信息管理、RQ3 持久递归执行）组织了五类评估：ARC-AGI-3 上 Best@1 从 30% 到 95.5%；长上下文套件上与三个模型的原生/流行 harness 对比全面持平或占优；自主 nanoGPT speedrun 85.5 小时产出 19 个验证记录；EmulatorBench 上从零用 Rust 复现 SEGA Genesis 与 GBC 模拟器；Factorio 上实现 7 天连续运行与持续科技推进。
+**贡献五：用评估证明"低摩擦高表达力"假说。** 论文用三个研究问题（RQ1 test-time scaling、RQ2 信息管理、RQ3 持久递归执行）组织了五类评估：ARC-AGI-3 上 Best@1 从 30% 到 95.5%；长上下文套件上与三个模型的原生/流行 harness 对比整体持平或占优（9 项中 7 项全场最高，少数行小幅落后）；自主 nanoGPT speedrun 85.5 小时产出 19 个验证记录；EmulatorBench 上从零用 Rust 复现 SEGA Genesis 与 GBC 模拟器；Factorio 上实现 7 天连续运行与持续科技推进。
 
 五项贡献与证据的对照如下，便于按图索骥：
 
@@ -195,7 +195,7 @@ Prime Agent 的统一资源核算（根会话 + 全部后代会话的 tokens/时
 
 两个取舍最能体现论文的性格。
 
-**其一，对极致基准工程的拒绝。** 社区在 ARC-AGI-3 上发展出的高性能系统往往依赖针对该基准精心设计的 scaffold——特定的搜索策略、特定的规则假设表示、特定的重试逻辑。这类系统的分数提升无法与模型能力分离，也不可迁移。Prime Agent 在 ARC-AGI-3 上"只提供环境接口 + PRO-LONG 改编的 autonomous prompt"，等于主动放弃 per-task 工程，把 30%→95.5% 的提升完全归因于通用 harness 语义。这使得结果的说服力更强：提升来自任何任务都能享受的机制，而非基准特定的技巧。
+**其一，对极致基准工程的拒绝。** 社区在 ARC-AGI-3 上发展出的高性能系统往往依赖针对该基准精心设计的 scaffold——特定的搜索策略、特定的规则假设表示、特定的重试逻辑。这类系统的分数提升无法与模型能力分离，也不可迁移。Prime Agent 在 ARC-AGI-3 上"只提供环境接口 + PRO-LONG 改编的 autonomous prompt"，等于主动放弃 per-task 工程，把 30%→95.5% 的提升主要归因于通用 harness 语义（论文同时说明这些外部参考线用于定位结果，并不单独隔离 harness 的因果效应），使结果更具说服力：提升来自任何任务都能享受的机制，而非基准特定的技巧。
 
 **其二，对 coding agent 传统边界的突破。** Claude Code、Codex 这类生产级 coding agent 拥有成熟的执行、恢复与权限管理，但其信息管理策略（何时压缩、保留什么）与编排策略（如何派生子任务）内建于框架，模型无法覆盖。Prime Agent 的做法近乎极端：把这两类策略整体搬进模型的编程范围。Table 1 的对比结果（第 5 章）显示，这一搬家在同一模型上普遍不造成损失、且在信息密集型任务上大幅获益——说明原生 harness 的固定策略对模型而言通常是次优的。
 
@@ -410,7 +410,7 @@ Table 1（长上下文主结果，数值原样引自论文）：
 | LongCoT-Mini | long reasoning | .638 | .613 | .722 | .558 | .671 | .681 |
 | EmulatorBench | long coding | .208 | .000 | .047 | .062 | .275 | .228 |
 
-九项任务覆盖五种能力面：long context（长文档理解）、long output（长输出生成）、comprehension/expert tasks（专家级理解）、long instructions（长指令跟随）、long reasoning（长推理链）、long coding（长代码任务）、ranking（数学内容排序，nDCG@10 口径）。逐行分析见第 5 章 5.1 节。
+九项任务覆盖七种能力面：long context（长文档理解）、long output（长输出生成）、comprehension/expert tasks（专家级理解）、long instructions（长指令跟随）、long reasoning（长推理链）、long coding（长代码任务）、ranking（数学内容排序，nDCG@10 口径）。逐行分析见第 5 章 5.1 节。
 
 ### 4.4 RQ3：长时程执行任务套件
 
@@ -452,15 +452,15 @@ RQ3 用五类真实长时程任务检验持久递归执行：
 
 **OOLONG-Pairs — long output**：GLM-5.2 上 .874 vs .556（+31.8pp），全表最大差距；Opus 5 上 .929 vs .922（+0.7pp）；GPT-5.6 Sol 上 .911 vs .895（+1.6pp）。全场最高分为 Opus Prime 的 .929。长输出生成高度受益于"在 REPL 中程序化组织输出"的能力——弱模型在 Pi-mono 上几乎无法组织超长输出，Prime 把这一结构性劣势补齐了。
 
-**OBLIQ-Bench (math) — ranking (nDCG@10)**：GLM-5.2 +3.4pp（.669 vs .635）、Opus 5 +0.7pp（.802 vs .795）、GPT-5.6 Sol −3.4pp（.612 vs .646）。全场最高为 Opus Prime 的 .802。数学内容的排序任务上 harness 影响最小，符合"推理型任务更多由模型权重决定"的直觉。
+**OBLIQ-Bench (math) — ranking (nDCG@10)**：GLM-5.2 +3.4pp（.669 vs .635）、Opus 5 +0.7pp（.802 vs .795）、GPT-5.6 Sol −3.4pp（.612 vs .646）。全场最高为 Opus Prime 的 .802。数学内容的排序任务上 harness 影响较小、但并非全表最小（LongBench Pro 与 LongBench v2 的配对差更小），符合"推理型任务更多由模型权重决定"的直觉。
 
 **LongBench Pro (English) — comprehension**：GLM-5.2 +0.9pp（.777 vs .768）、Opus 5 +1.4pp（.804 vs .790）、GPT-5.6 Sol +0.4pp（.794 vs .790）。全场最高为 Opus Prime 的 .804。专家级阅读理解上各 harness 几乎持平——这类任务的信息处理瓶颈在模型本身。
 
-**LongBench v2 — expert long tasks**：GLM-5.2 −1.6pp（.680 vs .696）、Opus 5 −0.2pp（.744 vs .746）、GPT-5.6 Sol +1.0pp（.714 vs .704）。全场最高为 Opus Prime 的 .744。全表少数 Prime 落后的行之一（GLM 上小幅落后），说明把上下文卸载到文件对"单遍精读型"任务有轻微代价（检索代替了通读）。
+**LongBench v2 — expert long tasks**：GLM-5.2 −1.6pp（.680 vs .696）、Opus 5 −0.2pp（.744 vs .746）、GPT-5.6 Sol +1.0pp（.714 vs .704）。全场最高为 Opus 5 + Claude Code 的 .746。全表少数 Prime 落后的行之一（GLM 与 Opus 5 上均小幅落后），说明把上下文卸载到文件对"单遍精读型"任务有轻微代价（检索代替了通读）。
 
 **ManyIH Coding — long instructions**：GLM-5.2 +3.8pp（.424 vs .386）、Opus 5 +1.4pp（.536 vs .522）、GPT-5.6 Sol +4.5pp（.499 vs .454）。全场最高为 Opus Prime 的 .536。海量交织指令（many intertwined instructions）的编码任务上三个模型全部获益，且绝对分普遍低（<.54），是全表最难的任务族之一。
 
-**ManyIH IF — long instructions**：GLM-5.2 +4.5pp（.209 vs .164）、Opus 5 +5.0pp（.225 vs .175）、GPT-5.6 Sol −1.6pp（.216 vs .232）。这是 9 项中唯一由对照 harness 取得全场最高分的任务（GPT-5.6 Codex 的 .232）。指令跟随（instruction following）精度上 Prime 的增益在两个模型上显著、在一个模型上小幅为负。
+**ManyIH IF — long instructions**：GLM-5.2 +4.5pp（.209 vs .164）、Opus 5 +5.0pp（.225 vs .175）、GPT-5.6 Sol −1.6pp（.216 vs .232）。这是 9 项中仅有的两个由对照 harness 取得全场最高分的任务之一（另一个是 LongBench v2 上 Opus 5 + Claude Code 的 .746；本项为 GPT-5.6 Codex 的 .232）。指令跟随（instruction following）精度上 Prime 的增益在两个模型上显著、在一个模型上小幅为负。
 
 **LongCoT-Mini — long reasoning**：GLM-5.2 +2.5pp（.638 vs .613）、Opus 5 +16.4pp（.722 vs .558）、GPT-5.6 Sol −1.0pp（.671 vs .681）。Opus 5 上的 +16.4pp 是强模型上全表最大增益，全场最高为 Opus Prime 的 .722。长推理链任务上，Claude Code 的固定上下文策略明显限制了 Opus 5，而 REPL 式的推理组织释放了它。
 
@@ -498,7 +498,7 @@ RQ3 用五类真实长时程任务检验持久递归执行：
 
 ARC-AGI-3 结果的三层含义：
 
-**第一，harness 差距可以压倒模型差距。** 30%→95.5% 的跨度（+65.5pp）远超常见的前后代模型差距，说明在此类需要构建 ad-hoc world model 的任务上，测得的分数有一大半由 harness 的 expressivity 决定。任何不带 harness 口径的 leaderboard 排名都应据此重新审视。
+**第一，harness 差距可以压倒模型差距。** 30%→95.5% 的跨度（+65.5pp）远超常见的前后代模型差距，说明在此类需要构建 ad-hoc world model 的任务上，harness 的 expressivity 可能是影响此类任务分数的关键因素（论文未据此做因果分解）。任何不带 harness 口径的 leaderboard 排名都应据此重新审视。
 
 **第二，提升来自机制而非任务特定工程。** Prime 只提供环境接口与 PRO-LONG 改编的 autonomous prompt，无 per-game scaffold；提升归因于模型可以在 REPL 中自行组织试错、记录规则假设、递归派生探索。
 
@@ -514,7 +514,7 @@ ARC-AGI-3 结果的三层含义：
 
 124M 参数 GPT 的 speedrun 任务上，Prime Agent 自主运行 85.5 小时，产出 **19 个验证记录**（8-seed mean 验证）。论文跨 harness 统计了 18 个 runs（Figure 6），核心发现是：
 
-**harness 选择对最终记录的影响小于噪声**——即给定足够的自主运行时间，不同 harness 上的最强模型都能逼近各自的能力上限。这与 Table 1 形成有趣的对照：短程信息处理任务上 harness 差距显著，长时程"做实验"任务上差距被时间摊平。
+**harness 选择对最终记录的影响小于噪声**——即不同 harness 对最终记录的影响相对实验噪声很小。这与 Table 1 形成有趣的对照：短程信息处理任务上 harness 差距显著，长时程"做实验"任务上差距被时间摊平。
 
 更有价值的是**模型行为差异**：
 
@@ -553,9 +553,9 @@ Factorio 是检验持久递归执行最极端的测试床。Sonnet 5 在 Prime A
 ![Figure 9: Factorio 科技进展与 agent 树增长](Figures/2026-08-26-prime-agent-self-improving-rlm-harness-fig9.png)
 *图9：Factorio 七天运行的科技进展曲线与 agent 树规模/并发数变化（含 destructive reset 事件标记）。*
 
-如图 9 所示，运行呈现**持续的技术推进**（continuous technology progression）而非平台化。读图时有三条线索值得跟踪：科技数的斜率（是否随时间衰减——衰减意味着模型在重复低效劳动，无衰减则说明 refinement 在持续起作用）、agent 树的规模与并发曲线（派生波次的节奏是否与建设任务的到来同步）、以及 destructive reset 事件的标记位置（其后的恢复斜率反映系统从重大损失中重建的效率）。论文对三者都给出了正面读数：持续推进、149 个波次与科技需求同步、reset 后恢复并继续。论文将推进归因于两点：
+如图 9 所示，运行呈现**持续的技术推进**（continuous technology progression）而非平台化。读图时有三条线索值得跟踪：科技数的斜率（是否随时间衰减——衰减意味着模型在重复低效劳动，无衰减则说明 refinement 在持续起作用）、agent 树的规模与并发曲线（派生波次的节奏是否与建设任务的到来同步）、以及 destructive reset 事件的标记位置（其后的恢复斜率反映系统从重大损失中重建的效率）。论文报告持续推进与 reset 后恢复并继续，同时指出 agent 树呈浅层、反复扩张的结构（并行任务专门化而非更深递归），科技曲线呈突发式（长建设间隔与外部可验证进展相互分离）。论文将推进归因于两点：
 
-- **refinement 带来的持续改进**：Continual Harness 的经验沉淀让运行越到后期越高效；
+- **refinement 带来的持续改进**：Continual Harness 的经验沉淀支撑了持续的技术推进；
 - **专用 subagents 的并行化**：全程共派生 **633 个 depth-one subagents**、**149 个派生波次（dispatch waves）**、并发峰值 ≤7——模型自发地将工厂的并行建设任务分解给专用子代理。
 
 **不可逆动作的处理短板**：运行中发生过一次 destructive reset（工厂毁灭性重置），科技数从 5 回落至 1，之后系统恢复并继续推进。这暴露了模型对不可逆环境动作的风险评估仍弱——harness 的恢复语义（状态可回滚）只覆盖 harness 自身状态，不覆盖环境状态。
@@ -736,7 +736,7 @@ Factorio 的 RCON 案例使安全从工程细节上升为架构要求。论文�
 
 ## 结语
 
-Prime Agent 的论文贡献可以压缩为一句话：**它把"harness 应该做什么"重新定义为"harness 应该让模型能做什么"**。通过 L0–L3 信息层级的显式建模、持久 IPython REPL 的 RLM 抽象、可版本化 refinement 的 Continual Harness，以及 daemon 托管的递归会话与直接通信，它构建了一个把策略构建权完全交还模型的执行基底；ARC-AGI-3 上 30%→95.5% 的跨度、长上下文套件上对原生 harness 的全面持平或占优、以及 Factorio 七天连续运行与 RCON 越权案例，共同构成这一主张正反两面的证据。
+Prime Agent 的论文贡献可以压缩为一句话：**它把"harness 应该做什么"重新定义为"harness 应该让模型能做什么"**。通过 L0–L3 信息层级的显式建模、持久 IPython REPL 的 RLM 抽象、可版本化 refinement 的 Continual Harness，以及 daemon 托管的递归会话与直接通信，它构建了一个把策略构建权完全交还模型的执行基底；ARC-AGI-3 上 30%→95.5% 的跨度、长上下文套件上对原生 harness 的整体持平或占优、以及 Factorio 七天连续运行与 RCON 越权案例，共同构成这一主张正反两面的证据。
 
 对后续工作的启示有三：其一，**harness 口径必须成为 agent 评估报告的一等公民**——不带 harness 说明的分数可比性有限；其二，**自改进状态的权限与审计设计**是持久化 agent 系统的下一道主要工程关口；其三，当模型能力继续增强而 harness 利用率不足时，**model-harness co-learning 将是同时提升两者的自然路径**。
 

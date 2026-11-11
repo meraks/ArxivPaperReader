@@ -20,7 +20,7 @@
 长上下文（long-context）语言模型推理面临一个根本性的内存瓶颈：**KV cache 随上下文长度线性增长**。在 1M token 的推理场景中，仅 KV cache 就可能消耗数百 GB 的 GPU 显存。现有的压缩方案存在系统性问题：
 
 - **KV cache 压缩方法**（SnapKV, KVzip, Expected Attention 等）：Prefill 阶段仍需完整计算注意力，压缩发生在 cache 写入之后——"先全量扫描再决定扔什么"，扫描本身就很慢
-- **Encoder-decoder 压缩方法**（ICAE, AutoCompressors, LLMLingua-2）：理论上可绕开 prefill 瓶颈，但历史上因缺乏系统性架构设计和足够训练规模，从未具备竞争力
+- **Encoder-decoder soft-token 压缩方法**（ICAE, AutoCompressors）：理论上可绕开 prefill 瓶颈，但历史上因缺乏系统性架构设计和足够训练规模，从未具备竞争力
 
 ### 1.2 LCLM 核心思路
 
@@ -31,7 +31,7 @@
 3. **Adapter**（2-layer MLP）：将 encoder 维度的 latent tokens 投影到 decoder 维度
 4. **Decoder**（4B 参数）：消费 latent tokens 替代原始文本，进行推理和生成
 
-核心创新在于**训练配方**而非架构本身——通过 4 阶段训练、interleaved 压缩策略、辅助重建任务和 350B tokens 规模训练，首次让 soft-token 压缩在速度、准确性和内存使用三维度全面超越 KV cache 方法。
+核心创新在于**训练配方**而非架构本身——通过 4 阶段训练、interleaved 压缩策略、辅助重建任务和约 400B tokens 规模训练，让 soft-token 压缩在速度-精度-内存的 Pareto 前沿上领先于 KV cache 方法（论文未声称所有基准/压缩比下精度都更高）。
 
 ### 1.3 四大核心贡献
 
@@ -39,8 +39,8 @@
 |---|------|---------|
 | 1 | **训练配方** | 4 阶段（Adapter→Encoder→CPT→SFT），interleaved 压缩块分散在序列各位置 |
 | 2 | **架构搜索** | 系统消融 pooling/窗口/掩码/adapter 四个维度，确定最优组合 |
-| 3 | **Pareto 前沿** | 0.6B+4B 模型族，4×/8×/16× 压缩，每模型 350B tokens，速度/精度/内存三维领先 |
-| 4 | **Agent 集成** | EXPAND(i) 工具：全局 skim + 按需展开，NIAH 任务最高 +45.40% 绝对提升 |
+| 3 | **Pareto 前沿** | 0.6B+4B 模型族，4×/8×/16× 压缩，每模型约 400B tokens，速度/精度/内存三维领先 |
+| 4 | **Agent 集成** | EXPAND(i) 工具：全局 skim + 按需展开，NIAH 平均绝对增益 +18.50/+23.19/+25.50（4k/8k/16k），单任务最高 +60.00 |
 
 ### 1.4 旗舰结果
 
@@ -48,13 +48,13 @@
 
 | 压缩比 | LCLM | KVzip | SnapKV-QA | AM-Slow |
 |-------|------|-------|-----------|---------|
-| 16× | **81.05%** | 0.00% | 0.08% | 29.80% |
-| 8× | **87.26%** | 62.02% | 0.15% | 31.01% |
-| 4× | **91.05%** | 89.08% | 0.08% | 32.37% |
+| 16× | **81.27%** | 0.00% | 0.08% | 29.80% |
+| 8× | **87.79%** | 62.02% | 0.15% | 31.01% |
+| 4× | **89.23%** | 89.08% | 0.08% | 32.37% |
 
-无压缩基线：93.25%。4× 压缩仅损失 2.2 个百分点，16× 压缩下所有 KV cache 基线崩溃到零，LCLM 独存 81.05%。
+无压缩基线：93.25%。4× 压缩损失约 4.0 个百分点（KVzip 损失约 4.2 个百分点）；16× 压缩下 KVzip/SnapKV/Expected Attention 接近归零，但 Attention Matching 仍有约 30%，LCLM 保持 81.27%。
 
-在 **RULER @4K** 长上下文基准上：16× 达 75.06%，8× 达 85.42%，4× 达 91.76%（full cache=94.41%）。**TTFT 加速**：16× 压缩下达 **8.8 倍**。
+在 **RULER @4K** 长上下文基准上：16× 达 77.01%，8× 达 89.19%，4× 达 93.44%（full cache=94.49%）。**TTFT 加速**：Figure 1 报告 4× 压缩下 RULER @4k 相对最快 KV cache 方法达 **15.9×**（LongHealth/LongBench @64k 分别为 6.7×/7.6×）。
 
 ---
 
@@ -74,11 +74,11 @@ $$M_{\text{KV}} = 2 \times L \times n_{\text{layers}} \times d_{\text{model}} \t
 
 **Eviction-based（事后淘汰）**：
 - **SnapKV** (Li et al., 2024)：基于注意力分数选择"重要"token 保留
-- **KVzip** (Devoto et al., 2025)：量化+选择性保留混合
-- **Expected Attention**：用期望注意力替代精确注意力
+- **KVzip** (Kim et al., 2025)：基于 teacher-forced 上下文重建打分的 query-agnostic 压缩
+- **Expected Attention** (Devoto et al., 2025)：用未来 query 分布估计期望注意力
 
 **Offline Compression（离线压缩）**：
-- **GEAR** (Eyuboglu et al., 2025)：训练一个紧凑 cache 替代品
+- **Cartridges** (Eyuboglu et al., 2025)：为每个语料蒸馏固定大小的 KV cache（论文未讨论 GEAR）
 
 这些方法的**系统性缺陷**：
 1. **Prefill 未加速**：仍需要完整 forward pass 计算所有 token 的注意力——压缩发生在"读完"之后
@@ -91,7 +91,7 @@ $$M_{\text{KV}} = 2 \times L \times n_{\text{layers}} \times d_{\text{model}} \t
 
 - **ICAE** (Ge et al., 2023)：首个将 encoder-decoder 用于上下文压缩的工作
 - **AutoCompressors** (Chevalier et al., 2023)：引入 summary tokens
-- **LLMLingua-2** (Pan et al., 2024)：任务感知的 token 级压缩
+- **LLMLingua/LongLLMLingua** (Jiang et al., 2023/2024)：hard-token 压缩，基于重要性剪枝删除 token（非 soft-token；论文未讨论 LLMLingua-2）
 - **Gist tokens** (Mu et al., 2023)：用可学习 gist token 替代提示
 
 **为何早期 soft-token 方法从未具备竞争力**：
@@ -106,7 +106,7 @@ LCLM 通过三个关键设计解决了上述所有问题：
 
 1. **Interleaved 压缩**：压缩块分散在序列各位置——decoder 学会在任意位置 condition on latent context，而非仅开头
 2. **系统性架构搜索**：消融 4 个维度（pooling × window × mask × adapter），找到最优配置
-3. **大规模训练**：每模型 350B tokens 的 4 阶段训练，含辅助重建任务
+3. **大规模训练**：每模型约 400B tokens 的 4 阶段训练，含辅助重建任务
 
 ---
 
@@ -151,10 +151,10 @@ LCLM 的核心转换流程：**长 token 序列 → 短 latent token 序列**。
 
 Encoder 并非一次处理整个序列（那将丧失压缩的内存优势），而是以固定窗口大小 W 分段处理：
 
-- W=512：窗口太小，压缩 token 的上下文信息不足
-- **W=1024：最佳平衡点** —— 比压缩比 N 大（提供足够的上下文做有意义的压缩），但远小于全序列（控制 encoder 内存）
-- W=2048：收益递减，encoder 内存增加但压缩质量提升不明显
-- Boundary Overlap（窗口重叠）：测试了让相邻窗口重叠的变体——**无性能增益**，反而增加计算量
+- W=16（W=N）：压缩 token 的上下文信息严重不足，损失最高
+- W=256：相比 W=16 大幅提升；论文仅扫描 W∈{16, 256, 1024}，未测试 W=512/2048
+- **W=1024：最佳平衡点** —— 相比 256 仅有较小的额外增益，但无显著内存/运行时开销，被采用为默认；远小于全序列（控制 encoder 内存）
+- Boundary Overlap（窗口重叠）：测试了让相邻窗口重叠的变体——**无稳定性能增益**，反而增加计算量
 
 #### (c) Encoder 注意力掩码
 
@@ -165,7 +165,7 @@ Encoder 并非一次处理整个序列（那将丧失压缩的内存优势），
 | **Causal（因果）** | **更低** ✅ |
 | Bidirectional（双向） | 更高 |
 
-这与部分前人工作（如 ICAE 使用双向 encoder）相反。作者推测因果掩码与 decoder 的因果生成模式更一致，使得 latent token 的表示更自然地融入自回归框架。
+这与部分前人工作（如 Feldman and Artzi, 2025 移除 causal mask）相反；论文将 ICAE (Ge et al., 2023) 归为使用 causal LLM 的前人工作。作者推测因果掩码与 decoder 的因果生成模式更一致，使得 latent token 的表示更自然地融入自回归框架。
 
 #### (d) Adapter 设计
 
@@ -174,7 +174,7 @@ Adapter 是 encoder 和 decoder 之間的维度桥梁（encoder dim → decoder 
 | Adapter 类型 | 结构 | 效果 |
 |-------------|------|------|
 | **MLP** | 2-layer MLP | **更优** — 简单、快速、表现好 |
-| Attention-based | 含自注意力的 adapter | 更差 — 增加计算但无收益 |
+| Attention-based | 含自注意力的 adapter | 小规模 from-scratch 更差（计算更多）；大规模与 MLP 竞争力相当 |
 
 **最终最优配置**：Mean Pooling + W=1024 + Causal Mask + MLP Adapter。
 
@@ -226,20 +226,20 @@ $$L_{\text{aux}} = -\sum_{t} \log P(y_t^{\text{orig}} | s_{1:M}, y_{<t}^{\text{o
 ### 4.4 数据配方
 
 **持续预训练 (CPT)**：
-- 数据集：Dolma v1.7 + FineWeb-Edu
+- 数据集：Nemotron CC/Code/Reasoning、Longmino、SFT、Reconstruction 混合（Table 1）
 - 格式：interleaved compressed/uncompressed blocks
-- 总量：350B tokens per model
+- 总量：约 400B tokens per model（论文：nearly 400B；Table 5 各阶段合计约 396.5B）
 
 **监督微调 (SFT)**：
-- 推理：NuminaMath-CoT-67k, OpenR1-Math-15k
-- 长上下文 QA + 指令遵循：Tulu-3 mix
-- 代码 + 多轮对话
-- 部分 SFT 数据用更强的模型（Qwen3-30B/235B）重新标注
+- 推理：Nemotron Reasoning、Dolci Think、Nemotron Science
+- 长上下文 QA + 代码 + 指令遵循：含 WildChat/LMSYS、Tulu-3、Nemotron Instruct、HelpSteer 等
+- 代码 + 多轮对话 + 重建数据 + agent 轨迹
+- 部分 SFT 数据用更强的模型（Qwen3-30B/235B）重新标注；论文未使用 Dolma v1.7、FineWeb-Edu、NuminaMath-CoT-67k 或 OpenR1-Math-15k
 
 **训练硬件**：
-- H200 GPUs
-- Batch size=128（131,072 input tokens per batch）
-- Encoder 每次 forward 处理 128K token 的窗口
+- 全规模 CPT：32 节点 × 4 MI300A GPU；评测：H200；缩放实验：H200 集群
+- LLM 全局 batch = 4M tokens（序列长度 16,384）
+- Encoder 每次 batched forward 处理 32 个窗口（32,768 input tokens，W=1024）
 - 默认使用 DeepSpeed ZeRO-1，支持 FSDP
 
 ---
@@ -251,9 +251,9 @@ $$L_{\text{aux}} = -\sum_{t} \log P(y_t^{\text{orig}} | s_{1:M}, y_{<t}^{\text{o
 论文的核心论点：LCLM 建立了压缩速度 × 精度 × 内存的**三维 Pareto 前沿**。
 
 **TTFT（Time-To-First-Token）加速**：
-- 16× 压缩：RULER @4k 达 **8.8×** 加速
-- 8× 压缩：RULER @8k 达 **6.4×** 加速
-- LCLM 的加速来自 prefill 阶段的真实减少——encoder 只处理压缩后的 token 数
+- 4× 压缩：RULER @4k 相对最快 KV cache 方法达 **15.9×** 加速（Figure 1）
+- 64k 上下文：LongHealth5 达 **6.7×**，LongBench 达 **7.6×** 加速
+- LCLM 的加速来自 decoder prefill 序列变短——encoder 仍需处理全部输入 token（按窗口/批次，最多 32K token per pass），并非只处理压缩后的 token 数
 
 相比 KV cache 方法（SnapKV, KVzip, Expected Attention）在 scatter plot 中呈近似垂直线——它们的 TTFT 几乎不随压缩比变化（prefill 仍占主导）。LCLM 的曲线则是真正的对角线——压缩越多，prefill 越快。
 
@@ -263,29 +263,29 @@ GSM8K 是衡量压缩对推理能力影响的最佳基准——每个 token 都�
 
 | 压缩比 | LCLM (Mean) | KVzip | SnapKV-QA | Attention Matching | 无压缩基准 |
 |-------|-------------|-------|-----------|-------------------|-----------|
-| 16× | **81.05%** | 0.00% | 0.08% | 29.80% | 93.25% |
-| 8× | **87.26%** | 62.02% | 0.15% | 31.01% | 93.25% |
-| 4× | **91.05%** | 89.08% | 0.08% | 32.37% | 93.25% |
+| 16× | **81.27%** | 0.00% | 0.08% | 29.80% | 93.25% |
+| 8× | **87.79%** | 62.02% | 0.15% | 31.01% | 93.25% |
+| 4× | **89.23%** | 89.08% | 0.08% | 32.37% | 93.25% |
 
 **核心洞察**：
-- 16× 压缩（丢弃 93.75% token）：LCLM 保留 **87% 的推理能力**；所有 KV 压缩方法**归零**
-- 4× 压缩：LCLM 仅损失 2.2pp，KVzip 损失 4.2pp
-- LCLM 在压缩效率和推理保持之间取得了 KV cache 方法无法企及的平衡
+- 16× 压缩（丢弃 93.75% token）：LCLM 保留约 87% 的推理能力；KVzip/SnapKV/Expected Attention 接近归零，但 Attention Matching 仍约 30%（AM-Slow 29.80%、AM-Fast 31.39%）
+- 4× 压缩：LCLM 损失约 4.0pp，KVzip 损失约 4.2pp
+- LCLM 在压缩效率与推理保持之间取得了较好的平衡（但 4× 下仅比 KVzip 高 0.15pp）
 
 ### 5.3 长上下文基准
 
 **RULER @4K**：
 | 压缩比 | LCLM | Full Cache |
 |-------|------|-----------|
-| 16× | 75.06% | 94.41% |
-| 8× | 85.42% | 94.41% |
-| 4× | 91.76% | 94.41% |
+| 16× | 77.01% | 94.49% |
+| 8× | 89.19% | 94.49% |
+| 4× | 93.44% | 94.49% |
 
 **LongHealth**（长医疗文本理解）：
-- 16×：67.50% — 所有压缩方法中**最高**
+- 16×：66.25% — 低于 SnapKV-QA（76.25%）、AM-Slow（72.75%）和 KVzip（67.00%）；LCLM 的优势主要在速度/内存而非该点精度
 - 趋势：压缩比越低，越接近无压缩性能
 
-**LongBench**：在各长度区间（4k-64k）保持稳定，无断崖式退化。
+**LongBench**：仅在 64k 上下文评测；论文未报告 4k-64k 长度扫描，不能据此声称各长度区间稳定。
 
 ### 5.4 内存扩展性
 
@@ -293,11 +293,11 @@ GSM8K 是衡量压缩对推理能力影响的最佳基准——每个 token 都�
 
 | 方法 | 峰值 GPU 内存 |
 |------|-------------|
-| LCLM 16× | **~60GB** |
+| LCLM 16× | **~37GB**（8× 65GB，4× 121GB） |
 | 多数 KV 压缩基线 | >141GB |
 | Attention Matching | **OOM** |
 
-LCLM 的内存几乎不随上下文增长——encoder 按固定窗口（128K token per batch pass）处理，decoder 只消费压缩后的少量 latent tokens。这使得在有限 GPU 上处理超长上下文成为可能。
+LCLM 的内存增长远低于基线（16× 从 4K 的 9GB 增至 1M 的 37GB）——encoder 按固定窗口（每 batched pass 32,768 token）处理，decoder 只消费压缩后的少量 latent tokens。这使得在有限 GPU 上处理超长上下文成为可能。
 
 ### 5.5 Agent 应用：EXPAND 工具
 
@@ -310,7 +310,7 @@ LCLM 的内存几乎不随上下文增长——encoder 按固定窗口（128K to
 4. 基于展开后的完整文本进行精确推理
 
 **NIAH（Needle-in-a-Haystack）结果**：
-- Agent 模式最高带来 **+45.40% 绝对增益**
+- Agent 模式平均绝对增益：4k +18.50、8k +23.19、16k +25.50；单任务最高 +60.00（nm3 @16k）
 - 性能接近无压缩水平
 - 类比：先看目录找到目标章节，再翻到那一页逐字阅读——全局 skim + 局部 deep dive
 
@@ -444,11 +444,11 @@ OUTPUT_DIR=/path/to/output bash scripts/run_pipeline.sh \
 
 ### 7.1 当前局限性
 
-1. **需要额外训练**：LCLM 不能即插即用。Encoder 0.6B + Adapter 需要 GPU 资源，且需要 350B tokens 的训练预算。对于资源有限的团队，训练成本是实际障碍。
+1. **需要额外训练**：LCLM 不能即插即用。Encoder 0.6B + Adapter 需要 GPU 资源，且需要约 400B tokens 的训练预算。对于资源有限的团队，训练成本是实际障碍。
 
 2. **压缩比固定**：4×/8×/16× 是离散的选择，不支持动态自适应压缩。实际场景中不同内容的"可压缩性"不同——代码可能比散文更难压缩。
 
-3. **训练成本高**：3 个模型（4×/8×/16×）各 350B tokens，总计需要大量 H200 GPU 时间。作者已开源 weight 和代码以降低复现门槛。
+3. **训练成本高**：3 个模型（4×/8×/16×）各约 400B tokens，总计需要大量 GPU 时间（全规模 CPT 使用 MI300A 集群）。作者已开源 weight 和代码以降低复现门槛。
 
 4. **Latent tokens 不可解释**：与 KV cache eviction（可看到"丢弃了哪些 token"）不同，LCLM 的 latent tokens 是连续向量，人类无法直观理解压缩过程中保留了/丢失了什么信息。
 
@@ -460,13 +460,13 @@ OUTPUT_DIR=/path/to/output bash scripts/run_pipeline.sh \
 
 **KV Cache 压缩方法**：
 - SnapKV (Li et al., 2024): 基于注意力分数选择重要 KV
-- KVzip (Devoto et al., 2025): 量化+选择性保留
-- GEAR (Eyuboglu et al., 2025): 离线训练紧凑 cache
+- KVzip (Kim et al., 2025): 基于 teacher-forced 上下文重建打分的 query-agnostic 压缩
+- Cartridges (Eyuboglu et al., 2025): 为每个语料蒸馏固定大小的 KV cache（论文未讨论 GEAR）
 
 **Soft-token 压缩方法**：
 - ICAE (Ge et al., 2023): 首个 encoder-decoder 压缩器
 - AutoCompressors (Chevalier et al., 2023): Summary tokens
-- LLMLingua-2 (Pan et al., 2024): 任务感知 token 级压缩
+- LLMLingua/LongLLMLingua (Jiang et al., 2023/2024): hard-token 压缩，基于重要性剪枝删除 token（非 soft-token；论文未讨论 LLMLingua-2）
 - Gist tokens (Mu et al., 2023): 可学习提示压缩
 
 **相关架构方向**：
@@ -477,13 +477,13 @@ OUTPUT_DIR=/path/to/output bash scripts/run_pipeline.sh \
 **未来方向（作者指出）**：
 - 多粒度压缩：对信息密度不同的文本段落使用不同压缩比
 - 动态容量分配：在推理时根据 query 复杂度动态调整压缩
-- 扩展到模型生成状态：不仅压缩输入 context，也压缩模型自身的长序列生成状态
+- 将 online latent compaction 从 CoT 扩展到 tool observations 与 agent 累积工作历史（模型自身生成状态的压缩已在 §7.2 实现）
 
 ---
 
 ## 总结
 
-LCLM 是 2026 年长上下文推理效率领域的**里程碑工作**。它通过一个概念简单的 encoder-decoder 架构，配合精心设计的 4 阶段训练配方和 interleaved 压缩策略，首次让 soft-token 压缩在速度、精度和内存三个维度同时超越 KV cache 方法。在 16× 极端压缩下，所有 KV cache 基线归零，LCLM 仍保持 81% 的 GSM8K 推理能力——这是一个数量级的差距。
+LCLM 是 2026 年长上下文推理效率领域的**里程碑工作**。它通过一个概念简单的 encoder-decoder 架构，配合精心设计的 4 阶段训练配方和 interleaved 压缩策略，让 soft-token 压缩在速度-精度-内存的 Pareto 前沿上领先于 KV cache 方法。在 16× 极端压缩下，KVzip/SnapKV/Expected Attention 接近归零（Attention Matching 仍约 30%），LCLM 仍保持 81% 的 GSM8K 推理能力。
 
 其开源程度（代码+模型+数据）和工程化程度（vLLM 集成、DeepSpeed/FSDP 双支持、一行命令训练）使 LCLM 不仅是一项研究突破，更是一个**可直接部署的生产级组件**。
 

@@ -2,8 +2,8 @@
 
 ## 论文元数据
 - 标题：MiniMax Sparse Attention (MSA)
-- 作者：Xunhao Lai, Weiqi Xu, Yufeng Yang, Qiaorui Chen, Yang Xu, Lunbin Zeng, Xiaolong Li, Haohai Sun, Haichao Zhu, Vito Zhang, Pengyu Zhao
-- 机构：MiniMax, Peking University, NVIDIA, Zhejiang University, Huazhong University of Science and Technology
+- 作者：Xunhao Lai, Weiqi Xu, Yufeng Yang, Qiaorui Chen, Yang Xu, Lunbin Zeng, Xiaolong Li, Haohai Sun, Haichao Zhu, Vito Zhang, Jinkai Hu, Jiayao Li, Rui Gao, Zekun Li, Songquan Zhu, Jingkai Zhou, Pengyu Zhao
+- 机构：MiniMax, Peking University, NVIDIA, Zhejiang University, Huazhong University of Science and Technology, Nanjing University, Hangzhou Dianzi University
 - arXiv ID：2606.13392
 - 发表日期：2026-06-12
 - 页数：30 pages, 14 figures
@@ -24,9 +24,9 @@ MSA架构继承标准GQA的投影层，仅增加2个额外投影矩阵，由两�
 
 **Index Branch（索引分支）**：每个GQA group配备一个index query head，所有group共享一个index key head。通过block-level max-pooling计算块分数 $M_{idx}^{(g,b)} = \max_{j \in B_b} S_{idx}^{(g,j)}$，对每个group选择top-k个key-value块（始终包含当前块）。该分支独立运行，不与Main Branch共享参数。
 
-**Main Branch（主分支）**：标准GQA注意力，但仅对Index Branch选中的块执行精确注意力计算。所有group共享相同的块选择结果。
+**Main Branch（主分支）**：标准GQA注意力，但仅对Index Branch选中的块执行精确注意力计算。每个GQA组独立选择自己的top-k块；选择结果仅由该组内的G个query heads共享。
 
-**训练策略**：采用KL散度损失对齐两个分支的分布，Index Branch的query/key投影使用梯度断开（stop-gradient），并在训练初期使用Indexer Warmup让两个分支都看到完整注意力。总损失函数为 $L = L_{LM} + \lambda \cdot L_{KL}$，论文未明确给出λ具体值。
+**训练策略**：采用KL散度损失对齐两个分支的分布，对Index Branch的输入$X$使用梯度断开（stop-gradient；投影矩阵本身仍由KL loss更新），并在训练初期使用Indexer Warmup让两个分支都看到完整注意力。总损失函数为 $L = L_{LM} + \lambda \cdot L_{KL}$，论文未明确给出λ具体值。
 
 ### 1.3 关键结果速览
 
@@ -47,15 +47,15 @@ MSA遵循Occam's razor原则，在标准GQA基础上仅增加2个投影矩阵（
 
 **贡献2：GPU Kernel协同设计**
 
-论文设计了三个核心kernel：(1) exp-free Top-k选择kernel，对小k值避免指数运算开销；(2) KV-outer稀疏注意力kernel，采用预调度chunking策略的两阶段forward/combine算法，并通过query concatenation提升tensor core利用率；(3) fused KL loss + persistent load-balancing kernel，在单一kernel中完成损失计算和负载均衡。这些优化在H800上实现了14.2× prefill和7.6×解码加速。
+论文设计了三个核心kernel：(1) exp-free Top-k选择kernel，对小k值避免指数运算开销；(2) KV-outer稀疏注意力kernel，采用预调度chunking策略的两阶段forward/combine算法，并通过query concatenation提升tensor core利用率；(3) 训练侧优化：在主pass中直接写出KL所需的LSE以跳过KL forward pass，反向kernel直接读取这些标量；负载均衡则是反向pass中通过全局atomic counter认领任务的persistent-grid机制（二者并非单一fused kernel）。这些优化在H800上实现了14.2× prefill和7.6×解码加速。
 
 **贡献3：109B MoE大规模质量验证**
 
-MSA在109B参数MoE模型上进行了全面消融实验。文本任务（包括长文档理解、代码推理）与完整GQA持平；视觉任务（图像理解、视频理解）持平；Agent工作流任务（多轮对话、工具调用）持平。Scaling curve显示MSA在多个模型尺寸上都能跟踪GQA的性能曲线。
+MSA在109B参数MoE模型上进行了全面消融实验。文本任务（包括长文档理解、代码推理）与完整GQA持平；视觉任务（图像理解、视频理解）持平；Agent任务上报告的PPL与GQA接近（论文未报告Agent任务成功率）。论文只给出109B主模型与Appendix B的10B pilot实验，未提供跨模型尺寸的scaling curve。
 
 **贡献4：百万级token上下文支持**
 
-通过blockwise稀疏化，MSA在1M token上下文时将per-token注意力FLOPs降低28.4×。理论上可扩展至更长上下文，因为**计算复杂度**从$O(N^2)$降至接近线性$O(N)$。Index Branch的top-k块选择机制确保每个token仅关注全局中最相关的少数块，而不论总序列长度。
+通过blockwise稀疏化，MSA在1M token上下文时将per-token注意力FLOPs降低28.4×。Main Branch的per-query注意力成本从$O(N)$降至$O(k \cdot B_k)$，但Index Branch的块打分仍为$O(N^2)$，总FLOPs并未降至线性（论文Eq.12仍含$H_{kv} \cdot d_{idx} \cdot N^2$项）。Index Branch的top-k块选择机制确保每个token仅关注全局中最相关的少数块，而不论总序列长度。
 
 **贡献5：近无损GQA→MSA转换**
 
@@ -103,7 +103,7 @@ MSA的独特定位在于：(1) 保持GQA/softmax attention的精确性而非近�
 
 当N从32k增长到1M时，FLOPs增长约1000×（平方增长）。内存访问模式也从规则的local access变为不规则的global access，导致GPU利用率下降。即使使用FlashAttention等IO-aware算法，也无法改变$O(N^2)$的基本复杂度。
 
-在GQA架构下，总FLOPs仍为$2 H_q N^2 d_h$（per-token为$2 H_q N d_h$），因为$H_{kv}$ < $H_q$（多个query head共享同一组KV）仅降低常数因子，不改变渐近复杂度。MSA的目标是将每个token的注意力复杂度从$O(N)$降至$O(k \cdot B_k)$（即$O(N)$ → $O(1)$），其中$k$是选中的block数，$B_k$是block size，且$k \cdot B_k \ll N$。
+在GQA架构下，总FLOPs仍为$2 H_q N^2 d_h$（per-token为$2 H_q N d_h$），因为$H_{kv}$ < $H_q$（多个query head共享同一组KV）仅降低常数因子，不改变渐近复杂度。MSA的目标是将Main Branch每个token的注意力成本从$O(N)$降至$O(k \cdot B_k)$（即$O(N)$ → $O(1)$），其中$k$是选中的block数，$B_k$是block size，且$k \cdot B_k \ll N$。
 
 ### 2.3 已有方案分类与局限
 
@@ -125,9 +125,9 @@ MSA遵循简约原则：在不牺牲核心功能的前提下，最小化新增�
 
 **架构最小化**：在标准GQA基础上仅增加2个投影矩阵（Index Branch的$W_{q_{idx}}$和$W_{k_{idx}}$），不引入新的可学习状态（如额外的memory、可学习的pattern、低秩投影矩阵）。Index Branch的token选择逻辑仅涉及max-pooling和top-k操作，不涉及复杂的可微分机制。
 
-**软硬件复用**：KV-outer稀疏注意力kernel复用了FlashAttention的tiling策略和CUDA core/kernel设计模式；query concatenation利用了tensor core的矩阵乘加能力；fused KL loss kernel复用了标准的反向传播逻辑。这些设计确保MSA能在现有GPU（H800、A100）上高效运行，无需定制硬件。
+**软硬件复用**：KV-outer稀疏注意力kernel复用了FlashAttention的tiling策略和CUDA core/kernel设计模式；query concatenation利用了tensor core的矩阵乘加能力；KL loss则复用主pass写出的LSE以跳过冗余forward计算。这些设计在H800上验证了高效运行；A100等其它GPU未在论文中实测，论文仅宣称该设计可较容易地部署到较广范围的GPU。
 
-**训练友好性**：KL散度损失和Indexer Warmup都是标准技巧，不需要特殊的训练schedule或loss设计。从GQA转换仅需微调，不需要从头预训练。
+**训练友好性**：KL散度损失和Indexer Warmup都是标准技巧，不需要特殊的训练schedule或loss设计。从GQA转换需要继续预训练400B tokens（含40B Indexer Warmup），并非轻量微调，但无需从头预训练。
 
 **质量保证**：MSA在Main Branch中执行精确的softmax attention，而非近似计算。Index Branch的作用是减少FLOPs，不是引入近似误差。这使得MSA的质量与完整GQA持平，而非略有下降。
 
@@ -205,7 +205,7 @@ $$K_{idx} = X \cdot W_{idx}^k \in \mathbb{R}^{N \times 1 \times d_{idx}}$$
 
 其中：
 - $H_{kv}=4$是KV头数量（论文Sec 5.1明确指定，64 query heads, 4 KV heads, GQA ratio 16）
-- $d_{idx}$是Index Branch的注意力头维度（论文未明确给出具体值，但远小于$d_h=128$）
+- $d_{idx}$是Index Branch的注意力头维度（论文未明确给出具体值；按其1M上下文28.4×的FLOPs降低反推，$d_{idx}$约等于$d_h=128$）
 - **关键设计**：每个GQA组有独立的index query head，但所有组共享一个index key head（单头）
 
 #### 官方实现参考代码 (fmha_sm100/sparse_fmha_adapter.py)
@@ -243,7 +243,7 @@ $$S_{i,j}^{\text{idx},(r)} = \frac{(Q^{\text{idx}})_i^{(r)} \cdot (K^{\text{idx}
 
 $$\mathcal{I}_i^{(r)} = \mathrm{TopK}_{b \in \{1, \dots, B\}}(M_{i,\cdot}^{\text{idx},(r)}, k)$$
 
-其中$k=16$是选择的block数量（论文Sec 4.1/5.1明确指定，可选值$\{4,8,16,32\}$），$B = \lceil N/B_k \rceil$为总block数。选择结果$\mathcal{I}_i^{(r)}$被该GQA组内所有$G$个query heads共享。
+其中$k=16$是选择的block数量（论文Sec 4.1/5.1明确指定；论文另外报告了$k=32$的参考延迟，$\{4,8,16,32\}$来自代码接口而非论文实验设置），$B = \lceil N/B_k \rceil$为总block数。选择结果$\mathcal{I}_i^{(r)}$被该GQA组内所有$G$个query heads共享。
 
 **Local Block Always Included**：当前query所在的local block始终被选中，确保最近邻信息不丢失。这是因果注意力的基本要求。
 
@@ -378,7 +378,7 @@ $$\mathcal{L}_{\text{KL}} = \frac{1}{N H_{kv}} \sum_{i=1}^N \sum_{r=1}^{H_{kv}} 
 # KL Loss + 负载均衡融合内核
 # 位于：python/fmha_sm100/csrc/fmha_sm100_reduction.cu
 #
-# 论文描述的 fused KL loss kernel 实际对应：
+# 论文的KL loss优化在代码中大致对应：
 # - sparse_fmha_adapter.py 中 build_k2q_csr 的 return_schedule=True
 # - prepare_scheduler.py 中的 SPARSE_SCHEDULE_MODEL 实现负载均衡
 # - combine kernel 中的 partial O + LSE reduce 完成分布式注意力合并
@@ -469,7 +469,7 @@ $$L = L_{LM} + \lambda \cdot L_{KL}$$
    - 计算$L_{LM}$和$L_{KL}$
 
 2. **Backward pass**：
-   - $L_{LM}$更新所有参数（包括Main Branch投影和Index Branch投影）
+   - $L_{LM}$更新Main Branch/backbone参数；Index Branch投影仅由$L_{KL}$更新，$L_{LM}$不会更新$W_{idx}$（最终recipe中Index Branch value head已被移除）
    - $L_{KL}$仅更新Index Branch投影（$W_{idx}^q$, $W_{idx}^k$），梯度detach确保不影响Main Branch
 
 3. **Warmup后**：
@@ -490,7 +490,7 @@ MSA的一个关键优势是：已训练的GQA模型可直接转换为MSA，几�
 
 2. **轻量级继续训练**：
    - 在原任务数据上训练，总损失$L = L_{LM} + λ·L_{KL}$
-   - KL loss仅更新Index Branch投影（梯度通过stopgrad与backbone/Main Branch隔离）；LM loss正常更新整个模型（含Main Branch）
+   - KL loss仅更新Index Branch投影（梯度通过stopgrad与backbone/Main Branch隔离）；LM loss正常更新backbone与Main Branch（不更新Index Branch投影）
    - 训练成本：在2.6T checkpoint基础上继续训练400B tokens（论文Sec 5.1明确指定）
 
 ### 节省效果
@@ -558,7 +558,7 @@ decode_output = wrapper.run(q_decode, k_pages, v_pages)
 
 ## 第4章 GPU Kernel协同设计
 
-MSA的wall-clock加速不仅来自FLOPs降低，更来自与GPU硬件特性协同设计的kernel优化。论文报告14.2× prefill加速和7.6× decoding加速（H800 GPU），远超FLOPs降低的理论加速。
+MSA的wall-clock加速不仅来自FLOPs降低，更来自与GPU硬件特性协同设计的kernel优化。论文报告14.2× prefill加速和7.6× decoding加速（H800 GPU），但仍低于28.4×的理论FLOPs降低。
 
 ## 4.1 Exp-free Top-k选择Kernel
 
@@ -602,7 +602,7 @@ Main Branch的稀疏注意力需要高效实现，论文提出KV-outer formulati
 **问题**：不同query选中的blocks不同，导致访存模式不规则。
 
 **解决方案**：pre-scheduled chunking
-1. 在kernel启动前，预先为每个query分配其选中的blocks的物理存储位置
+1. 在kernel启动前，调度器为每个(query, chunk)在输出缓冲Obuf中预分配槽位，避免原子写；这并非为选中的KV blocks分配物理存储
 2. 将blocks按预定义的chunk大小分组
 3. 每个GPU warp处理固定chunk，减少动态调度开销
 
@@ -636,7 +636,7 @@ $$\text{Attention}(q) = \frac{\sum_{c \in \text{Chunks}(q)} \exp(\text{LSE}_c - 
 **问题**：稀疏注意力中，每个query的key数量不固定（选中blocks的token数不同），难以充分利用tensor core。
 
 **解决方案**：query concatenation
-1. 将$\lceil 128/G \rceil$个query positions（下取整到score MMA的$128 \times 128$维度，论文Sec 4.2明确指定）与其$G$个query heads打包
+1. 将$\lceil 128/G \rceil$个query positions（上取整以填满score MMA的$128 \times 128$维度，论文Sec 4.2明确指定）与其$G$个query heads打包
 2. 同一KV head下，这些queries共享相同的选中blocks（因为KV-outer迭代，每个tile的gathered queries天然共享KV operands）
 3. 利用tensor core的batched matrix multiply能力
 
@@ -645,9 +645,9 @@ $$\text{Attention}(q) = \frac{\sum_{c \in \text{Chunks}(q)} \exp(\text{LSE}_c - 
 - 减少kernel launch overhead
 - 提高SM（Streaming Multiprocessor）利用率
 
-## 4.3 Fused KL Loss Kernel
+## 4.3 KL Loss计算优化
 
-训练时的KL loss计算需要fused kernel优化。
+训练时的KL loss计算需要优化。
 
 ### 融合机会
 
@@ -658,17 +658,14 @@ KL loss计算涉及多个操作：
 
 标准实现需要多次kernel launch，中间结果写回全局内存。
 
-### Fused设计
+### 实际优化方式
 
-Fused KL loss kernel将这些操作融合为单个kernel：
-- 所有操作在GPU寄存器/共享内存中完成
-- 中间结果不写回全局内存
-- 减少内存带宽瓶颈
+论文并未把上述操作融合进单一kernel，而是利用KL loss只影响反向梯度这一点：
+- 在主pass中直接把KL所需的LSE写到全局内存，从而完全跳过KL loss forward pass
+- Index Branch侧保存per-block LSE，并在top-k blocks上归约得到$LSE_{idx}$
+- 反向kernel直接加载这些LSE标量用于softmax，省去冗余的forward计算
 
-融合后：
-- 单次kernel launch
-- 减少全局内存访问
-- 提高训练吞吐量
+这样减少的是KL loss的冗余前向计算与内存访问，而非在单个kernel内完成全部中间结果融合。
 
 ## 4.4 Persistent Load-balancing机制
 
@@ -710,7 +707,7 @@ Decoding加速（7.6×）低于prefill加速，可能原因是：
 论文声称GPU kernel协同设计对整体加速至关重要：
 - Exp-free top-k：减少selection阶段的exp开销
 - KV-outer + two-phase：优化稀疏attention的访存和计算
-- Fused KL loss：提高训练吞吐
+- Fused KL loss：跳过KL forward，提高训练吞吐
 - Persistent load-balancing：最大化GPU利用率
 
 这些优化共同实现了论文报告的14.2× prefill和7.6× decoding wall-clock加速。
@@ -722,7 +719,7 @@ Decoding加速（7.6×）低于prefill加速，可能原因是：
 
 ### 模型与硬件配置
 
-论文在 **109B参数MoE模型** 上验证MSA效果，这是超大规模模型的真实场景。模型为41层MoE backbone（前3层dense + 38层MoE），总参数109B、每token激活6B。隐藏维度$d_{model}=3072$，64 query heads、4 KV heads（GQA ratio 16）、head dimension $d_h=128$、RoPE dimension 64。MoE层使用128 routed experts + 1 shared expert，top-4 routing，vocab 200K。训练和推理硬件为 **NVIDIA H800 GPU**。选择H800的原因是其大显存（80GB HBM）能容纳百万级token的KV cache，同时其tensor core适合稀疏注意力的优化。
+论文在 **109B参数MoE模型** 上验证MSA效果，这是超大规模模型的真实场景。模型为41层MoE backbone（前3层dense + 38层MoE），总参数109B、每token激活6B。隐藏维度$d_{model}=3072$，64 query heads、4 KV heads（GQA ratio 16）、head dimension $d_h=128$、RoPE dimension 64。MoE层使用128 routed experts + 1 shared expert，top-4 routing，vocab 200K。训练和推理硬件为 **NVIDIA H800 GPU**。论文未说明选择H800的具体原因，只报告了在H800上的测量结果（本报告推测可能与其显存容量和tensor core特性有关，但论文未作此说明）。
 
 MoE（Mixture of Experts）架构的特点是：每个token仅路由到部分专家，推理时激活参数量远小于总参数量。这种架构与MSA的稀疏注意力形成双重稀疏：计算层面的稀疏（MoE）和注意力层面的稀疏（MSA）。
 
@@ -752,7 +749,7 @@ MoE（Mixture of Experts）架构的特点是：每个token仅路由到部分专
 | Prefill wall-clock time | 基线 | -14.2× | 14.2×加速 | 1M context, H800 |
 | Decoding wall-clock time | 基线 | -7.6× | 7.6×加速 | 1M context, H800 |
 
-这些数字是在109B MoE模型、H800 GPU、1M token上下文下测得。
+这些数字对应109B MoE模型、1M token上下文；其中28.4×为理论per-token FLOPs降低，14.2×/7.6×为H800上的实测wall-clock加速。
 
 ### FLOPs降低分析
 
@@ -809,14 +806,14 @@ $$F_{\text{MSA}}(N) = \underbrace{H_{kv} d_{\text{idx}} N^2}_{\text{Index Branch
 |  | VideoMME | 41.11 | **45.48** | 39.65 |
 |  | TemporalBench | 49.4 | **53.4** | 50.6 |
 | PPL ↓ | TAU2 | 1.155 | **1.148** | 1.150 |
-|  | AgentCompany | 1.248 | **1.249** | **1.247** |
-|  | HLE | 1.275 | **1.278** | **1.275** |
+|  | AgentCompany | 1.248 | 1.249 | **1.247** |
+|  | HLE | **1.275** | 1.278 | **1.275** |
 |  | SWE | **1.216** | 1.218 | **1.216** |
 
 **关键观察**：
 - MSA-PT在多数benchmark上达到或超过Full baseline，尤其在数学、图像、视频、长上下文检索领域表现突出
 - MSA-CPT更保守，在通用文本和代码任务上贴近Full baseline
-- Agent任务PPL方面三者几乎无差异（差<0.01），证明MSA不损害Agent关键能力
+- Agent任务PPL方面三者几乎无差异（差<0.01），说明MSA在Agent任务的PPL上与GQA接近（论文未报告Agent任务成功率）
 
 ### Wall-clock加速分析
 
@@ -853,12 +850,12 @@ Wall-clock加速（14.2× prefill, 7.6× decoding）低于FLOPs降低（28.4×�
 
 ### 质量保持：Agent任务
 
-Agent工作流任务（多轮对话、工具调用、状态维护）同样报告MSA与GQA持平。这类任务的特点是：
+论文只报告Agent任务（τ2-bench、AgentCompany、HLE、SWE-bench）的PPL，并显示MSA与GQA接近；论文未报告多轮对话/工具调用等任务成功率。这类任务的特点是：
 - 需要跨越数万token的交互历史
 - 需要精确检索早期工具调用的结果
 - 需要保持长期的任务状态
 
-MSA在这些任务上匹配GQA，证明其稀疏注意力不破坏Agent的关键能力。
+MSA在这些任务上的PPL匹配GQA，说明其稀疏注意力不破坏Agent任务的建模质量（但这不是任务成功率的证据）。
 
 ---
 
@@ -868,43 +865,31 @@ MSA在这些任务上匹配GQA，证明其稀疏注意力不破坏Agent的关键
 
 Block size（$B_k$）是MSA的关键超参数，决定块选择的粒度。
 
-论文对不同block size进行消融，但**未在提供的材料中明确给出具体数值**。消融结论为：存在最优block size，太大导致选择粒度过粗，太小导致selection overhead增加。
+论文在Table 4中对$B_k=32/64/128$进行消融：PPL几乎不变（TAU2均为1.176；AgentCompany为1.266/1.276/1.266；HLE为1.299/1.299/1.300；SWE均为1.233），RULER-8K为72.5/72.8/73.8，RULER-32K为66.1/65.3/64.6。论文结论是block size影响有限，可使用更大的block以提升kernel效率，而非"存在最优block size"。
 
 ### Top-k Selection消融
 
 Top-k（每个query选中的block数）是另一个关键超参数。
 
-论文对不同k值进行消融，但**未在提供的材料中明确给出具体数值**。消融结论为：k值需要在计算效率和质量之间权衡，k太小导致丢失重要信息，k太大导致FLOPs降低不明显。
+论文未报告top-k的质量消融；Table 1只改变$k=16/32$测量选择延迟。k太大或太小对质量的影响论文未给出实验数据。
 
 ### KL Loss Weight消融
 
 KL loss权重λ控制Index Branch与Main Branch的对齐程度。
 
-论文未明确给出λ具体值。
-
-消融结论：
-- λ太小（如λ=0.01）：Index Branch学习不足，block选择质量差
-- λ太大（如λ=0.5）：KL loss主导LM loss，影响语言建模能力
-- λ取值：在block选择质量和语言建模能力之间取得平衡（论文通过消融确定）
+论文未明确给出λ具体值，也未报告λ的数值扫描。Appendix B.3仅定性指出：较大的KL系数下，偶发的KL梯度尖峰会传入backbone，导致梯度范数尖峰并在数百步内出现LM loss发散（Figure 8）；在从Index Branch输入处停止KL梯度后，同样的系数下训练保持稳定。
 
 ### 其他消融
 
-论文还可能进行了其他消融（如Indexer Warmup iterations、Gradient Detach策略等），但**未在提供的材料中给出详细数据**。
+论文还报告了其他消融：梯度来源（LM/KL，Figure 7）、KL梯度detach（Figure 8-9）、Indexer Warmup（Figure 10-11）、可学习attention sink（Figure 12-13）、FLOP-matched sliding window对比（Figure 14）、forced sink & local selection（Table 5）、Index Branch value head（Table 6）。
 
 ---
 
-## 5.4 Scaling分析
+## 5.4 规模与上下文扩展分析
 
-MSA在不同模型规模上的表现是关键问题：小模型上的经验能否扩展到大模型？
+MSA在不同规模上的表现是关键问题。论文的实验规模为：109B主实验，以及Appendix B中用于消融的10B pilot模型（16层、d_model=2048）。
 
-论文给出scaling curve结论：**MSA在多个模型尺寸上跟踪GQA的性能曲线**。
-
-这意味着：
-- 小模型上的MSA质量结论能推广到大模型
-- 109B MoE上的验证结果代表MSA的实际能力
-- MSA的架构设计具有规模不变性
-
-Scaling分析涵盖的模型尺寸论文未明确给出，可能包括从数B到100B+的多个模型规模。
+论文**未提供跨模型尺寸的scaling curve或scaling-law分析**，也未给出规模不变性的证据。Figure 4展示的是随上下文长度（32k/512k/1M）的FLOPs与延迟变化，而非随模型尺寸的变化。因此不能据此断言小模型经验可推广到大模型。
 
 ---
 
@@ -1210,8 +1195,8 @@ MSA仓库依赖以下第三方项目：
 - 某些corner case可能需要完整注意力
 
 **GQA依赖性**：
-- MSA架构基于GQA，不直接兼容MHA或MQA
-- 从MHA迁移需要先转换为GQA
+- MSA面向GQA设计；MHA/MQA是GQA在$G=1$/$G=H_q$时的特例，原理上可套用，但论文未做实验验证
+- 论文未测试MHA/MQA骨干上的MSA
 - 转换过程可能引入额外质量损失
 
 ---
@@ -1248,7 +1233,7 @@ MSA仓库依赖以下第三方项目：
 
 **FlashAttention** (Dao et al., 2022): IO-aware注意力算法，通过tiling减少HBM访问。
 - **与MSA关系**：MSA复用FlashAttention的tiling策略和kernel设计模式
-- **区别**：FlashAttention仍是$O(N^2)$，MSA降至$O(N \cdot k \cdot B_k)$
+- **区别**：FlashAttention仍是$O(N^2)$，MSA的Main Branch注意力降至$O(N \cdot k \cdot B_k)$，但Index Branch块打分仍为$O(N^2)$
 
 **FlashAttention-2/3**：进一步优化tensor core利用和work distribution。
 - **与MSA关系**：MSA的KV-outer kernel借鉴了FA-2/3的tensor core优化
@@ -1338,7 +1323,7 @@ MSA仓库依赖以下第三方项目：
 
 ## 参考文献
 
-1. Lai, X., Xu, W., Yang, Y., Chen, Q., Xu, Y., Zeng, L., Li, X., Sun, H., Zhu, H., Zhang, V., & Zhao, P. (2026). MiniMax Sparse Attention (MSA). arXiv:2606.13392.
+1. Lai, X., Xu, W., Yang, Y., Chen, Q., Xu, Y., Zeng, L., Li, X., Sun, H., Zhu, H., Zhang, V., Hu, J., Li, J., Gao, R., Li, Z., Zhu, S., Zhou, J., & Zhao, P. (2026). MiniMax Sparse Attention (MSA). arXiv:2606.13392.
 
 2. Dao, T., et al. (2022). FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness. NeurIPS 2022.
 

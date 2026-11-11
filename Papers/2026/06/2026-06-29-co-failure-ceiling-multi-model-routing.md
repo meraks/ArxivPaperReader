@@ -22,7 +22,7 @@
 
 $$\beta = \Pr[\text{所有 } m \text{ 个模型在 query } x \text{ 上同时出错}]$$
 
-β 是选择型编排策略准确性的不可逾越上限。更关键的是，β 无法被 ρ 唯一识别（见 Proposition 3），因此基于 ρ 估计收益的方法在结构上是不可靠的。论文用 Clopper–Pearson 下界把一份带标签的留出评测集转化为"零成本证书"（\$0 certificate）：在训练任何 router 之前即可给出该系统所能达到的最大增益的下界。
+β 是选择型编排策略准确性的不可逾越上限。更关键的是，β 无法被 ρ 唯一识别（见 Proposition 3），因此基于 ρ 估计收益的方法在结构上是不可靠的。论文用 Clopper–Pearson 下界把一份带标签的留出评测集转化为"零成本证书"（\$0 certificate）：在训练任何 router 之前即可给出该系统所能达到的最大增益的上界（即对收益可行性的保守判定）。
 
 ### 1.4 关键贡献
 
@@ -77,7 +77,7 @@ $$\beta = \Pr[\text{所有 } m \text{ 个模型在 query } x \text{ 上同时出
 - ρ 刻画两两模型错误之间的线性相关。
 - β 刻画全部 $m$ 个模型同时错误的极端联合事件。
 
-一个关键事实是 Gaussian copula 具有**零尾部依赖（zero tail dependence）**：尽管它能匹配成对相关性 ρ，却几乎不产生极端联合失效事件。因此，任何以 ρ（或基于 Gaussian copula 拟合 ρ）为输入估计 β 的方法，都会系统性低估共失效尾部——且低估幅度随模型池规模 $m$ 增长而发散（见 Proposition 2）。在开放数学题上，单因子 Gaussian copula 给出的 $\beta_{\text{sf}}=0.021$ 相对真实 $\beta=0.052$ 低估约 2.5 倍（90% CI 1.7–3.4）。
+一个关键事实是 Gaussian copula 具有**零尾部依赖（zero tail dependence）**：尽管它能匹配成对相关性 ρ，却几乎不产生极端联合失效事件。因此，以 ρ 标定的单因子 Gaussian copula 会系统性低估共失效尾部，且低估幅度随模型池规模 $m$ 增长而发散（Proposition 2）；更一般地，任何仅依赖成对统计量的方法都无法识别 β（Proposition 3）。在开放数学题上，单因子 Gaussian copula 给出的 $\beta_{\text{sf}}=0.021$ 相对真实 $\beta=0.052$ 低估约 2.5 倍（90% CI 1.7–3.4）。
 
 ### 2.4 相关工作回顾
 
@@ -167,7 +167,7 @@ $$\beta \not\in \sigma(\text{一维边缘}, \text{二维边缘})$$
 
 ### 4.1 实验设置
 
-实验在 67 个前沿模型、21 个提供商的池上展开，覆盖 GPT-5.5、Claude Opus 4.8、Gemini 3.1 Pro、Grok-4.3、DeepSeek V4、Qwen3.7-Max、Kimi K2.7 等。任务域分三类：开放数学（MATH-500，n=330）、执行代码（code_contests）、科学问答（GPQA-Diamond）。
+实验分两层展开：Pillar A–C 在 15 个前沿模型、9 个提供商的池上进行（饱和混合 + MMLU-Pro）；市场级共失效与双区制测量扩展到 67 个前沿模型、21 个提供商。模型覆盖 GPT-5.5、Claude Opus 4.8、Gemini 3.1 Pro、Grok-4.3、DeepSeek V4、Qwen3.7-Max、Kimi K2.7 等。任务域分三类：开放数学（MATH-500，市场级 n=330）、执行代码（code_contests，18 个模型）、科学问答（GPQA-Diamond，52 个完整覆盖模型）。
 
 实证围绕三个支柱组织：
 
@@ -203,11 +203,11 @@ Naive heterogeneous voting 在 455 个三元组上的均值增益为负：HARD �
 
 ### 4.4 Pillar C：级联
 
-Cascade 以弱模型先答、verifier 判定、不确定时再调用强模型的方式运作。其调用量节省上限为
+Cascade 以弱模型先答、verifier 判定、不确定时再调用强模型的方式运作。其强模型调用量相对随机混合可降至
 
 $$\text{Volume ceiling} = 1 - a_L/a_H = 0.188$$
 
-其中 $a_L$、$a_H$ 分别为弱、强模型准确率。级联收益对 verifier 质量高度敏感：
+（即约节省 81% 的强模型调用），其中 $a_L$、$a_H$ 分别为弱、强模型准确率。级联收益对 verifier 质量高度敏感：
 
 - Verifier AUC = 0.899 → cascade 优势 0.121
 - Verifier AUC = 0.51 → cascade 优势仅 0.012
@@ -251,7 +251,7 @@ MATH-500 上，单因子 Gaussian copula 预测 $\beta_{\text{sf}} = 0.021$，�
 | Realizability-bound | 低 | 高 | 选择题 GPQA（β < 0.03） | 上限宽松，router 有发挥空间 |
 | Ceiling-bound | 高 | 低 | 开放数学 / 代码 / 自由回答（β = 0.052–0.127） | β 锁死收益，增加模型无效 |
 
-在 ceiling-bound 区制，准确率被 $1-\beta$ 钉死，任何选择型编排都无法突破；在 realizability-bound 区制，瓶颈转为 router 的可实现性（learned router 仅捕获 9%）。
+在 ceiling-bound 区制，准确率被 $1-\beta$ 钉死，任何选择型编排都无法突破；在 realizability-bound 区制，瓶颈转为 router 的可实现性（该区制未训练 router，捕获能力仍开放；在 15-model 饱和混合池上，learned router 仅捕获 G 的 9%）。
 
 ---
 
@@ -259,7 +259,7 @@ MATH-500 上，单因子 Gaussian copula 预测 $\beta_{\text{sf}} = 0.021$，�
 
 ### 5.1 为什么 β 而非 ρ 应成为核心指标
 
-ρ 是当前多模型系统的事实标准，但它只刻画"平均两两共变"。β 关心的是"尾部共同失效"——所有模型同时倒下的查询。Proposition 3 证明二者解耦：相同 ρ 可对应不同 β，而真正决定收益上限的是 β。Pillar A 数据进一步显示，SATURATED 池 ρ=0.464 与 HARD 池 ρ=0.382 的差异，远小于二者在 G（0.044 vs 0.120）和尾部 β 上的差异——ρ 既无法预测上限，也无法预测 router 的可捕获空间。
+ρ 是当前多模型系统的事实标准，但它只刻画"平均两两共变"。β 关心的是"尾部共同失效"——所有模型同时倒下的查询。Proposition 3 证明二者解耦：相同 ρ 可对应不同 β，而真正决定收益上限的是 β。Pillar A 数据进一步显示，SATURATED 池 ρ=0.464 与 HARD 池 ρ=0.382 的差异，远小于二者在 G（0.044 vs 0.120）上的差异，而两池的尾部 β 几乎相同（0.033 vs 0.030）——ρ 既无法预测上限，也无法预测 router 的可捕获空间。
 
 ### 5.2 β 的测量：Clopper–Pearson 分位数
 
@@ -295,7 +295,7 @@ MATH-500 上，单因子 Gaussian copula 预测 $\beta_{\text{sf}} = 0.021$，�
 
 ### 6.2 局限性
 
-- **模型快照有限**：仅覆盖 2 次模型快照，无法刻画前沿模型快速迭代下 β 的演化轨迹
+- **模型快照有限**：仅使用少数带日期快照（论文未给出快照次数），无法刻画前沿模型快速迭代下 β 的演化轨迹
 - **任务域有限**：仅限数学 / 代码 / 科学三类，多语言、长上下文、多步推理链等域未覆盖
 - **策略范围**：选择型编排排除了 fusion 类（MoA 等输出级集成）。上限 $1-\beta$ 仅当"输出为成员答案之一"时成立；fusion 可合成新答案，不受此天花板约束——论文结论不能直接外推到生成式融合
 - **代码发布方式**：论文附录 C 声明公开全部结果矩阵与可执行分析脚本，但非传统 GitHub 仓库，且 arXiv PDF 不含外部链接；当前检索未确认公开访问 URL

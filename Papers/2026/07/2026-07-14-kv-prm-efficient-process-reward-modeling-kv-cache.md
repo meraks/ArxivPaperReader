@@ -5,7 +5,7 @@
 > **arXiv ID**：2607.09153
 > **发表时间**：2026-07-10
 > **许可协议**：CC BY 4.0
-> **代码开源**：❌ 未提供
+> **代码开源**：✅ https://github.com/KrumperIsOK/KV-PRM（摘要声明；NeurIPS 检查表第 5 项称代码与适配器将在接收后发布）
 > **实验模型**：Qwen3-0.6B / 4B / 8B（thinking mode 关闭）
 > **Benchmark**：MATH, GSM8K, AIME 2024, AIME 2025
 > **搜索算法**：Beam Search, MCTS, Weighted Voting
@@ -37,7 +37,7 @@ Process Reward Model (PRM) 在引导 test-time scaling (TTS) 搜索时，传统 
 | 延迟降低 | $15\times$ ~ $37\times$ |
 | 内存减少 | $34.2\times$ |
 
-在 MAS 轨迹 $L \approx 5000$ 时，单次 KV-PRM 评分仅需 4.6ms（8B 模型），而 Text-PRM 需 172.0ms。
+在 MAS 轨迹 $L \approx 5000$ 时，每次评分 FLOPs 减少 $\sim 5{,}000\times$；在 8B 模型 $L = 4096$ 时，单次 KV-PRM 评分仅需 4.6ms，而 Text-PRM 需 172.0ms。
 
 ### 论文图表总览
 
@@ -50,7 +50,7 @@ Process Reward Model (PRM) 在引导 test-time scaling (TTS) 搜索时，传统 
 | **Table 2** | Sequential MAS 主结果（GSM8K + AIME 2025） | 第 5 章 |
 | **Table 3** | Hierarchical MAS 结果 | 第 5 章 |
 | **Table 4** | KV Steering 结果（无搜索） | 第 6 章 |
-| **Table 5** | 训练超参数 | 附录 A |
+| **Table 7** | 训练超参数 | 附录 A |
 
 KV-PRM 核心创新在于用 $O(dL)$ 的验证成本（单 verify token 前向传播）取代传统 Text-PRM 的 $O(dL^2)$（完整轨迹重编码），实现三个数量级的 FLOPs 降低，同时保持或超越评分质量。
 
@@ -317,7 +317,7 @@ KV-PRM 的评分函数 $f_{\theta+\Delta\theta}$ 对 KV cache 可微——这一
 | AIME 2025 | Qwen3-8B | 13.33 | **16.67** | +3.33 |
 
 **关键发现**：
-- 在**无搜索**的条件下，KV Steering 持续提升准确率
+- 在**无搜索**的条件下，KV Steering 在多数配置下提升准确率（AIME 2025 / Qwen3-4B 持平）
 - MATH：+1.6pp（4B）/ +1.2pp（8B）
 - AIME 2024/2025（8B）：均 +3.3pp
 - 虽然仍属初步探索，但证明 KV-native 架构为推理时优化开辟了超越搜索的全新方向
@@ -332,7 +332,7 @@ PRM 为数学推理提供步骤级监督，由 Lightman et al. (2023) 开创性�
 
 ### 7.2 LLM-based Multi-Agent Systems
 
-多 agent 系统已被探索用于辩论框架 (Du et al., 2023)、协作问题求解 (Li et al., 2023) 和结构化流水线 (Hong et al., 2024)。MASPRM (Yazdani et al., 2025) 首次为多 agent 系统引入使用 text-based 评分的 PRM。**KV-PRM 直接解决了 MASPRM 的 text-based 方法在 test-time search 中产生的计算瓶颈。**
+多 agent 系统已被探索用于辩论框架 (Du et al., 2023)、协作问题求解 (Li et al., 2023) 和结构化流水线 (Hong et al., 2024)。MASPRM (Yazdani et al., 2025) 为多 agent 系统引入使用 text-based 评分的 PRM。**KV-PRM 直接解决了 MASPRM 的 text-based 方法在 test-time search 中产生的计算瓶颈。**
 
 ### 7.3 KV-Cache Methods
 
@@ -352,7 +352,7 @@ KV-PRM 通过单个 verify-token 前向传播在生成器的已有 KV cache 上�
 
 ### 8.2 局限性
 
-- **架构约束**：生成器和验证器需共享相同架构，KV cache 方可直接复用
+- **架构约束**：生成器和验证器需共享相同架构，KV cache 方可直接复用（跨架构 cache adapter 只能部分放宽该约束，见原文附录 E.2）
 - **理论假设**：核心理论（Proposition 1、Theorem 2）依赖 Linear Representation Hypothesis（Assumption 1）和 Low-Rank Reward Structure（Assumption 2）；若实际模型偏离这些假设，结论的适用性需进一步验证
 - **KV Steering 的初步性**：KV Steering 目前仅为 proof-of-concept，需更多研究以在实际场景中验证其有效性
 - **训练数据分布**：训练数据通过 MCTS 在 MATH 训练集上生成，可能限制对其他领域的泛化
@@ -365,7 +365,7 @@ KV-PRM 通过单个 verify-token 前向传播在生成器的已有 KV cache 上�
 
 ## 附录 A：训练超参数
 
-**Table 5：KV-PRM 和 Text-PRM 的训练超参数**
+**Table 7：KV-PRM 和 Text-PRM 的训练超参数**（原文附录 B.1）
 
 | Hyperparameter | KV-PRM | Text-PRM |
 |---------------|--------|----------|

@@ -107,7 +107,7 @@ TTPO 不使用任何标签，却在三个规模上全部超过使用 GT 标签�
 | +OPSD-TTT | 71.7 | 47.2 | 72.2 | 63.7 |
 | +TTPO | **73.9** | **48.5** | **73.6** | **65.3** |
 
-TTPO 在三个规模上均为最优；经过 TTT 的 Qwen3-4B（61.1）已超过未训练的 Qwen3-8B base（60.7）。OPSD-TTT（把伪标签直接喂给 OPSD 蒸馏的天真方案）全面落后于 TTPO，量化了伪标签错误的代价。
+TTPO 在三个规模上均为最优；经过 TTT 的 Qwen3-4B（61.1）已超过未训练的 Qwen3-8B base（60.7）。OPSD-TTT（以模型自身 temperature-0 思考模式输出作为特权信息做自蒸馏）全面落后于 TTPO，表明 TTPO 通过负样本上的选择性 RL 惩罚额外提取了更多信号。
 
 **无思考模式（Table 7，thinking disabled）：**
 
@@ -123,7 +123,7 @@ TTPO 在三个规模上均为最优；经过 TTT 的 Qwen3-4B（61.1）已超过
 | 8B +OPSD† | 25.0 | 14.2 | 22.2 | 19.9 | 37.8 | 23.8 |
 | 8B +TTPO | 67.8 | 42.5 | 65.0 | 41.2 | 67.2 | 56.7 |
 
-TTPO 相对 base 的绝对提升为：1.7B +25.2、4B +30.6、8B +36.4 个百分点。收益来源在于 TTPO 的 teacher 为 thinking-on、student 为 thinking-off 的配置，训练过程本身就完成了一次思考能力向无思考模式的迁移。
+TTPO 相对 base 的绝对提升为：1.7B +25.2、4B +30.6、8B +36.4 个百分点。OPSD 与 TTPO 都使用 thinking-on teacher，因此增益差异来自非对称目标：负样本上的 GRPO 分支直接惩罚学生自身生成中的错误推理，而 OPSD 的纯蒸馏只是被动对齐 teacher。
 
 **其他速览：**
 
@@ -158,7 +158,7 @@ OPSD（On-Policy Self-Distillation）系列工作将监督粒度细化到 token 
 
 把伪标签直接接入 OPSD 式蒸馏是看似自然的下一步——用伪标签 $\hat{a}$ 条件化 teacher，即可获得 token 级监督。但论文测量表明这条路极其脆弱：在竞赛级问题上，多数投票伪标签约 **85% 是错的**。错误的 $\hat{a}$ 会污染 answer-conditioned teacher 的整个输出分布，蒸馏过程随之把错误信息写入每一个 token——一个错误标签不是被稀释，而是被放大成整条序列的稠密错误监督。
 
-这正是天真方案失效的机制：Table 2 中的 OPSD-TTT（1.7B 平均 41.9）虽高于 TTRL（40.2），但显著低于 TTPO（45.2）——稠密监督的收益被标签噪声的放大效应部分抵消。
+这正是天真方案失效的机制。Table 2 中的 OPSD-TTT 是另一类基线——以模型自身 temperature-0 思考模式输出为特权信息做自蒸馏，而非伪标签蒸馏；它（1.7B 平均 41.9）虽高于 TTRL（40.2），但显著低于 TTPO（45.2），差距来自 TTPO 额外利用负样本的选择性 RL 惩罚。
 
 ### 2.3 非对称性动机：85% 错误的标签，与 79% 也错的分歧者
 
@@ -217,8 +217,8 @@ TTPO 在两条分支中分别引入了与分支性质匹配的 token 级选择�
 |---|---|
 | 优化 | LR 5e-6；max grad norm 0.1（OPSD/TTPO）；batch 32；steps 100（OPSD/TTPO）/ 500（GRPO/TTRL） |
 | LoRA | r = 64，α = 128，全部线性层（q/k/v/o/gate/up/down proj） |
-| 采样 | $K$ = 64 rollouts/题；$K_{\text{train}}$ = 8（50% 正 50% 负）；temp 1.1（TTPO/OPSD）/ 1.2（GRPO/TTRL）；top-p 0.95；top-k 20；max gen 16000 token |
-| 梯度 | 仅回传 completion 前 1024 个 token |
+| 采样 | $K$ = 64 rollouts/题；$K_{\text{train}}$ = 8（50% 正 50% 负）；temp 1.1（TTPO/OPSD）/ 1.2（GRPO/TTRL）；top-p 0.95、top-k 20（仅 OPSD/TTPO；GRPO/TTRL 不启用）；max gen 16000 token |
+| 梯度 | OPSD/TTPO 仅回传 completion 前 1024 个 token（GRPO/TTRL 的最大梯度 token 数为 16,000） |
 | 正则 | GRPO KL β = 0.0；JSD token clip τ = 0.05（1.7B/4B）/ 0.06（8B） |
 | 评估 | thinking enabled，12 samples，temp 1.0，top-p 0.95，max 38912 token，指标 Avg@12 |
 | 硬件 | TTPO 4×H20（其余 8×H20），bf16 + Flash Attention 2，全词表 logit 蒸馏 |
@@ -250,7 +250,7 @@ $$p_t = \pi_\theta\!\left(\,\cdot \mid x_{\text{student}},\, y_{<t}\,\right) \qq
 | Answer | **46.5** (39.8) | 33.6 (6.7) |
 | Trajectory | 41.1 (8.9) | 40.8 (10.6) |
 
-*表注：括号内数值为论文 Table 4 原表附带数据，论文正文未标注其含义。* answer privilege 配合 thinking-on teacher 达到最优 46.5；而 thinking-off teacher 下加 answer privilege 反而崩到 33.6——错误标签在无思考 teacher 中无法转化为有效监督。
+*表注：括号内数值为关闭思考模式（thinking disabled）的评估结果。* answer privilege 配合 thinking-on teacher 达到最优 46.5；而 thinking-off teacher 下加 answer privilege 仅得 33.6——非思考 teacher 与学生的分布差距本就很小，短答案几乎不改变其分布。
 
 ### 3.3 正样本分支：OPSD 蒸馏 + Soft-OR token 加权（Eq 3–4）
 
@@ -473,7 +473,7 @@ Figure 3（Qwen3-1.7B TTT，AIME26）对比了正/负样本信号组合：
 
 ### 5.3 特权信息消融
 
-Table 4（Qwen3-1.7B）对比了 teacher 不同特权信息与教师模式（括号内数值为论文原表附带数据，论文正文未标注其含义）：
+Table 4（Qwen3-1.7B）对比了 teacher 不同特权信息与教师模式（括号内数值为 thinking disabled 的评估结果）：
 
 | 特权信息 | 思考模式 teacher | 非思考 teacher |
 |:---------|:----------------:|:--------------:|

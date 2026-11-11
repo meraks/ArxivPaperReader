@@ -3,7 +3,7 @@ title: "TRACER: Turn-level Regret Matching with Inner Reinforcement Credit for C
 authors: Chusen Li et al.
 arxiv: "https://arxiv.org/abs/2605.28699"
 code: "https://github.com/Shark-Forest/TRACER"
-date: 2026-05-28
+date: 2026-05-27
 keywords: [Multi-Agent LLM, Regret Matching, Reinforcement Learning, Cooperative Reasoning, Game Theory, GSPO]
 ---
 
@@ -28,8 +28,8 @@ keywords: [Multi-Agent LLM, Regret Matching, Reinforcement Learning, Cooperative
 
 当前主流多智能体推理方法可分为两类：
 
-1. **固定协议方法**（如 MAD、Multi-Agent Debate）：预定义发言轮次和辩论规则，无法根据具体问题自适应调整。MAD 需要 6 个 agent 参与，每次推理消耗约 5909 tokens，但准确率仅 0.8862（GSM8K）。
-2. **朴素 RL 方法**（如 MAGRPO）：将单智能体 RL 直接迁移到多智能体场景，忽视了多智能体特有的信用分配（credit assignment）问题，导致 GSM8K 准确率暴跌至 0.696。
+1. **固定协议方法**（如 MAD、Multi-Agent Debate）：预定义发言轮次和辩论规则，无法根据具体问题自适应调整。MAD 需要 3 个 agent、平均 6.00 次模型调用，每次推理消耗约 5909 tokens，但准确率仅 0.8862（GSM8K）。
+2. **朴素 RL 方法**（如 MAGRPO）：直接采用多智能体 RL 训练，未充分处理多智能体特有的信用分配（credit assignment）问题，导致 GSM8K 准确率暴跌至 0.696。
 
 ### 为什么需要 TRACER
 
@@ -41,7 +41,7 @@ TRACER 的提出正是为了弥合博弈论、强化学习和多智能体 LLM �
 提出 Controller-Regret Layer 和 Generation-Credit Layer 的双层设计，将"何时发言"与"如何发言"解耦，分别优化。
 
 **2. 二元行动空间的后悔值匹配**
-将每个智能体的行动空间简化为 `{speak, skip}`，使得有限行动博弈论的理论可以直接应用，并证明了 $O(1/\sqrt{M})$ 的收敛速率到相关均衡（Correlated Equilibrium）。
+将每个控制器的行动空间简化为 `{speak, skip}`（智能体本身仍生成自由文本），使得有限行动博弈论的理论可以直接应用，并证明了 $O(1/\sqrt{M})$ 的收敛速率到相关均衡（Correlated Equilibrium）。
 
 **3. 角色特定奖励的 GSPO 算法**
 为提议者（Proposer）和审查者（Reviewer）设计独立的奖励函数，结合 Group Sequence Policy Optimization（GSPO），解决了奖励混叠和搭便车问题。
@@ -103,7 +103,7 @@ $$r_{\text{reviewer}} = \begin{cases} +1 & \text{if judgment is correct} \\ -1 &
 
 $$A_i^{(j)} = \frac{r_i^{(j)} - \mu_i}{\sigma_i + \epsilon}$$
 
-其中 $\mu_i$ 和 $\sigma_i$ 是同组候选的优势均值和标准差。
+其中 $\mu_i$ 和 $\sigma_i$ 是同组候选奖励 $r_i^{(j)}$ 的均值和标准差。
 
 **GSPO 损失函数**：
 
@@ -246,13 +246,14 @@ TRACER 的效率分析：
 | 移除组件 | 准确率变化 | Token 变化 | 调用次数变化 |
 |----------|-----------|-----------|-------------|
 | 审查者 | -6.60% | +1,201 | +1.98 |
+| 审查者控制器 | -3.19% | +445 | +0.79 |
 | 提议者控制器 | -7.51% | +498 | +0.91 |
 | 审查者 GSPO | -7.06% | +381 | +0.62 |
 | 提议者 GSPO | -6.98% | +376 | +0.56 |
 | 投票状态 | -2.73% | +288 | +0.30 |
 | 迭代状态 | -4.93% | +371 | +0.53 |
 
-**洞察**：每个组件都对性能有正向贡献。提议者控制器的影响最大（-7.51%），说明**学会何时发言**比**学会说什么**更关键。审查者的移除导致 token 消耗剧增（+1,201），因为没有审查者的质量把关，提议者需要更多轮次才能收敛到正确答案。
+**洞察**：每个组件都对性能有正向贡献。在 Qwen2.5-7B 上提议者控制器的影响最大（-7.51%）；但审查者侧移除 GSPO（-7.06%）的影响大于移除审查者控制器（-3.19%），因此不能一概而论“学会何时发言比学会说什么更关键”。审查者的移除导致 token 消耗剧增（+1,201），因为没有审查者的质量把关，提议者需要更多轮次才能收敛到正确答案。
 
 ## 五、关键发现与洞察
 
@@ -275,11 +276,11 @@ TRACER 最巧妙的设计是将行动空间限制为 `{speak, skip}` 两个选�
 
 ### 5.3 跨域泛化的启示
 
-TRACER 仅在 GSM8K（初等数学）上训练，但在 MATH500（竞赛数学）和 GPQA-Diamond（研究生级别推理）上也展现出竞争力。这表明：
+TRACER 仅在 GSM8K（初等数学）上训练，但在 MATH500（竞赛数学）和 GPQA-Diamond（研究生级别推理）上也展现出竞争力。论文只报告了三个基准上的准确率与推理成本，未对跨域提升的机制做分析；以下为报告作者的推测：
 
-- 学会**何时协作**比学会**解决特定问题**更具泛化性
-- 控制策略（后悔值匹配）捕获的是**元认知能力**（metacognition），而非领域知识
-- GPQA-Diamond 上 0.3535 的准确率（远超 MAGRPO 的 0.0189）说明自适应协作在跨域任务中尤为重要
+- 学会**何时协作**可能比学会**解决特定问题**更具泛化性
+- 控制策略（后悔值匹配）可能捕获的是**元认知能力**（metacognition），而非领域知识
+- GPQA-Diamond 上 0.3535 的准确率（远超 MAGRPO 的 0.0189）可能与自适应协作在跨域任务中的作用有关
 
 ### 5.4 实践建议
 
@@ -295,7 +296,7 @@ TRACER 仅在 GSM8K（初等数学）上训练，但在 MATH500（竞赛数学�
 ### 优势
 
 1. **理论扎实**：$O(1/\sqrt{M})$ 的收敛保证和博弈论基础，这在多智能体 LLM 文献中较为罕见
-2. **效率极高**：~3 次调用、~1000 tokens 的推理成本远低于所有竞争方法
+2. **效率极高**：~3 次调用、~1000 tokens 的推理成本低于非 RL 与多智能体基线（如 MAD、Self-Consistency）；但单智能体 GRPO/GSPO 约 250 tokens、1 次调用，推理成本更低
 3. **设计优雅**：双层架构将"何时"和"如何"干净地分离，各层有独立的优化目标
 4. **工程可行**：使用 LoRA + 中等规模模型即可训练，实验设置对业界友好
 5. **消融完整**：6 项消融实验清晰展示了每个组件的贡献

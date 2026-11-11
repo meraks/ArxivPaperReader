@@ -30,7 +30,7 @@ Transformer的注意力头（Attention Head）在学习过程中如何自发分�
 
 **贡献4：引入Discrepancy度量严格量化泛化差异**
 
-Discrepancy是一个新颖的理论工具，用于度量位置机制和符号机制在长序列上的鲁棒性差异。理论分析表明：位置机制的误差随序列长度L线性增长（或更差），而符号机制的误差上界独立于L，仅依赖于词汇表大小和跳数。
+Discrepancy是一个新颖的理论工具，用于度量位置机制和符号机制在长序列上的鲁棒性差异。理论分析（Theorem 3.2）给出：Index 的 Discrepancy 上界为 $\min\{1-\cos\theta,\ 2\pi^2/n^2\}$（随长度 $n$ 增大而收紧），Retrieval 的上界为 $1-\cos(\omega-n\theta)$（$\theta=0$ 即 NoPE 时与长度无关）；论文据此论证符号机制对长序列更稳健。
 
 > **类比理解**：Discrepancy就像"数数"和"认字"两种能力的差异度量——让你在100页书中找"第7页→第23页→第41页"（位置推理，页数越多越容易翻错）vs 找"标题含'苹果'→标题含'香蕉'→标题含'橙子'"（符号推理，只要认字就不会出错）。
 
@@ -142,15 +142,15 @@ $\text{AttnLogits}(\pi(x)) = \pi(\text{AttnLogits}(x))$
 **序列结构**：
 ```
 [target window (字母)]  [instruction window (跳转指令)]
-  A B C D E F G H I J    3 1 4 2
+  C A F E B D G H I J    3 1 4 1 2 3 2
 ```
 
 **跳转规则**：
 1. 从最后一个token（位置16，值为2）开始
-2. 往回跳2步 → 位置14，值为4
-3. 往回跳4步 → 位置10，值为1
-4. 往回跳1步 → 位置9，值为"B"
-5. "B"是字母 → 终止，答案=B
+2. 往回跳2步 → 位置14，值为2
+3. 往回跳2步 → 位置12，值为4
+4. 往回跳4步 → 位置8，值为"I"
+5. "I"是字母 → 终止，答案=I
 
 **形式化定义**（来自Appendix B.1）：
 - 输入 $\sigma_{\text{Num}}$ 包含字母区段 $s_1,...,s_{n_1}$（目标窗口）和整数区段 $j_1,...,j_{n_2}$（指令窗口）
@@ -158,34 +158,34 @@ $\text{AttnLogits}(\pi(x)) = \pi(\text{AttnLogits}(x))$
 - 连锁偏移规则：每一步 $i$，偏移量为 $j_{k_i}$，下一位置 $k_{i+1} = k_i - j_{k_i}$
 - 终止于字母 $s_{n_2 - j_{k_{HL}} + 1}$
 
-**关键区分**：$k_i$ 是序列中的**位置索引**，$j_{k_i}$ 是该位置上的**整数值**（作为偏移量）。公式 $k_{i+1} = k_i - j_{k_i}$ 表示"从位置 $k_i$ 往回跳 $j_{k_i}$ 步"。
+**关键区分**：$k_i$ 是**指令窗口（整数子序列 $j_1,...,j_{n_2}$）中的索引**，完整序列中的位置为 $n_1+k_i$；$j_{k_i}$ 是该位置上的**整数值**（作为偏移量）。公式 $k_{i+1} = k_i - j_{k_i}$ 表示"在整数子序列中往回跳 $j_{k_i}$ 步"。
 
 ```
-示例（4-hop Number Task）:
+示例（3-hop Number Task）:
 位置:  0   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15  16
-Token: C   A   F   E   B   D   G   H   I   J   3   1   4  -1   2  -2   2
+Token: C   A   F   E   B   D   G   H   I   J   3   1   4   1   2   3   2
                            target window ↑      ↑ instruction window
 Hop 1: 位置16→值2, 往回2步→位置14→值2
-Hop 2: 位置14→值2, 往回2步→位置12→值4  
-Hop 3: 位置12→值4, 往回4步→位置8→值为正(终止条件检查)...
-→ 答案: token序列中的字母
+Hop 2: 位置14→值2, 往回2步→位置12→值4
+Hop 3: 位置12→值4, 往回4步→位置8→字母I（终止）
+→ 答案: I
 
-(注: 具体跳转逻辑在原始论文Appendix B.1中有完整形式化)
+(注: 上例按 Figure 1 的直观跳转方式（在当前/落点 token 上直接回跳）；Appendix B.1 的形式化用 $k_i$ 索引整数子序列。)
 ```
 
 ### 3.3 Letter Task：符号推理
 
 **序列结构**：
 ```
-[target window (字母pair)]    [instruction window (字母pair)]
-  (A,X) (B,Y) (C,Z) (D,W)      (E,C) (F,D) (G,B) (H,A)
+[target window (字母-数字pair)]    [instruction window (字母-字母pair)]
+  (A,3) (B,1) (C,2) (D,4)           (F,A) (E,C) (D,E) (G,D)
 ```
 
 **跳转规则**：
-1. 从最后一个pair (H,A) 开始
-2. 第二个字母是A → 找到前面第一个字母为A的pair → (A,X)
-3. (A,X)的第二个字母是X → 找前面的pair → ...
-4. 或者更典型的：从(F,D)开始，D→找(D,W)，W可能再无匹配→终止
+1. 从最后一个pair (G,D) 开始
+2. 第二个字母是D → 向前找到第一个字母为D的pair → (D,E)
+3. (D,E)的第二个字母是E → 向前找到第一个字母为E的pair → (E,C)
+4. (E,C)的第二个字母是C → 向前找到第一个字母为C的pair → 目标窗口的 (C,2)（字母-数字pair）→ 终止
 
 **形式化定义**（来自Appendix B.2）：
 - 输入 $\sigma_{\text{Let}}$ 包含pairs $(s_i,w_i)$（目标窗口）和 $(x_i,y_i)$（指令窗口）
@@ -195,11 +195,11 @@ Hop 3: 位置12→值4, 往回4步→位置8→值为正(终止条件检查)...
 ```
 示例（3-hop Letter Task）:
 位置:  0        1        2        3        4        5        6        7
-Token: (A,X)   (B,Y)   (C,D)   (E,F)   (G,C)   (H,E)   (I,B)   (J,A)
+Token: (A,3)   (B,1)   (C,2)   (D,4)   (F,A)   (E,C)   (D,E)   (G,D)
         target window →                ← instruction window →
-Hop 1: 位置7=(J,A)→A匹配→位置0=(A,X)
-Hop 2: 位置0的第二字母X→X无匹配→或→
-(注: 更典型的例子见论文Appendix B.2)
+Hop 1: 位置7=(G,D)→D匹配→位置6=(D,E)
+Hop 2: 位置6=(D,E)→E匹配→位置5=(E,C)
+Hop 3: 位置5=(E,C)→C匹配→位置2=(C,2)（字母-数字pair）→终止，答案=(C,2)
 ```
 
 ### 3.4 训练设置
@@ -214,7 +214,7 @@ Hop 2: 位置0的第二字母X→X无匹配→或→
 | 跳数范围 | 1-4 hops，均衡分布 |
 | 词汇量 | Number: 136 tokens (120字母+16整数); Letter: 128 tokens (64+64 pairs) |
 | 数据划分 | Train 90% / Val 0.5% / Test 9.5% |
-| 训练硬件 | 未明确指定（12层GPT-J可在标准GPU上训练） |
+| 训练硬件 | AMD EPYC 7282 16核 + 3× NVIDIA RTX A5000 24GB（Appendix I） |
 
 ### 3.5 两个任务的关键差异
 
@@ -239,7 +239,7 @@ Hop 2: 位置0的第二字母X→X无匹配→或→
 - 此时准确率接近随机水平
 
 **分化阶段**（训练中期）：
-- 各层的注意力头开始分化：某些头positional分数上升+symbolic分数下降（纯化），或反之
+- 各层的注意力头开始分化：某些头保持高positional并使symbolic分数下降（纯化为位置型），或反之（纯化为符号型）
 - 分化的速度和方向与任务需求相关
 
 **收敛阶段**（训练后期）：
@@ -300,21 +300,19 @@ Hop 2: 位置0的第二字母X→X无匹配→或→
 
 **实现方式**：
 - 可通过位置方式（关注自己的位置）或符号方式（关注与自己相同内容的token）
-- 训练模型倾向于符号实现——因为符号方式方差更小、更稳定
-- 通常出现在中间层，作为信息传递的"管道"
+- 训练模型经验上选择符号实现——论文仅指出这是由 positional-symbolic 分数显示的非平凡经验观察，并未给出方差/稳定性解释
+- 通常出现在 Index/Retrieval 之后的后续层，作为信息传递的"管道"
 
 ### 4.4 操作在各层中的分布
 
-通过分析每层注意力头的分数和功能，作者发现：
+通过信息流分析，作者发现两个任务分别由以下操作序列构成：
 
-| 层 | Number Task | Letter Task |
-|----|------------|-------------|
-| Layer 1-3 | Reflexive（信息传播） | Reflexive |
-| Layer 4-6 | Selective Index 雏形 | Reflexive → Retrieval 过渡 |
-| Layer 7-9 | Selective Index (纯化) | Retrieval (纯化) |
-| Layer 10-12 | Symbolic 决策头 | Retrieval 强化 |
+| 阶段 | Number Task | Letter Task |
+|------|------------|-------------|
+| Index/Retrieval 阶段 | Selective Index（最多 h 次；示例中位于 Layer 0、1、3） | Retrieval（最多 h 次） |
+| Reflexive 阶段 | Reflexive（传播已检索的 token） | Reflexive（传播已检索的 token） |
 
-> **关键洞察**：Positional操作在**中间层**出现（位置信息最为活跃），Symbolic操作在**后层**集中（内容信息累积到足够区分度）。
+> **关键洞察**：论文的信息流分析给出的是每个任务内部的操作序列，而非论文未逐层验证的固定层号表：Number Task 为 $h$ 次 Selective Index 后接 Reflexive 传播，Letter Task 为 $h$ 次 Retrieval 后接 Reflexive 传播。Retrieval 属于 Letter Task，不出现在 Number Task 的层表中。
 
 ---
 
@@ -346,9 +344,9 @@ $(q^{(m)})^T k^{(n)} = \sum_j q_{2j:2j+1}^T R((m-n)\theta_j) k_{2j:2j+1}$
 
 1. **Query设计**：$q$ 被编码为在位置 $m$ 处"寻找相对位置为 $d$ 的token"的向量
 2. **Key设计**：$k$ 被编码为"我是在位置 $n$ 的字母token"
-3. **RoPE贡献**：旋转后 $q$ 和 $k$ 的相位差为 $(m-n)\Theta$
+3. **RoPE贡献**：定理构造使用二维、**单一频率** $\theta$ 的 RoPE（所有 key 取同一向量 $v$，query 按当前偏移旋转），使 logit 形如 $\cos((m-n-d)\theta)$。
 
-当 $m-n = d$ 时，旋转抵消，内积最大化。当 $m-n \neq d$ 时，旋转产生相位差，内积减小（尤其在低频分量上——因为低频分量旋转慢，相位差不明显；但高频分量的快速旋转确保了对精确位置的敏感性）。
+当 $m-n = d$ 时，$\cos(0)=1$，内积最大化；当 $m-n \neq d$ 时，内积下降。一般多头 RoPE 才有多个频率分量，本文的可行性构造不使用多频率分散。
 
 **几何解释**：
 
@@ -359,12 +357,12 @@ $(q^{(m)})^T k^{(n)} = \sum_j q_{2j:2j+1}^T R((m-n)\theta_j) k_{2j:2j+1}$
            ↓                            ↓
        R(mΘ)q                       R(nΘ)k
            \                          /
-            \   相对旋转=(m-n)Θ     /
+            \   相对旋转=(m-n-d)θ   /
              \____________________/
-                    内积 ∝ cos((m-n)θ)
+                    内积 ∝ cos((m-n-d)θ)
                     
-当 m-n = d 时：某些频率维度上的cos((m-n)θ)=cos(0)=1 → 峰值
-当 m-n ≠ d 时：不同频率维度的cos值分散 → 非峰值
+当 m-n = d 时：cos(0)=1 → 峰值
+当 m-n ≠ d 时：内积的 cos 值下降 → 非峰值
 ```
 
 ### 5.3 Retrieval的理论实现
@@ -404,20 +402,16 @@ $(q^{(m)})^T k^{(n)} = \sum_j q_{2j:2j+1}^T R((m-n)\theta_j) k_{2j:2j+1}$
 完整的4-hop推理可以通过这三类操作的组合实现：
 
 ```
-Layer 1-3 (Reflexive):         [A] [B] [C] [1] [2] [3] [4] → [A] [B] [C] [1] [2] [3] [4]
-                                  ↑ 信息原封不动地传播
-
-Layer 4-6 (Selective Index):   [A] [B] [C] [1] [2] [3] [4] → [A] [B] [C] [1] [2] [3] [C]
+Layer 0-3 (Selective Index):    [A] [B] [C] [1] [2] [3] [4] → [A] [B] [C] [1] [2] [3] [C]
                                                                               ↑ 跳回3步取C
-
-Layer 7-9 (Selective Index):   [A] [B] [C] [1] [2] [3] [C] → [A] [B] [C] [1] [2] [3] [B]
+                                → [A] [B] [C] [1] [2] [3] [B]
                                                                            ↑ 从C再跳回1步取B
 
-Layer 10-12 (Retrieval):       [A] [B] [C] [1] [2] [3] [B] → [A] [B] [C] [1] [2] [3] [B]
-                                  ↑ 符号匹配确认最终答案
+Layer 4+  (Reflexive):          [A] [B] [C] [1] [2] [3] [B] → [A] [B] [C] [1] [2] [3] [B]
+                                  ↑ 已检索到的答案在后继层中传播
 ```
 
-每层执行一次跳转，多层堆叠完成连锁推理。这是Transformer作为"迭代推理机"的微缩模型。
+每层可执行一次跳转，前 h 层完成连锁索引，之后各层以 Reflexive 传播结果。这是Transformer作为"迭代推理机"的微缩模型。
 
 ---
 
@@ -425,31 +419,31 @@ Layer 10-12 (Retrieval):       [A] [B] [C] [1] [2] [3] [B] → [A] [B] [C] [1] [
 
 ### 6.1 Discrepancy的形式化定义
 
-**直觉**：在长序列中，位置机制的注意力分布会逐渐"漂移"（因为位置偏移的累积误差），而符号机制的注意力分布保持稳定。Discrepancy量化了这种差异的核心度量——它衡量的是给定输入序列时，positional head和symbolic head的注意力logits中**最大候选与次大候选之间的差距差异**：
+**直觉**：对单个注意力头，Discrepancy 衡量其 logits 能否把正确 token 与干扰项分开；当它随输入长度增大而变小时，模型就会开始犯错误。论文将注意力头的 Discrepancy 定义为：
 
-$\text{Disc}(L) = \max_{x \in \mathcal{X}_L} \left| (z_{\max} - z_{(2)})_{\text{pos}} - (z_{\max} - z_{(2)})_{\text{sym}} \right|$
+$\Delta(L) = \max_{x \in \mathcal{X}_L} \left( z_{\max}(x) - z_{(2)}(x) \right)$
 
-其中 $z_{\max}$ 和 $z_{(2)}$ 分别是在长度为 $L$ 的序列上注意力logits的最大值和次大值，$\mathcal{X}_L$ 是所有可能输入序列的集合。本质上，Discrepancy衡量的是两种机制中"正确答案相对于干扰项的区分度差距"——当这个差距随 $L$ 增大时，模型就会开始犯错误。
+其中 $z_{\max}$ 和 $z_{(2)}$ 分别是在长度为 $L$ 的输入上该头注意力logits的最大值和次大值，$\mathcal{X}_L$ 是所有长度为 $L$ 的输入集合。Theorem 3.2 分别给出 Index 与 Retrieval 构造的 Discrepancy 上界，从而量化两种机制对长序列的鲁棒性差异。
 
-> **类比理解**：想象两个人在长走廊里找房间——A靠数门牌号（位置机制），B靠认门上的标志（符号机制）。走廊越长，A越容易数错（分布漂移），B始终准确（分布稳定）。Discrepancy度量了"数门牌号的人"和"认标志的人"在走廊尽头得到不同答案的可能性。
+> **类比理解**：想象两个人在长走廊里找房间——A靠数门牌号（位置机制），B靠认门上的标志（符号机制）。走廊越长，A越容易数错（分布漂移），B始终准确（分布稳定）。Discrepancy度量的是单个头在走廊尽头还能否把正确房间与干扰房间分开——对位置机制，走廊越长这个差距越小。
 
 ### 6.2 理论界分析
 
-**位置机制的Error Bound**：
+**位置机制（Index）的界**：
 
-对于Number Task，设序列长度为 $L$，跳数为 $H$。每个hop的位置偏移量从 $\{1,...,L\}$ 中选取。注意力分布中非目标位置的"泄露"概率至少为：
+Theorem 3.2 给出，对长度 $n>1$ 的输入，Index 构造的 Discrepancy 满足
 
-$\varepsilon_{\text{pos}}(L) \geq 1 - \prod_{h=1}^{H} \left(1 - \frac{c}{L}\right) \approx \frac{cH}{L} \quad \text{（当L较大时）}$
+$\Delta_{\text{Index}}(n) \leq \min\left\{1-\cos\theta,\ \frac{2\pi^2}{n^2}\right\}$
 
-关键在于：**误差随跳数H线性增长，且对序列长度L的依赖不可消除**。
+其中 $\theta$ 是构造中 RoPE 使用的单一角度。随着序列长度 $n$ 增大，$2\pi^2/n^2$ 项收紧，Discrepancy 被迫变小——正确 token 与次大 logit 的差距变小，模型因此更容易出错。注意该界不含跳数 $H$ 项。
 
-**符号机制的Error Bound**：
+**符号机制（Retrieval）的界**：
 
-对于Letter Task，注意力分布的准确性仅依赖于词汇表中符号的可区分性：
+对 Retrieval，令 $\omega = 2\pi/|\text{ALPH}|$ 且 $\theta < \omega/(2n_0)$，则
 
-$\varepsilon_{\text{sym}}(L) \leq H \cdot \frac{1}{|V|}$
+$\Delta_{\text{Retrieval}}(n) \leq 1-\cos(\omega-n\theta)$
 
-其中 $|V|$ 是词汇表大小。**此上界与L无关**——无论序列多长，只要符号足够可区分，匹配就不会失败。
+在 NoPE 特殊情形 $\theta=0$ 下，上界退化为常数 $1-\cos\omega$，与 $n$ 无关——只要符号可区分，长序列下匹配不会额外退化。（$\theta>0$ 时界仍含 $n\theta$。）
 
 ### 6.3 为什么符号机制更稳健
 
@@ -458,7 +452,7 @@ $\varepsilon_{\text{sym}}(L) \leq H \cdot \frac{1}{|V|}$
 | 维度 | 位置机制 | 符号机制 |
 |------|---------|---------|
 | 误差来源 | 多个键竞争注意力（相近位置的token） | 多个键竞争注意力（相同值或相近值的token） |
-| 误差与L的关系 | $\propto H/L$，随L增大而增大 | 独立于L |
+| Discrepancy 与L的关系 | $\min\{1-\cos\theta, 2\pi^2/L^2\}$，随 L 增大而收紧 | $1-\cos(\omega-L\theta)$；$\theta=0$ 时与 L 无关 |
 | 极限情况 | $L \to \infty$ 时，注意力完全分散 | $L \to \infty$ 时，注意力仍集中在匹配token上 |
 
 **深层原因**：RoPE的高频分量在短序列上提供精确位置判别力，但这些高频在长序列上会与多个位置产生相近的旋转角度（因周期性），导致"位置混淆"。相比之下，符号匹配仅依赖内容的低频嵌入，不会被周期性困扰。
@@ -469,7 +463,7 @@ $\varepsilon_{\text{sym}}(L) \leq H \cdot \frac{1}{|V|}$
 
 1. **Letter Task可泛化到远超训练长度的序列**——理论上泛化上限仅受词汇混淆度约束
 2. **Number Task几乎不泛化**——在2×训练长度时就会出现明显退化
-3. **在所有基于Transformer的模型中，符号操作应始终优于位置操作的长度泛化**——这是RoPE的内在性质
+3. **在受控单头模型与所测前沿 LLM 中，符号操作的长度泛化优于位置操作**——论文将其作为 RoPE 机制的强证据，但未证明适用于所有 Transformer/RoPE 模型（单头设置与有限词表是明确局限）
 
 ---
 
@@ -482,14 +476,14 @@ $\varepsilon_{\text{sym}}(L) \leq H \cdot \frac{1}{|V|}$
 在训练过程中，每个注意力头的positional/symbolic分数呈现出清晰的分化轨迹：
 
 **Number Task**（需要Positional + Symbolic混合）：
-- 早期（epoch 1-5）：所有层显示高positional+高symbolic（伪混合态，实为均匀注意力）
-- 中期（epoch 5-20）：Layer 7-9的positional分数开始上升，symbolic分数下降——这些层开始"专精"于位置偏移
-- 后期（epoch 20+）：Layer 10-12保持高symbolic/低positional，形成明确的分工格局
+- 训练开始时所有层显示高positional+高symbolic（伪混合态，实为均匀注意力；Figure 2B 中表现为高熵）
+- 随训练步数增加（Figure 2B/6 横轴为 training steps，约 0-6000），各层分数开始分化：部分头纯化为 positional，部分纯化为 symbolic
+- 论文报告准确率收敛时两类头都达到纯化；Figure 2B 只展示 Layer 1、5、11，Appendix E/Figure 6 给出所有层
 - **准确率拐点**与分化收敛点高度吻合
 
 **Letter Task**（仅需Symbolic）：
-- 整个过程positional分数持续下降
-- Symbolic分数在Layer 10-12持续上升
+- 训练中 positional 分数下降；在较深层（如 Layer 11）symbolic 分数上升并纯化
+- 最后一层（Layer 11）出现每个 hop 条件都依赖的关键 symbolic head
 - 没有层出现positional专精（因为没有必要）
 
 #### 学习曲线分析
@@ -504,7 +498,7 @@ Number Task学习曲线（概念示意图）:
  50% │            ┌─────┘
      │      ┌─────┘               ← 1-hop最快学会
  25% │┌────┘
-     └────────────────────────────────→ Epoch
+     └────────────────────────────────→ Training steps
      
 Letter Task学习曲线:
 准确率
@@ -513,7 +507,7 @@ Letter Task学习曲线:
  75% │   ┌─────┘
      │┌──┘
  50% │
-     └────────────────────────────────→ Epoch
+     └────────────────────────────────→ Training steps
 ```
 
 ### 7.2 长度泛化实验
@@ -531,7 +525,7 @@ Letter Task学习曲线:
 | 680 (40×) | ~92% (近似) | ~25% (近似) |
 | 850 (53×, 原文确认) | >90% (原文) | ~20% (近似) |
 
-> ⚠️ **数据来源说明**：除标注"(原文)"的值外，其余为基于论文摘要中"850 tokens (53×训练长度) >90%准确率"等原文信息的趋势重建，精确数值参见原文 Table 3 (Appendix H)。
+> ⚠️ **数据来源说明**：除标注"(原文)"的值外，其余为基于论文中"850 tokens (53×训练长度) >90%准确率"等原文信息的趋势重建；受控模型的长度泛化曲线见 Figure 5B（测试长度延伸到 5000）。Table 3 是前沿 LLM 的 1-hop 实验（长度 12-300），不含 17→850 的受控模型数值。
 
 **关键发现**：
 - Letter Task在53倍训练长度上保持>90%准确率——**在17 tokens上训练，可以在850 tokens上推理**
@@ -556,12 +550,12 @@ Letter Task学习曲线:
 **实验设计**：
 - 使用prompt engineering将Number Task和Letter Task的1-hop变体描述给LLM
 - 测量在不同序列长度下的准确率
-- 不进行任何微调（zero-shot评估）
+- 不进行微调，但每题 prompt 含自然语言说明与 few-shot 示例（并非 zero-shot）
 
 **结果一致性**：
 - 所有三个模型在Letter Task（符号推理）上的长度泛化显著优于Number Task（位置推理）
 - 位置推理的退化模式在所有模型中相似：序列越长，退化越明显
-- 这一致性表明：符号 > 位置的泛化差异**不是某个特定模型架构的产物，而是RoPE + Attention机制的内禀性质**
+- 这一致性表明：符号 > 位置的泛化差异在受控模型与所测前沿 LLM 上一致出现；论文据此认为它反映了 RoPE 机制的普遍倾向，但受限于单头设置与有限词表，尚不能断言适用于所有 Transformer/RoPE 模型
 
 ### 7.4 与ICLR 2026前置工作的对照
 
@@ -579,7 +573,7 @@ Letter Task学习曲线:
 
 ### 8.1 仓库结构
 
-官方代码：https://github.com/furrutiav/positional-and-symbolic-iclr2026（ICLR 2026 Poster，3 commits，MIT License）
+本文实验代码：论文脚注给出 `number-and-letter-neurips26-C754`；下文结构参考前置工作仓库 https://github.com/furrutiav/positional-and-symbolic-iclr2026（ICLR 2026 Poster）。
 
 ```
 positional-and-symbolic-iclr2026/
@@ -588,7 +582,7 @@ positional-and-symbolic-iclr2026/
 ├── models/
 │   └── hybrid_retrieval/  # GPT-J模型实现（含RoPE）
 ├── viz/            # 可视化（注意力分数热力图等）
-├── LICENSE         # MIT
+├── LICENSE
 └── README.md
 ```
 
@@ -607,9 +601,10 @@ def generate_number_task_sequence(num_hops: int, seq_len: int = 17):
     """
     import random
     
-    # 字母词汇表（120个）
-    letters = [chr(i) for i in range(65, 65+26)]  # A-Z
-    letters = letters * 5  # 扩展到120个（允许重复）
+    # 字母词汇表（120个）：26 个单字母 + 94 个 bigram（aa…dp）
+    letters = [chr(i) for i in range(ord('a'), ord('z')+1)]  # 26 个单字母 a-z
+    letters += [chr(a)+chr(b) for a in range(ord('a'), ord('e'))
+                for b in range(ord('a'), ord('z')+1)][:94]  # 94 个 bigram（aa…dp）
     
     # 整数词汇表（用于偏移量，范围1到seq_len-1）
     offsets = list(range(1, seq_len))
@@ -641,14 +636,15 @@ def generate_letter_task_sequence(num_hops: int, seq_len: int = 17):
     """
     import random
     
-    # Pair词汇表：64个 (letter, letter) pairs作为目标
+    # Pair词汇表：目标为 64 个 (letter, integer) pairs；指令为 64 个 (letter, letter) pairs
     letters = [chr(i) for i in range(65, 65+8)]  # A-H, 8个字母
-    # 生成64个独特的pair（8×8）
-    all_pairs = [(l1, l2) for l1 in letters for l2 in letters]
+    numbers = list(range(1, 9))  # INT = {1,...,8}
+    target_vocab = [(l, n) for l in letters for n in numbers]       # ALPH × INT
+    instr_vocab = [(l1, l2) for l1 in letters for l2 in letters]    # ALPH × ALPH
     
     # 构建目标窗口
     n_target = seq_len // 2
-    target_pairs = random.sample(all_pairs, min(n_target, len(all_pairs)))
+    target_pairs = random.sample(target_vocab, min(n_target, len(target_vocab)))
     
     # 构建hop链：从最后一对逆向构建
     # 每对指令的第二个字母 = 前一对的第一个字母
@@ -769,23 +765,24 @@ def compute_positional_symbolic_scores(
 
 ### 8.5 训练脚本要点
 
-训练使用标准的自回归语言模型损失（cross-entropy on last token）。根据原文Appendix C.2，模型配置为hidden_dim=128（非标准GPT-J的768），训练总时长54分59秒（两个模型合计），Letter Task单独训练26分29秒。
+训练使用标准的自回归语言模型损失（cross-entropy on last token）。根据原文 Appendix C.2，模型配置为 hidden_dim=128（非标准 GPT-J 的 768）；训练时长见 Appendix I（Table 4）：总时长 54 分 59 秒（两个模型合计），Letter Task 单独训练 26 分 29 秒。
 
 ```bash
 # ⚠️ 概念重建命令（基于论文Appendix C/I的参数，非官方代码）
-# 训练参数来自原文描述:
+# 原文给出的配置（Appendix C.2）:
 # - hidden_dim=128 (非标准768)
-# - 总训练时间: 54min 59sec (两个模型)
+# - 训练时长: 54min 59sec (两个模型, Appendix I)
+# - batch_size/lr/num_epochs/rope_base 原文未报告，以下为示例默认值
 python models/hybrid_retrieval/train.py \
     --task number \          # 或 letter
     --num_layers 12 \
     --num_heads 1 \          # 每层1头（简化设计）
     --hidden_dim 128 \       # 原文 Appendix C.2
     --seq_len 17 \
-    --batch_size 64 \
-    --lr 3e-4 \
-    --num_epochs 50 \
-    --rope_base 10000 \
+    --batch_size 64 \        # 假设默认值（原文未报告）
+    --lr 3e-4 \              # 假设默认值（原文未报告）
+    --num_epochs 50 \        # 假设默认值（原文未报告）
+    --rope_base 10000 \      # 假设默认值（原文未报告）
     --data_dir data/ \
     --save_dir checkpoints/
 ```
@@ -845,7 +842,7 @@ Discrepancy的当前界可能不是最紧的——特别是位置机制的误差
 
 ## 总结
 
-本文通过精巧的**双任务对比设计**（Number Task vs Letter Task），揭示了Transformer注意力头从"混合态"到"纯化态"的学习动态，识别了三种基本操作，并给出了基于RoPE几何的自洽理论构造。Discrepancy度量的引入为"符号机制的长度泛化优于位置机制"这一经验现象提供了严格的数学解释，前沿LLM的一致验证进一步确认了这是RoPE+Attention机制的内禀性质，而非特定模型的产物。
+本文通过精巧的**双任务对比设计**（Number Task vs Letter Task），揭示了Transformer注意力头从"混合态"到"纯化态"的学习动态，识别了三种基本操作，并给出了基于RoPE几何的自洽理论构造。Discrepancy度量的引入为"符号机制的长度泛化优于位置机制"这一经验现象提供了严格的数学解释，前沿LLM的一致验证进一步支持这反映了RoPE+Attention机制的普遍倾向，而非特定模型的产物；但论文的单头设置与有限词表仍是明确局限。
 
 **核心takeaway**：当我们训练一个Transformer时，注意力头自发地学会分工——一些头成为"位置导航员"（精确但不可扩展），另一些成为"符号识别员"（粗放但可扩展）。这种分工是人类不在训练过程中显式指定的，但它是高效推理的必要条件。
 

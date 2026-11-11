@@ -103,7 +103,7 @@ MMBench2 在 MMBench \[Hansen et al., 2026\]（200 任务在线 RL 基准，提�
 
 模型遵循 Dreamer 4 的两阶段范式：先训练 video tokenizer（基于掩码自编码），再在冻结 tokenizer 产出的空间 latent token 上训练基于 block-causal Transformer、用 shortcut flow-matching 训练的 dynamics 模型。总参数 350M，由三部分构成。
 
-**Tokenizer（2×50M ≈ 100M）**。非对称 encoder–decoder Transformer。Encoder 对 224×224 帧以 stride 14 做 patchify（每帧 256 个 patch token），前置 64 个可学习 latent query，将 latent 流投影到 **tanh 限制的 64 维 bottleneck**，得到每帧 code $z \in [-1,1]^{64\times 64}$（即 4,096 维 latent/帧）。Decoder 仅依据 latent code 重建图像。训练目标为掩码重建 \[He et al., 2022\]：每帧从 $U(0,0.9)$ 采样被掩码 patch 比例并替换为可学习 mask token，损失（pixel MSE + LPIPS \[Zhang et al., 2018\]）仅在掩码位置计算。Table 12 的超参数：embedding dim 512、heads 8、depth 12、MLP ratio 4、latent 数 64、bottleneck dim 64、MAE keep range \[0.1, 1.0\]、LPIPS 权重 0.2。Encoder 与 Decoder 各 50M 参数。
+**Tokenizer（2×50M ≈ 100M）**。对称 encoder–decoder Transformer。Encoder 对 224×224 帧以 stride 14 做 patchify（每帧 256 个 patch token），前置 64 个可学习 latent query，将 latent 流投影到 **tanh 限制的 64 维 bottleneck**，得到每帧 code $z \in [-1,1]^{64\times 64}$（即 4,096 维 latent/帧）。Decoder 仅依据 latent code 重建图像。训练目标为掩码重建 \[He et al., 2022\]：每帧从 $U(0,0.9)$ 采样被掩码 patch 比例并替换为可学习 mask token，损失（pixel MSE + LPIPS \[Zhang et al., 2018\]）仅在掩码位置计算。Table 12 的超参数：embedding dim 512、heads 8、depth 12、MLP ratio 4、latent 数 64、bottleneck dim 64、MAE keep range \[0.1, 1.0\]、LPIPS 权重 0.2。Encoder 与 Decoder 各 50M 参数。
 
 **Dynamics model（~230M，含预测头共 250M）**。block-causal Transformer，每个 timestep 的输入序列为 `[ACTION×1, SHORTCUT×1, SPATIAL×32, REGISTER×4, AGENT×4]`：action token 由 16 维 padded action 经 2 层 MLP 得到；shortcut-conditioning token 拼接离散化噪声水平 σ 与步长 $d=1/2^{step}$ 两路嵌入；spatial token 是经 factor k=2 空间打包后的 latent（(64,64)→(32,128)，把空间轴注意力成本减半、通道维翻倍，decode 时做逆解包）；register token \[Darcet et al., 2024\] 为 4 个可学习 "sink" token；agent token 由逐任务 CLIP 嵌入广播到时间轴初始化，作为 reward/BC 头的读出。Table 12：embedding dim 1024、heads 8、depth 16、MLP ratio 4、self-consistency fraction 0.25、context corruption τ_ctx=0.1。模型以 shortcut flow-matching \[Frans et al., 2025\] 训练，下一帧采样**最少 4 个 Euler 子步**即可完成（实现配置见 §3.3）。
 
@@ -165,7 +165,7 @@ $m$ 取数据集上的逐任务平均，或在线数据收集时取 running esti
 
 ### 4.4 相关性证据（详见 §5）
 
-Section 5.1 计算开环 rollout ΔPSNR 与各预测器的 Spearman 相关：三者在 9k 条 held-out 24 帧序列上均呈强负相关，$u_{\mathrm{norm},r}$ ρ=−0.81、$u_{\mathrm{norm},f}$ ρ=−0.79、$u_{\mathrm{norm},s}$ ρ=−0.80（Figure 5；论文正文与摘要概括为 ρ≈−0.80），说明三者追踪同一底层误差。Appendix E（Table 7）的逐任务 AUROC 进一步证实：归一化版本**一致优于未归一化版本**（如 raw $u_f$ 仅 0.752/0.854）及依赖 latent 场景运动 $m$、逐任务帧数的基线（frame-count 基线仅 0.596/0.534）。
+Section 5.1 计算开环 rollout ΔPSNR 与各预测器的 Spearman 相关：三者在 9k 条 held-out 24 帧序列上均呈强负相关，$u_{\mathrm{norm},r}$ ρ=−0.81、$u_{\mathrm{norm},f}$ ρ=−0.79、$u_{\mathrm{norm},s}$ ρ=−0.80（Figure 5；论文正文与结论概括为 ρ≈−0.80），说明三者追踪同一底层误差。Appendix E（Table 7）的逐任务 AUROC 进一步证实：归一化版本**一致优于未归一化版本**（如 raw $u_f$ 仅 0.752/0.854）及依赖 latent 场景运动 $m$、逐任务帧数的基线（frame-count 基线仅 0.596/0.534）。
 
 ---
 
@@ -229,7 +229,7 @@ tokenizer 与 dynamics 都从中受益，**两者同时采用覆盖感知训练�
 
 （Tok_FT/Dyn_FT 列 ○ 表示仅预训练、● 表示已微调。）关键结论：预训练已具备一定零样本迁移能力（MPC 0.276，是 random 策略 0.118 的 2.3×）；**仅采 50 回合/任务、用 $u_{\mathrm{norm},r}$ 好奇心驱动收集，把 MPC 提升到 0.325，达到 expert/human 上界（0.362）的约 90%，且不使用任何特权行为**；All(combined) 进一步达到 0.390。
 
-**在线收集闭环**：在与 live 环境交互时，候选轨迹先在世界模型中 rollout，按预测幻觉打分，得分最高的轨迹在环境中执行，从而"按构造"覆盖此前引发幻觉的转移。论文以预测 horizon H=32、每 K=16 步重规划进行闭环收集。Figure 6/10 展示 no-op/random/expert/curiosity/human 五种策略在多任务上的状态密度差异。
+**在线收集闭环**：在与 live 环境交互时，候选轨迹先在世界模型中 rollout，按预测幻觉打分，得分最高的轨迹在环境中执行，从而"按构造"覆盖此前引发幻觉的转移。论文以预测 horizon H=32、每 K=16 步重规划进行闭环收集。Figure 6 展示 expert/curiosity/human 三种策略在两个任务上的状态密度差异，Figure 10 展示 no-op/random/expert/curiosity/human 五种策略在另外三个任务上的状态密度差异。
 
 ### 5.5 Q4 泛化：零样本 vs 微调，以及现成 tokenizer（Table 3）
 
